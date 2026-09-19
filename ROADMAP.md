@@ -172,3 +172,16 @@ The 3.2.5 baseline contains no Research implementation; public-web Research arri
 
 
 OLIVE was formerly named DMDO. See [the rebrand compatibility map](docs/OLIVE_REBRAND.md) for legacy profile, import, launcher and security identities. Historical evidence retains its original name.
+
+## OLIVE Connect
+
+- C1–C3: device identity, explicit pairing, permissions and opt-in authenticated local transport.
+- C4: [Devices workspace and trusted local Ask approvals](docs/OLIVE_CONNECT_C4.md). Desktop-to-desktop pairing transport remains a documented limitation; the UI presents real C2 sessions and supports synthetic-peer acceptance.
+- C5: structured record sync.
+- C6: file transfer.
+- C7: remote AI.
+- C8: remote Studio.
+- C9: OLIVE Mobile.
+- C10: remote/direct/relay.
+
+Future entries are not remotely callable capabilities in C4.
