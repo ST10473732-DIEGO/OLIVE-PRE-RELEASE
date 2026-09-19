@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "chunks": [
+    {"document_id":"manual","filename":"ProjectGuide.pdf","page":14,"chunk_index":0,"type":"pdf","content":"Configure the indexing scheduler with max_indexing_workers.","concepts":["concurrency","workers","queue"]},
+    {"document_id":"manual","filename":"ProjectGuide.pdf","page":19,"chunk_index":1,"type":"pdf","content":"Restore validates a ZIP manifest and creates a safety backup.","concepts":["recovery","archive","rollback"]},
+    {"document_id":"python","filename":"worker.py","chunk_index":0,"type":"python","content":"async def run_pending(): await scheduler.run_pending()","concepts":["asynchronous","queue","jobs"]},
+    {"document_id":"notes","filename":"notes.txt","chunk_index":0,"type":"text","content":"Ollama runs local inference without a paid API.","concepts":["offline","privacy","local-first"]},
+    {"document_id":"csv","filename":"metrics.csv","chunk_index":0,"type":"csv","content":"Recall measures relevant chunks retrieved while precision measures result focus.","concepts":["evaluation","ranking","quality"]},
+    {"document_id":"json","filename":"settings.json","chunk_index":0,"type":"json","content":"semantic_weight 0.65 lexical_weight 0.35 relevance_threshold 0.08","concepts":["hybrid","configuration","tuning"]},
+    {"document_id":"distractor","filename":"cooking.md","chunk_index":0,"type":"markdown","content":"Bake bread with flour water yeast and salt.","concepts":["recipe","oven"]},
+    {"document_id":"duplicate","filename":"copy.txt","chunk_index":0,"type":"text","content":"Restore validates a ZIP manifest and creates a safety backup.","concepts":["recovery","archive"]}
+  ],
+  "queries": [
+    {"query":"max_indexing_workers concurrency", "relevant":[["manual",0]]},
+    {"query":"safe archive recovery rollback", "relevant":[["manual",1]]},
+    {"query":"asynchronous queue jobs", "relevant":[["python",0]]},
+    {"query":"offline private inference", "relevant":[["notes",0]]},
+    {"query":"retrieval quality precision recall", "relevant":[["csv",0]]},
+    {"query":"hybrid tuning configuration", "relevant":[["json",0]]}
+  ]
+}

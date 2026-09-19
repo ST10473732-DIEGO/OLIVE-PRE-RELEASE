@@ -1,0 +1,41 @@
+[project]
+name = "olive-local-ai"
+version = "3.5.1.dev1"
+description = "OLIVE - private local desktop AI powered by Ollama"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx==0.28.1",
+  "winrt-Windows.Media.Control>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Foundation>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Foundation.Collections>=3.2.1,<4; sys_platform == 'win32'",
+  "Pillow>=11.2,<13",
+  "pywinauto>=0.6.9,<0.7; sys_platform == 'win32'",
+  "comtypes>=1.4.16,<2; sys_platform == 'win32'",
+  "pywin32>=311; sys_platform == 'win32'",
+  "psutil>=7,<8",
+  "beautifulsoup4>=4.13,<5",
+  "playwright>=1.55,<2",
+  "ddgs>=9,<10",
+  "PySide6>=6.10,<6.12",
+  "ollama>=0.6",
+  "pdfplumber>=0.11",
+  "pypdf>=5.0",
+  "python-docx>=1.1",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.scripts]
+olive = "olive.ui_qt.application:main"
+
+[tool.setuptools.packages.find]
+include = ["olive*", "dmdo"]
+
+[tool.setuptools.package-data]
+olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json"]

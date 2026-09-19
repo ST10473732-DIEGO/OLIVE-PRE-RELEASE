@@ -1,0 +1,6 @@
+{"version":"1.0","cases":[
+ {"answer":"The scheduler defaults to one worker.","sources":["The indexing scheduler defaults to one worker."],"expected":"strong"},
+ {"answer":"The scheduler defaults to one worker and automatically downloads models.","sources":["The indexing scheduler defaults to one worker."],"expected":"partial"},
+ {"answer":"Cloud services are mandatory for every request.","sources":["OLIVE uses local Ollama inference."],"expected":"weak"},
+ {"answer":"No context exists.","sources":[],"expected":"unavailable"}
+]}

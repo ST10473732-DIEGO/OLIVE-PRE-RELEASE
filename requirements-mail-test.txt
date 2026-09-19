@@ -1,0 +1,5 @@
+# Isolated loopback protocol acceptance only; not a production mail server.
+aiosmtpd==1.4.6
+atpublic==7.0.0
+attrs==26.1.0
+cryptography==50.0.1

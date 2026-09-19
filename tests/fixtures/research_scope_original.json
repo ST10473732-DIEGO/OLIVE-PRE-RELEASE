@@ -1,0 +1,157 @@
+{
+  "question": "Read only https://docs.python.org/3/library/unittest.html and explain what assertEqual checks. Use this public documentation as the sole source. site:docs.python.org",
+  "plan": {
+    "completion_conditions": [
+      "Provide a concise explanation of what unittest.TestCase.assertEqual checks, citing the official Python documentation as the sole source."
+    ],
+    "subquestions": [
+      "What comparison operator does assertEqual use?",
+      "Does assertEqual check for type equality or just value equality?",
+      "What is the behavior when the two values are not equal?",
+      "Are there any special cases or additional parameters for assertEqual?"
+    ],
+    "expected_evidence": [
+      "Link to the unittest documentation section describing assertEqual.",
+      "Direct quote or paraphrase from the docs explaining the comparison logic.",
+      "Examples from the docs illustrating equal and unequal cases."
+    ],
+    "search_queries": [
+      "unittest assertEqual documentation site:docs.python.org",
+      "unittest.TestCase.assertEqual behavior site:docs.python.org",
+      "Python unittest assertEqual example site:docs.python.org"
+    ],
+    "preferred_source_types": [
+      "official documentation"
+    ],
+    "objective": "Explain what assertEqual checks using only the public Python documentation.",
+    "freshness_requirement": "any"
+  },
+  "sources": [
+    {
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "title": "unittest — Unit testing framework",
+      "id": "d98b6478-5b44-4ca3-ae69-27b6e942ce93",
+      "domain": "docs.python.org",
+      "canonical_url": "https://docs.python.org/3/library/unittest.html",
+      "content_hash": "81a0b6af416f9778fd1d6d44d8576b040fc4b63a8c4892cc4bbf150a4930666f",
+      "retrieved_at": "2026-09-11T07:56:17+00:00",
+      "publication_date": null,
+      "updated_date": null,
+      "author": "",
+      "content_type": "text/html",
+      "status": "evidence",
+      "error": "",
+      "quality": {
+        "domain": "docs.python.org",
+        "has_author": false,
+        "publication_metadata": false,
+        "retrieved_at": "2026-09-11T07:56:17+00:00",
+        "source_type_hint": "documentation",
+        "primary_source": "not independently established",
+        "independent_corroboration": 0
+      },
+      "metadata": {
+        "origin": "explicit_user_url",
+        "depth": 0
+      },
+      "saved_source_id": null,
+      "duplicate_of": null,
+      "trust_label": "untrusted_web"
+    }
+  ],
+  "evidence": [
+    {
+      "source_id": "d98b6478-5b44-4ca3-ae69-27b6e942ce93",
+      "subquestion": "Does assertEqual check for type equality or just value equality?",
+      "claim": "The assertEqual() method dispatches the equality check for objects of",
+      "quote": "The assertEqual() method dispatches the equality check for objects of\nthe same type to different type-specific methods.  These methods are already\nimplemented for most of the built-in types, but it’s also possible to\nregister new methods using addTypeEqualityFunc() :",
+      "start": 38710,
+      "end": 38977,
+      "id": "77e1f411-8649-4aaa-ad9d-27e95fe355f4",
+      "score": 0.6666666666666666,
+      "created_at": "2026-09-11T07:56:17+00:00",
+      "metadata": {
+        "content_hash": "81a0b6af416f9778fd1d6d44d8576b040fc4b63a8c4892cc4bbf150a4930666f",
+        "relationship": "source_claim"
+      }
+    },
+    {
+      "source_id": "d98b6478-5b44-4ca3-ae69-27b6e942ce93",
+      "subquestion": "What is the behavior when the two values are not equal?",
+      "claim": "Registers a type-specific method called by assertEqual() to check",
+      "quote": "Registers a type-specific method called by assertEqual() to check\nif two objects of exactly the same typeobj (not subclasses) compare\nequal. function must take two positional arguments and a third msg=None\nkeyword argument just as assertEqual() does.  It must raise self.failureException(msg) when inequality\nbetween the first two parameters is detected – possibly providing useful\ninformation and explaining the inequalities in details in the error\nmessage.",
+      "start": 38979,
+      "end": 39437,
+      "id": "60c811e5-f1af-48c1-ae50-fdb17b3ec42c",
+      "score": 0.6666666666666666,
+      "created_at": "2026-09-11T07:56:17+00:00",
+      "metadata": {
+        "content_hash": "81a0b6af416f9778fd1d6d44d8576b040fc4b63a8c4892cc4bbf150a4930666f",
+        "relationship": "source_claim"
+      }
+    },
+    {
+      "source_id": "d98b6478-5b44-4ca3-ae69-27b6e942ce93",
+      "subquestion": "What is the behavior when the two values are not equal?",
+      "claim": "Test that the multiline string first is equal to the string second .",
+      "quote": "Test that the multiline string first is equal to the string second .\nWhen not equal a diff of the two strings highlighting the differences\nwill be included in the error message. This method is used by default\nwhen comparing strings with assertEqual() .",
+      "start": 39924,
+      "end": 40176,
+      "id": "68caf299-af8e-432d-9b0d-68dbb08c7dc3",
+      "score": 0.6666666666666666,
+      "created_at": "2026-09-11T07:56:17+00:00",
+      "metadata": {
+        "content_hash": "81a0b6af416f9778fd1d6d44d8576b040fc4b63a8c4892cc4bbf150a4930666f",
+        "relationship": "source_claim"
+      }
+    },
+    {
+      "source_id": "d98b6478-5b44-4ca3-ae69-27b6e942ce93",
+      "subquestion": "What is the behavior when the two values are not equal?",
+      "claim": "Tests that two lists or tuples are equal.  If not, an error message is",
+      "quote": "Tests that two lists or tuples are equal.  If not, an error message is\nconstructed that shows only the differences between the two.  An error\nis also raised if either of the parameters are of the wrong type.\nThese methods are used by default when comparing lists or tuples with assertEqual() .",
+      "start": 40602,
+      "end": 40895,
+      "id": "fb810983-ffa3-49d6-b99c-b26d3c3db127",
+      "score": 0.6666666666666666,
+      "created_at": "2026-09-11T07:56:17+00:00",
+      "metadata": {
+        "content_hash": "81a0b6af416f9778fd1d6d44d8576b040fc4b63a8c4892cc4bbf150a4930666f",
+        "relationship": "source_claim"
+      }
+    }
+  ],
+  "findings": [
+    {
+      "text": "assertEqual verifies that two objects are equal by dispatching the equality check to type‑specific methods; if no such method exists, it falls back to the objects’ __eq__ implementation (i.e., the == operator).",
+      "kind": "source_claim",
+      "evidence_ids": [
+        "77e1f411-8649-4aaa-ad9d-27e95fe355f4"
+      ]
+    },
+    {
+      "text": "When the two values are not equal, assertEqual raises a failureException and, for built‑in types such as strings, lists, and tuples, includes a diff that highlights the differences in the error message.",
+      "kind": "source_claim",
+      "evidence_ids": [
+        "60c811e5-f1af-48c1-ae50-fdb17b3ec42c",
+        "68caf299-af8e-432d-9b0d-68dbb08c7dc3",
+        "fb810983-ffa3-49d6-b99c-b26d3c3db127"
+      ]
+    },
+    {
+      "text": "The equality check is type‑sensitive: type‑specific methods can be registered to enforce that objects of exactly the same type compare equal, and mismatched types can trigger an error.",
+      "kind": "source_claim",
+      "evidence_ids": [
+        "77e1f411-8649-4aaa-ad9d-27e95fe355f4",
+        "60c811e5-f1af-48c1-ae50-fdb17b3ec42c"
+      ]
+    }
+  ],
+  "final_report": "# Read only https://docs.python.org/3/library/unittest.html and explain what assertEqual checks. Use this public documentation as the sole source. site:docs.python.org\n\nStatements below distinguish source claims and model inferences; citations identify the material read.\n\n- **Source Claim:** assertEqual verifies that two objects are equal by dispatching the equality check to type‑specific methods; if no such method exists, it falls back to the objects’ \\_\\_eq\\_\\_ implementation \\(i.e., the == operator\\). [S1](https://docs.python.org/3/library/unittest.html)\n- **Source Claim:** When the two values are not equal, assertEqual raises a failureException and, for built‑in types such as strings, lists, and tuples, includes a diff that highlights the differences in the error message. [S1](https://docs.python.org/3/library/unittest.html)\n- **Source Claim:** The equality check is type‑sensitive: type‑specific methods can be registered to enforce that objects of exactly the same type compare equal, and mismatched types can trigger an error. [S1](https://docs.python.org/3/library/unittest.html)\n\n## Sources\n\n- [S1] [unittest — Unit testing framework](https://docs.python.org/3/library/unittest.html) — retrieved 2026-09-11T07:56:17+00:00; published unknown",
+  "provenance": {
+    "review_commit": "cab8b76cdbe5083a18d10513ae6791f9705b6d95",
+    "original_artifact_sha256": "d3a8accca0e2f05756463d1878a2dc22fac47afa74e565dbf7cfee073cb3db24",
+    "classification": "Original live public Research output; preserved, not corrected in place",
+    "source_license": "Python documentation, PSF License: https://docs.python.org/3/license.html"
+  }
+}

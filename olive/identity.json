@@ -1,0 +1,12 @@
+{
+  "name": "OLIVE",
+  "slug": "olive",
+  "legacy_name": "DMDO",
+  "legacy_slug": "dmdo",
+  "version": "3.5.1.dev1",
+  "default_directory": ".olive",
+  "legacy_directory": ".dmdo",
+  "app_id": "local.dmdo.desktop",
+  "renderer_scheme": "dmdo",
+  "shell_directory": "electron-shell"
+}

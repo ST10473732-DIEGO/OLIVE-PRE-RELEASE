@@ -1,0 +1,71 @@
+{
+  "evidence": "LIVE LOCAL isolated Electron",
+  "startupMs": 400.27770000000237,
+  "navigationAutomationMs": [
+    148.55459999999948,
+    28.296000000002095
+  ],
+  "processes": [
+    {
+      "type": "Browser",
+      "memory": {
+        "workingSetSize": 116248,
+        "peakWorkingSetSize": 122296,
+        "privateBytes": 80308
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 0.675326,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "GPU",
+      "memory": {
+        "workingSetSize": 130228,
+        "peakWorkingSetSize": 141180,
+        "privateBytes": 221080
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 0.752267,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "Utility",
+      "memory": {
+        "workingSetSize": 44552,
+        "peakWorkingSetSize": 44552,
+        "privateBytes": 8376
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 0.053364,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "Tab",
+      "memory": {
+        "workingSetSize": 116968,
+        "peakWorkingSetSize": 116968,
+        "privateBytes": 57952
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 0.517542,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      }
+    }
+  ],
+  "combinedRss": {
+    "rssMiB": 502.5546875,
+    "processCount": 8
+  },
+  "zoomIsNotOSDpi": true,
+  "physicalGpuUsage": "NOT MEASURED",
+  "sandbox": true,
+  "reloadPreservedDraft": true,
+  "noActionReplay": true
+}

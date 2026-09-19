@@ -1,0 +1,7 @@
+{
+  "evidence": "LIVE LOCAL actual Ollama qwen3:8b",
+  "firstVisibleTokenMs": 21941.9771,
+  "cancelled": true,
+  "retained": true,
+  "externalMessagesSent": 0
+}

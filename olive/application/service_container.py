@@ -1,0 +1,324 @@
+from __future__ import annotations
+from pathlib import Path
+import logging
+from ..config import DATA_DIR, EMBEDDING_MODEL
+from ..models import Chat
+from ..services.chat_service import ChatService
+from ..services.document_service import DocumentService
+from ..services.ocr_service import OCRService
+from ..services.document_health_service import DocumentHealthService
+from ..services.ollama_service import OllamaService, choose_default_chat_model
+from ..services.model_registry import ModelCapabilityRegistry
+from ..services.rag_service import RAGService
+from ..storage import ChatRepository, IndexingJobRepository, MemoryRepository, SettingsRepository
+from ..services.indexing_job_service import IndexingJobService
+from ..services.memory_service import MemoryService
+from ..services.memory_suggestion_service import MemorySuggestionService
+from ..services.diagnostics_service import DiagnosticsService
+from ..services.grounding_service import GroundingService
+from ..services.backup_service import BackupService
+from ..services.indexing_scheduler import IndexingScheduler
+from ..services.maintenance_service import MaintenanceService
+from ..storage.migration import migrate_legacy_data
+from ..storage.rag_store import RAGStore
+from ..themes import DEFAULT_THEME, THEMES, get_theme
+from ..services.run_service import RunService
+from ..services.problem_service import ProblemService
+from ..agent.audit_service import AuditService
+from ..agent.confirmation_service import ConfirmationService
+from ..agent.deterministic_planner import DeterministicPlanner
+from ..agent.workspace_planner import CompositePlanner, WorkspacePlanner
+from ..agent.structured_coding_planner import StructuredCodingPlanner
+from ..agent.model_router import ModelRouter
+from ..agent.executor import ToolExecutor
+from ..agent.orchestrator import AgentOrchestrator
+from ..agent.permission_service import PermissionService
+from ..agent.tool_registry import ToolRegistry
+from ..storage.agent_task_repository import AgentTaskRepository
+from ..storage.project_repository import ProjectRepository
+from ..storage.workspace_repository import WorkspaceRepository
+from ..services.workspace_service import WorkspaceService
+from ..services.repository_service import RepositoryService
+from ..services.code_index_service import CodeIndexService
+from ..services.repository_map_service import RepositoryMapService
+from ..services.code_retrieval_service import CodeRetrievalService
+from ..services.editor_intelligence_service import EditorIntelligenceService
+from ..services.test_result_service import TestResultService
+from ..services.application_observation_service import ApplicationObservationService
+from ..services.model_metrics_service import ModelMetricsService
+from ..services.coding_context_service import CodingContextService
+from ..services.diff_review_service import DiffReviewService
+from ..services.dependency_service import DependencyService
+from ..services.syntax_highlight_service import SyntaxHighlightService
+from ..services.language_server_service import LanguageServerService
+from ..services.build_session_service import BuildSessionService
+from ..services.web_preview_service import WebPreviewService
+from ..services.checkpoint_service import CheckpointService
+from ..services.build_test_service import BuildAndTestService
+from ..services.ide_service import IDEService
+from ..tools import (
+    TerminalRunTool,
+    StudioRunTool,
+    code_tools,
+    filesystem_tools,
+    git_tools,
+    ide_tools,
+    system_tools,
+    workspace_tools,
+)
+import inspect
+from copy import deepcopy
+
+logger = logging.getLogger(__name__)
+
+
+class ServiceContainer:
+    """One service graph, owned exclusively by the application runtime thread."""
+
+    def __init__(self, emit, confirmation_handler, data_dir=None, migrate=True):
+        self.emit = emit
+        data = Path(data_dir) if data_dir is not None else DATA_DIR
+        self.data_dir = data
+        data.mkdir(parents=True, exist_ok=True)
+        self.chat_repo = ChatRepository(data / "chats.json")
+        self.settings_repo = SettingsRepository(
+            data / "settings.json", data / "model_defaults.json", data / "model_aliases.json"
+        )
+        self.migration_actions = migrate_legacy_data() if migrate and data_dir is None else []
+
+        self.settings = self.settings_repo.load()
+        self.settings.setdefault("preferred_name", "Diego")
+        self.model_defaults = self.settings_repo.load_model_defaults()
+        self.model_aliases = self.settings_repo.load_model_aliases()
+        self.theme_name = self.settings.get("theme", DEFAULT_THEME)
+        if self.theme_name not in THEMES and self.theme_name != "Light":
+            self.theme_name = DEFAULT_THEME
+            self.settings["theme"] = DEFAULT_THEME
+        self.colors = get_theme(self.theme_name)
+
+        self.ollama = OllamaService()
+        self.model_registry = ModelCapabilityRegistry(self.ollama)
+        self.rag_store = RAGStore(data / "rag.sqlite3")
+        self.rag = RAGService(
+            self.rag_store,
+            self.ollama,
+            self.settings.get("embedding_model", EMBEDDING_MODEL),
+            semantic_weight=float(self.settings.get("rag_semantic_weight", 0.65)),
+            lexical_weight=float(self.settings.get("rag_lexical_weight", 0.35)),
+            minimum_score=float(self.settings.get("rag_minimum_score", 0.08)),
+        )
+        self.memory = MemoryService(MemoryRepository(data / "memories.json"))
+        self.memory_suggestions = MemorySuggestionService(self.memory, self.ollama)
+        self.indexing_jobs = IndexingJobService(IndexingJobRepository(data / "indexing_jobs.json"))
+        self.indexing_jobs.recover_interrupted()
+        self.documents = DocumentService(
+            OCRService(self.settings.get("ocr_executable") or None), cache_dir=data / "attachments"
+        )
+        self.document_health = DocumentHealthService()
+        self.chat_service = ChatService(self.ollama, self.rag, memory=self.memory)
+        self.chat_service.pipeline.preferences = lambda: self.settings
+        from ..services.deep_documents import DeepDocuments
+        self.chat_service.pipeline.deep = DeepDocuments(self)
+        self.diagnostics = DiagnosticsService(
+            self.ollama, self.model_registry, self.rag, self.memory, self.indexing_jobs, self.documents.ocr
+        )
+        self.grounding = GroundingService()
+        self.backups = BackupService(data, data / "backups")
+        self.indexing_scheduler = IndexingScheduler(
+            self.indexing_jobs,
+            self._execute_indexing_job,
+            int(self.settings.get("max_indexing_workers", 1)),
+        )
+        self.maintenance = MaintenanceService(self.rag_store, self.indexing_jobs, self.document_health)
+        self.project_repo = ProjectRepository(data / "projects.json")
+        self.workspace_repo = WorkspaceRepository(data / "workspaces.json")
+        self.workspace_service = WorkspaceService(self.workspace_repo)
+        self.repository_service = RepositoryService()
+        self.code_index_service = CodeIndexService()
+        self.repository_maps = RepositoryMapService(
+            self.code_index_service, repository=self.repository_service
+        )
+        self.code_retrieval = CodeRetrievalService(
+            self.ollama,
+            self.settings.get("embedding_model", EMBEDDING_MODEL),
+            data / "code_indexes" / "semantic_code.json",
+        )
+        self.build_test_service = BuildAndTestService()
+        self.ide_service = IDEService()
+        self.checkpoints = CheckpointService(data / "task_checkpoints")
+        self.run_service = RunService()
+        from ..services.terminal_session_service import TerminalSessionService
+
+        self.terminal_sessions = TerminalSessionService(data / "terminal_sessions.json")
+        self.problem_service = ProblemService()
+        self.editor_intelligence = EditorIntelligenceService()
+        self.test_results = TestResultService()
+        self.application_observations = ApplicationObservationService()
+        self.model_metrics = ModelMetricsService()
+        from ..services.model_residency_service import ModelResidencyService
+        from ..services.model_benchmark_service import ModelBenchmarkService
+        self.model_residency = ModelResidencyService(self.ollama, lambda: self.settings.get("model_policy", {}))
+        self.model_benchmarks = ModelBenchmarkService(self.ollama, self.model_registry, data / "model_benchmarks.json", self.publish)
+        self.ollama.residency = self.model_residency
+        self.ollama.metrics = self.model_metrics
+        self.coding_context = CodingContextService()
+        self.diff_review = DiffReviewService()
+        self.dependencies = DependencyService()
+        self.syntax_highlighting = SyntaxHighlightService()
+        self.language_servers = LanguageServerService()
+        self.build_sessions = BuildSessionService()
+        self.web_preview = WebPreviewService()
+        self.agent_task_repo = AgentTaskRepository(data / "agent_tasks.json")
+        self.agent_task_repo.recover_interrupted()
+        self.permissions = PermissionService(data / "permissions.json")
+        self.agent_audit = AuditService(data / "agent_audit.jsonl")
+        self.tool_registry = ToolRegistry()
+        for tool in [
+            *filesystem_tools(),
+            TerminalRunTool(),
+            *system_tools(),
+            *code_tools(self.workspace_repo, self.checkpoints),
+            *git_tools(self.repository_service, self.workspace_repo),
+            *ide_tools(self.workspace_repo),
+            *workspace_tools(self.workspace_repo),
+            StudioRunTool(self.run_service, self.workspace_repo),
+        ]:
+            self.tool_registry.register(tool)
+        self.confirmations = ConfirmationService(confirmation_handler)
+        self.agent_executor = ToolExecutor(
+            self.tool_registry, self.permissions, self.confirmations, self.agent_audit
+        )
+        from ..personal.controller import PersonalController
+        self.personal = PersonalController(self)
+        from ..mail.controller import MailController
+        self.mail = MailController(self)
+        self.model_router = ModelRouter(self.model_registry, lambda: self.settings.get("model_policy", {}),
+                                        self.model_benchmarks, self.model_residency)
+        from .model_controller import ModelController
+        self.models = ModelController(self)
+        from .desktop_controller import DesktopController
+        self.desktop = DesktopController(self)
+        planner = CompositePlanner(
+            DeterministicPlanner(),
+            WorkspacePlanner(self.workspace_repo),
+            StructuredCodingPlanner(
+                self.ollama, self.model_router, self.workspace_repo, self.repository_maps, self.code_retrieval
+            ),
+        )
+        self.agent_orchestrator = AgentOrchestrator(
+            planner, self.agent_executor, self.agent_task_repo, max_iterations=12
+        )
+
+        self.chats = self.chat_repo.load_all()
+        if not self.chats:
+            chat = Chat(title="First Conversation", preset="normal")
+            self.chats[chat.id] = chat
+        self.model_infos = []
+        from ..services.presets import PresetCatalog
+        self.presets = PresetCatalog(self)
+        self.current_chat_id = max(self.chats.values(), key=lambda chat: chat.updated_at).id
+        self.ollama_state = "Checking Ollama"
+        from .chat_controller import ChatController
+        from .agent_controller import AgentController
+        from .knowledge_controller import KnowledgeController
+        from .data_controller import DataController
+        from .studio_controller import StudioController
+
+        self.chat = ChatController(self)
+        self.agent = AgentController(self)
+        self.knowledge = KnowledgeController(self)
+        self.mail.composition.restore_knowledge_sources()
+        self.data = DataController(self)
+        self.studio = StudioController(self)
+        from .coding_workflow import CodingWorkflow
+        self.coding = CodingWorkflow(self)
+        from ..services.discord_transport import DiscordTransport
+        from .communication_tool import CommunicationSubmitTool
+        self.discord_transport = DiscordTransport(data)
+        self.tool_registry.register(CommunicationSubmitTool(self))
+        from ..studio_tooling.controller import StudioToolingController
+        self.studio_tooling = StudioToolingController(self)
+        from ..services.media_service import MediaService
+        self.media = MediaService(self)
+        from .research_controller import ResearchController
+
+        self.research = ResearchController(self)
+        from ..interaction.orchestrator import NaturalLanguageOrchestrator
+        self.interaction = NaturalLanguageOrchestrator(self)
+        self.closing = False
+        self.restart_required = False
+
+    async def dispatch(self, operation, arguments):
+        if self.closing:
+            raise RuntimeError("OLIVE is shutting down")
+        if self.restart_required and operation not in {"data.status", "data.diagnostics"}:
+            raise RuntimeError("Restore succeeded. Restart OLIVE before making further changes.")
+        group, name = operation.split(".", 1)
+        if group not in {"chat", "agent", "knowledge", "data", "studio", "research", "models", "desktop", "interaction"} or name.startswith("_"):
+            raise ValueError("Unknown application operation")
+        if group == "interaction" and name not in {"submit", "cancel", "select_workspace", "edit_draft", "inspect", "presentation_context", "clear_context"}:
+            raise ValueError("Unknown interaction operation")
+        method = getattr(getattr(self, group), name)
+        result = method(**arguments)
+        if inspect.isawaitable(result):
+            result = await result
+        return deepcopy(result)
+
+    def publish(self, topic, value):
+        self.emit(topic, deepcopy(value))
+
+    def save_chats(self):
+        self.chat_repo.save_all(self.chats.values())
+        self.publish("chats", self.chat.list())
+
+    async def initialize(self):
+        self.personal.scheduler.start()
+        self.mail.background.start()
+        try:
+            await self.model_registry.refresh()
+            self.model_infos = await self.ollama.list_models()
+            embedding = self.model_registry.select_embedding_model(self.settings.get("embedding_model"))
+            if embedding:
+                self.settings["embedding_model"] = embedding
+                self.rag.embedding_model = embedding
+                self.code_retrieval.embedding_model = embedding
+                self.settings_repo.save(self.settings)
+            default = choose_default_chat_model(
+                [model for model in self.model_infos if not model.is_embedding]
+            )
+            for chat in self.chats.values():
+                if chat.preset:
+                    self.presets.apply(chat, chat.preset)
+                elif not chat.model:
+                    chat.model = default
+            self.ollama_state = "Ollama ready" if self.model_infos else "Ollama ready. No models installed"
+            self.save_chats()
+        except Exception:
+            logger.exception("Ollama initialization failed")
+            self.ollama_state = "Ollama unavailable. Start Ollama and refresh Models"
+        self.publish("models", self.data.models())
+        self.publish("status", self.data.status())
+        self.publish("desktop", self.desktop.status())
+        await self.knowledge.resume_pending()
+
+    async def _execute_indexing_job(self, job):
+        await self.knowledge.execute_job(job)
+
+    async def shutdown(self):
+        await self.media.shutdown()
+        self.closing = True
+        await self.personal.close()
+        await self.mail.close()
+        await self.interaction.shutdown()
+        self.model_benchmarks.cancel()
+        await self.desktop.shutdown()
+        await self.research.shutdown()
+        self.chat.stop_all()
+        self.agent.cancel()
+        self.agent.cancel_tools()
+        await self.indexing_scheduler.shutdown()
+        await self.studio_tooling.shutdown()
+        for session_id in list(self.run_service.sessions):
+            await self.run_service.stop(session_id)
+        if not self.restart_required:
+            self.save_chats()

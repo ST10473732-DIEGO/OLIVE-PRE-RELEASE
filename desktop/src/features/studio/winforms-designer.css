@@ -1,0 +1,25 @@
+.sheet:has(.winforms-designer) { width: min(1280px, 98vw); max-width: 98vw; }
+.winforms-designer { min-height: 65vh; }
+.wf-layout { display: grid; grid-template-columns: 160px minmax(240px, 1fr) 210px; gap: 14px; margin-top: 16px; }
+.wf-layout > aside { display: flex; flex-direction: column; gap: 7px; overflow: auto; max-height: 72vh; }
+.wf-layout.wf-preview { grid-template-columns: minmax(0, 1fr); }
+.wf-layout label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.wf-layout input, .wf-layout select, .wf-layout textarea { width: 100%; min-width: 0; }
+.wf-layout input[type="checkbox"] { width: auto; }
+.wf-scroll { overflow: auto; max-height: 75vh; padding: 0 4px 20px; }
+.wf-scroll > p { font-size: 12px; }
+.wf-title { background: #e2e6ec; color: #17202d; padding: 8px; font: 13px "Segoe UI", sans-serif; box-sizing: border-box; border: 1px solid #8a94a1; }
+.wf-canvas { position: relative; background: #f0f0f0; color: #111; overflow: hidden; border: 1px solid #8a94a1; box-sizing: content-box; touch-action: none; }
+.wf-canvas.grid { background-image: radial-gradient(#b8bec5 0.7px, transparent 0.7px); background-size: 8px 8px; }
+.wf-control { position: absolute; box-sizing: border-box; font: 12px "Segoe UI", sans-serif; color: #111; user-select: none; cursor: move; border: 1px solid transparent; overflow: hidden; touch-action: none; }
+.wf-control.selected { outline: 2px solid #0078d4; outline-offset: -1px; overflow: visible; }
+.wf-control .wf-caption { pointer-events: none; }
+.wf-Button { background: #e4e4e4; border: 1px solid #999; display: flex; align-items: center; justify-content: center; }
+.wf-TextBox, .wf-ComboBox { background: white; border: 1px solid #777; padding: 4px; }
+.wf-Label, .wf-CheckBox { display: flex; align-items: center; }
+.wf-Panel, .wf-FlowLayoutPanel, .wf-TableLayoutPanel { border: 1px dashed #999; background: #f0f0f0; }
+.wf-Panel > .wf-caption, .wf-FlowLayoutPanel > .wf-caption, .wf-TableLayoutPanel > .wf-caption { display: none; }
+.wf-resize { position: absolute; width: 10px; height: 10px; right: -4px; bottom: -4px; background: #0078d4; cursor: nwse-resize; z-index: 2; }
+.wf-code { max-height: 70vh; overflow: auto; }
+.wf-code pre { white-space: pre; font-size: 12px; }
+@media (max-width: 1050px) { .wf-layout { grid-template-columns: 115px minmax(200px, 1fr) 170px; gap: 8px; } }

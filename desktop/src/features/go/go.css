@@ -1,0 +1,257 @@
+/* OLIVE GO — the browser's chrome. Scoped under .go; reads OLIVE's tokens.
+   Values follow docs/design/olive-go-artifact.html (the design reference). */
+.go {
+  --go-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --go-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --go-hover: var(--hover);
+  --go-ring: 0 0 0 2px var(--go-focus);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--go-ink);
+  color: var(--text);
+  font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+.go.private {
+  --go-ink: color-mix(in srgb, var(--bg) 88%, #000);
+  --go-chrome: color-mix(in srgb, var(--surface) 88%, #000);
+  --go-raised: color-mix(in srgb, var(--elevated) 88%, #000);
+  --go-field: color-mix(in srgb, var(--go-field) 90%, #000);
+}
+.go svg { flex-shrink: 0; }
+/* OLIVE's global button and input rules (raised fill, 34px minimum, 6/12px
+   padding, hover fill, pressed nudge) are reset here at .go level; every
+   component rule below is written as `.go .go-x` so it outranks this reset. */
+.go button { font: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; color: inherit; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; min-height: 0; min-width: 0; gap: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: none; }
+.go button:hover, .go button:active { background: none; border-color: transparent; transform: none; }
+.go button:disabled { opacity: 1; cursor: default; }
+.go button:focus-visible, .go input:focus-visible, .go [tabindex]:focus-visible { outline: none; box-shadow: var(--go-ring); border-color: transparent; }
+.go input { font: inherit; color: inherit; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; min-height: 0; outline: none; box-shadow: none; transition: none; }
+/* The field wrapper carries the ring for its input. */
+.go .go-field input:focus-visible, .go .go-search input:focus-visible, .go .go-panel-search input:focus-visible { box-shadow: none; }
+
+/* ---------- Tab strip ---------- */
+.go .go-tabs { display: flex; align-items: flex-end; height: 40px; padding: 6px 8px 0; gap: 2px; background: var(--go-ink); flex-shrink: 0; position: relative; }
+.go .go-tabs-scroll { display: flex; align-items: flex-end; gap: 2px; min-width: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; height: 34px; }
+.go .go-tabs-scroll::-webkit-scrollbar { display: none; }
+.go .go-tab { display: flex; align-items: center; gap: 8px; height: 34px; min-width: 120px; max-width: 220px; flex: 1 1 160px; padding: 0 6px 0 12px; border-radius: 9px 9px 0 0; color: var(--muted); position: relative; user-select: none; -webkit-user-select: none; transition: background 160ms var(--go-ease-out), color 160ms var(--go-ease-out), width 160ms var(--go-ease-out), opacity 160ms var(--go-ease-out); }
+.go .go-tab.entering { animation: go-tab-in 160ms var(--go-ease-out); }
+.go .go-tab.dragging { opacity: 0.6; }
+.go .go-tab .go-favicon { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; color: var(--faint); }
+.go .go-tab .go-favicon img { width: 16px; height: 16px; display: block; }
+.go .go-tab .go-tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; text-align: left; }
+.go .go-tab .go-tab-close { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: var(--faint); opacity: 0; transition: opacity 100ms; flex-shrink: 0; }
+.go .go-tab:hover { background: var(--go-hover); color: var(--text); }
+.go .go-tab:hover .go-tab-close, .go .go-tab.active .go-tab-close, .go .go-tab .go-tab-close:focus-visible { opacity: 1; }
+.go .go-tab .go-tab-close:hover { background: var(--go-line-strong); color: var(--text); }
+.go .go-tab.active { background: var(--go-chrome); color: var(--text); }
+.go .go-tab.active::before, .go .go-tab.active::after { content: ""; position: absolute; bottom: 0; width: 9px; height: 9px; background: var(--go-chrome); pointer-events: none; }
+.go .go-tab.active::before { left: -9px; -webkit-mask: radial-gradient(circle at 0 0, transparent 9px, #000 9.5px); mask: radial-gradient(circle at 0 0, transparent 9px, #000 9.5px); }
+.go .go-tab.active::after { right: -9px; -webkit-mask: radial-gradient(circle at 100% 0, transparent 9px, #000 9.5px); mask: radial-gradient(circle at 100% 0, transparent 9px, #000 9.5px); }
+.go .go-tab.pinned { min-width: 40px; max-width: 40px; flex: 0 0 40px; padding: 0 12px; }
+.go .go-tab .go-spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--go-line-strong); border-top-color: var(--accent); animation: go-spin 0.9s linear infinite; }
+.go .go-tab .go-private-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--olive); flex-shrink: 0; }
+.go .go-tab-new { width: 32px; height: 30px; margin-bottom: 2px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); flex-shrink: 0; }
+.go .go-tab-new:hover { background: var(--go-hover); color: var(--text); }
+.go .go-tabs-end { margin-left: auto; display: flex; align-items: center; gap: 4px; height: 34px; padding-right: 2px; flex-shrink: 0; }
+.go .go-private-pill { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--olive); border: 1px solid color-mix(in srgb, var(--olive) 40%, transparent); border-radius: 999px; padding: 3px 9px; margin: 0 6px 8px 2px; flex-shrink: 0; align-self: center; }
+
+/* ---------- Toolbar ---------- */
+.go .go-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; height: 50px; padding: 0 10px; background: var(--go-chrome); position: relative; flex-shrink: 0; }
+.go .go-bar-group { display: flex; align-items: center; gap: 2px; }
+.go .go-sep { width: 1px; height: 18px; background: var(--go-line-strong); margin: 0 6px; }
+.go .go-ib { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); transition: background 100ms var(--go-ease-out), color 100ms var(--go-ease-out); position: relative; }
+.go .go-ib:hover:not(:disabled) { background: var(--go-hover); color: var(--text); }
+.go .go-ib:active:not(:disabled) { background: var(--go-line-strong); }
+.go .go-ib:disabled { color: var(--faint); opacity: 0.55; cursor: default; }
+.go .go-ib[aria-pressed="true"] { color: var(--olive); }
+.go .go-ib .go-badge { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--go-chrome); }
+.go .go-progress { position: absolute; left: 0; bottom: 0; height: 2px; width: 38%; background: var(--accent); border-radius: 0 2px 2px 0; animation: go-slide 1.2s var(--go-ease) infinite; }
+
+/* Address field */
+.go .go-field { justify-self: center; width: 100%; max-width: 940px; height: 36px; border-radius: 18px; background: var(--go-field); display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; color: var(--faint); position: relative; transition: box-shadow 140ms var(--go-ease-out), background 140ms var(--go-ease-out); }
+.go .go-field:hover { background: color-mix(in srgb, var(--go-field) 80%, var(--go-raised)); }
+.go .go-field.focus { box-shadow: var(--go-ring); background: var(--go-raised); }
+.go .go-field .go-site { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--olive); flex-shrink: 0; }
+.go .go-field .go-site.http { color: var(--faint); }
+.go .go-field .go-site:hover { background: var(--go-hover); }
+.go .go-field .go-site-lead { width: 16px; height: 16px; display: grid; place-items: center; color: var(--faint); flex-shrink: 0; margin: 0 2px; }
+.go .go-field-display { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: flex-start; text-align: left; font-size: 13.5px; white-space: nowrap; overflow: hidden; color: var(--text); cursor: text; }
+.go .go-field-display .host { color: var(--text); }
+.go .go-field-display .path { color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.go .go-field-display .ph { color: var(--faint); }
+.go .go-field input { flex: 1; min-width: 0; height: 100%; font-size: 13.5px; color: var(--text); }
+.go .go-field input::placeholder { color: var(--faint); }
+.go .go-field .go-field-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.go .go-field .go-field-actions .go-ib { width: 28px; height: 28px; border-radius: 14px; }
+.go .go-field .go-field-actions .go-ib.saved svg { fill: var(--olive); color: var(--olive); }
+.go .go-field .go-field-actions .go-ib.pop { animation: go-pop 180ms var(--go-ease-out); }
+
+/* Suggestions */
+.go .go-suggest { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); width: min(940px, calc(100% - 20px)); background: var(--go-raised); border: 1px solid var(--go-line-strong); border-radius: 14px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); padding: 6px; z-index: 5; animation: go-rise 160ms var(--go-ease-out); }
+.go .go-suggest-row { display: flex; align-items: center; gap: 12px; width: 100%; height: 36px; padding: 0 10px; border-radius: 9px; color: var(--text); text-align: left; }
+.go .go-suggest-row .go-favicon { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; color: var(--faint); flex-shrink: 0; overflow: hidden; }
+.go .go-suggest-row .go-favicon img { width: 16px; height: 16px; }
+.go .go-suggest-row .main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-suggest-row .main b { font-weight: 600; }
+.go .go-suggest-row .dim { color: var(--faint); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-suggest-row .k { color: var(--faint); font-size: 11.5px; margin-left: auto; flex-shrink: 0; }
+.go .go-suggest-row[aria-selected="true"], .go .go-suggest-row:hover { background: var(--go-hover); }
+.go .go-suggest-row.ai { color: var(--accent); border-top: 1px solid var(--go-line); border-radius: 0 0 9px 9px; margin-top: 4px; height: 40px; }
+.go .go-suggest-note { padding: 6px 10px 4px; font-size: 11.5px; color: var(--faint); }
+
+/* ---------- Body ---------- */
+.go .go-body { flex: 1; min-height: 0; display: flex; position: relative; }
+.go .go-page { flex: 1; min-width: 0; min-height: 0; position: relative; background: var(--go-ink); overflow: auto; }
+.go .go-page.web { background: #ffffff; }
+.go .go-snapshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; display: block; pointer-events: none; }
+
+/* New tab page */
+/* Relative, so Customise sits at the bottom of the content: bottom-left of the
+   view when the page fits, below the last row when it scrolls. */
+.go .go-ntp { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: 74px 24px 72px; }
+.go .go-ntp .go-mark { width: 84px; height: 84px; margin-bottom: 14px; }
+.go .go-wordmark { font: 600 22px/1 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: 0.3em; margin-left: 0.3em; color: var(--text); }
+.go .go-wordmark span { color: var(--olive); }
+.go .go-ntp .go-sub { margin-top: 10px; color: var(--muted); font-size: 13px; max-width: 56ch; text-align: center; line-height: 1.5; }
+.go .go-ntp .go-search { margin-top: 26px; width: min(640px, 100%); height: 44px; border-radius: 22px; background: var(--go-field); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; color: var(--faint); font-size: 14px; position: relative; transition: box-shadow 140ms var(--go-ease-out), background 140ms var(--go-ease-out); }
+.go .go-ntp .go-search.focus { box-shadow: var(--go-ring); background: var(--go-raised); }
+.go .go-ntp .go-search input { flex: 1; min-width: 0; height: 100%; font-size: 14px; color: var(--text); }
+.go .go-ntp .go-search .go-ib { width: 30px; height: 30px; border-radius: 15px; }
+.go .go-ntp .go-search .go-suggest { top: 52px; width: 100%; }
+.go .go-quick { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+.go .go-chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px; border-radius: 14px; border: 1px solid var(--go-line-strong); color: var(--muted); font-size: 12.5px; transition: background 100ms var(--go-ease-out), color 100ms var(--go-ease-out); }
+.go .go-chip:hover { background: var(--go-hover); color: var(--text); }
+.go .go-favs { display: flex; gap: 22px; margin-top: 48px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
+.go .go-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 68px; position: relative; }
+.go .go-tile .box { width: 64px; height: 64px; border-radius: 14px; background: var(--go-raised); display: grid; place-items: center; font: 600 20px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: var(--text); transition: background 100ms var(--go-ease-out); overflow: hidden; }
+.go .go-tile .box img { width: 28px; height: 28px; border-radius: 6px; }
+.go .go-tile .box.add { color: var(--muted); }
+.go .go-tile .box.empty { background: none; border: 1px dashed var(--go-line-strong); }
+.go .go-tile button.box:hover { background: color-mix(in srgb, var(--go-raised) 70%, var(--go-line-strong)); }
+.go .go-tile .lbl { font-size: 11.5px; color: var(--muted); max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-tile .go-tile-remove { position: absolute; top: -6px; right: -4px; width: 20px; height: 20px; border-radius: 50%; background: var(--go-raised); border: 1px solid var(--go-line-strong); color: var(--muted); display: grid; place-items: center; opacity: 0; transition: opacity 100ms; }
+.go .go-tile:hover .go-tile-remove, .go .go-tile .go-tile-remove:focus-visible { opacity: 1; }
+.go .go-recent { margin-top: 44px; width: min(640px, 100%); }
+.go .go-recent .h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; padding: 0 10px; }
+.go .go-recent .h b { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+.go .go-recent .h button { font-size: 12px; color: var(--accent); }
+.go .go-row { display: flex; align-items: center; gap: 12px; width: 100%; height: 38px; padding: 0 10px; border-radius: 9px; text-align: left; transition: background 100ms var(--go-ease-out); }
+.go .go-row:hover { background: var(--go-hover); }
+.go .go-row .go-favicon { width: 18px; height: 18px; border-radius: 5px; background: var(--go-raised); display: grid; place-items: center; color: var(--faint); flex-shrink: 0; overflow: hidden; }
+.go .go-row .go-favicon img { width: 16px; height: 16px; }
+.go .go-row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-row .u { color: var(--faint); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-row .go-ib { width: 26px; height: 26px; opacity: 0; }
+.go .go-row:hover .go-ib, .go .go-row .go-ib:focus-visible { opacity: 1; }
+.go .go-customize { position: absolute; left: 18px; bottom: 16px; }
+.go .go-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 9px; background: var(--go-raised); color: var(--text); font-size: 13px; font-weight: 500; border: 1px solid var(--go-line); transition: background 100ms var(--go-ease-out), border-color 100ms var(--go-ease-out); }
+.go .go-btn:hover { background: var(--go-hover); border-color: var(--go-line-strong); }
+.go .go-btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.go .go-btn.primary:hover { background: color-mix(in srgb, var(--accent) 92%, #fff); }
+.go .go-btn.ghost { background: none; border-color: transparent; color: var(--muted); }
+.go .go-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---------- Side panel ---------- */
+.go .go-panel { width: 320px; flex-shrink: 0; background: var(--go-chrome); border-left: 1px solid var(--go-line-strong); display: flex; flex-direction: column; min-height: 0; animation: go-panel-in 220ms var(--go-ease-out); }
+.go .go-panel-head { display: flex; align-items: center; gap: 8px; padding: 14px 10px 10px 16px; }
+.go .go-panel-head h2 { font: 600 15px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; margin: 0; flex: 1; letter-spacing: 0; }
+.go .go-seg { display: flex; gap: 2px; padding: 3px; background: var(--go-ink); border-radius: 9px; margin: 0 16px 10px; }
+.go .go-seg button { flex: 1; text-align: center; padding: 5px 0; border-radius: 7px; font-size: 12.5px; color: var(--muted); transition: background 120ms var(--go-ease-out), color 120ms var(--go-ease-out); }
+.go .go-seg button[aria-selected="true"] { background: var(--go-raised); color: var(--text); }
+.go .go-panel .go-panel-search { margin: 0 16px 8px; height: 32px; border-radius: 16px; background: var(--go-field); display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--faint); font-size: 12.5px; }
+.go .go-panel .go-panel-search input { flex: 1; min-width: 0; height: 100%; font-size: 12.5px; color: var(--text); }
+.go .go-panel-list { flex: 1; overflow: auto; padding: 4px 8px; min-height: 0; }
+.go .go-day { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); font-weight: 600; padding: 10px 10px 4px; }
+.go .go-panel-foot { padding: 10px 16px 14px; border-top: 1px solid var(--go-line); display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--faint); gap: 8px; }
+.go .go-panel-foot button { color: var(--accent); }
+.go .go-panel-foot button:hover { text-decoration: underline; }
+.go .go-empty { padding: 28px 18px; color: var(--faint); text-align: center; font-size: 13px; line-height: 1.5; }
+.go .go-dl { display: flex; gap: 12px; padding: 10px; border-radius: 10px; align-items: flex-start; }
+.go .go-dl:hover { background: var(--go-hover); }
+.go .go-dl .ico { width: 36px; height: 36px; border-radius: 9px; background: var(--go-raised); display: grid; place-items: center; color: var(--muted); flex-shrink: 0; }
+.go .go-dl .body { flex: 1; min-width: 0; }
+.go .go-dl .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-dl .meta { color: var(--faint); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go .go-dl .meta.error { color: var(--error); }
+.go .go-dl .bar { height: 3px; border-radius: 2px; background: var(--go-line-strong); margin-top: 8px; overflow: hidden; }
+.go .go-dl .bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width 240ms var(--go-ease); }
+.go .go-dl .bar i.indeterminate { width: 38%; animation: go-slide 1.2s var(--go-ease) infinite; }
+.go .go-toggle { width: 34px; height: 20px; border-radius: 10px; background: var(--go-line-strong); position: relative; flex-shrink: 0; transition: background 140ms var(--go-ease-out); }
+.go .go-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: left 140ms var(--go-ease-out), background 140ms; }
+.go .go-toggle[aria-checked="true"] { background: var(--accent); }
+.go .go-toggle[aria-checked="true"]::after { left: 17px; background: var(--on-accent); }
+.go .go-setting { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; }
+.go .go-setting .l { flex: 1; min-width: 0; }
+.go .go-setting .l small { display: block; color: var(--faint); font-size: 12px; line-height: 1.4; }
+.go .go-setting .v { color: var(--faint); font-size: 12.5px; }
+.go .go-radio { width: 100%; text-align: left; justify-content: flex-start; color: var(--text); }
+.go .go-radio:hover { background: var(--go-hover); }
+.go .go-radio[aria-checked="true"] svg { color: var(--accent); }
+.go .go-radio .l { flex: 1; }
+.go .go-panel .go-seg.inline { margin: 4px 8px 10px; }
+.go .go-fav-edit { display: flex; gap: 6px; padding: 4px 10px 8px; }
+.go .go-fav-edit input { flex: 1; min-width: 0; height: 30px; border-radius: 8px; background: var(--go-field); padding: 0 10px; font-size: 12.5px; color: var(--text); }
+
+/* ---------- Error page ---------- */
+.go .go-error { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 90px 24px; }
+.go .go-error .go-mark { width: 40px; height: 40px; opacity: 0.8; margin-bottom: 18px; }
+.go .go-error h2 { font: 600 20px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; margin: 0 0 8px; letter-spacing: 0; }
+.go .go-error p { color: var(--muted); max-width: 48ch; margin: 0 0 20px; font-size: 13.5px; line-height: 1.5; }
+.go .go-error .row { display: flex; gap: 8px; }
+.go .go-error code { font: 12px Consolas, "Cascadia Mono", monospace; color: var(--faint); margin-top: 18px; background: none; border: 0; padding: 0; }
+
+/* ---------- Popovers and menus ---------- */
+.go .go-pop { position: absolute; top: 46px; width: 300px; background: var(--go-raised); border: 1px solid var(--go-line-strong); border-radius: 14px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); padding: 6px; z-index: 6; animation: go-rise 140ms var(--go-ease-out); }
+.go .go-pop.right { right: 10px; }
+.go .go-pop.menu { width: 260px; }
+.go .go-pop-item { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; padding: 9px 10px; border-radius: 9px; text-align: left; }
+.go .go-pop-item > span:not(.ico):not(.k) { flex: 1; min-width: 0; }
+.go .go-pop-item > b { flex: 1; min-width: 0; text-align: left; }
+.go .go-pop-item:hover, .go .go-pop-item:focus-visible { background: var(--go-hover); }
+.go .go-pop-item:disabled { opacity: 0.45; cursor: default; }
+.go .go-pop-item .ico { width: 30px; height: 30px; border-radius: 8px; background: var(--go-chrome); display: grid; place-items: center; color: var(--muted); flex-shrink: 0; }
+.go .go-pop-item b { display: block; font-weight: 500; }
+.go .go-pop-item small { display: block; color: var(--faint); font-size: 12px; line-height: 1.4; }
+.go .go-pop-item .k { margin-left: auto; color: var(--faint); font-size: 11.5px; flex-shrink: 0; }
+.go .go-pop .rule { height: 1px; background: var(--go-line); margin: 6px 4px; }
+.go .go-pop p { margin: 4px 10px 8px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.go .go-pop .go-pop-title { padding: 8px 10px 4px; font-weight: 600; }
+.go .go-pop ul { margin: 0 10px 8px; padding-left: 18px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.go .go-menu-compact .go-pop-item { padding: 7px 10px; }
+.go .go-menu-compact .go-pop-item .ico { width: 24px; height: 24px; background: none; }
+.go .go-context { position: fixed; z-index: 30; width: 220px; background: var(--go-raised); border: 1px solid var(--go-line-strong); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); padding: 6px; animation: go-rise 140ms var(--go-ease-out); }
+.go .go-context button { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; padding: 7px 10px; border-radius: 8px; text-align: left; font-size: 12.5px; }
+.go .go-context button:hover, .go .go-context button:focus-visible { background: var(--go-hover); }
+.go .go-context button:disabled { opacity: 0.45; }
+.go .go-context .rule { height: 1px; background: var(--go-line); margin: 5px 4px; }
+.go .go-zoom { display: flex; align-items: center; gap: 4px; padding: 4px 10px 8px; color: var(--muted); font-size: 12.5px; }
+.go .go-zoom .v { flex: 1; text-align: center; color: var(--text); font-variant-numeric: tabular-nums; }
+.go .go-find { display: flex; align-items: center; gap: 6px; padding: 4px 10px 8px; }
+.go .go-find input { flex: 1; min-width: 0; height: 30px; border-radius: 8px; background: var(--go-field); padding: 0 10px; font-size: 12.5px; color: var(--text); }
+.go .go-find .n { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+
+/* Toast */
+.go .go-toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 14px; border-radius: 18px; background: var(--go-raised); border: 1px solid var(--go-line-strong); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); font-size: 13px; color: var(--text); z-index: 7; animation: go-rise 180ms var(--go-ease-out); white-space: nowrap; }
+.go .go-toast svg { color: var(--olive); }
+.go .go-toast button { color: var(--accent); font-weight: 500; }
+
+@keyframes go-spin { to { transform: rotate(360deg); } }
+@keyframes go-slide { from { left: -38%; } to { left: 100%; } }
+@keyframes go-rise { from { opacity: 0; transform: translate(var(--go-rise-x, 0), 4px); } to { opacity: 1; transform: translate(var(--go-rise-x, 0), 0); } }
+.go .go-suggest { --go-rise-x: -50%; }
+@keyframes go-pop { 0% { transform: scale(1); } 50% { transform: scale(1.18); } 100% { transform: scale(1); } }
+@keyframes go-tab-in { from { opacity: 0; max-width: 0; min-width: 0; padding-left: 0; padding-right: 0; } to { opacity: 1; } }
+@keyframes go-panel-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+/* OLIVE's global reduced-motion rules already stop every animation and
+   transition; these keep the two indeterminate indicators readable once still. */
+@media (prefers-reduced-motion: reduce) {
+  .go .go-spinner { border-top-color: var(--accent); }
+  .go .go-progress, .go .go-dl .bar i.indeterminate { width: 100%; opacity: 0.7; }
+}
+:root[data-reduced="true"] .go .go-spinner { border-top-color: var(--accent); }
+:root[data-reduced="true"] .go .go-progress, :root[data-reduced="true"] .go .go-dl .bar i.indeterminate { width: 100%; opacity: 0.7; }
+@media (max-width: 900px) { .go .go-panel { width: 280px; } .go .go-favs { gap: 14px; } }

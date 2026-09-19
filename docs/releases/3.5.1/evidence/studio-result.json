@@ -1,0 +1,12 @@
+{
+  "evidence": "LIVE LOCAL synthetic workspace",
+  "saved": true,
+  "testsPassed": true,
+  "conflictProtected": true,
+  "errors": [],
+  "recording": {
+    "recorded": true,
+    "frames": 84,
+    "reason": "Actual Electron CDP frames"
+  }
+}
