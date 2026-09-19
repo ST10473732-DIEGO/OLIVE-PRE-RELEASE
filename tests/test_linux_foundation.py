@@ -1,4 +1,5 @@
 """Portable platform boundaries, tested against synthetic profiles only."""
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,15 +30,16 @@ class LinuxFoundationTests(unittest.TestCase):
             self.assertEqual(resolve_profile({**env, 'OLIVE_DATA_DIR': str(old)}, home, 'linux'), old)
             self.assertEqual((old / 'settings.json').read_text(), '{}')
 
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux Secret Service boundary')
     def test_linux_native_features_fail_before_loading_windows_modules(self):
-        with patch('sys.platform', 'linux'), tempfile.TemporaryDirectory() as directory:
+        with patch('sys.platform', 'linux'), patch('secretstorage.dbus_init', side_effect=OSError('unavailable')), tempfile.TemporaryDirectory() as directory:
             vault = CredentialVault(directory)
             for operation in (lambda: vault.put('discord-bot', 'synthetic'),
                               lambda: vault.read_for_provider('discord-bot'),
                               lambda: vault.remove('discord-bot')):
                 with self.assertRaises(PlatformUnavailable) as raised:
                     operation()
-                self.assertIn('for Linux is not available', public_error(raised.exception)['message'])
+                self.assertIn('No plaintext fallback', public_error(raised.exception)['message'])
             self.assertEqual(list(Path(directory).iterdir()), [])
             self.assertEqual(venv_python(), '.venv/bin/python')
         with patch('sys.platform', 'win32'):
@@ -68,6 +70,7 @@ class LinuxFoundationTests(unittest.TestCase):
 
 
 class LinuxBridgeBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux Secret Service boundary')
     async def test_native_routes_reject_and_clear_transient_secret(self):
         from olive.application.service_container import ServiceContainer
         from olive.bridge.host import Host
@@ -76,7 +79,7 @@ class LinuxBridgeBoundaryTests(unittest.IsolatedAsyncioTestCase):
             host = Host(lambda *_: None)
             host.services = ServiceContainer(host.publish, host.confirm, directory, migrate=False)
             try:
-                with patch('sys.platform', 'linux'):
+                with patch('sys.platform', 'linux'), patch('secretstorage.dbus_init', side_effect=OSError('unavailable')):
                     host.services.desktop.perform = AsyncMock()
                     with self.assertRaises(PlatformUnavailable):
                         await host.execute('desktop.perform', {})

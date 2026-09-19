@@ -18,6 +18,7 @@ import { Backend } from "./backend";
 import { backendPython, iconName } from "../platform";
 import { validateCall } from "../contracts";
 import { fileAction } from "./file-actions";
+import { nativeNotifications } from './notifications';
 
 const root = app.isPackaged
   ? path.join(process.resourcesPath, "backend")
@@ -151,7 +152,11 @@ else {
       });
       if (answer.response === 1) await shell.openExternal(url.href);
     };
-    const browser = new OliveBrowser(window, backend, openExternalLink);
+    const notify = nativeNotifications(profile, path.join(root, 'assets/branding/olive-256.png'), () => {
+      if (!window.isDestroyed()) window.webContents.send('olive:event', {v: 1, kind: 'event', seq: 0,
+        topic: 'native.notification_failure', data: {}});
+    });
+    const browser = new OliveBrowser(window, backend, openExternalLink, notify);
     function trusted(event: Electron.IpcMainInvokeEvent) {
       if (
         event.sender !== window.webContents ||
@@ -250,6 +255,7 @@ else {
       await openExternalLink(target);
     });
     backend.on("event", (value) => {
+      notify(value.topic, value.data || {});
       if (!window.isDestroyed()) window.webContents.send("olive:event", value);
     });
     backend.on("lost", () => {

@@ -12,7 +12,7 @@ test("M4 Electron bounded IMAP header sync, explicit body read, restart and disc
   const evidence = path.resolve("../artifacts/ui-review/M4/imap-ui");
   await mkdir(evidence, { recursive: true });
   const fixture = spawn(
-    path.resolve("../.venv/Scripts/python.exe"),
+    path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"),
     [
       path.resolve("../scripts/run_m4_mail_sink.py"),
       "--directory",

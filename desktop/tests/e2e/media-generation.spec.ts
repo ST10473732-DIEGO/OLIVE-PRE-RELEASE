@@ -2,7 +2,7 @@ import {test,expect,_electron as electron} from '@playwright/test';
 import {mkdtemp,mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {execFile} from 'node:child_process';
+import {execFile,spawnSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {openSpace} from './shell';
 import {captureMail} from './m4-capture';
@@ -16,6 +16,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
   const evidence=path.resolve('../artifacts/core/functionality/media-live');await mkdir(evidence,{recursive:true});
   const app=await electron.launch({args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile}});
   const timings:Record<string,number>={};
+  let owned='[]';
   const engine=async(route:string)=>{const r=await fetch('http://127.0.0.1:8188'+route);expect(r.ok).toBe(true);return r.json();};
   try{
     const page=await app.firstWindow();await page.getByRole('button',{name:'Enter OLIVE',exact:true}).click();await openSpace(page,'Chat');
@@ -29,6 +30,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     };
     await expect(page.getByLabel('OLIVE preset')).toBeEnabled({timeout:60000});
     await chat('What is 4 + 5? Reply with the number only.');
+    for(const space of ['OLIVE GO','Studio','Chat'])await openSpace(page,space);
     expect((await (await fetch('http://127.0.0.1:11434/api/ps')).json()).models.length).toBeGreaterThan(0);
     await page.getByLabel('OLIVE preset').selectOption('reimagine');await page.getByRole('button',{name:'Open media tools',exact:true}).click();
     const sheet=page.getByRole('dialog',{name:'OLIVE REIMAGINE',exact:true});
@@ -46,7 +48,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
       timings[label]=Date.now()-start;
       const job=(await status()).jobs.find(x=>!before.includes(x.id))!;expect(job.artifact?.provenance.engine).toBe('ComfyUI');
       await copyFile(job.artifact!.path,path.join(evidence,label+'.png'));
-      const checked=await promisify(execFile)(path.resolve('../.venv/Scripts/python.exe'),['-c','from PIL import Image, ImageStat; import sys; i=Image.open(sys.argv[1]).convert("RGB"); assert i.size==(1024,1024); assert max(ImageStat.Stat(i).stddev)>10; print("real nonblank image")',job.artifact!.path],{windowsHide:true});expect(checked.stdout).toContain('real nonblank image');
+      const checked=await promisify(execFile)(path.resolve(process.platform === 'win32' ? '../.venv/Scripts/python.exe' : '../.venv/bin/python'),['-c','from PIL import Image, ImageStat; import sys; i=Image.open(sys.argv[1]).convert("RGB"); assert i.size==(1024,1024); assert max(ImageStat.Stat(i).stddev)>10; print("real nonblank image")',job.artifact!.path],{windowsHide:true});expect(checked.stdout).toContain('real nonblank image');
       return job.artifact!;
     };
     const generated=await render('generated');const original=await readFile(generated.path);
@@ -54,6 +56,9 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     const released=await engine('/system_stats');expect(released.devices[0].torch_vram_total).toBeLessThanOrEqual(256*1024*1024);
     await sheet.getByRole('button',{name:'Inspect artifact',exact:true}).first().click();await expect(sheet.getByAltText('Selected media artifact')).toBeVisible();
     await captureMail(page,app,path.join(evidence,'generation-ui.png'));
+    await sheet.getByRole('button',{name:'Close',exact:true}).click();
+    await chat('What is 7 + 2? Reply with the number only.');
+    await page.getByLabel('OLIVE preset').selectOption('reimagine');await page.getByRole('button',{name:'Open media tools',exact:true}).click();
     await sheet.getByLabel('Media input').selectOption(generated.id);await sheet.getByLabel('Media operation').selectOption('image-to-image');
     await sheet.getByLabel('Media prompt').fill('Studio photograph of three purple olives on a blue ceramic plate, soft daylight, detailed natural texture');
     const edited=await render('edited');expect(edited.sha256).not.toBe(generated.sha256);expect(await readFile(generated.path)).toEqual(original);
@@ -75,10 +80,21 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     expect((await (await fetch('http://127.0.0.1:11434/api/ps')).json()).models.length).toBeGreaterThan(0);
     const after=await engine('/system_stats');expect(after.devices[0].torch_vram_total).toBeLessThanOrEqual(256*1024*1024);
     await page.getByLabel('OLIVE preset').selectOption('reimagine');await page.getByRole('button',{name:'Open media tools',exact:true}).click();
+    if(process.platform==='linux'){
+      const probe=spawnSync(path.resolve('../.venv/bin/python'),['-c','import psutil,json,sys; p=psutil.Process(int(sys.argv[1])); print(json.dumps([dict(pid=c.pid,created=c.create_time()) for c in [p,*p.children(recursive=True)]]))',String(app.process().pid)],{encoding:'utf8'});
+      expect(probe.status).toBe(0);owned=probe.stdout;
+    }
     await sheet.getByRole('button',{name:'Release and disconnect engine',exact:true}).click();
     await expect(sheet).toContainText('Generation: Needs setup');
     await sheet.getByRole('button',{name:'Close',exact:true}).click();
     await chat('What is 8 + 1? Reply with the number only.');
-    await writeFile(path.join(evidence,'acceptance.json'),JSON.stringify({profile,timings,generated,edited,cancelled,released,after},null,2));
+    for(let cycle=0;cycle<2;cycle++)for(const space of ['Mail','Agent','Tasks','Calendar','Reminders','Desktop Control','Settings','OLIVE GO','Studio','Chat'])await openSpace(page,space);
+    expect(await app.evaluate(({webContents})=>webContents.getAllWebContents().length)).toBeLessThanOrEqual(2);
+    if(process.platform==='linux'){
+      const probe=spawnSync(path.resolve('../.venv/bin/python'),['-c','import psutil,json,sys; p=psutil.Process(int(sys.argv[1])); print(json.dumps([dict(pid=c.pid,created=c.create_time()) for c in [p,*p.children(recursive=True)]]))',String(app.process().pid)],{encoding:'utf8'});
+      expect(probe.status).toBe(0);owned=JSON.stringify([...new Map([...JSON.parse(owned),...JSON.parse(probe.stdout)].map(item=>[item.pid+':'+item.created,item])).values()]);
+    }
+    await writeFile(path.join(evidence,'acceptance.json'),JSON.stringify({profile,timings,generated,edited,cancelled,released,after,owned:JSON.parse(owned)},null,2));
   }finally{await app.close();}
+  if(process.platform==='linux')await expect.poll(()=>spawnSync(path.resolve('../.venv/bin/python'),['-c','import psutil,json,sys; alive=[]\nfor x in json.loads(sys.argv[1]):\n try:\n  p=psutil.Process(x["pid"])\n  if p.create_time()==x["created"] and p.status()!=psutil.STATUS_ZOMBIE:alive.append(x["pid"])\n except psutil.NoSuchProcess:pass\nprint(json.dumps(alive))',owned],{encoding:'utf8'}).stdout.trim(),{timeout:15000}).toBe('[]');
 });

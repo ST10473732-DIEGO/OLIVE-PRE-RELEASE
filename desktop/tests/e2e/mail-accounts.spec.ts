@@ -16,10 +16,10 @@ test("real UI unified and separate accounts, received-account reply and honest G
   try {
     for (let index = 0; index < 2; index++) {
       const directory = await mkdtemp(path.join(tmpdir(), "olive-m4-sink-"));
-      const process = spawn(path.resolve("../.venv/Scripts/python.exe"), [path.resolve("../scripts/run_m4_mail_sink.py"), "--directory", directory, "--imap"], {windowsHide: true, stdio: "ignore"});
-      peers.push({directory, process});
+      const fixtureProcess = spawn(path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"), [path.resolve("../scripts/run_m4_mail_sink.py"), "--directory", directory, "--imap"], {windowsHide: true, stdio: "ignore"});
+      peers.push({directory, process: fixtureProcess});
       await expect.poll(async () => {
-        try { const r = JSON.parse(await readFile(path.join(directory, "ready.json"), "utf8")); return r.pid === process.pid || r.parent_pid === process.pid; } catch { return false; }
+        try { const r = JSON.parse(await readFile(path.join(directory, "ready.json"), "utf8")); return r.pid === fixtureProcess.pid || r.parent_pid === fixtureProcess.pid; } catch { return false; }
       }, {timeout: 15000}).toBeTruthy();
     }
     app = await electron.launch({args: [path.resolve(".")], env: {...process.env, OLIVE_DATA_DIR: profile, OLIVE_OLLAMA_HOST: "http://127.0.0.1:1"}});

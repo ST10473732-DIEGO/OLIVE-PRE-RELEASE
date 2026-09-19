@@ -13,6 +13,8 @@ from ..agent.tool_result import ToolResult
 
 
 def launch_identity(application):
+    from ..platform_support import require_windows
+    require_windows('Desktop Control')
     mechanism, target = application.launch_mechanism, application.launch_target
     if mechanism == "app_id":
         if not target or any(character in target for character in "\r\n\x00"):

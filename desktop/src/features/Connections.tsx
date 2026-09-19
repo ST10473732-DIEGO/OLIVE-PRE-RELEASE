@@ -115,8 +115,8 @@ export function Connections({
         </button>
         <p className="small muted">
           Connection checks do not send messages. Credentials are kept in
-          Windows Credential Manager, outside portable backups. This does not
-          protect against every process running as your Windows user.
+          the operating system credential vault, outside portable backups. This does not
+          protect against every process running as your desktop user.
         </p>
       </form>
       {status?.enabled&&<div className="project-form">

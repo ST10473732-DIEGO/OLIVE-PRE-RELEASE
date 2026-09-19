@@ -39,7 +39,7 @@ for (const display of ["auto", "wayland"]) test(`Linux ${display}: launcher, por
       else await expect(page.getByRole("heading", { name, exact: true }).first()).toBeVisible();
       await expect(page.getByRole("alert")).toHaveCount(0);
     }
-    await expect(page.getByText("Desktop Control for Linux is not available in this build yet.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Linux .*Desktop Control is not yet available/)).toBeVisible();
     await page.getByRole("button", { name: "OLIVE activity", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Activity", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");

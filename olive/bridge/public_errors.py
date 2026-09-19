@@ -1,5 +1,7 @@
 ﻿"""Allowlisted user guidance; provider/model exception text stays private."""
 _MESSAGES = {
+ 'The configured local ComfyUI runtime is missing': 'The configured local ComfyUI runtime is missing. Check the local media installation.',
+ 'The configured local ComfyUI runtime exited during startup': 'The local ComfyUI runtime could not start. Check its Python/CUDA dependencies and local model setup.',
  'Studio interactive terminal for Linux is not available in this build yet.': 'Studio interactive terminal for Linux is not available in this build yet.',
  'Windows command shells for Linux is not available in this build yet.': 'Windows command shells are not available on Linux. The bounded Python command runner remains available.',
  'Native application control for Linux is not available in this build yet.': 'Native application control for Linux is not available in this build yet.',

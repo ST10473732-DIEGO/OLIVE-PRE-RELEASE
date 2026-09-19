@@ -26,6 +26,8 @@ class MediaTool:
 
 class MediaService:
     def __init__(self,services):
+        from .local_comfy_runtime import LocalComfyRuntime
+        self.runtime = LocalComfyRuntime()
         self.s=services;self.root=Path(services.data_dir)/'media';self.store=JsonStore(self.root/'records.json');self.config=JsonStore(self.root/'engine.json')
         self.jobs={};self.tasks={};self.cancel_events={};self.lock=asyncio.Lock()
         if services.ollama.residency is not None:
@@ -35,6 +37,9 @@ class MediaService:
         config=self.config.read({})
         if config.get('endpoint'):
             self.guard(config['endpoint'],'network.read')
+            # An unreachable endpoint is not proof of free GPU memory. A configured
+            # managed engine must start and confirm release just like an external one.
+            await self.runtime.start_for(config['endpoint'])
             try:await ComfyImages(config['endpoint']).release_idle()
             except Exception as error:
                 raise RuntimeError('Cannot verify media GPU release. Reconnect the configured engine, or disconnect it in Media tools while it is running and idle, before retrying Chat.') from error
@@ -51,7 +56,9 @@ class MediaService:
     async def configure(self,url):
         self.guard(url,'network.read')
         self.guard(self.root,'filesystem.write')
-        engine=ComfyImages(endpoint(url));info=await engine.inspect()
+        engine=ComfyImages(endpoint(url))
+        await self.runtime.start_for(engine.url)
+        info=await engine.inspect()
         self.config.write({'endpoint':engine.url,'version':info['version'],'checkpoints':info['checkpoints']})
         return self.status()
     async def disconnect(self):
@@ -61,6 +68,7 @@ class MediaService:
         async with self.s.ollama.residency.lock:
             await self.release_engine_for_chat()
             self.config.write({})
+            await self.runtime.close()
         return self.status()
     async def load(self,path):
         return await self.s.agent.tool('media.import',{'path':path},'Preserve this selected original image for local editing',direct_user_action=True)
@@ -141,6 +149,8 @@ class MediaService:
                     if residency.current:await self.s.ollama.unload_model(residency.current);residency.current=None
                     loaded=await self.s.ollama.loaded_models()
                     if loaded:raise ValueError('Another Ollama client has resident models. Release them before starting media generation.')
+                    await self.runtime.start_for(engine.url)
+                    check()
                     if raw:
                         with Image.open(io.BytesIO(raw)) as original:
                             image=ImageOps.exif_transpose(original).convert('RGB').resize((request['width'],request['height']))
@@ -164,4 +174,7 @@ class MediaService:
         return {'path':str(target),'sha256':record['sha256']}
     async def shutdown(self):
         for event in self.cancel_events.values():event.set()
-        await asyncio.gather(*self.tasks.values(),return_exceptions=True)
+        try:
+            await asyncio.gather(*self.tasks.values(),return_exceptions=True)
+        finally:
+            await self.runtime.close()

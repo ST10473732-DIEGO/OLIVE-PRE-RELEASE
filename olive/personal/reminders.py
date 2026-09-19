@@ -113,7 +113,7 @@ class ReminderScheduler:
             due=list(db.execute("SELECT id FROM deliveries WHERE state IN ('pending','snoozed') AND due_at<=? ORDER BY due_at LIMIT 50",(now.isoformat(),)))
             db.execute("UPDATE deliveries SET state='delivered',delivered_at=?,updated_at=? WHERE state IN ('pending','snoozed') AND due_at<=?",(now.isoformat(),now.isoformat(),now.isoformat()))
         return {'new_count':count,'message':f'{count} reminders are ready in your activity centre.' if count else '',
-                'state':'ready','delivery_ids':[r['id'] for r in due]}
+                'state':'ready','delivery_ids':[r['id'] for r in due], 'delivered_at':now.isoformat()}
 
     def history(self,limit=50,offset=0):
         v.integer(limit,1,200);v.integer(offset,0,100000)

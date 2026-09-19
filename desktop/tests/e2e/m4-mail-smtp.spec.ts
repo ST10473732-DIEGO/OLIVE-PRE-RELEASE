@@ -22,7 +22,7 @@ for (const scenario of [
       );
       await mkdir(evidence, { recursive: true });
       const sink = spawn(
-        path.resolve("../.venv/Scripts/python.exe"),
+        path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"),
         [
           path.resolve("../scripts/run_m4_mail_sink.py"),
           "--directory",

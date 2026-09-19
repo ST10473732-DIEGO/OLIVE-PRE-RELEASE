@@ -200,10 +200,11 @@ class Host:
             finally:
                 self.restoring = False
         if method in {'connections.discord_configure','connections.discord_select','connections.discord_destinations'}:
-            from ..platform_support import require_windows, PlatformUnavailable
+            from ..platform_support import PlatformUnavailable
             unavailable = False
             try:
-                require_windows('Secure credential storage')
+                from ..services.credential_vault import CredentialVault
+                await asyncio.to_thread(CredentialVault(s.data_dir).require_available)
                 action={'connections.discord_configure':s.discord_transport.configure,'connections.discord_select':s.discord_transport.select_destination,'connections.discord_destinations':s.discord_transport.destinations}[method]
                 return await action(**args)
             except PlatformUnavailable:
@@ -215,7 +216,8 @@ class Host:
             finally:
                 if 'token' in args:args['token'] = ''
             if unavailable:
-                raise PlatformUnavailable('Secure credential storage for Linux is not available in this build yet.')
+                from ..services.linux_credentials import UNAVAILABLE
+                raise PlatformUnavailable(UNAVAILABLE)
             raise ValueError('Discord connection could not be verified. Check the bot token, server/channel IDs, bot access and network availability.')
         if method == 'approval.respond':
             value, future = self.pending.get(args['approval_id'], (None, None))

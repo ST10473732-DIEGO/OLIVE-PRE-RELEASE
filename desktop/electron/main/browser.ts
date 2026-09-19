@@ -29,7 +29,7 @@ export class OliveBrowser {
   private file:string;
   private restored:{url:string; pinned:boolean}[] = [];
   private restoredActive = 0;
-  constructor(private window:BrowserWindow, backend:Backend, private openExternal:(url:string)=>Promise<void>) {
+  constructor(private window:BrowserWindow, backend:Backend, private openExternal:(url:string)=>Promise<void>, private notify:(topic:string,data:Record<string,unknown>)=>void = () => {}) {
     this.file = path.join(app.getPath('userData'), 'browser.json');
     try {
       const raw = readFileSync(this.file,'utf8');
@@ -80,7 +80,7 @@ export class OliveBrowser {
       this.downloads.set(id,{item,record});
       this.blocked.add(id); this.present();
       item.on('updated',()=>{this.blocked.delete(id);record.received=item.getReceivedBytes();record.total=item.getTotalBytes();record.state=item.isPaused()?'paused':'downloading';record.path=item.getSavePath();this.publish();this.present();});
-      item.once('done',(_event,state)=>{this.blocked.delete(id);record.state=state;record.received=item.getReceivedBytes();record.path=item.getSavePath();this.publish();this.present();});
+      item.once('done',(_event,state)=>{if(state==='completed')this.notify('download.completed',{id});this.blocked.delete(id);record.state=state;record.received=item.getReceivedBytes();record.path=item.getSavePath();this.publish();this.present();});
       this.publish();
     });
     // No privileged schemes can be loaded as pages or subresources.

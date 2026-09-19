@@ -11,7 +11,7 @@ test('LIVE LOCAL DEEP reads a real scanned PDF page and retains native page meta
   const profile=await mkdtemp(path.join(tmpdir(),'olive-deep-pdf-'));
   const pdf=path.join(profile,'mixed.pdf');
   const evidence=path.resolve('../artifacts/core/functionality/deep-pdf');await mkdir(evidence,{recursive:true});
-  const fixture=spawnSync(path.resolve('../.venv/Scripts/python.exe'),[path.resolve('../scripts/create_deep_pdf_fixture.py'),pdf],{windowsHide:true,encoding:'utf8'});
+  const fixture=spawnSync(path.resolve(process.platform === 'win32' ? '../.venv/Scripts/python.exe' : '../.venv/bin/python'),[path.resolve('../scripts/create_deep_pdf_fixture.py'),pdf],{windowsHide:true,encoding:'utf8'});
   expect(fixture.status,fixture.stderr).toBe(0);
   const app=await electron.launch({args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile}});
   try {
@@ -21,12 +21,14 @@ test('LIVE LOCAL DEEP reads a real scanned PDF page and retains native page meta
     await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},pdf);
     await page.getByRole('button',{name:'Attach files',exact:true}).click();
     await expect(page.getByRole('button',{name:'Remove attachment mixed.pdf'})).toBeVisible();
-    await expect(page.getByText('1 pages without text; ask DEEP about a specific page',{exact:false})).toBeVisible();
     const attached=await page.evaluate(async()=>{
       const value=await window.olive.call('runtime.snapshot',{}) as {chat:{id:string}};
       return window.olive.call('chat.get',{chat_id:value.chat.id});
     }) as {documents:{page_count:number;unreadable_pages:number[]}[]};
-    expect(attached.documents[0]).toMatchObject({page_count:2,unreadable_pages:[2]});
+    expect(attached.documents[0].page_count).toBe(2);
+    // Hosts with native Tesseract can extract the scanned page before vision.
+    expect([[],[2]]).toContainEqual(attached.documents[0].unreadable_pages);
+    if(attached.documents[0].unreadable_pages.length)await expect(page.getByText('1 pages without text; ask DEEP about a specific page',{exact:false})).toBeVisible();
     await page.getByRole('textbox',{name:'Message OLIVE',exact:true}).fill('In the attached PDF, read the image on page 2. What is the pears total? Cite that page, and do not infer other pages.');
     await page.getByRole('button',{name:'Send message',exact:true}).click();
     await expect(page.locator('.message-assistant').last()).toContainText('37',{timeout:180000});

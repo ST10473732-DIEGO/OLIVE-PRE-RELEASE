@@ -5,6 +5,10 @@ trap 'printf "OLIVE launch failed at line %s (exit %s).\n" "$LINENO" "$?" >&2' E
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$root"
 umask 077
+if [[ "${1:-}" == --enable-startup || "${1:-}" == --disable-startup ]]; then
+  action="${1#--}"
+  exec python3 -m olive.services.linux_startup "${action%-startup}"
+fi
 if [[ -x "$root/.toolchains/node/bin/node" ]]; then
   export PATH="$root/.toolchains/node/bin:$PATH"
 fi
@@ -14,6 +18,11 @@ if [[ -x "$root/.toolchains/dotnet/dotnet" ]]; then
 fi
 if [[ -x "$root/.toolchains/ollama/bin/ollama" ]]; then
   export PATH="$root/.toolchains/ollama/bin:$PATH"
+fi
+# A provisioned optional runtime starts only when Media tools request it.
+if [[ -f "$root/.toolchains/ComfyUI/main.py" && -x "$root/.toolchains/comfy-venv/bin/python" ]]; then
+  export OLIVE_COMFY_ROOT="${OLIVE_COMFY_ROOT:-$root/.toolchains/ComfyUI}"
+  export OLIVE_COMFY_PYTHON="${OLIVE_COMFY_PYTHON:-$root/.toolchains/comfy-venv/bin/python}"
 fi
 for tool in python3 node npm; do
   command -v "$tool" >/dev/null || { printf 'Missing dependency: %s. Install it before launching OLIVE.\n' "$tool" >&2; exit 1; }

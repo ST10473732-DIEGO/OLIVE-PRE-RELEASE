@@ -178,12 +178,15 @@ class DesktopController:
     def status(self):
         import sys
         available = sys.platform == 'win32'
+        from ..desktop.linux_capabilities import capabilities
+        linux = capabilities() if sys.platform == 'linux' else {}
         return {"available": available,
-                "unavailable_reason": '' if available else 'Desktop Control for Linux is not available in this build yet.',
+                "unavailable_reason": '' if available else linux.get('reason', 'Desktop Control is unavailable on this platform.'),
+                "platform_capabilities": linux,
                 "settings": self.configuration(), "stopped": self.stop_event.is_set(),
                 "session": self.record.to_dict() if self.record else None,
                 "observation": self.observation, "capabilities": capability_map(self.observation),
-                "provider": self.provider.name, "active": self.operation is not None or self.universal.owner is not None,
+                "provider": self.provider.name if available else "linux_unavailable", "active": self.operation is not None or self.universal.owner is not None,
                 "workflow_phases": list(self.universal.history)}
 
     def publish(self):

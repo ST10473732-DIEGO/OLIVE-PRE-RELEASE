@@ -7,6 +7,7 @@ import io
 from pathlib import Path
 import re
 import shutil
+import sys
 import subprocess
 
 
@@ -62,7 +63,7 @@ class TesseractProvider(OCRProvider):
 
     def recognize(self, image_path: Path) -> OCRResult:
         if not self.available():
-            raise RuntimeError("Local OCR is unavailable. Install Tesseract OCR for Windows or configure its executable.")
+            raise RuntimeError("Local OCR is unavailable. Install local Tesseract OCR or configure its executable.")
         result = self._run([str(self.executable), str(image_path), "stdout", "tsv"], timeout=120)
         if result.returncode:
             raise RuntimeError(f"Tesseract failed with exit code {result.returncode}")
@@ -95,7 +96,7 @@ class OCRService:
 
     @property
     def installation_hint(self) -> str:
-        return "Install Tesseract OCR for Windows or choose tesseract.exe in Settings."
+        return "Install Tesseract OCR for Windows or choose tesseract.exe in Settings." if sys.platform == "win32" else "Install Tesseract OCR or choose its executable in Settings."
 
     def diagnostics(self) -> dict:
         version = self.provider.version() if hasattr(self.provider, "version") else None

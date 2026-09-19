@@ -217,6 +217,9 @@ export default function App() {
   }, []);
   useEffect(() => {
     const unsubscribe = window.olive.subscribe((event: WireEvent) => {
+      if (event.topic === 'native.notification_failure') {
+        setError('Desktop notifications are unavailable. Review completion and reminder history in OLIVE.');
+      }
       if (event.topic === "runtime.lost") {
         setState("Disconnected");
         setBusy(false);

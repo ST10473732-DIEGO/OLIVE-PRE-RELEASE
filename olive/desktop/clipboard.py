@@ -10,6 +10,8 @@ from ..agent.tool_result import ToolResult
 
 
 def clipboard_text(action, text="", stop=None):
+    from ..platform_support import require_windows
+    require_windows('Desktop Control')
     import win32clipboard
     import win32con
     win32clipboard.OpenClipboard()

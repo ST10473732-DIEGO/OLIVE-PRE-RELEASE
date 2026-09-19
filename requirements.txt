@@ -12,4 +12,5 @@ psutil>=7,<8
 playwright>=1.55,<2
 ddgs>=9,<10
 Pillow>=11.2,<13
+SecretStorage==3.5.0; sys_platform == 'linux'
 -r requirements-personal.txt

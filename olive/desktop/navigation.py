@@ -24,6 +24,8 @@ class WindowsNavigationTool:
     async def execute(self, arguments, context):
         if context.progress_callback is not self or self.stop.is_set():
             raise PermissionError("Navigation gateway authorization required")
+        from ..platform_support import require_windows
+        require_windows('Desktop Control')
         target = str(Path(arguments["path"]).resolve(strict=True)) if self.kind == "folder" else SETTINGS_PAGES[arguments["page"]]
         if self.kind == "folder" and not Path(target).is_dir():
             raise ValueError("Navigation target must be a directory")

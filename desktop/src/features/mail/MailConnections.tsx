@@ -56,7 +56,7 @@ export default function MailConnections() {
   };
   return (
     <section className="mail-connections">
-      {resource.data?.credentials_available === false && <p role="status" className="muted">Secure credential storage for Linux is not available in this build yet. Credential-dependent live connections are unavailable. Local drafts and imports remain available.</p>}
+      {resource.data?.credentials_available === false && <p role="status" className="muted">Secure credential storage is unavailable or locked. Unlock your desktop keyring and retry. Credential-dependent live connections are unavailable. Local drafts and imports remain available.</p>}
       <div className="row spread">
         <div>
           <h2>Mail connections</h2>
@@ -367,7 +367,7 @@ export default function MailConnections() {
             <summary>Private server certificate authority</summary>
             <p className="muted">
               Optional PEM certificate for this connection only. Hostname and
-              certificate verification remain required. No Windows trust-store
+              certificate verification remain required. No system trust-store
               changes.
             </p>
             <Field label="Connection-specific CA certificate (PEM)">
@@ -393,7 +393,7 @@ export default function MailConnections() {
           }
         }}
         title="Store mail credentials"
-        description="Stored in Windows Credential Manager for this profile. Ordinary mail data remains readable local data."
+        description="Stored in the operating system credential vault for this profile. Ordinary mail data remains readable local data."
       >
         <form
           className="mail-credential-form"
@@ -409,7 +409,7 @@ export default function MailConnections() {
                 secret: value,
               });
               setCredential(undefined);
-            }, "Credentials stored in the Windows vault.");
+            }, "Credentials stored in the system vault.");
           }}
         >
           <p>
