@@ -53,6 +53,9 @@ class LinuxFoundationTests(unittest.TestCase):
                 service.create('workspace', tempfile.gettempdir(), 'powershell', {})
             self.assertEqual(service.sessions, {})
         asyncio.run(run())
+        # The shared Agent tool boundary wraps unsuccessful runs in PermissionError.
+        message = 'Studio interactive terminal for Linux is not available in this build yet.'
+        self.assertEqual(public_error(PermissionError(message))['message'], message)
 
     def test_local_path_uses_argument_array_and_missing_opener_is_explicit(self):
         with patch('sys.platform', 'linux'), patch('shutil.which', return_value='/usr/bin/xdg-open'), patch('subprocess.run') as run:

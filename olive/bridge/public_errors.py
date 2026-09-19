@@ -1,5 +1,8 @@
 ﻿"""Allowlisted user guidance; provider/model exception text stays private."""
 _MESSAGES = {
+ 'Studio interactive terminal for Linux is not available in this build yet.': 'Studio interactive terminal for Linux is not available in this build yet.',
+ 'Windows command shells for Linux is not available in this build yet.': 'Windows command shells are not available on Linux. The bounded Python command runner remains available.',
+ 'Native application control for Linux is not available in this build yet.': 'Native application control for Linux is not available in this build yet.',
  'File changed since it was read': 'That file changed since OLIVE last read it. Reload it before applying the edit.',
  'Google authorization did not complete. Check desktop-client setup and permissions; credentials were not exposed.': 'Google authorization did not complete. Check the Google desktop-client setup checklist and permissions, then retry.',
  'OLIVE REIMAGINE needs a configured local media engine; no image was generated.': 'OLIVE REIMAGINE needs a configured local media engine; no image was generated.',
