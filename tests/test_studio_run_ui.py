@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import AsyncMock, Mock
 
 from olive.agent.permission_service import PermissionService
 from olive.desktop.adapters import ApplicationAdapterRegistry
@@ -13,6 +14,7 @@ from olive.desktop.control import DesktopControlService,DesktopTarget,Observatio
 from olive.services.checkpoint_service import CheckpointService
 from olive.services.problem_service import ProblemService
 from olive.services.run_service import ExecutionPolicy,RunService
+from olive.services.execution_provider import ExecutionProviderRegistry, DockerExecutionProvider, NativeExecutionProvider
 from olive.services.studio_service import StudioService
 from olive.workspace import Workspace
 
@@ -42,7 +44,37 @@ class StudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(running.id, service._processes)
 
     async def test_untrusted_run_fails_closed_without_isolation_provider(self):
-        with self.assertRaises(PermissionError):await RunService().start(self.workspace,[sys.executable,"-c","print('no')"],policy=ExecutionPolicy("untrusted"))
+        native = Mock(spec=NativeExecutionProvider)
+        docker = Mock(spec=DockerExecutionProvider)
+        docker.available.return_value = False
+        service = RunService(ExecutionProviderRegistry(native=native, docker=docker))
+        with self.assertRaisesRegex(PermissionError, 'requires Docker isolation'):
+            await service.start(self.workspace, [sys.executable, '-c', "print('no')"],
+                                policy=ExecutionPolicy('untrusted'))
+        native.start.assert_not_called()
+        docker.start.assert_not_called()
+        self.assertFalse(service.sessions)
+        self.assertFalse(service._processes)
+
+    async def test_untrusted_run_uses_available_isolation_provider_only(self):
+        native = Mock(spec=NativeExecutionProvider)
+        docker = Mock(spec=DockerExecutionProvider)
+        docker.available.return_value = True
+        process = Mock(pid=123, returncode=0)
+        process.stdout = asyncio.StreamReader()
+        process.stderr = asyncio.StreamReader()
+        process.stdout.feed_eof()
+        process.stderr.feed_eof()
+        process.wait = AsyncMock(return_value=0)
+        docker.start = AsyncMock(return_value=process)
+        service = RunService(ExecutionProviderRegistry(native=native, docker=docker))
+        command = ['python', '-c', "print('isolated fixture')"]
+        session = await service.start(self.workspace, command, policy=ExecutionPolicy('untrusted'))
+        self.assertEqual((await service.wait(session.id)).state, 'completed')
+        docker.start.assert_awaited_once()
+        self.assertEqual(docker.start.call_args.args[0], command)
+        self.assertFalse(docker.start.call_args.args[3].network_enabled)
+        native.start.assert_not_called()
 
     def test_execution_policy_filters_secrets_and_artifacts_stay_in_workspace(self):
         environment=ExecutionPolicy().environment({"PATH":"safe","API_KEY":"never","UNRELATED":"no"})

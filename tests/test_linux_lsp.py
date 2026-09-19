@@ -17,9 +17,21 @@ class PythonLanguageServerTests(unittest.IsolatedAsyncioTestCase):
             program = root / 'main.py'
             source = 'def add(a, b):\n    """Add two values."""\n    return a + b\n\nvalue = add(2, 3)\n'
             program.write_text(source)
-            services = LanguageServices(lambda *_: None)
+            events = []
+            services = LanguageServices(lambda name, payload: events.append((name, payload)))
             try:
                 session = await services.ensure('ws', directory, 'python', dict(os.environ))
+                # Exercise the pinned Studio providers, independent of host lint plugins.
+                await session.notify('workspace/didChangeConfiguration', {'settings': {
+                    'pylsp': {'plugins': {
+                        'pyflakes': {'enabled': True},
+                        'pycodestyle': {'enabled': False},
+                        'mccabe': {'enabled': False},
+                        'flake8': {'enabled': False},
+                        'pylint': {'enabled': False},
+                        'autopep8': {'enabled': True},
+                        'yapf': {'enabled': False},
+                    }}}})
                 await session.open(str(program), source, 'python')
                 pos = {'position': {'line': 4, 'character': 10}}
                 self.assertIn('add', str(await session.feature('hover', str(program), pos)))
@@ -33,11 +45,20 @@ class PythonLanguageServerTests(unittest.IsolatedAsyncioTestCase):
                 await session.change(str(program), source + 'ad')
                 completion = await session.feature('completion', str(program), {'position': {'line': 5, 'character': 2}})
                 self.assertTrue(any(i['label'].split('(')[0] == 'add' for i in completion['items']), completion)
-                await session.change(str(program), 'value=unknown_name\n')
+                version = await session.change(str(program), 'value=unknown_name\n')
+                # Earlier edits may still publish E305 or an undefined `ad`.
+                # Only diagnostics for this document version prove the contract.
+                def current_diagnostics():
+                    return [diagnostic for name, event in events
+                            if name == 'lsp.diagnostics' and event['path'] == str(program)
+                            and event['version'] == version
+                            for diagnostic in event['diagnostics']]
                 async with asyncio.timeout(15):
-                    while not session.diagnostics.get(str(program)):
+                    while not current_diagnostics():
                         await asyncio.sleep(.1)
-                self.assertIn('undefined name', str(session.diagnostics).lower())
+                self.assertTrue(any(item['source'] == 'pyflakes'
+                                    and "undefined name 'unknown_name'" in item['message'].lower()
+                                    for item in current_diagnostics()), current_diagnostics())
                 await session.change(str(program), 'value=1+2\n')
                 self.assertTrue(await session.feature('formatting', str(program), {}))
             finally:
