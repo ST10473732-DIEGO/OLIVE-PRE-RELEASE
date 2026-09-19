@@ -1,7 +1,7 @@
 """Bounded QR contract and standard TLS 1.3 memory-BIO handshake."""
 import json
-from OpenSSL import SSL, crypto
-from cryptography.hazmat.primitives import serialization
+from OpenSSL import SSL
+from .tls_identity import identity_context
 
 from .contracts import ConnectError, _unique_object, canonical, identifier, timestamp
 from .identity import validate_public
@@ -50,22 +50,7 @@ class PairingTLS:
     """No sockets, files, trust-store defaults, session reuse or early data."""
     def __init__(self, key, public, remote, *, server, binding):
         try:
-            cert, peer = validate_public(public), validate_public(remote)
-            expected = peer.public_bytes(serialization.Encoding.DER)
-            ctx = SSL.Context(SSL.TLS_METHOD)
-            ctx.set_min_proto_version(SSL.TLS1_3_VERSION)
-            ctx.set_max_proto_version(SSL.TLS1_3_VERSION)
-            ctx.set_session_cache_mode(SSL.SESS_CACHE_OFF)
-            ctx.set_options(SSL.OP_NO_TICKET)
-            ctx.use_certificate(cert)
-            ctx.use_privatekey(key)
-            ctx.check_privatekey()
-            ctx.get_cert_store().add_cert(crypto.X509.from_cryptography(peer))
-            def verify(connection, certificate, error, depth, valid):
-                return bool(valid and depth == 0 and certificate.to_cryptography().public_bytes(
-                    serialization.Encoding.DER) == expected)
-            ctx.set_verify(SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT, verify)
-            ctx.set_verify_depth(0)
+            ctx = identity_context(key, public, [remote])
             self.connection = SSL.Connection(ctx, None)
             (self.connection.set_accept_state if server else self.connection.set_connect_state)()
             self.binding = binding

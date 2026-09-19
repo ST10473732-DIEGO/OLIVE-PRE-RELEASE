@@ -28,9 +28,9 @@ class DeviceRepository:
             db.execute('PRAGMA user_version=2')
 
     @contextmanager
-    def transaction(self):
+    def transaction(self, *, timeout=10):
         # Separate connections support multiple repository instances and threads.
-        db = sqlite3.connect(self.path, timeout=10)
+        db = sqlite3.connect(self.path, timeout=timeout)
         try:
             db.execute('BEGIN IMMEDIATE')
             yield db
@@ -84,8 +84,8 @@ class DeviceRepository:
         return [validate_record(json.loads(row[0])) for row in db.execute(
             'SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 
-    def devices(self):
-        with self.transaction() as db:
+    def devices(self, *, timeout=10):
+        with self.transaction(timeout=timeout) as db:
             return [validate_record(json.loads(row[0])) for row in db.execute('SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 
     @staticmethod

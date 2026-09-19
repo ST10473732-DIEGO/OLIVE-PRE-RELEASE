@@ -1,4 +1,4 @@
-"""Desktop device service. Fixture dispatch has no reference to Agent or tool registry."""
+"""Device trust and safe dispatch; neither fixtures nor LAN can reach the tool registry."""
 import json
 import platform as host_platform
 import sys
@@ -16,6 +16,7 @@ class DesktopDeviceService:
         self.clock = clock
         self.fixture_mode = fixture_mode
         self.closed = False
+        self.network = None
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -37,15 +38,15 @@ class DesktopDeviceService:
             raise ConnectError('service_closed')
         return self.identities.ensure()
 
-    def require_paired_identity(self, public):
+    def require_paired_identity(self, public, *, timeout=10):
         """Check a public binding, NOT proof of possession or action authorization.
 
-        C3 must first authenticate a live transport and recheck this binding plus
-        current permissions at dispatch. C2 exposes no authenticated action route.
+        C3 authenticates the live transport before using this check, then rechecks
+        the exact public identity and current permissions in the dispatch transaction.
         """
         from .identity import fingerprint
         expected = fingerprint(public)
-        record = self.device(public['device_id'])
+        record = self.device(public['device_id'], timeout=timeout)
         if record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
             raise ConnectError('device_not_paired')
         if record.get('identity_fingerprint') != expected:
@@ -55,16 +56,16 @@ class DesktopDeviceService:
     def this_device(self):
         return self.device(self.local_id)
 
-    def device(self, device_id):
+    def device(self, device_id, *, timeout=10):
         identifier(device_id)
-        with self.repository.transaction() as db:
+        with self.repository.transaction(timeout=timeout) as db:
             record = self.repository.get(db, device_id)
             if record is None:
                 raise ConnectError('unknown_device')
             return record
 
-    def paired_devices(self):
-        return self.repository.devices()
+    def paired_devices(self, *, timeout=10):
+        return self.repository.devices(timeout=timeout)
 
     def rename(self, device_id, name):
         identifier(device_id)
@@ -125,12 +126,14 @@ class DesktopDeviceService:
                               connection_state='offline', permissions=[], revision=record['revision'] + 1)
                 self.repository.put(db, record)
                 self.repository.audit(db, device_id, None, None, int(self.clock()), 'device_revoked')
+        if self.network is not None:
+            self.network.disconnect(device_id, revoked=True)
         return record
 
-    def _authorize(self, db, request, peer):
-        if not self.fixture_mode or self.closed:
+    def _authorize(self, db, request, peer, public=None):
+        if self.closed or (public is None and not self.fixture_mode):
             raise ConnectError('fixtures_disabled')
-        # Peer comes from local fixture construction, never the message's source field.
+        # Peer comes from the authenticated channel or explicit fixture, never the message.
         if peer != request.source_device_id:
             raise ConnectError('source_mismatch')
         record = self.repository.get(db, peer)
@@ -138,8 +141,11 @@ class DesktopDeviceService:
             raise ConnectError('unknown_device')
         if record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
             raise ConnectError('device_not_paired')
-        if record.get('connection_kind') != 'fixture':
-            raise ConnectError('unauthenticated_transport')
+        if public is None:
+            if record.get('connection_kind') != 'fixture':
+                raise ConnectError('unauthenticated_transport')
+        elif record.get('public_identity') != public:
+            raise ConnectError('identity_mismatch')
         if request.target_device_id != self.local_id:
             raise ConnectError('wrong_target')
         now = int(self.clock())
@@ -168,13 +174,18 @@ class DesktopDeviceService:
 
     def receive_fixture(self, raw, *, peer_device_id):
         """Only InProcessFixtureTransport calls this; not a public/authenticated endpoint."""
+        return self._receive(raw, peer_device_id=peer_device_id)
+
+    def _receive(self, raw, *, peer_device_id, public=None):
+        database_timeout = .25 if public is not None else 10
+        deadline = time.monotonic() + 5 if public is not None else None
         request = None
         peer = None
         try:
             peer = identifier(peer_device_id)
             request = RequestEnvelope.decode(raw)
-            with self.repository.transaction() as db:
-                self._authorize(db, request, peer)
+            with self.repository.transaction(timeout=database_timeout) as db:
+                self._authorize(db, request, peer, public)
                 row = db.execute('SELECT fingerprint,response FROM requests WHERE source=? AND request_id=?',
                                  (peer, request.request_id)).fetchone()
                 if row:
@@ -188,10 +199,14 @@ class DesktopDeviceService:
                     raise ConnectError('replay_capacity_reached')
                 # Commit a durable claim BEFORE execution. A crash cannot replay work.
                 db.execute('INSERT INTO requests VALUES(?,?,?,NULL)', (peer, request.request_id, request.fingerprint()))
-            with self.repository.transaction() as db:
+            with self.repository.transaction(timeout=database_timeout) as db:
                 # Re-check revocation/permissions after claim. Writer lock serializes revoke.
-                self._authorize(db, request, peer)
+                self._authorize(db, request, peer, public)
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise ConnectError('request_timeout')
                 result = self._execute(request)
+                if public is not None and request.capability == 'device.status':
+                    result = dict(core_available=True, transport='local', encrypted=True)
                 response = dict(protocol_version=PROTOCOL, request_id=request.request_id,
                                 state='completed', result=result)
                 db.execute('UPDATE requests SET response=? WHERE source=? AND request_id=?',
@@ -207,12 +222,29 @@ class DesktopDeviceService:
         except Exception:
             # Never persist provider exception strings or retry uncertain work.
             code = 'internal_error'
-        with self.repository.transaction() as db:
+        with self.repository.transaction(timeout=database_timeout) as db:
             self.repository.audit(db, peer, request.request_id if request else None,
                                   request.capability if request else None, int(self.clock()), code)
         return dict(protocol_version=PROTOCOL, request_id=request.request_id if request else None,
                     state='rejected', error=code)
 
+    def enable_network(self, address, *, port=0, discovery=True):
+        """Explicit local developer API; no automatic startup or remote route."""
+        if self.closed:
+            raise ConnectError('service_closed')
+        if self.network is not None:
+            raise ConnectError('network_already_enabled')
+        from .network import LocalNetwork
+        network = LocalNetwork(self, address, port=port, discovery=discovery)
+        self.network = network
+        return network
+
+    def disable_network(self):
+        if self.network is not None:
+            self.network.close()
+            self.network = None
+
     def close(self):
+        self.disable_network()
         self.pairing.close()
-        self.closed = True  # No socket, worker, persistent connection or discovery to stop.
+        self.closed = True

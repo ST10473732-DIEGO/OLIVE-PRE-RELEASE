@@ -1,1 +1,1 @@
-"""OLIVE Connect: local device metadata and explicit in-process C1 fixtures."""
+"""OLIVE Connect: device trust, explicit pairing and opt-in authenticated LAN transport."""
