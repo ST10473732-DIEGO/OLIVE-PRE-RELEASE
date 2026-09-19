@@ -4,6 +4,8 @@ version = "3.5.1.dev1"
 description = "OLIVE - private local desktop AI powered by Ollama"
 requires-python = ">=3.11"
 dependencies = [
+  "cryptography>=50.0.1,<51",
+  "pyOpenSSL>=26.0,<27",
   "httpx==0.28.1",
   "winrt-Windows.Media.Control>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'",

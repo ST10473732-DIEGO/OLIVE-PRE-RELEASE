@@ -14,3 +14,6 @@ ddgs>=9,<10
 Pillow>=11.2,<13
 SecretStorage==3.5.0; sys_platform == 'linux'
 -r requirements-personal.txt
+
+cryptography>=50.0.1,<51
+pyOpenSSL>=26.0,<27

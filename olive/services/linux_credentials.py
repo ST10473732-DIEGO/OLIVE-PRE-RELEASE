@@ -47,6 +47,10 @@ def operate(action, target, secret=None):
             store.create_item('OLIVE credential', attributes, secret.encode('utf-8'), replace=True)
             return
         items = list(store.search_items(attributes))
+        if action == 'contains':
+            if len(items) > 1 or any(item.is_locked() for item in items):
+                raise PlatformUnavailable(UNAVAILABLE)
+            return bool(items)
         if action == 'remove':
             for item in items:
                 item.delete()

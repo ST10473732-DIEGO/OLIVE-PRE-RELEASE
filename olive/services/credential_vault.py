@@ -26,9 +26,24 @@ class CredentialVault:
             raise PlatformUnavailable(UNAVAILABLE)
 
     def _target(self, reference):
-        if reference not in {'discord-bot'} and not (isinstance(reference, str) and re.fullmatch(r'mail-[a-f0-9]{32}', reference)):
+        if reference not in {'discord-bot', 'connect-identity-v1'} and not (isinstance(reference, str) and re.fullmatch(r'mail-[a-f0-9]{32}', reference)):
             raise ValueError('Unknown credential reference')
         return self.namespace + '/' + reference
+
+    def contains(self, reference):
+        """Distinguish an absent slot from an unavailable store without exposing secrets."""
+        if sys.platform == 'linux':
+            from .linux_credentials import operate
+            return operate('contains', self._target(reference))
+        require_windows('Secure credential storage')
+        import win32cred
+        try:
+            win32cred.CredRead(self._target(reference), win32cred.CRED_TYPE_GENERIC, 0)
+            return True
+        except Exception as error:
+            if getattr(error, 'winerror', None) == 1168:
+                return False
+            raise RuntimeError('Could not inspect the stored credential') from None
 
     def put(self, reference, secret):
         if not isinstance(secret,str) or not secret or '\0' in secret or len(secret.encode('utf-16-le')) > 2500:

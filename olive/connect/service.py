@@ -11,7 +11,7 @@ from .repository import DeviceRepository
 
 
 class DesktopDeviceService:
-    def __init__(self, profile, *, fixture_mode=False, clock=time.time):
+    def __init__(self, profile, *, fixture_mode=False, clock=time.time, key_store=None, monotonic=time.monotonic):
         self.repository = DeviceRepository(profile / 'connect' / 'devices.sqlite3')
         self.clock = clock
         self.fixture_mode = fixture_mode
@@ -24,6 +24,33 @@ class DesktopDeviceService:
             except OSError:
                 os_name = 'Linux'
         self.local_id = self.repository.ensure_local(platform, os_name, int(clock()))['device_id']
+        from .identity import DeviceIdentityService, DeviceKeyStore
+        from .pairing import PairingService
+        from ..services.credential_vault import CredentialVault
+        self.identities = DeviceIdentityService(self.repository, self.local_id,
+            key_store if key_store is not None else DeviceKeyStore(CredentialVault(profile)), clock)
+        # Vault access is lazy: unavailable pairing must not prevent local Chat startup.
+        self.pairing = PairingService(self, self.identities, monotonic=monotonic)
+
+    def cryptographic_identity(self):
+        if self.closed:
+            raise ConnectError('service_closed')
+        return self.identities.ensure()
+
+    def require_paired_identity(self, public):
+        """Check a public binding, NOT proof of possession or action authorization.
+
+        C3 must first authenticate a live transport and recheck this binding plus
+        current permissions at dispatch. C2 exposes no authenticated action route.
+        """
+        from .identity import fingerprint
+        expected = fingerprint(public)
+        record = self.device(public['device_id'])
+        if record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
+            raise ConnectError('device_not_paired')
+        if record.get('identity_fingerprint') != expected:
+            raise ConnectError('identity_mismatch')
+        return record
 
     def this_device(self):
         return self.device(self.local_id)
@@ -97,6 +124,7 @@ class DesktopDeviceService:
                 record.update(trust_state='revoked', revoked_at=int(self.clock()),
                               connection_state='offline', permissions=[], revision=record['revision'] + 1)
                 self.repository.put(db, record)
+                self.repository.audit(db, device_id, None, None, int(self.clock()), 'device_revoked')
         return record
 
     def _authorize(self, db, request, peer):
@@ -186,4 +214,5 @@ class DesktopDeviceService:
                     state='rejected', error=code)
 
     def close(self):
+        self.pairing.close()
         self.closed = True  # No socket, worker, persistent connection or discovery to stop.

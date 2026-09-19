@@ -17,13 +17,15 @@ class DeviceRepository:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.transaction() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2):
                 raise ConnectError('unsupported_repository_schema')
             db.execute('CREATE TABLE IF NOT EXISTS devices (device_id TEXT PRIMARY KEY, local INTEGER NOT NULL, record TEXT NOT NULL)')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS one_local ON devices(local) WHERE local=1')
             db.execute('CREATE TABLE IF NOT EXISTS requests (source TEXT, request_id TEXT, fingerprint TEXT NOT NULL, response TEXT, PRIMARY KEY(source,request_id))')
             db.execute('CREATE TABLE IF NOT EXISTS activity (id INTEGER PRIMARY KEY, source_device_id TEXT, request_id TEXT, capability TEXT, timestamp INTEGER NOT NULL, result_state TEXT NOT NULL)')
-            db.execute('PRAGMA user_version=1')
+            db.execute('CREATE TABLE IF NOT EXISTS connect_keys (device_id TEXT PRIMARY KEY, public TEXT NOT NULL, state TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS pairing_ledger (session_id TEXT PRIMARY KEY, state TEXT NOT NULL, peer_id TEXT, completion_hash TEXT)')
+            db.execute('PRAGMA user_version=2')
 
     @contextmanager
     def transaction(self):
@@ -76,6 +78,11 @@ class DeviceRepository:
                           capabilities=metadata, permissions=[], revision=1, revoked_at=None)
             self.put(db, record)
             return record
+
+    @staticmethod
+    def devices_from_db(db):
+        return [validate_record(json.loads(row[0])) for row in db.execute(
+            'SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 
     def devices(self):
         with self.transaction() as db:

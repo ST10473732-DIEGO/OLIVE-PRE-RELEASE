@@ -59,9 +59,17 @@ class PairedDevice:
     permissions: list[dict]
     revision: int
     revoked_at: int | None
+    public_identity: dict | None = None
+    identity_fingerprint: str | None = None
 
     def __post_init__(self):
         _metadata(self)
+        if self.public_identity is not None:
+            from .identity import fingerprint
+            if self.public_identity['device_id'] != self.device_id or fingerprint(self.public_identity) != self.identity_fingerprint:
+                raise ConnectError('identity_mismatch')
+        elif self.identity_fingerprint is not None:
+            raise ConnectError('identity_mismatch')
         TrustState(self.trust_state)
         ConnectionState(self.connection_state)
         if self.connection_kind not in {'none', 'fixture', 'local', 'direct', 'relay'}:
