@@ -185,8 +185,8 @@ or SQLite databases are actually synchronized.
 ## Deferred sequence
 
 - C2: cryptographic identity and pairing.
-- C3: local discovery and authenticated encrypted local transport.
-- C4: per-device permission UX.
+- C3: [local discovery and authenticated encrypted local transport](OLIVE_CONNECT_C3.md).
+- C4: per-device permission UX / Devices UI.
 - C5: structured record sync.
 - C6: file transfer.
 - C7: remote AI.
