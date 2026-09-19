@@ -69,6 +69,29 @@ class ModelStackTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(service.active, "large")
         ollama.unload_model.assert_awaited_once_with("small")
 
+    async def test_missing_model_does_not_poison_next_installed_request(self):
+        from ollama import ResponseError
+        provider = SimpleNamespace(unload_model=AsyncMock())
+        service = ModelResidencyService(provider)
+        with self.assertRaises(ResponseError):
+            async with service.lease("missing"):
+                raise ResponseError("model not found", status_code=404)
+        self.assertIsNone(service.current)
+        self.assertIsNone(service.active)
+        self.assertFalse(service.lock.locked())
+        async with service.lease("installed"):
+            self.assertEqual(service.error, "")
+        provider.unload_model.assert_not_awaited()
+
+    async def test_previously_managed_model_already_absent_does_not_block_switch(self):
+        from ollama import ResponseError
+        provider = SimpleNamespace(unload_model=AsyncMock(side_effect=ResponseError("not found", status_code=404)))
+        service = ModelResidencyService(provider)
+        service.current = "previous"
+        async with service.lease("installed"):
+            self.assertEqual(service.active, "installed")
+        self.assertEqual(service.current, "installed")
+
     async def test_cancelled_waiter_does_not_release_active_lease(self):
         service = ModelResidencyService(SimpleNamespace(unload_model=AsyncMock()))
         async with service.lease("active"):

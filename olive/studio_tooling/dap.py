@@ -11,9 +11,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 import time
+import sys
 import uuid
 
-from .toolchain import PINNED, python_executable
+from .toolchain import PINNED, python_executable, module_available
 from .transport import ProcessTransport
 
 REQUEST_TIMEOUT = 60.0
@@ -241,7 +242,11 @@ class DebugServices:
             command = [str(executable), "--interpreter=vscode"]
         elif adapter == "python":
             python = launch.get("python") or python_executable(root)
-            command = [python, "-m", "debugpy.adapter"]
+            adapter_python = python if module_available(python, "debugpy") else sys.executable
+            if not module_available(adapter_python, "debugpy"):
+                raise FileNotFoundError("debugpy is not installed. Run scripts/provision_studio_tooling.py.")
+            launch = dict(launch, python=python)
+            command = [adapter_python, "-m", "debugpy.adapter"]
         else:
             raise ValueError("Unsupported debug adapter")
         session = DebugSession(uuid.uuid4().hex, workspace_id, root, adapter, command, env, launch, self.publish)

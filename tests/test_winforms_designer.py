@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -58,6 +59,7 @@ class WinFormsDesignerTests(unittest.IsolatedAsyncioTestCase):
         panel['handler']='';panel['constructor']='arbitrary()'
         with self.assertRaises(ValueError):winforms.generate(layout)
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows Forms requires the Windows desktop SDK")
     async def test_all_supported_controls_compile_with_the_installed_sdk(self):
         import shutil
         if not shutil.which('dotnet'):self.skipTest('Installed .NET SDK required')

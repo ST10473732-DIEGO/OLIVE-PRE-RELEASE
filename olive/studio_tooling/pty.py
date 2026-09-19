@@ -1,4 +1,4 @@
-"""Interactive terminal sessions on Windows ConPTY (pywinpty).
+"""Interactive sessions through Windows ConPTY or a native Linux PTY.
 
 A terminal session is a trusted native shell started for an approved workspace
 after the terminal tool's permission and audit path. It runs with the user's
@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -58,8 +59,14 @@ class TerminalSession:
         self._flush_handle = None
 
     def start(self, environment: dict[str, str], command=None):
-        from ..platform_support import require_windows
-        require_windows('Studio interactive terminal')
+        if sys.platform == 'linux':
+            from .posix_pty import PosixPTY
+            self.pty = PosixPTY(self.columns, self.rows, self.cwd, environment, self.shell, command)
+            self.pid = self.pty.pid
+            self.state = "running"
+            self._reader = threading.Thread(target=self._read_loop, name=f"olive-pty-{self.id[:8]}", daemon=True)
+            self._reader.start()
+            return
         import winpty
         if command:
             executable = shutil.which(command[0], path=environment.get('PATH')) or command[0]
@@ -133,7 +140,10 @@ class TerminalSession:
 
     def kill(self):
         self._closing = True
-        if self.pty and self.state == "running":
+        if self.pty and self.state == "running" and sys.platform == "linux":
+            self.pty.terminate()
+            self.exit_code = self.pty.process.returncode
+        elif self.pty and self.state == "running":
             # Capture only descendants of this owned PTY process. psutil retains
             # creation identity and refuses to signal a subsequently reused PID.
             import psutil
@@ -179,7 +189,7 @@ class TerminalSession:
             self._flush_handle = None
 
     def status(self) -> dict:
-        return {"session_id": self.id, "workspace_id": self.workspace_id, "title": self.title, "shell": self.shell, "cwd": self.cwd,
+        return {"platform": sys.platform, "session_id": self.id, "workspace_id": self.workspace_id, "title": self.title, "shell": self.shell, "cwd": self.cwd,
                 "state": self.state, "pid": self.pid, "exit_code": self.exit_code, "columns": self.columns, "rows": self.rows,
                 "trust": "native", "created_at": self.created_at}
 
@@ -271,4 +281,4 @@ class ProgramProcess:
         await asyncio.sleep(0)
 
     def close(self):
-        self.terminal.write('\x1a\r')
+        self.terminal.write('\x04' if sys.platform == 'linux' else '\x1a\r')

@@ -17,7 +17,7 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-      - run: python -m pip install -r requirements.txt -r requirements-mail-test.txt
+      - run: python -m pip install -r requirements.txt -r requirements-mail-test.txt -r requirements-studio.txt
       - run: python -m compileall -q .
       - run: python -m unittest discover -s tests -v
       - run: npm ci
@@ -26,5 +26,5 @@ jobs:
         working-directory: desktop
       - run: npm run typecheck && npm run lint && npm test && npm run build
         working-directory: desktop
-      # Native KDE/Wayland acceptance is run on CachyOS with linux-l1.spec.ts.
+      # Native KDE/Wayland and GPU acceptance: linux-l1.spec.ts / linux-l2.spec.ts.
       # Headless CI does not certify native dialogs, compositor behavior or Win32.

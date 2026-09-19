@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import os
+import sys
 import re
 import time
 import uuid
@@ -86,6 +87,9 @@ class RunService:
                 raise PermissionError('.NET working directories must remain inside the workspace')
             directory.mkdir(parents=True, exist_ok=True)
         result = dict(environment)
+        if sys.platform == "linux":
+            # Compilers belong to this run rather than a detached shared daemon.
+            result.update(UseSharedCompilation="false", MSBUILDDISABLENODEREUSE="1", DOTNET_CLI_USE_MSBUILD_SERVER="0")
         for key, value in os.environ.items():
             if key.upper() in {'PROGRAMFILES', 'PROGRAMFILES(X86)'}:
                 result[key] = value

@@ -14,7 +14,7 @@ from olive.studio_tooling.pty import TerminalServices
 from olive.workspace import Workspace
 
 
-@unittest.skipUnless(os.name == 'nt', 'Windows ConPTY acceptance')
+@unittest.skipUnless(sys.platform in {"win32", "linux"}, "Native PTY platform required")
 class ProgramTerminalTests(unittest.IsolatedAsyncioTestCase):
     async def test_closing_terminal_reaps_program_and_owned_child(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -13,7 +13,7 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
   const profile = await mkdtemp(path.join(tmpdir(), "olive-calculator-project-ui-"));
   const evidence = path.join(root, "artifacts/core/functionality/project");
   await mkdir(evidence, { recursive: true });
-  const app = await electron.launch({ args: [path.resolve(".")], env: { ...process.env, OLIVE_DATA_DIR: profile } });
+  const app = await electron.launch({ chromiumSandbox: true, args: [path.resolve(".")], env: { ...process.env, OLIVE_DATA_DIR: profile } });
   const fixtureServer = createServer((_request, response) => response.end("OLIVE baseline browser fixture"));
   await new Promise<void>(resolve => fixtureServer.listen(0, "127.0.0.1", resolve));
   let closed = false;
@@ -31,6 +31,7 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
       approvals: { id: string; tool_name: string; arguments: Record<string, unknown> }[];
     }>;
     await openSpace(page, "Chat");
+    await page.getByRole("combobox", { name: "OLIVE preset", exact: true }).selectOption("fast");
     for (const question of ["What is recursion? Answer briefly.", "Give me Python code for a small calculator. Show the code here."]) {
       const before = (await snapshot()).chat.messages.length;
       await page.getByRole("textbox", { name: "Message OLIVE", exact: true }).fill(question);
@@ -44,7 +45,7 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
     }
     await expect(page.locator('.message-assistant').last().locator('pre').first()).toBeVisible();
     const answerMessages = (await snapshot()).chat.messages.length;
-    await page.getByRole("textbox", { name: "Message OLIVE", exact: true }).fill("Create a calculator project in Studio and run it.");
+    await page.getByRole("textbox", { name: "Message OLIVE", exact: true }).fill("Create a Python calculator project in Studio and run it. The console must repeatedly accept a complete expression on one input line, such as 2 + 3 or 8 / 2, print Result: followed by the answer, and exit when I enter quit. Include addition, subtraction, multiplication and division. For this acceptance fixture only import unittest, math, operator, sys or main; test the pure calculation function without mocking stdin or stdout. Preserve the existing greeting function and its existing tests. Only spaced three-token expressions are required; do not add tests for parentheses or other unsupported syntax.");
     await page.getByRole("button", { name: "Send message", exact: true }).click();
     const reviewFixtureActions = async (minimumMessages = answerMessages + 2) => {
       const deadline = Date.now() + 240000;
@@ -65,12 +66,13 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
           }
           if (args.text) {
             expect(String(args.path)).toMatch(/\.py$/);
-            const parsed = spawnSync(path.join(root, ".venv/Scripts/python.exe"), [path.join(root, "scripts/coding_project_acceptance.py"), "--check-source"], { input: String(args.text), encoding: "utf8", cwd: root });
+            const parsed = spawnSync(path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"), [path.join(root, "scripts/coding_project_acceptance.py"), "--check-source"], { input: String(args.text), encoding: "utf8", cwd: root });
             expect(parsed.status, parsed.stderr).toBe(0);
           }
           if (approval.tool_name === "workspace.run_validation") {
             for (const command of args.commands as { executable: string; arguments: string[] }[]) {
-              expect(path.resolve(command.executable)).toBe(path.join(root, ".venv/Scripts/python.exe"));
+              const expectedPython = spawnSync(path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"), ["-c", "import sys; print(sys.executable if sys.platform == 'win32' else sys._base_executable)"], { encoding: "utf8" }).stdout.trim();
+              expect(path.resolve(command.executable)).toBe(expectedPython);
               expect(["compileall", "unittest"]).toContain(command.arguments[1]);
             }
           }
@@ -172,12 +174,12 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
       await openSpace(page, feature);
     expect(rejected).toBe(0);
     await expect(page.getByRole("textbox", { name: "Message OLIVE", exact: true })).toBeVisible();
-    const children = spawnSync(path.join(root, '.venv/Scripts/python.exe'), ['-c',
+    const children = spawnSync(path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"), ['-c',
       'import psutil,json,sys; print(json.dumps([(p.pid,p.create_time()) for p in psutil.Process(int(sys.argv[1])).children(recursive=True)]))',
       String(app.process().pid)], { encoding: 'utf8', windowsHide: true });
     expect(children.status, children.stderr).toBe(0);
     await app.close(); closed = true;
-    await expect.poll(() => spawnSync(path.join(root, '.venv/Scripts/python.exe'), ['-c',
+    await expect.poll(() => spawnSync(path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"), ['-c',
       'import psutil,json,sys\nlive=[]\nfor pid,created in json.loads(sys.argv[1]):\n try:\n  p=psutil.Process(pid)\n  if p.create_time()==created: live.append(pid)\n except psutil.NoSuchProcess: pass\nprint(len(live))',
       children.stdout.trim()], { encoding: 'utf8', windowsHide: true }).stdout.trim(), { timeout: 15000 }).toBe('0');
   } finally {

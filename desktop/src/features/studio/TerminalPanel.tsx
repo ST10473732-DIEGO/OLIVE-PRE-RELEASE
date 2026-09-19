@@ -42,7 +42,7 @@ function TerminalView({
       theme: terminalTheme(),
       allowProposedApi: false,
       cursorBlink: true,
-      windowsPty: { backend: "conpty" },
+      ...(session.platform !== "linux" ? { windowsPty: { backend: "conpty" as const } } : {}),
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -144,6 +144,14 @@ export function TerminalPanel({
   const [selected, setSelected] = useState("");
   const [choosing, setChoosing] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [shells, setShells] = useState<string[]>([]);
+  useEffect(() => {
+    let active = true;
+    void call<{ terminal: { shells: string[] } }>("tooling.inventory", {}).then(value => {
+      if (active) setShells(value.terminal.shells);
+    }).catch(report);
+    return () => { active = false; };
+  }, [report]);
   const latestProgram = sessions.filter((s) => s.shell === "program").at(-1)?.session_id;
   useEffect(() => {
     if (latestProgram) setSelected(latestProgram);
@@ -215,15 +223,14 @@ export function TerminalPanel({
         <div className="terminal-choice" role="group" aria-label="Choose a shell">
           <p className="small">
             <ShieldAlert size={14} aria-hidden="true" />
-            A native shell runs with your Windows user account and everything it
+            A native shell runs with your operating-system account and everything it
             can do. Its start folder is this workspace, but it is not limited to it.
             OLIVE never types into this terminal on its own.
           </p>
           <div className="row wrap">
-            <button className="primary" onClick={() => void open("powershell")}>
-              Open PowerShell
-            </button>
-            <button onClick={() => void open("cmd")}>Open Command Prompt</button>
+            {shells.map((shell, index) => <button key={shell} className={index === 0 ? "primary" : undefined} onClick={() => void open(shell)}>
+              Open {({ powershell: "PowerShell", cmd: "Command Prompt", bash: "Bash", sh: "POSIX shell" } as Record<string, string>)[shell] || shell}
+            </button>)}
             <button className="quiet" onClick={() => setChoosing(false)}>
               Cancel
             </button>

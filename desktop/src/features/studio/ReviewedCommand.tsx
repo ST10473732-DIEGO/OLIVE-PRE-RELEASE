@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
 import { call } from "../../services/api";
 import { GrowingComposer } from "../../components/GrowingComposer";
 export function ReviewedCommand({
@@ -12,6 +12,14 @@ export function ReviewedCommand({
   const [shell, setShell] = useState<"powershell" | "cmd" | "python">(
     "powershell",
   );
+  const [windowsShells, setWindowsShells] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void call<{ terminal: { shells: string[] } }>("tooling.inventory", {}).then(value => {
+      if (active && !value.terminal.shells.includes("powershell")) { setWindowsShells(false); setShell("python"); }
+    }).catch(report);
+    return () => { active = false; };
+  }, [report]);
   const [busy, setBusy] = useState(false);
   return (
     <>
@@ -28,8 +36,7 @@ export function ReviewedCommand({
           value={shell}
           onChange={(e) => setShell(e.target.value as typeof shell)}
         >
-          <option value="powershell">PowerShell</option>
-          <option value="cmd">CMD</option>
+          {windowsShells && <><option value="powershell">PowerShell</option><option value="cmd">CMD</option></>}
           <option value="python">Python</option>
         </select>
       </label>

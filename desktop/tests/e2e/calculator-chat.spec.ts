@@ -9,7 +9,7 @@ test("LIVE LOCAL calculator code stays in Chat without an Agent task or workspac
   const profile = await mkdtemp(path.join(tmpdir(), "olive-calculator-chat-"));
   const evidence = path.resolve("../artifacts/core/functionality");
   await mkdir(evidence, { recursive: true });
-  const app = await electron.launch({ args: [path.resolve(".")], env: { ...process.env, OLIVE_DATA_DIR: profile } });
+  const app = await electron.launch({ chromiumSandbox: true, args: [path.resolve(".")], env: { ...process.env, OLIVE_DATA_DIR: profile } });
   try {
     const page = await app.firstWindow();
     await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();

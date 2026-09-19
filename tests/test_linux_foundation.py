@@ -49,7 +49,7 @@ class LinuxFoundationTests(unittest.TestCase):
         from olive.studio_tooling.pty import TerminalServices
         async def run():
             service = TerminalServices(lambda *_: None)
-            with patch('sys.platform', 'linux'), self.assertRaises(PlatformUnavailable):
+            with patch('sys.platform', 'linux'), self.assertRaisesRegex(ValueError, "Linux shell"):
                 service.create('workspace', tempfile.gettempdir(), 'powershell', {})
             self.assertEqual(service.sessions, {})
         asyncio.run(run())

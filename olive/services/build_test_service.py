@@ -43,9 +43,11 @@ class BuildAndTestService:
     @staticmethod
     def python_executable(root:Path) -> str:
         for folder in (".venv","venv"):
-            for relative in ("Scripts/python.exe", "bin/python"):
+            for relative in (("Scripts/python.exe",) if sys.platform == "win32" else ("bin/python", "bin/python3")):
                 candidate = root / folder / relative
                 if candidate.is_file(): return str(candidate)
+        if sys.platform == "linux":
+            return getattr(sys, "_base_executable", None) or shutil.which("python3") or shutil.which("python") or "python3"
         if not getattr(sys, "frozen", False) and Path(sys.executable).is_file():
             return sys.executable
         return shutil.which("python") or "python.exe"

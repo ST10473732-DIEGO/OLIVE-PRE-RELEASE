@@ -1,4 +1,4 @@
-﻿import { test, expect, _electron as electron } from "@playwright/test";
+import { test, expect, _electron as electron } from "@playwright/test";
 import path from "node:path";
 import { mkdtemp, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,7 +8,7 @@ test("Studio workspace search dirty close and retained output use the real backe
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-studio-"));
   const seed = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_electron_fixture.py"), profile],
     { cwd: root, encoding: "utf8", windowsHide: true },
   );
@@ -16,6 +16,7 @@ test("Studio workspace search dirty close and retained output use the real backe
   const evidence = path.join(root, "artifacts/ui-review/M2");
   await mkdir(evidence, { recursive: true });
   const app = await electron.launch({
+    chromiumSandbox: true,
     args: [path.resolve(".")],
     env: {
       ...process.env,
@@ -119,7 +120,7 @@ test("Studio workspace search dirty close and retained output use the real backe
     await page
       .getByRole("textbox", { name: "Reviewed command", exact: true })
       .fill(
-        "Set-Content -LiteralPath 'cancelled-command.txt' -Value 'must not execute'",
+        process.platform === "win32" ? "Set-Content -LiteralPath 'cancelled-command.txt' -Value 'must not execute'" : "open('cancelled-command.txt', 'w').write('must not execute')",
       );
     await page
       .getByRole("button", { name: "Review command", exact: true })
@@ -147,7 +148,7 @@ test("Studio workspace search dirty close and retained output use the real backe
       path: path.join(evidence, "studio-command-cancelled-no-change.png"),
     });
     await page.getByText('Workspace actions',{exact:true}).click();await page.getByRole('button',{name:'Workspace tools',exact:true}).click();await page.getByRole('button',{name:'Command',exact:true}).click();
-    await page.getByRole('textbox',{name:'Reviewed command',exact:true}).fill("Write-Output 'M2 command started'; Start-Sleep -Seconds 20; Set-Content -LiteralPath 'command-finished.txt' -Value 'unexpected'");await page.getByRole('button',{name:'Review command',exact:true}).click();await expect(approval).toBeVisible();await approval.getByRole('button',{name:'Approve this action',exact:true}).click();
+    await page.getByRole('textbox',{name:'Reviewed command',exact:true}).fill(process.platform === "win32" ? "Write-Output 'M2 command started'; Start-Sleep -Seconds 20; Set-Content -LiteralPath 'command-finished.txt' -Value 'unexpected'" : "import time; print('M2 command started', flush=True); time.sleep(20); open('command-finished.txt', 'w').write('unexpected')");await page.getByRole('button',{name:'Review command',exact:true}).click();await expect(approval).toBeVisible();await approval.getByRole('button',{name:'Approve this action',exact:true}).click();
     await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();await expect(page.locator('.output-terminal')).toContainText('M2 command started');await page.getByRole('button',{name:'Stop command',exact:true}).click();await expect(page.locator('.output-terminal')).toContainText('cancelled');
     await expect(readFile(path.join(profile,'fixture-workspace/command-finished.txt'))).rejects.toThrow();
     await goHome(page);await openSpace(page, 'Studio');await expect(page.locator('.output-terminal')).toContainText('M2 command started');await expect(page.locator('.output-terminal')).toContainText('cancelled');

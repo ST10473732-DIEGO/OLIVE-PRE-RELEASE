@@ -38,3 +38,28 @@ class AnswerStreamTests(unittest.IsolatedAsyncioTestCase):
             {"message": {"content": "complete "}},
             {"message": {"content": "answer"}, "done": True},
         ]), ["complete ", "answer"])
+
+    async def test_sdk_malformed_response_and_missing_model_recover_without_substitution(self):
+        import json
+        import httpx
+        import ollama
+        calls = []
+
+        def respond(request):
+            model = json.loads(request.content)['model']
+            calls.append(model)
+            if len(calls) == 1:
+                return httpx.Response(200, content=b'{broken-json\n')
+            if model == 'missing-fixture':
+                return httpx.Response(404, json={'error': 'model missing-fixture not found'})
+            return httpx.Response(200, content=b'{"message":{"role":"assistant","content":"Recovered answer"},"done":true}\n')
+
+        service = OllamaService()
+        service.client = ollama.AsyncClient(host='http://fixture.invalid', transport=httpx.MockTransport(respond))
+        with self.assertRaises(ValueError):
+            _ = [token async for token in service.chat_stream('fixture', [])]
+        with self.assertRaises(ollama.ResponseError) as failure:
+            _ = [token async for token in service.chat_stream('missing-fixture', [])]
+        self.assertEqual(failure.exception.status_code, 404)
+        self.assertEqual([token async for token in service.chat_stream('fixture', [])], ['Recovered answer'])
+        self.assertEqual(calls, ['fixture', 'missing-fixture', 'fixture'])

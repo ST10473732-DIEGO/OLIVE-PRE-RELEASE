@@ -97,6 +97,8 @@ class ServiceContainer:
         self.colors = get_theme(self.theme_name)
 
         self.ollama = OllamaService()
+        from ..services.local_ollama_runtime import LocalOllamaRuntime
+        self.local_ollama_runtime = LocalOllamaRuntime(self.ollama.host)
         self.model_registry = ModelCapabilityRegistry(self.ollama)
         self.rag_store = RAGStore(data / "rag.sqlite3")
         self.rag = RAGService(
@@ -275,6 +277,7 @@ class ServiceContainer:
         self.personal.scheduler.start()
         self.mail.background.start()
         try:
+            await self.local_ollama_runtime.start()
             await self.model_registry.refresh()
             self.model_infos = await self.ollama.list_models()
             embedding = self.model_registry.select_embedding_model(self.settings.get("embedding_model"))
@@ -305,20 +308,23 @@ class ServiceContainer:
         await self.knowledge.execute_job(job)
 
     async def shutdown(self):
-        await self.media.shutdown()
-        self.closing = True
-        await self.personal.close()
-        await self.mail.close()
-        await self.interaction.shutdown()
-        self.model_benchmarks.cancel()
-        await self.desktop.shutdown()
-        await self.research.shutdown()
-        self.chat.stop_all()
-        self.agent.cancel()
-        self.agent.cancel_tools()
-        await self.indexing_scheduler.shutdown()
-        await self.studio_tooling.shutdown()
-        for session_id in list(self.run_service.sessions):
-            await self.run_service.stop(session_id)
-        if not self.restart_required:
-            self.save_chats()
+        try:
+            await self.media.shutdown()
+            self.closing = True
+            await self.personal.close()
+            await self.mail.close()
+            await self.interaction.shutdown()
+            self.model_benchmarks.cancel()
+            await self.desktop.shutdown()
+            await self.research.shutdown()
+            self.chat.stop_all()
+            self.agent.cancel()
+            self.agent.cancel_tools()
+            await self.indexing_scheduler.shutdown()
+            await self.studio_tooling.shutdown()
+            for session_id in list(self.run_service.sessions):
+                await self.run_service.stop(session_id)
+            if not self.restart_required:
+                self.save_chats()
+        finally:
+            await self.local_ollama_runtime.close()

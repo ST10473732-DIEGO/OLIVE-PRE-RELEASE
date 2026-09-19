@@ -13,6 +13,8 @@ import subprocess
 import sys
 import urllib.request
 import zipfile
+import tarfile
+import platform
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / ".toolchains" / "studio"
@@ -28,6 +30,17 @@ ARCHIVES = {
         "target": "netcoredbg", "licence": "MIT (Samsung/netcoredbg)",
     },
 }
+
+
+if sys.platform == "linux":
+    if platform.machine() not in {"x86_64", "AMD64"}:
+        raise SystemExit("Pinned Linux tooling currently targets x86-64")
+    ARCHIVES["omnisharp"].update(
+        url="https://github.com/OmniSharp/omnisharp-roslyn/releases/download/v1.39.15/omnisharp-linux-x64-net6.0.tar.gz",
+        sha256="e34b2ad29c31202b05dbdc1439600f98ea38acf656f84817c52e3dda81879f6c")
+    ARCHIVES["netcoredbg"].update(
+        url="https://github.com/Samsung/netcoredbg/releases/download/3.2.0-1092/netcoredbg-linux-amd64.tar.gz",
+        sha256="080eb3b2d2152465f599d3b33d1ee6e747794e11cc0a3773ec689f5e5f2c5afa")
 
 
 def digest(path: Path) -> str:
@@ -54,6 +67,11 @@ def fetch(name: str, item: dict, force: bool) -> None:
     if actual != item["sha256"]:
         archive.unlink(missing_ok=True)
         raise SystemExit(f"{name}: SHA-256 mismatch ({actual}); the archive was discarded")
+    if archive.name.endswith(".tar.gz"):
+        with tarfile.open(archive) as bundle:
+            bundle.extractall(target, filter="data")
+        print(f"{name}: verified and extracted to {target} ({item['licence']})")
+        return
     with zipfile.ZipFile(archive) as bundle:
         for member in bundle.namelist():
             if member.startswith("/") or ".." in Path(member).parts:
@@ -64,7 +82,7 @@ def fetch(name: str, item: dict, force: bool) -> None:
 
 def install_python_packages() -> None:
     requirements = ROOT / "requirements-studio.txt"
-    python = ROOT / ".venv" / "Scripts" / "python.exe"
+    python = ROOT / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
     if not python.is_file():
         python = Path(sys.executable)
     print(f"python packages: pip install -r {requirements.name} into {python}")

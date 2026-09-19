@@ -622,7 +622,9 @@ class StudioToolingController:
         session = self.terminals.create(workspace.id, workspace.root_path, arguments["shell"], self._terminal_environment(workspace))
         return session.status()
 
-    async def terminal_open(self, workspace_id: str, shell: str = "powershell") -> dict:
+    async def terminal_open(self, workspace_id: str, shell: str = "") -> dict:
+        import sys
+        shell = shell or ("bash" if sys.platform == "linux" else "powershell")
         workspace = self._workspace(workspace_id)
         return await self._direct("studio.terminal", {"workspace": workspace.id, "shell": shell}, f"Open a {shell} terminal in {workspace.title}")
 

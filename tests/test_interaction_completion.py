@@ -90,7 +90,7 @@ class CompletionTests(unittest.IsolatedAsyncioTestCase):
         import sys
         from olive.services.build_test_service import BuildAndTestService
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(BuildAndTestService.python_executable(Path(directory)), sys.executable)
+            self.assertEqual(BuildAndTestService.python_executable(Path(directory)), getattr(sys, "_base_executable", sys.executable) if sys.platform == "linux" else sys.executable)
 
     def test_morning_search_uses_local_noon_and_downloaded_proxy_is_explicit(self):
         from olive.interaction.file_intent import constraints

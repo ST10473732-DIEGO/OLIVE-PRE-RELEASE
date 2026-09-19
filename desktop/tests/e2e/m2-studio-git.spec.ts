@@ -8,7 +8,7 @@ test("Studio Git review keeps approval binding and dirty history protection", as
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-git-"));
   const seed = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_electron_fixture.py"), profile],
     { cwd: root, encoding: "utf8", windowsHide: true },
   );
@@ -33,6 +33,7 @@ test("Studio Git review keeps approval binding and dirty history protection", as
     'print("Fixture Git change")\n',
   );
   const app = await electron.launch({
+    chromiumSandbox: true,
     args: [path.resolve(".")],
     env: {
       ...process.env,

@@ -347,7 +347,7 @@ class PythonDebuggerTests(unittest.IsolatedAsyncioTestCase):
             services = DebugServices(lambda topic, value: None)
             services.remember_breakpoints("ws", str(root / "main.py"), [{"line": 3}])
             env = {k: v for k, v in os.environ.items() if k.upper() in {"PATH", "SYSTEMROOT", "TEMP", "TMP", "PATHEXT", "COMSPEC"}}
-            session = await services.launch("ws", str(root), "python", python_launch(str(root / "main.py"), str(root), [], env, sys.executable), env)
+            session = await services.launch("ws", str(root), "python", python_launch(str(root / "main.py"), str(root), [], env, sys._base_executable if sys.platform == "linux" else sys.executable), env)
             for _ in range(60):
                 if session.suspended:
                     break
@@ -374,7 +374,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-@unittest.skipUnless(HAVE_WINPTY, "pywinpty is not installed")
+@unittest.skipUnless(HAVE_WINPTY or sys.platform == "linux", "Native PTY required")
 class ControllerPolicyTests(unittest.IsolatedAsyncioTestCase):
     """Tooling starts pass the permission engine: Deny blocks, Ask is satisfied by the direct UI action and audited."""
 
@@ -403,16 +403,32 @@ class ControllerPolicyTests(unittest.IsolatedAsyncioTestCase):
         policies["permissions"]["terminal.execute"] = "deny"
         self.s.permissions.save(policies["permissions"], policies["scopes"])
         with self.assertRaises(StudioToolingError):
-            await self.s.studio_tooling.terminal_open(self.workspace.id, "cmd")
+            await self.s.studio_tooling.terminal_open(self.workspace.id, ("bash" if sys.platform == "linux" else "cmd"))
         policies["permissions"]["terminal.execute"] = "ask"
         self.s.permissions.save(policies["permissions"], policies["scopes"])
-        status = await self.s.studio_tooling.terminal_open(self.workspace.id, "cmd")
-        self.assertEqual((status["state"], status["trust"], status["shell"]), ("running", "native", "cmd"))
+        status = await self.s.studio_tooling.terminal_open(self.workspace.id, ("bash" if sys.platform == "linux" else "cmd"))
+        self.assertEqual((status["state"], status["trust"], status["shell"]), ("running", "native", ("bash" if sys.platform == "linux" else "cmd")))
         tasks = [task for task in self.s.agent_task_repo.load_all().values() if "terminal" in task.user_request.lower()]
         self.assertTrue(tasks and tasks[-1].state == "completed")
         self.s.studio_tooling.terminal_close(status["session_id"])
         with self.assertRaises(PermissionError):
-            await self.s.studio_tooling.terminal_open("not-a-workspace", "cmd")
+            await self.s.studio_tooling.terminal_open("not-a-workspace", ("bash" if sys.platform == "linux" else "cmd"))
         from olive.bridge.tooling_routes import call
         with self.assertRaises(StudioToolingError):
-            await call(self.s, "terminal.open", {"workspace_id": "not-a-workspace", "shell": "cmd"})
+            await call(self.s, "terminal.open", {"workspace_id": "not-a-workspace", "shell": ("bash" if sys.platform == "linux" else "cmd")})
+
+
+    @unittest.skipUnless(HAVE_DOTNET and HAVE_NETCOREDBG, "Installed C# debugger required")
+    async def test_dotnet_debugger_uses_real_controller_environment(self):
+        root = Path(self.workspace.root_path)
+        _dotnet_solution(root)
+        await self.s.studio_tooling.debug_breakpoints(self.workspace.id, "Fixture.App/Program.cs", [{"line": 4}])
+        status = await self.s.studio_tooling.debug_launch(self.workspace.id)
+        session = self.s.studio_tooling.debug.sessions[status["session_id"]]
+        async with asyncio.timeout(30):
+            while not session.suspended:
+                if session.state in ("failed", "terminated"):
+                    self.fail(str(session.output))
+                await asyncio.sleep(.1)
+        self.assertTrue(session.suspended)
+        await self.s.studio_tooling.debug_stop(session.id)

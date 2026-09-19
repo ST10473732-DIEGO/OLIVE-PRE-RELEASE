@@ -10,7 +10,7 @@ test("direct Monaco save and test need no duplicate approval and retain conflict
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-electron-studio-"));
   const seeded = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_electron_fixture.py"), profile],
     { cwd: root, encoding: "utf8" },
   );
@@ -18,8 +18,9 @@ test("direct Monaco save and test need no duplicate approval and retain conflict
   const evidence = path.join(root, ".experience-351/electron");
   await mkdir(evidence, { recursive: true });
   const app = await electron.launch({
+    chromiumSandbox: true,
     args: [path.resolve(".")],
-    env: { ...process.env, OLIVE_DATA_DIR: profile },
+    env: { ...process.env, OLIVE_DATA_DIR: profile, OLIVE_OLLAMA_HOST: "http://127.0.0.1:1" },
   });
   try {
     const page = await app.firstWindow();

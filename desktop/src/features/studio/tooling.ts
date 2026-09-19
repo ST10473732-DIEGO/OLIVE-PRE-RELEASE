@@ -70,6 +70,7 @@ export interface Breakpoint {
   id?: number;
 }
 export interface TerminalStatus {
+  platform?: string;
   session_id: string;
   workspace_id: string;
   title: string;

@@ -12,8 +12,8 @@ import sys
 REPOSITORY = Path(__file__).resolve().parents[2]
 TOOLS = REPOSITORY / ".toolchains" / "studio"
 PINNED = {
-    "omnisharp": {"version": "1.39.15", "executable": TOOLS / "omnisharp" / "OmniSharp.exe", "licence": "MIT"},
-    "netcoredbg": {"version": "3.2.0-1092", "executable": TOOLS / "netcoredbg" / "netcoredbg" / "netcoredbg.exe", "licence": "MIT"},
+    "omnisharp": {"version": "1.39.15", "executable": TOOLS / "omnisharp" / ("OmniSharp.exe" if sys.platform == "win32" else "OmniSharp"), "licence": "MIT"},
+    "netcoredbg": {"version": "3.2.0-1092", "executable": TOOLS / "netcoredbg" / "netcoredbg" / ("netcoredbg.exe" if sys.platform == "win32" else "netcoredbg"), "licence": "MIT"},
 }
 
 
@@ -85,9 +85,11 @@ def inventory(root: str | Path | None = None) -> dict:
         "python": {"executable": python, "version": sys.version.split()[0]},
         "csharp_language_server": tools["omnisharp"],
         "dotnet_debugger": tools["netcoredbg"],
-        "python_debugger": {"available": module_available(python, "debugpy"), "provider": "debugpy"},
-        "python_language_server": {"available": module_available(python, "pylsp"), "provider": "python-lsp-server"},
-        "terminal": {"available": module_available(sys.executable, "winpty"), "provider": "pywinpty (ConPTY)"},
+        "python_debugger": {"available": (module_available(python, "debugpy") or module_available(sys.executable, "debugpy")), "provider": "debugpy"},
+        "python_language_server": {"available": (module_available(python, "pylsp") or module_available(sys.executable, "pylsp")), "provider": "python-lsp-server"},
+        "terminal": {"available": sys.platform == "linux" or module_available(sys.executable, "winpty"),
+                     "provider": "Linux PTY" if sys.platform == "linux" else "pywinpty (ConPTY)",
+                     "shells": ["bash", "sh"] if sys.platform == "linux" else ["powershell", "cmd"]},
     }
 
 

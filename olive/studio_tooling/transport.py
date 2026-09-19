@@ -32,10 +32,13 @@ class ProcessTransport:
 
     async def start(self):
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
-        self.process = await asyncio.create_subprocess_exec(
-            *self.command, cwd=self.cwd, env=self.env,
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            creationflags=flags, limit=MAX_MESSAGE)
+        options = dict(cwd=self.cwd, env=self.env, stdin=asyncio.subprocess.PIPE,
+                       stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, limit=MAX_MESSAGE)
+        if sys.platform == "linux":
+            from .posix_process import start_owned_process
+            self.process = await start_owned_process(self.command, **options)
+        else:
+            self.process = await asyncio.create_subprocess_exec(*self.command, creationflags=flags, **options)
         self._reader_task = asyncio.create_task(self._read())
         self._stderr_task = asyncio.create_task(self._read_stderr())
 

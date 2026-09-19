@@ -8,6 +8,13 @@ umask 077
 if [[ -x "$root/.toolchains/node/bin/node" ]]; then
   export PATH="$root/.toolchains/node/bin:$PATH"
 fi
+if [[ -x "$root/.toolchains/dotnet/dotnet" ]]; then
+  export DOTNET_ROOT="$root/.toolchains/dotnet"
+  export PATH="$DOTNET_ROOT:$PATH"
+fi
+if [[ -x "$root/.toolchains/ollama/bin/ollama" ]]; then
+  export PATH="$root/.toolchains/ollama/bin:$PATH"
+fi
 for tool in python3 node npm; do
   command -v "$tool" >/dev/null || { printf 'Missing dependency: %s. Install it before launching OLIVE.\n' "$tool" >&2; exit 1; }
 done
@@ -32,6 +39,7 @@ if [[ ! -x desktop/node_modules/electron/dist/electron ]]; then
   node desktop/node_modules/electron/install.js
 fi
 npm run build --prefix desktop
-# No second backend or Ollama daemon: offline pages need neither an HTTP server nor models.
+# The backend may start one loopback-only Ollama process; an existing server is reused.
+export OLIVE_START_OLLAMA="${OLIVE_START_OLLAMA:-1}"
 # exec preserves the Electron exit status and avoids an extra launcher process.
 exec desktop/node_modules/electron/dist/electron "$root/desktop" "$@"

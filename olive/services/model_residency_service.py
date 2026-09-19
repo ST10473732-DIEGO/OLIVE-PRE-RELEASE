@@ -38,9 +38,15 @@ class ModelResidencyService:
                 await self.external_guard()
             if self.current and self.current != model:
                 # Only unload the model this runtime last used; do not evict unrelated clients' work.
-                await self.ollama.unload_model(self.current)
+                try:
+                    await self.ollama.unload_model(self.current)
+                except Exception as error:
+                    # A missing model is already absent, not a failed eviction.
+                    if getattr(error, "status_code", None) != 404:
+                        raise
                 self.switches += 1
                 self.current = None
+            self.error = ""
             self.active = model
             self.current = model
             self.recent[model] = time.time()
@@ -49,6 +55,8 @@ class ModelResidencyService:
             raise
         except Exception as error:
             self.error = type(error).__name__
+            if getattr(error, "status_code", None) == 404:
+                self.current = None
             raise
         finally:
             self.active = None

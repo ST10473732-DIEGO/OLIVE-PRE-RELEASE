@@ -1,6 +1,6 @@
 import {test,expect,_electron as electron,type ElectronApplication,type Page} from '@playwright/test';
 import {createServer} from 'node:http';
-import {spawn} from 'node:child_process';
+import {captureOwnedWindow} from './native-capture';
 import {mkdtemp,mkdir,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -23,7 +23,7 @@ test('OLIVE GO: real navigation, isolation, tabs, private storage, downloads, pa
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
   let app:ElectronApplication|undefined;
-  const launch=async()=>electron.launch({args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile,OLIVE_OLLAMA_HOST:'http://127.0.0.1:1'}});
+  const launch=async()=>electron.launch({chromiumSandbox:true,args:[path.resolve('.'),...(process.platform==='linux'?['--ozone-platform=wayland']:[])],env:{...process.env,OLIVE_DATA_DIR:profile,OLIVE_OLLAMA_HOST:'http://127.0.0.1:1'}});
   // Native window captures are only permitted under the Browser evidence folder.
   const evidence=path.resolve('../artifacts/core/functionality/browser/olive-go');await mkdir(evidence,{recursive:true});
   const errors:string[]=[];
@@ -205,9 +205,7 @@ test('OLIVE GO: real navigation, isolation, tabs, private storage, downloads, pa
     await expect.poll(()=>remote('document.cookie').catch(()=>'')).toBe('');
     await navigate(base+'/two');await remote('document.cookie="fixture=again; path=/; max-age=3600"');await captureMail(page,app,path.join(evidence,'normal.png'));
     await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].focus());
-    const capture=spawn(path.resolve('../.venv/Scripts/python.exe'),[path.resolve('../scripts/capture_fixture_window.py'),'--pid',String(await app.evaluate(()=>process.pid)),'--output',path.join(evidence,'native-window.png')],{windowsHide:true});
-    capture.stderr.on('data',value=>console.log(String(value)));
-    await expect.poll(()=>capture.exitCode).toBe(0);
+    await captureOwnedWindow(page,app,path.join(evidence,'native-window.png'));
     await page.getByRole('button',{name:'Find anything',exact:true}).click();
     // App modal is real; compositor capture must show no native page over it.
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -246,8 +244,7 @@ test('OLIVE GO: real navigation, isolation, tabs, private storage, downloads, pa
     }).toBe(true);
     await page.evaluate(()=>window.olive.setInterfaceScale(1));
     await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,720));await captureMail(page,app,path.join(evidence,'small.png'));
-    const smallCapture=spawn(path.resolve('../.venv/Scripts/python.exe'),[path.resolve('../scripts/capture_fixture_window.py'),'--pid',String(await app.evaluate(()=>process.pid)),'--output',path.join(evidence,'small-native.png')],{windowsHide:true});
-    await expect.poll(()=>smallCapture.exitCode).toBe(0);
+    await captureOwnedWindow(page,app,path.join(evidence,'small-native.png'));
     // Restart: tabs, pinned state, the active tab and preferences come back; nothing replays.
     await app.close();app=await launch();const reopened=await app.firstWindow();watch(reopened);await reopened.getByRole('button',{name:'Enter OLIVE',exact:true}).click();await openSpace(reopened,'OLIVE GO');
     const restored=()=>reopened.evaluate(()=>window.olive.browser({action:'state'})) as Promise<BrowserState>;

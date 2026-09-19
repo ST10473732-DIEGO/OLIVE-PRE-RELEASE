@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { openSpace } from "./shell";
 
-for (const language of ["Python", "C#"]) test(`${language} ordinary Run connects real keyboard input to ConPTY and survives route churn`, async () => {
+for (const language of ["Python", "C#"]) test(`${language} ordinary Run connects real keyboard input to the native PTY and survives route churn`, async () => {
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-interactive-run-"));
-  const seed = spawnSync(path.join(root, ".venv/Scripts/python.exe"),
+  const seed = spawnSync(path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_electron_fixture.py"), profile],
     { cwd: root, encoding: "utf8", windowsHide: true });
   expect(seed.status, seed.stderr).toBe(0);
@@ -23,7 +23,7 @@ for (const language of ["Python", "C#"]) test(`${language} ordinary Run connects
     await writeFile(path.join(profile, "fixture-workspace/Program.cs"),
       'for (var i = 0; i < 3; i++) { System.Console.Write("Enter a word: "); var value = System.Console.ReadLine(); System.Console.WriteLine("Received: " + value); }');
   }
-  const app = await electron.launch({ args: [path.resolve(".")], env: {
+  const app = await electron.launch({ chromiumSandbox: true, args: [path.resolve(".")], env: {
     ...process.env, OLIVE_DATA_DIR: profile, OLIVE_OLLAMA_HOST: "http://127.0.0.1:1",
   } });
   const errors: string[] = [];

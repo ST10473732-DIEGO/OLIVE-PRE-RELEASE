@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -80,8 +81,8 @@ class WorkspaceCodingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.success);self.assertTrue(checkpoints.exists("task"));checkpoints.rollback(workspace,"task");self.assertEqual(path.read_text(),"old")
 
     def test_python_and_dotnet_detection(self):
-        py=self.root/"py";py.mkdir();(py/"requirements.txt").write_text("",encoding="utf-8");venv=py/".venv"/"Scripts";venv.mkdir(parents=True);(venv/"python.exe").write_text("",encoding="utf-8")
-        self.assertEqual(Path(BuildAndTestService().detect(py)[0].executable), venv/"python.exe")
+        py=self.root/"py";py.mkdir();(py/"requirements.txt").write_text("",encoding="utf-8");venv=py/".venv"/("Scripts" if sys.platform == "win32" else "bin");venv.mkdir(parents=True);(venv/("python.exe" if sys.platform == "win32" else "python")).write_text("",encoding="utf-8")
+        self.assertEqual(Path(BuildAndTestService().detect(py)[0].executable), venv/("python.exe" if sys.platform == "win32" else "python"))
         net=self.root/"net";net.mkdir();(net/"App.csproj").write_text("",encoding="utf-8")
         self.assertEqual([x.name for x in BuildAndTestService().detect(net)],[".NET restore",".NET build",".NET test"])
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
-import asyncio,shutil,subprocess,time
+import asyncio,shutil,subprocess,time,sys
 
 TRUST_LEVELS={"trusted","approved","untrusted"}
 
@@ -17,6 +17,11 @@ class NativeExecutionProvider:
     name="native"
     def available(self):return True
     async def start(self,command,cwd,environment,limits,interactive=False):
+        if sys.platform == "linux":
+            from ..studio_tooling.posix_process import start_owned_process
+            return await start_owned_process(command, cwd=str(cwd), env=environment,
+                stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         return await asyncio.create_subprocess_exec(*command,cwd=str(cwd),env=environment,stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,creationflags=getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)|getattr(subprocess,"CREATE_NO_WINDOW",0))
 
 class DockerExecutionProvider:
