@@ -52,7 +52,7 @@ class LocalComfyRuntime(LocalOllamaRuntime):
                 self.process = await start_owned_process([
                     self.python, str(Path(self.root) / 'main.py'), '--listen', '127.0.0.1', '--port', '8188',
                     '--disable-auto-launch', '--disable-all-custom-nodes', '--disable-api-nodes', '--disable-cuda-malloc',
-                    '--disable-dynamic-vram'], cwd=self.root, env=dict(os.environ),
+                    '--disable-dynamic-vram', '--cache-none'], cwd=self.root, env=dict(os.environ),
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 self.owner = psutil.Process(self.process.pid)
                 for _ in range(600):

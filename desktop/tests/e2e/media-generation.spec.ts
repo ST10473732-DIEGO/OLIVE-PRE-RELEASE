@@ -14,7 +14,9 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
   test.setTimeout(1200000);
   const profile=await mkdtemp(path.join(tmpdir(),'olive-media-live-'));
   const evidence=path.resolve('../artifacts/core/functionality/media-live');await mkdir(evidence,{recursive:true});
-  const app=await electron.launch({args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile}});
+  const app=await electron.launch(process.platform==='linux'
+    ? {executablePath:path.resolve('../run_olive.sh'),chromiumSandbox:true,args:['--ozone-platform=wayland'],env:{...process.env,OLIVE_DATA_DIR:profile},timeout:60000}
+    : {args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile}});
   const timings:Record<string,number>={};
   let owned='[]';
   const engine=async(route:string)=>{const r=await fetch('http://127.0.0.1:8188'+route);expect(r.ok).toBe(true);return r.json();};
@@ -44,7 +46,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     const render=async(label:string)=>{
       const before=(await status()).jobs.map(j=>j.id),start=Date.now();
       await sheet.getByRole('button',{name:'Create output artifact',exact:true}).click();
-      await expect.poll(async()=>{const s=await status();const j=s.jobs.find(x=>!before.includes(x.id));if(j?.state==='failed')throw new Error(j.error);const usage=await engine('/system_stats');timings[label+'SampledTorchVramBytes']=Math.max(timings[label+'SampledTorchVramBytes']||0,usage.devices[0].torch_vram_total);timings[label+'SampledSystemRamUsedBytes']=Math.max(timings[label+'SampledSystemRamUsedBytes']||0,usage.system.ram_total-usage.system.ram_free);return j?.state;},{timeout:600000,intervals:[1000]}).toBe('completed');
+      await expect.poll(async()=>{const s=await status();const j=s.jobs.find(x=>!before.includes(x.id));if(j?.state==='failed')throw new Error(j.error+'; GPU state: '+JSON.stringify((await engine('/system_stats')).devices));const usage=await engine('/system_stats');timings[label+'SampledTorchVramBytes']=Math.max(timings[label+'SampledTorchVramBytes']||0,usage.devices[0].torch_vram_total);timings[label+'SampledSystemRamUsedBytes']=Math.max(timings[label+'SampledSystemRamUsedBytes']||0,usage.system.ram_total-usage.system.ram_free);return j?.state;},{timeout:600000,intervals:[1000]}).toBe('completed');
       timings[label]=Date.now()-start;
       const job=(await status()).jobs.find(x=>!before.includes(x.id))!;expect(job.artifact?.provenance.engine).toBe('ComfyUI');
       await copyFile(job.artifact!.path,path.join(evidence,label+'.png'));
