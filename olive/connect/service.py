@@ -3,6 +3,7 @@ import json
 import platform as host_platform
 import sys
 import time
+from threading import RLock
 
 from ..agent.permission_service import PermissionDecision, PermissionService
 from .contracts import (CAPABILITIES, PROTOCOL, ConnectError, RequestEnvelope,
@@ -17,6 +18,8 @@ class DesktopDeviceService:
         self.fixture_mode = fixture_mode
         self.closed = False
         self.network = None
+        self._network_lock = RLock()
+        self.approvals = None
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -87,9 +90,8 @@ class DesktopDeviceService:
         return self.repository.add_fixture(name, int(self.clock()), capabilities=capabilities)
 
     def set_permission(self, device_id, capability, decision, *, scope=None):
-        """Local settings API only; no bridge, model or transport route exposes this.
+        """Local settings API, used by the strict Devices facade, never transport.
 
-        Future Devices UI must call this through the guarded settings adapter.
         Off is the existing DENY value, never an independent permission engine.
         """
         identifier(device_id)
@@ -106,6 +108,9 @@ class DesktopDeviceService:
             rules.append(dict(capability=capability, scope=scope, decision=decision.value))
             record.update(permissions=rules, revision=record['revision'] + 1)
             self.repository.put(db, record)
+            self.repository.audit(db, device_id, None, capability, int(self.clock()), 'permission_changed')
+        if self.approvals is not None:
+            self.approvals.invalidate(device_id)
 
     def permission(self, device_id, capability, *, scope=None):
         if capability not in CAPABILITIES:
@@ -126,6 +131,8 @@ class DesktopDeviceService:
                               connection_state='offline', permissions=[], revision=record['revision'] + 1)
                 self.repository.put(db, record)
                 self.repository.audit(db, device_id, None, None, int(self.clock()), 'device_revoked')
+        if self.approvals is not None:
+            self.approvals.invalidate(device_id)
         if self.network is not None:
             self.network.disconnect(device_id, revoked=True)
         return record
@@ -156,8 +163,12 @@ class DesktopDeviceService:
         if not metadata['supported'] or metadata['policy_disabled']:
             raise ConnectError('capability_unavailable')
         decision = PermissionService.evaluate_device(record['permissions'], request.capability)
+        if decision == PermissionDecision.ASK and public is not None and self.approvals is not None:
+            if self.approvals.check(request, public, record,
+                                    target_name=self.repository.get(db, self.local_id)['display_name']):
+                return
         if decision != PermissionDecision.ALLOW:
-            # C1 intentionally has no remote confirmation route or boolean approval field.
+            # Only the trusted local adapter can satisfy Ask; no wire approval flag exists.
             raise ConnectError('confirmation_required' if decision == PermissionDecision.ASK else 'permission_off')
 
     def capabilities_from_db(self, db):
@@ -215,6 +226,8 @@ class DesktopDeviceService:
                 record['last_seen'] = int(self.clock())
                 record['revision'] += 1
                 self.repository.put(db, record)
+                if self.approvals is not None:
+                    self.approvals.completed(request, record)
                 self.repository.audit(db, peer, request.request_id, request.capability, int(self.clock()), 'completed')
                 return response
         except ConnectError as error:
@@ -229,22 +242,29 @@ class DesktopDeviceService:
                     state='rejected', error=code)
 
     def enable_network(self, address, *, port=0, discovery=True):
-        """Explicit local developer API; no automatic startup or remote route."""
-        if self.closed:
-            raise ConnectError('service_closed')
-        if self.network is not None:
-            raise ConnectError('network_already_enabled')
-        from .network import LocalNetwork
-        network = LocalNetwork(self, address, port=port, discovery=discovery)
-        self.network = network
-        return network
+        """Explicit trusted local action; session-only, with serialized shutdown."""
+        with self._network_lock:
+            if self.closed:
+                raise ConnectError('service_closed')
+            if self.network is not None:
+                raise ConnectError('network_already_enabled')
+            from .network import LocalNetwork
+            network = LocalNetwork(self, address, port=port, discovery=discovery)
+            self.network = network
+            return network
 
     def disable_network(self):
-        if self.network is not None:
-            self.network.close()
-            self.network = None
+        with self._network_lock:
+            if self.network is not None:
+                self.network.close()
+                self.network = None
+            if self.approvals is not None:
+                self.approvals.invalidate()
 
     def close(self):
-        self.disable_network()
-        self.pairing.close()
-        self.closed = True
+        with self._network_lock:
+            self.disable_network()
+            if self.approvals is not None:
+                self.approvals.close()
+            self.pairing.close()
+            self.closed = True

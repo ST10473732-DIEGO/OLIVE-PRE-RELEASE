@@ -1,5 +1,15 @@
 ﻿"""Allowlisted user guidance; provider/model exception text stays private."""
 _MESSAGES = {
+ 'secure_identity_unavailable': 'The secure device key is unavailable. Unlock the system credential store and try again. OLIVE will not replace an existing key.',
+ 'pairing_comparison_mismatch': 'Pairing comparison did not match. Create a new pairing session.',
+ 'pairing_expired': 'Pairing expired. Create a new pairing session.',
+ 'identity_recovery_required': 'The device identity requires recovery. Its key will not be replaced automatically.',
+ 'capability_unavailable': 'This capability is not available for this device.',
+ 'device_not_paired': 'This device is not paired or its access has been revoked.',
+ 'network_disabled': 'Turn Connect on using an explicitly selected local interface first.',
+ 'device_offline': 'This device is offline.',
+ 'connection_failed': 'Could not connect. Check the paired identity, selected local interface and Connect port.',
+
  'The configured local ComfyUI runtime is missing': 'The configured local ComfyUI runtime is missing. Check the local media installation.',
  'The configured local ComfyUI runtime exited during startup': 'The local ComfyUI runtime could not start. Check its Python/CUDA dependencies and local model setup.',
  'Studio interactive terminal for Linux is not available in this build yet.': 'Studio interactive terminal for Linux is not available in this build yet.',

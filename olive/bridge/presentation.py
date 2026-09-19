@@ -3,6 +3,11 @@
 
 def approval_presentation(value, services=None):
     arguments = value.get("arguments", {})
+    if value['tool_name'] == 'connect.request':
+        return dict(action=value['summary'], targets=[arguments['target_name']],
+            content='Read-only Connect operation from ' + arguments['source_name'],
+            scope='This exact authenticated request only.',
+            consequence='Saved permission remains Ask. No content or inference access.')
     if value['tool_name'].startswith('mail.'):
         from ..mail.presentation import approval
         return approval(value['tool_name'],arguments,services)

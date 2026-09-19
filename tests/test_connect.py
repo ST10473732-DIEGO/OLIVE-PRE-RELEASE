@@ -214,7 +214,7 @@ class ConnectTests(unittest.TestCase):
             self.assertEqual(self.send(request_id=str(uuid.uuid4()), capability=capability, operation=operation)['state'], 'completed')
         self.send(arguments={'nonce': 'private fixture body'})
         audit = self.service.repository.activity()
-        self.assertEqual(len(audit), 4)
+        self.assertEqual(len([event for event in audit if event['result_state'] != 'permission_changed']), 4)
         self.assertEqual(audit[-1]['source_device_id'], self.peer)
         self.assertEqual(audit[-1]['request_id'], self.message['request_id'])
         self.assertEqual(audit[-1]['timestamp'], self.now)

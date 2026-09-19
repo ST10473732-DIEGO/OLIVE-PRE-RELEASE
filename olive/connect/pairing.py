@@ -153,6 +153,25 @@ class PairingService:
                         fingerprint=fingerprint(session['peer']), expires_at=session['offer']['expires_at'],
                         comparison=session['tls'].comparison())
 
+    def presentation(self, sid):
+        """Renderer-safe state only. No certificate, TLS object or private material."""
+        with self._lock:
+            self.expire()
+            session = self._sessions.get(sid)
+            if session is None:
+                raise ConnectError('pairing_not_active')
+            result = dict(session_id=sid, state=session['state'])
+            if session['state'] not in TERMINAL:
+                result['expires_at'] = session['offer']['expires_at']
+            if session['state'] in {'fingerprint_pending', 'confirmed'}:
+                preview = self.preview(sid)
+                result.update(comparison=preview['comparison'], fingerprint=preview['fingerprint'],
+                              candidate_id=preview['candidate']['device_id'])
+                if session['local_confirmed'] and session['peer_confirmed']:
+                    record = self.complete(sid)
+                    result = dict(session_id=sid, state='completed', device_id=record['device_id'])
+            return result
+
     def confirm(self, sid, compared_value):
         """Local human input only. Never called by a protocol message or model tool."""
         with self._lock:

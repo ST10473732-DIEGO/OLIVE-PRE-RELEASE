@@ -59,6 +59,9 @@ class Host:
             from ..application.service_container import ServiceContainer
             self.factory = ServiceContainer
         self.services = self.factory(self.publish, self.confirm, data_dir=directory, migrate=False)
+        if hasattr(self.services, 'connect'):
+            from ..connect.approvals import ConnectApprovals
+            self.services.connect.approvals = ConnectApprovals(self.services.connect, self.confirm, asyncio.get_running_loop())
         self.initialization = asyncio.create_task(self.services.initialize())
         self.initialization.add_done_callback(self.initialized)
         self.publish('runtime.ready', {'ready': True})
@@ -110,6 +113,12 @@ class Host:
 
     async def handle(self, request):
         validate(request)
+        # A bounded read-only live snapshot must not consume the durable-action
+        # deduplication budget every 1.5 seconds while Devices is open.
+        if request['method'] == 'connect.snapshot':
+            if self.closed:
+                raise RuntimeError('Runtime is shutting down')
+            return await self.execute(request['method'], request['args'])
         key = request['id']
         canonical = hashlib.sha256(json.dumps(request, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         if key in self.requests:
@@ -158,6 +167,9 @@ class Host:
         from ..personal.contracts import SPEC as personal_spec, MAIN_ONLY as personal_main
         from ..mail.contracts import SPEC as mail_spec, MAIN_ONLY as mail_main
         from ..studio_tooling.contracts import SPEC as tooling_spec
+        from .connect_routes import SPEC as connect_spec, call as connect_call
+        if method in connect_spec:
+            return await connect_call(self, method, args)
         if method in tooling_spec:
             from .tooling_routes import call as tooling_call
             return await tooling_call(s, method, args)

@@ -3,6 +3,7 @@ import json
 import re
 from .m2_contracts import SPEC, MAIN_ONLY
 from .m2_validation import validate_arguments
+from .connect_routes import SPEC as CONNECT_SPEC
 from ..personal.contracts import SPEC as PERSONAL_SPEC, MAIN_ONLY as PERSONAL_MAIN, validate as validate_personal
 from ..mail.contracts import SPEC as MAIL_SPEC, MAIN_ONLY as MAIL_MAIN, validate as validate_mail
 from ..studio_tooling.contracts import SPEC as TOOLING_SPEC, validate as validate_tooling
@@ -64,6 +65,8 @@ METHODS = {
 }
 
 
+METHODS.update(CONNECT_SPEC)
+
 def validate(value):
     if not isinstance(value, dict) or set(value) != {'v', 'id', 'method', 'args'}:
         raise ValueError('Invalid request envelope')
@@ -95,6 +98,9 @@ def validate(value):
         limit = 400_000 if key == 'text' and value['method'].startswith('studio.') else 32_000 if key in ('text','request','selection') else 4096
         if isinstance(item, str) and (len(item) > limit or '\x00' in item):
             raise ValueError('Argument exceeds supported bounds')
+    if value['method'] in CONNECT_SPEC:
+        from .connect_routes import validate_arguments as validate_connect
+        validate_connect(value['method'], args)
     return value
 
 
