@@ -7,9 +7,9 @@ from threading import RLock
 
 from .contracts import ConnectError, canonical, display_name
 from .identity import digest, fingerprint
-from .pairing_wire import PROTOCOL, LIFETIME, PairingTLS, decode_offer, encode_offer
+from .pairing_wire import PROTOCOL, DESKTOP_PROTOCOL, LIFETIME, PairingTLS, decode_offer, encode_offer
 
-TERMINAL = {'completed', 'cancelled', 'expired', 'failed'}
+TERMINAL = {'completed', 'cancelled', 'expired', 'failed', 'interrupted'}
 
 
 class PairingService:
@@ -20,6 +20,8 @@ class PairingService:
         self._sessions = {}
         self._lock = RLock()
         self.closed = False
+        from .pairing_completion import PairingCompletion
+        self.completion = PairingCompletion(device_service)
 
     def _audit(self, session, state):
         with self.repository.transaction() as db:
@@ -41,18 +43,23 @@ class PairingService:
                 raise ConnectError('pairing_capacity_reached')
             db.execute('INSERT INTO pairing_ledger(session_id,state) VALUES(?,?)', (sid, 'consumed'))
         self._sessions[sid] = dict(state='offer_ready', offer=deepcopy(offer), reply=None,
+            expires_at=offer['expires_at'],
             server=server, deadline=self.monotonic() + min(LIFETIME, offer['expires_at'] - self.clock()),
             tls=None, local_confirmed=False, peer_confirmed=False, confirmation=b'', peer=None)
         self._audit(sid, 'created')
         return sid
 
-    def create_offer(self):
+    def create_offer(self, *, endpoint=None):
         with self._lock:
             if self.closed or self.devices.closed:
                 raise ConnectError('pairing_closed')
             now = int(self.clock())
             offer = dict(protocol=PROTOCOL, session_id=str(uuid.uuid4()), created_at=now,
                          expires_at=now + LIFETIME, identity=self.identities.ensure())
+            if endpoint is not None:
+                offer.update(protocol=DESKTOP_PROTOCOL, endpoint=endpoint,
+                             display_name=self.devices.this_device()['display_name'])
+                encode_offer(offer, now)
             self._new(offer, server=True)
             return encode_offer(offer, now)
 
@@ -64,6 +71,8 @@ class PairingService:
             public = self.identities.ensure()
             sid = self._new(offer, server=False)
             reply = dict(offer, identity=public)
+            if offer['protocol'] == DESKTOP_PROTOCOL:
+                reply['display_name'] = self.devices.this_device()['display_name']
             self._sessions[sid]['reply'] = reply
             self._start(sid)
             return encode_offer(reply, self.clock())
@@ -75,7 +84,7 @@ class PairingService:
             session = self._active(sid)
             if not session['server'] or session['reply'] is not None:
                 raise ConnectError('pairing_replayed')
-            if any(reply[k] != session['offer'][k] for k in ('protocol', 'created_at', 'expires_at')):
+            if any(reply[k] != session['offer'][k] for k in ('protocol', 'created_at', 'expires_at') + (('endpoint',) if reply['protocol'] == DESKTOP_PROTOCOL else ())):
                 self._finish(sid, 'failed')
                 raise ConnectError('pairing_transcript_mismatch')
             session['reply'] = reply
@@ -132,13 +141,34 @@ class PairingService:
                 outgoing = tls.step(incoming)
                 if tls.ready:
                     session['state'] = 'confirmed' if session['local_confirmed'] else 'fingerprint_pending'
-                    part = tls.receive_confirmation()
+                    part = tls.receive_confirmation(8192 if session['offer']['protocol'] == DESKTOP_PROTOCOL else 128)
                     session['confirmation'] += part
+                    if session['offer']['protocol'] == DESKTOP_PROTOCOL:
+                        for _ in range(4):
+                            part = tls.receive_confirmation(8192)
+                            if not part:
+                                break
+                            session['confirmation'] += part
                     expected = b'OLIVE-CONFIRM/1:' + tls.binding
-                    if not expected.startswith(session['confirmation']):
-                        raise ConnectError('pairing_confirmation_invalid')
-                    if session['confirmation'] == expected:
-                        session['peer_confirmed'] = True
+                    received = session['confirmation']
+                    if session['offer']['protocol'] == DESKTOP_PROTOCOL:
+                        if len(received) > len(expected) + 90:
+                            raise ConnectError('pairing_confirmation_invalid')
+                        if not expected.startswith(received[:len(expected)]):
+                            raise ConnectError('pairing_confirmation_invalid')
+                        if len(received) >= len(expected):
+                            session['peer_confirmed'] = True
+                        proof = received[len(expected):]
+                        if proof and (proof[:1] != b'\n' or (len(proof) == 90 and proof[-1:] != b'\n')):
+                            raise ConnectError('pairing_confirmation_invalid')
+                        if len(proof) == 90 and session['local_confirmed']:
+                            self.completion.receive(sid, proof[1:-1].decode('ascii'))
+                            session['receipt_received'] = True
+                    else:
+                        if not expected.startswith(received):
+                            raise ConnectError('pairing_confirmation_invalid')
+                        if received == expected:
+                            session['peer_confirmed'] = True
                 return outgoing
             except Exception:
                 self._finish(sid, 'failed')
@@ -160,14 +190,17 @@ class PairingService:
             session = self._sessions.get(sid)
             if session is None:
                 raise ConnectError('pairing_not_active')
-            result = dict(session_id=sid, state=session['state'])
+            result = dict(session_id=sid, state=session['state'], expires_at=session['expires_at'])
             if session['state'] not in TERMINAL:
                 result['expires_at'] = session['offer']['expires_at']
             if session['state'] in {'fingerprint_pending', 'confirmed'}:
                 preview = self.preview(sid)
                 result.update(comparison=preview['comparison'], fingerprint=preview['fingerprint'],
                               candidate_id=preview['candidate']['device_id'])
-                if session['local_confirmed'] and session['peer_confirmed']:
+                if session['offer']['protocol'] == DESKTOP_PROTOCOL:
+                    remote = session['reply'] if session['server'] else session['offer']
+                    result['candidate_name'] = remote['display_name']
+                if session['offer']['protocol'] == PROTOCOL and session['local_confirmed'] and session['peer_confirmed']:
                     record = self.complete(sid)
                     result = dict(session_id=sid, state='completed', device_id=record['device_id'])
             return result
@@ -182,12 +215,24 @@ class PairingService:
                 self._finish(sid, 'failed')
                 raise ConnectError('pairing_comparison_mismatch')
             if not session['local_confirmed']:
+                if session['offer']['protocol'] == DESKTOP_PROTOCOL:
+                    receipt = self.completion.record_local_confirmation(session)
                 session['tls'].confirm()
+                if session['offer']['protocol'] == DESKTOP_PROTOCOL:
+                    session['tls'].connection.send(b'\n' + receipt.encode('ascii') + b'\n')
                 session['local_confirmed'] = True
                 session['state'] = 'confirmed'
+                self._audit(sid, 'local_confirmed')
 
     def complete(self, sid, *, name='Paired device'):
         with self._lock:
+            session = self._sessions.get(sid)
+            if session and session.get('offer') and session['offer']['protocol'] == DESKTOP_PROTOCOL:
+                return self.complete_desktop(sid)
+            with self.repository.transaction() as db:
+                desktop = db.execute('SELECT 1 FROM pairing_completion_v1 WHERE session_id=?', (sid,)).fetchone()
+            if desktop:
+                return self.complete_desktop(sid)
             # Durable idempotent local completion; wire/session reuse stays rejected.
             if self.closed or self.devices.closed:
                 raise ConnectError('pairing_closed')
@@ -231,8 +276,23 @@ class PairingService:
             self._finish(sid, 'completed', audit=False)
             return record
 
+    def complete_desktop(self, sid):
+        with self._lock:
+            record = self.completion.complete(sid)
+            if sid in self._sessions and self._sessions[sid]['state'] != 'completed':
+                self._finish(sid, 'completed', audit=False)
+            return record
+
+    def interrupt(self, sid):
+        with self._lock:
+            session = self._sessions.get(sid)
+            if session and session['state'] not in TERMINAL:
+                self._finish(sid, 'interrupted')
+
     def _finish(self, sid, state, *, audit=True):
         session = self._sessions[sid]
+        if state == 'expired' and session['local_confirmed'] and session['offer']['protocol'] == DESKTOP_PROTOCOL:
+            state = 'interrupted'
         if session['tls']:
             session['tls'].close()
         session.update(state=state, tls=None, peer=None, offer=None, reply=None, confirmation=b'')
@@ -259,6 +319,6 @@ class PairingService:
         with self._lock:
             for sid, session in self._sessions.items():
                 if session['state'] not in TERMINAL:
-                    self._finish(sid, 'cancelled')
+                    self._finish(sid, 'interrupted' if session['local_confirmed'] else 'cancelled')
             self._sessions.clear()
             self.closed = True

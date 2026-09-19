@@ -30,6 +30,10 @@ class DevicesWorkspace:
         local = s.this_device()
         with s.repository.transaction() as db:
             row = db.execute('SELECT public,state FROM connect_keys WHERE device_id=?', (s.local_id,)).fetchone()
+            recovery = []
+            for sid, record, state in db.execute('SELECT c.session_id,c.record,l.state FROM pairing_completion_v1 c JOIN pairing_ledger l ON c.session_id=l.session_id'):
+                if state not in ('cancelled', 'failed', 'expired'):
+                    recovery.append(dict(session_id=sid, state=state))
         local['fingerprint'] = fingerprint(json.loads(row[0])) if row and row[1] == 'ready' else None
         local['core_available'] = True
         devices = []
@@ -44,7 +48,7 @@ class DevicesWorkspace:
                 interface=asdict(network.interface) if network else None,
                 port=network.port if network else None, discovery=bool(network and network.discovery)),
             nearby=[{k: v for k, v in entry.items() if k != 'seen'} for entry in network.discovery.nearby()] if network and network.discovery else [],
-            activity=s.repository.activity()[-200:])
+            activity=s.repository.activity()[-200:], pairing_recovery=recovery[-32:])
 
     def enable(self, address, discovery):
         with self.lock:
@@ -75,17 +79,30 @@ class DevicesWorkspace:
         with self.lock:
             if self.offer:
                 try:
-                    self.service.pairing.cancel(self.offer['session_id'])
+                    self.service.pairing_transport.cancel(self.offer['session_id'])
                 except ConnectError:
                     pass
-            raw = self.service.pairing.create_offer().decode('utf-8')
+            raw = self.service.pairing_transport.create().decode('utf-8')
             value = json.loads(raw)
             self.offer = dict(session_id=value['session_id'], expires_at=value['expires_at'], offer=raw)
             return self.pairing_status(value['session_id'])
 
+    def accept_pairing(self, offer):
+        raw = offer.encode('utf-8')
+        if len(raw) > 12288:
+            raise ConnectError('invalid_pairing_offer')
+        try:
+            value = json.loads(raw)
+        except (ValueError, TypeError):
+            raise ConnectError('invalid_pairing_offer') from None
+        if type(value) is dict and value.get('protocol') == 'olive-pairing-completion/1':
+            return self.service.pairing_transport.import_completion(raw)
+        sid = self.service.pairing_transport.accept(raw)
+        return self.pairing_status(sid)
+
     def pairing_status(self, session_id):
         with self.lock:
-            result = self.service.pairing.presentation(session_id)
+            result = self.service.pairing_transport.status(session_id)
             if self.offer and self.offer['session_id'] == session_id:
                 result.setdefault('expires_at', self.offer['expires_at'])
                 if result['state'] == 'offer_ready':

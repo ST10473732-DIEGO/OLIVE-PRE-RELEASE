@@ -35,6 +35,8 @@ class DesktopDeviceService:
             key_store if key_store is not None else DeviceKeyStore(CredentialVault(profile)), clock)
         # Vault access is lazy: unavailable pairing must not prevent local Chat startup.
         self.pairing = PairingService(self, self.identities, monotonic=monotonic)
+        from .pairing_transport import DesktopPairingTransport
+        self.pairing_transport = DesktopPairingTransport(self)
 
     def cryptographic_identity(self):
         if self.closed:
@@ -255,6 +257,7 @@ class DesktopDeviceService:
 
     def disable_network(self):
         with self._network_lock:
+            self.pairing_transport.close()
             if self.network is not None:
                 self.network.close()
                 self.network = None

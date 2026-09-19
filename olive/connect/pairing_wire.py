@@ -7,8 +7,29 @@ from .contracts import ConnectError, _unique_object, canonical, identifier, time
 from .identity import validate_public
 
 PROTOCOL = 'olive-pairing-tls13/1'
+DESKTOP_PROTOCOL = 'olive-pairing-tls13/2'
 MAX_OFFER = 4096
 LIFETIME = 120
+
+
+def validate_endpoint(value):
+    """Public routing hint only: numeric RFC1918, loopback or ULA, never DNS."""
+    import ipaddress
+    try:
+        if type(value) is not dict or set(value) != {'address', 'port'}:
+            raise ValueError()
+        address, port = value['address'], value['port']
+        if type(address) is not str or '%' in address:
+            raise ValueError()
+        ip = ipaddress.ip_address(address)
+        ranges = ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8') if ip.version == 4 else ('fc00::/7', '::1/128')
+        if str(ip) != address or not any(ip in ipaddress.ip_network(n) for n in ranges):
+            raise ValueError()
+        if type(port) is not int or not 1 <= port <= 65535:
+            raise ValueError()
+        return value
+    except (ValueError, TypeError):
+        raise ConnectError('invalid_pairing_endpoint') from None
 
 
 def decode_offer(raw, now):
@@ -17,9 +38,17 @@ def decode_offer(raw, now):
             raise ValueError()
         value = json.loads(raw.decode('utf-8'), object_pairs_hook=_unique_object,
                            parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-        if type(value) is not dict or set(value) != {'protocol', 'session_id', 'created_at', 'expires_at', 'identity'}:
+        if type(value) is not dict:
             raise ValueError()
-        if value['protocol'] != PROTOCOL:
+        fields = {'protocol', 'session_id', 'created_at', 'expires_at', 'identity'}
+        if value.get('protocol') == DESKTOP_PROTOCOL:
+            fields |= {'endpoint', 'display_name'}
+            validate_endpoint(value.get('endpoint'))
+            from .contracts import display_name
+            display_name(value.get('display_name'))
+        if set(value) != fields:
+            raise ValueError()
+        if value['protocol'] not in (PROTOCOL, DESKTOP_PROTOCOL):
             raise ConnectError('unsupported_pairing_protocol')
         identifier(value['session_id'])
         timestamp(value['created_at']); timestamp(value['expires_at'])
@@ -96,9 +125,9 @@ class PairingTLS:
     def confirm(self):
         self.connection.send(b'OLIVE-CONFIRM/1:' + self.binding)
 
-    def receive_confirmation(self):
+    def receive_confirmation(self, size=128):
         try:
-            return self.connection.recv(128)
+            return self.connection.recv(size)
         except SSL.WantReadError:
             return b''
         except Exception:

@@ -40,11 +40,6 @@ async def start(self, directory):
         result=json.loads(await asyncio.to_thread(peer.stdout.readline))
         if not result['ok']:raise RuntimeError(result['error'])
         return result['value']
-    async def pump(sid):
-        pending=b''
-        for _ in range(8):
-            value=await rpc('exchange',sid=sid,incoming=pending.hex())
-            pending=service.pairing.exchange(sid,bytes.fromhex(value))
     async def monitor():
         last=None
         sid=None
@@ -56,12 +51,23 @@ async def start(self, directory):
                     if command['id']!=last:
                         last=command['id']
                         action=command['action']
-                        if action=='pair':
+                        if action in ('responder_offer', 'responder_unreachable'):
+                            result=await rpc('create')
+                            sid=result['session_id']
+                            if action=='responder_unreachable':
+                                await rpc('cancel',sid=sid)
+                        elif action=='listener':
+                            result=service.pairing_transport.listener is not None
+                        elif action=='comparison':
+                            result=dict(comparison=await rpc('preview',sid=sid))
+                        elif action=='pair':
                             offer=self.devices_workspace.offer
                             sid=offer['session_id']
-                            reply=await rpc('accept',offer=offer['offer'])
-                            service.pairing.receive_reply(reply.encode())
-                            await pump(sid)
+                            await rpc('accept',offer=offer['offer'])
+                            for _ in range(100):
+                                if self.devices_workspace.pairing_status(sid).get('comparison'):
+                                    break
+                                await asyncio.sleep(.05)
                             result=dict(comparison=await rpc('preview',sid=sid))
                         elif action=='expire':
                             sid=self.devices_workspace.offer['session_id']
@@ -71,7 +77,6 @@ async def start(self, directory):
                             result=True
                         elif action=='finish_pair':
                             await rpc('confirm',sid=sid,comparison=service.pairing.preview(sid)['comparison'])
-                            await pump(sid)
                             result=await rpc('complete',sid=sid)
                         elif action=='connect':
                             result=await rpc('connect',peer=service.local_id,port=service.network.port)

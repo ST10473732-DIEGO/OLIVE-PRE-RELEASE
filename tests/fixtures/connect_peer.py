@@ -6,10 +6,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from olive.connect.service import DesktopDeviceService
 from olive.connect.identity import DeviceKeyStore
 from olive.connect.contracts import canonical
+from olive.connect.workspace import DevicesWorkspace
+import time
 from tests.test_connect_pairing import MemoryVault
 from tests.test_connect_network import request
 
 service = DesktopDeviceService(Path(sys.argv[1]), key_store=DeviceKeyStore(MemoryVault()))
+workspace = DevicesWorkspace(service)
+service.rename(service.local_id, 'Paired device')
 channel = None
 requests = {}
 try:
@@ -17,8 +21,16 @@ try:
         data = json.loads(line)
         command = data['command']
         try:
-            if command == 'accept':
-                value = service.pairing.accept_offer(data['offer'].encode()).decode()
+            if command == 'create':
+                if service.network is None:
+                    service.enable_network('127.0.0.1', discovery=False)
+                value = workspace.create_pairing()
+            elif command == 'cancel':
+                service.pairing_transport.cancel(data['sid']); value = True
+            elif command == 'accept':
+                if service.network is None:
+                    service.enable_network('127.0.0.1', discovery=False)
+                value = workspace.accept_pairing(data['offer'])
             elif command == 'exchange':
                 value = service.pairing.exchange(data['sid'], bytes.fromhex(data['incoming'])).hex()
             elif command == 'preview':
@@ -26,11 +38,16 @@ try:
             elif command == 'confirm':
                 service.pairing.confirm(data['sid'], data['comparison']); value = True
             elif command == 'complete':
-                record = service.pairing.complete(data['sid'])
+                deadline = time.monotonic() + 5
+                while workspace.pairing_status(data['sid'])['state'] != 'completed':
+                    if time.monotonic() > deadline:
+                        raise RuntimeError('Pairing completion timeout')
+                    time.sleep(.03)
+                record = service.paired_devices()[0]
                 service.set_permission(record['device_id'], 'connect.ping', 'allow')
                 value = service.local_id
             elif command == 'connect':
-                network = service.enable_network('127.0.0.1', discovery=False)
+                network = service.network or service.enable_network('127.0.0.1', discovery=False)
                 channel = network.connect(data['peer'], '127.0.0.1', data['port'])
                 value = dict(id=service.local_id,port=network.port)
             elif command == 'status':

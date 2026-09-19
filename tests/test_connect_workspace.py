@@ -52,6 +52,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIsNone(self.a.network)
 
     def test_pairing_offer_expiry_new_session_and_mismatch(self):
+        self.a.enable_network('127.0.0.1', discovery=False)
         state = self.ui.create_pairing()
         raw = state['offer'].encode()
         sid = state['session_id']

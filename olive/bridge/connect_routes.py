@@ -13,6 +13,7 @@ SPEC = {
     'connect.disconnect': ({'device_id': str}, {}),
     'connect.ping': ({'device_id': str}, {}),
     'connect.pair_create': ({}, {}),
+    'connect.pair_accept': ({'offer': str}, {}),
     'connect.pair_status': ({'session_id': str}, {}),
     'connect.pair_confirm': ({'session_id': str, 'compared_value': str}, {}),
     'connect.pair_cancel': ({'session_id': str}, {}),
@@ -26,6 +27,8 @@ def validate_arguments(method, args):
     for key in ('device_id', 'session_id'):
         if key in args:
             identifier(args[key])
+    if 'offer' in args and not 1 <= len(args['offer'].encode('utf-8')) <= 12288:
+        raise ValueError('Invalid pairing code size')
     if 'name' in args:
         display_name(args['name'])
     if 'address' in args:
@@ -57,9 +60,10 @@ async def call(host, method, args):
         'connect.disconnect': lambda device_id: service.network.disconnect(device_id) if service.network else None,
         'connect.ping': workspace.ping,
         'connect.pair_create': workspace.create_pairing,
+        'connect.pair_accept': workspace.accept_pairing,
         'connect.pair_status': workspace.pairing_status,
         'connect.pair_confirm': workspace.confirm_pairing,
-        'connect.pair_cancel': lambda session_id: service.pairing.cancel(session_id),
+        'connect.pair_cancel': lambda session_id: service.pairing_transport.cancel(session_id),
     }
     result = await asyncio.to_thread(routes[method], **args)
     if method == 'connect.revoke':
