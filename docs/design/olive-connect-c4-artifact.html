@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OLIVE Connect</title>
+<style>
+/* ---------- Tokens: OLIVE's own system, dark-first (ink product). ---------- */
+:root {
+  color-scheme: dark;
+  --bg: #0b0f16; --surface: #11171f; --elevated: #182029; --raised: #1f2933;
+  --text: #e8eef7; --muted: #9db0c7; --faint: #6f819a;
+  --accent: #7cc4ff; --accent-strong: #3d9cf5; --accent-soft: rgba(124,196,255,.12); --accent-glow: rgba(124,196,255,.28);
+  --on-accent: #06131f;
+  --line: rgba(197,216,240,.09); --line-strong: rgba(197,216,240,.16); --hover: rgba(197,216,240,.06);
+  --field: rgba(9,13,20,.55);
+  --success: #7fd8a8; --success-soft: rgba(127,216,168,.14);
+  --warning: #f0c36b; --warning-soft: rgba(240,195,107,.14);
+  --error: #ff8f8f; --error-soft: rgba(255,143,143,.14);
+  --olive: #9ab534; --olive-glow: rgba(154,181,52,.09);
+  --shadow: 0 18px 50px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+  --shadow-soft: 0 8px 24px rgba(0,0,0,.35);
+  --radius: 12px; --radius-sm: 8px; --radius-lg: 16px;
+  --fast: 140ms; --ease: cubic-bezier(.2,.7,.2,1);
+  --font: "Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-display: "Segoe UI Variable Display","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono: "Cascadia Code","Cascadia Mono",Consolas,"Courier New",monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f4f8; --surface: #ffffff; --elevated: #e9eef5; --raised: #ffffff;
+  --text: #14202f; --muted: #526279; --faint: #76869b;
+  --accent: #1e63c8; --accent-strong: #1554b3; --accent-soft: rgba(30,99,200,.1); --accent-glow: rgba(30,99,200,.22);
+  --on-accent: #ffffff;
+  --line: rgba(20,32,47,.1); --line-strong: rgba(20,32,47,.18); --hover: rgba(20,32,47,.05);
+  --field: rgba(255,255,255,.9);
+  --success: #1c7a4c; --success-soft: rgba(28,122,76,.12);
+  --warning: #8a5a0b; --warning-soft: rgba(138,90,11,.12);
+  --error: #b3303a; --error-soft: rgba(179,48,58,.1);
+  --olive: #5f7016; --olive-glow: rgba(95,112,22,.07);
+  --shadow: 0 18px 50px rgba(20,32,47,.18), 0 2px 8px rgba(20,32,47,.08);
+  --shadow-soft: 0 8px 24px rgba(20,32,47,.1);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f2f4f8; --surface: #ffffff; --elevated: #e9eef5; --raised: #ffffff;
+    --text: #14202f; --muted: #526279; --faint: #76869b;
+    --accent: #1e63c8; --accent-strong: #1554b3; --accent-soft: rgba(30,99,200,.1); --accent-glow: rgba(30,99,200,.22);
+    --on-accent: #ffffff;
+    --line: rgba(20,32,47,.1); --line-strong: rgba(20,32,47,.18); --hover: rgba(20,32,47,.05);
+    --field: rgba(255,255,255,.9);
+    --success: #1c7a4c; --success-soft: rgba(28,122,76,.12);
+    --warning: #8a5a0b; --warning-soft: rgba(138,90,11,.12);
+    --error: #b3303a; --error-soft: rgba(179,48,58,.1);
+    --olive: #5f7016; --olive-glow: rgba(95,112,22,.07);
+    --shadow: 0 18px 50px rgba(20,32,47,.18), 0 2px 8px rgba(20,32,47,.08);
+    --shadow-soft: 0 8px 24px rgba(20,32,47,.1);
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+h1,h2,h3,p { margin: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+button {
+  cursor: pointer; border: 1px solid var(--line); background: var(--elevated);
+  border-radius: var(--radius-sm); min-height: 34px; padding: 6px 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-weight: 500; font-size: 13.5px; color: var(--text);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+button:hover:not(:disabled) { background: var(--raised); border-color: var(--line-strong); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 0 0 4px var(--accent-soft); }
+button.quiet { background: transparent; border-color: transparent; color: var(--muted); }
+button.quiet:hover:not(:disabled) { background: var(--hover); color: var(--text); border-color: transparent; }
+button.danger { color: var(--error); border-color: color-mix(in srgb, var(--error) 40%, transparent); background: transparent; }
+button.danger:hover:not(:disabled) { background: var(--error-soft); }
+button.icon-button { padding: 6px; min-width: 32px; min-height: 32px; background: transparent; border-color: transparent; color: var(--muted); }
+button.icon-button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+
+.icon { width: 17px; height: 17px; display: inline-flex; flex-shrink: 0; }
+.icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.eyebrow { font-size: 11px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.mono { font-family: var(--mono); }
+.spacer { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: 10px; }
+
+/* ---------- Pills / status ---------- */
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 550; background: var(--elevated); color: var(--muted); white-space: nowrap; }
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.pill[data-tone="online"] { color: var(--success); background: var(--success-soft); }
+.pill[data-tone="connecting"] { color: var(--accent); background: var(--accent-soft); }
+.pill[data-tone="connecting"] .dot { animation: pulse-dot 1.1s ease-in-out infinite; }
+.pill[data-tone="offline"] { color: var(--muted); background: var(--elevated); }
+.pill[data-tone="failed"] { color: var(--error); background: var(--error-soft); }
+.pill[data-tone="revoked"] { color: var(--faint); background: var(--elevated); }
+.pill[data-tone="unpaired"] { color: var(--faint); background: transparent; border: 1px dashed var(--line-strong); }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.25} }
+.chip-tls { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 11px; font-size: 11.5px; font-weight: 600; color: var(--success); background: var(--success-soft); letter-spacing: .01em; }
+
+/* ---------- Shell ---------- */
+.app { height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+.head { display: flex; align-items: center; gap: 14px; min-height: 62px; padding: 12px 22px; border-bottom: 1px solid var(--line); background: var(--surface); flex-shrink: 0; }
+.head-mark { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+.head-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.head-text h1 { font-family: var(--font-display); font-size: 16.5px; font-weight: 600; letter-spacing: -.005em; }
+.head-text p { font-size: 12px; color: var(--muted); }
+.head-status { display: inline-flex; align-items: center; gap: 7px; height: 27px; padding: 0 11px 0 9px; border-radius: 14px; border: 1px solid var(--line-strong); font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.head-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.head-status[data-on="true"] { color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.head-status[data-on="true"] .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.body { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* ---------- Scenarios menu ---------- */
+.scenarios { position: relative; }
+.scenarios > summary { list-style: none; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--elevated); min-height: 32px; font-size: 13px; cursor: pointer; }
+.scenarios > summary::-webkit-details-marker { display: none; }
+.scenarios[open] > summary, .scenarios > summary:hover { background: var(--raised); }
+.scenarios-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: 264px; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 12px; padding: 8px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.scenarios-panel button { justify-content: flex-start; width: 100%; background: transparent; border-color: transparent; font-size: 13px; text-align: left; }
+.scenarios-panel button:hover:not(:disabled) { background: var(--hover); }
+.scenarios-panel .divider { height: 1px; background: var(--line); margin: 4px 2px; }
+.scenarios-panel .note { padding: 6px 10px 2px; font-size: 11.5px; color: var(--faint); }
+
+/* ---------- Rail ---------- */
+.rail { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: var(--surface); }
+.rail-head { display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px 16px; }
+.rail-head h2 { font-size: 13px; font-weight: 650; flex: 1; }
+.rail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.rail-group { display: flex; flex-direction: column; gap: 2px; padding-top: 12px; }
+.rail-group:first-child { padding-top: 2px; }
+.rail-group-label { display: flex; align-items: center; gap: 8px; padding: 0 8px 4px; }
+.rail-group-label .eyebrow { flex: 1; }
+.rail-group-label button { min-height: 22px; padding: 0 4px; color: var(--faint); }
+.rail-foot { padding: 11px 14px 13px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.rail-foot-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+.rail-foot-row .icon { color: var(--muted); }
+.rail-foot-row strong { font-weight: 600; font-size: 12.5px; }
+.rail-foot-row small { color: var(--faint); font-size: 11.5px; display: block; }
+
+.device-row { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; border: 1px solid transparent; border-radius: 10px; background: transparent; padding: 8px 10px; min-height: 54px; }
+.device-row:hover:not(:disabled) { background: var(--hover); }
+.device-row.selected { background: var(--accent-soft); }
+.device-row .device-icon { width: 32px; height: 32px; border-radius: 9px; background: var(--elevated); color: var(--muted); display: grid; place-items: center; flex-shrink: 0; position: relative; }
+.device-row.selected .device-icon { background: var(--accent-glow); color: var(--accent); }
+.device-row .device-icon .live-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--success); border: 2px solid var(--surface); }
+.device-row.unpaired .device-icon { background: none; border: 1px dashed var(--line-strong); color: var(--faint); }
+.device-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.device-row-text strong { font-weight: 550; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-row-text .meta { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-row.unpaired .device-row-text strong { color: var(--muted); font-weight: 500; }
+.rail-empty-note { padding: 10px 10px 2px; font-size: 12px; color: var(--faint); line-height: 1.5; }
+.rail-empty-note button.text-link { min-height: 0; padding: 0; margin-top: 4px; background: none; border: 0; color: var(--accent); font-size: 12px; }
+
+/* ---------- Main ---------- */
+.main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+.main-inner { max-width: 760px; width: 100%; margin: 0 auto; padding: 26px 28px 60px; display: flex; flex-direction: column; gap: 20px; }
+.back-btn { display: none; }
+
+.detail-head { display: flex; align-items: flex-start; gap: 14px; }
+.detail-head .device-icon-lg { width: 52px; height: 52px; border-radius: 14px; background: var(--elevated); color: var(--muted); display: grid; place-items: center; flex-shrink: 0; }
+.detail-head .device-icon-lg.accent { background: var(--accent-glow); color: var(--accent); }
+.detail-head .device-icon-lg svg { width: 26px; height: 26px; }
+.detail-head-text { flex: 1; min-width: 0; padding-top: 2px; }
+.detail-head-text h1 { font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 5px; }
+.detail-head-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; font-size: 13px; color: var(--muted); }
+.detail-head-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 2px; }
+
+/* segmented tabs */
+.tabs { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 10px; background: var(--elevated); border: 1px solid var(--line); align-self: flex-start; }
+.tabs button { border: 0; background: transparent; min-height: 28px; padding: 4px 14px; border-radius: 7px; color: var(--muted); font-size: 13px; }
+.tabs button:hover:not(:disabled) { color: var(--text); }
+.tabs button.selected { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+
+/* panels */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.panel-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px 11px; border-bottom: 1px solid var(--line); }
+.panel-head .title { flex: 1; min-width: 0; }
+.panel-head h3 { font-size: 14px; font-weight: 600; }
+.panel-head p { font-size: 12px; color: var(--faint); margin-top: 1px; }
+.panel-body { padding: 15px 16px 17px; display: flex; flex-direction: column; gap: 14px; }
+.panel-body.flush { padding: 6px 6px; gap: 0; }
+.panel-foot { padding: 10px 16px 12px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* facts */
+.facts { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 8px 18px; font-size: 13px; }
+.facts dt { color: var(--faint); }
+.facts dd { margin: 0; }
+
+/* notice */
+.notice { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; border-radius: 10px; background: var(--elevated); border: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
+.notice .icon { margin-top: 1px; color: var(--muted); }
+.notice[data-tone="warning"] { border-color: color-mix(in srgb, var(--warning) 40%, transparent); }
+.notice[data-tone="warning"] .icon { color: var(--warning); }
+.notice[data-tone="accent"] { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.notice[data-tone="accent"] .icon { color: var(--accent); }
+.notice p { margin: 0; }
+.notice .spacer + button { flex-shrink: 0; }
+
+/* switch */
+input[type="checkbox"].switch { appearance: none; width: 34px; height: 20px; border-radius: 10px; background: var(--line-strong); position: relative; flex-shrink: 0; margin: 0; cursor: pointer; transition: background 140ms var(--ease); border: 0; }
+input[type="checkbox"].switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: left 140ms var(--ease); }
+input[type="checkbox"].switch:checked { background: var(--accent); }
+input[type="checkbox"].switch:checked::after { left: 17px; background: var(--on-accent); }
+input[type="checkbox"].switch:disabled { opacity: .4; cursor: not-allowed; }
+.switch-row { display: flex; align-items: center; gap: 12px; }
+.switch-row-text { flex: 1; min-width: 0; }
+.switch-row-text strong { display: block; font-size: 13.5px; font-weight: 550; }
+.switch-row-text small { display: block; font-size: 12px; color: var(--faint); margin-top: 1px; }
+
+/* interface picker */
+.iface-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .iface-grid { grid-template-columns: 1fr; } }
+.iface-card { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--elevated); }
+.iface-card .icon { color: var(--muted); }
+.iface-card strong { display: block; font-size: 13px; font-weight: 600; }
+.iface-card span { display: block; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.iface-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.iface-card.selected .icon { color: var(--accent); }
+.iface-card .check { margin-left: auto; color: var(--accent); }
+
+details.disclosure { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+details.disclosure > summary { padding: 10px 14px; font-size: 13px; color: var(--muted); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+details.disclosure > summary::-webkit-details-marker { display: none; }
+details.disclosure > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform 140ms var(--ease); }
+details.disclosure[open] > summary::before { transform: rotate(45deg); }
+details.disclosure .disclosure-body { padding: 2px 14px 14px; }
+
+/* permission rows */
+.perm-section { display: flex; flex-direction: column; }
+.perm-section + .perm-section { border-top: 1px solid var(--line); }
+.perm-section-head { padding: 12px 16px 4px; }
+.perm-row { display: flex; align-items: center; gap: 14px; padding: 10px 16px; }
+.perm-row-text { flex: 1; min-width: 0; }
+.perm-row-text strong { display: block; font-size: 13.5px; font-weight: 550; }
+.perm-row-text small { display: block; font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+.perm-row.unavailable .perm-row-text strong { color: var(--faint); }
+.perm-seg { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 9px; background: var(--elevated); border: 1px solid var(--line); flex-shrink: 0; }
+.perm-seg button { border: 0; background: transparent; min-height: 26px; padding: 3px 11px; border-radius: 6px; color: var(--faint); font-size: 12px; font-weight: 550; }
+.perm-seg button:hover:not(:disabled) { color: var(--text); }
+.perm-seg button.selected[data-v="allow"] { background: var(--success-soft); color: var(--success); }
+.perm-seg button.selected[data-v="ask"] { background: var(--warning-soft); color: var(--warning); }
+.perm-seg button.selected[data-v="off"] { background: var(--raised); color: var(--muted); }
+.perm-unavailable-pill { flex-shrink: 0; font-size: 11.5px; color: var(--faint); background: var(--elevated); border-radius: 999px; padding: 3px 10px; }
+
+/* timeline */
+.timeline { list-style: none; margin: 0; padding: 2px 16px 14px; display: flex; flex-direction: column; }
+.timeline li { position: relative; padding: 7px 0 7px 24px; }
+.timeline li::before { content: ""; position: absolute; left: 6px; top: 13px; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); box-shadow: 0 0 0 3px var(--surface); z-index: 1; }
+.timeline li::after { content: ""; position: absolute; left: 9.5px; top: 21px; bottom: -3px; width: 1px; background: var(--line-strong); }
+.timeline li:last-child::after { display: none; }
+.timeline li[data-tone="success"]::before { background: var(--success); }
+.timeline li[data-tone="accent"]::before { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.timeline li[data-tone="warning"]::before { background: var(--warning); }
+.timeline li[data-tone="muted"]::before { background: var(--faint); }
+.timeline .t-row { display: flex; align-items: baseline; gap: 10px; }
+.timeline .t-row strong { font-weight: 500; font-size: 13.5px; flex: 1; min-width: 0; }
+.timeline .t-row time { font-size: 11.5px; color: var(--faint); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+/* empty state */
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 50px 24px; gap: 6px; min-height: 260px; }
+.empty .empty-icon { width: 54px; height: 54px; border-radius: 16px; background: var(--elevated); border: 1px solid var(--line); color: var(--muted); display: grid; place-items: center; margin-bottom: 10px; }
+.empty .empty-icon svg { width: 28px; height: 28px; }
+.empty h2 { font-size: 16.5px; font-weight: 600; }
+.empty p { color: var(--muted); max-width: 40ch; font-size: 13.5px; line-height: 1.55; margin-top: 4px; }
+.empty .empty-actions { margin-top: 16px; }
+
+/* ---------- Overlays ---------- */
+.overlay { position: fixed; inset: 0; background: rgba(2,6,12,.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; animation: fade-in var(--fast) var(--ease); }
+:root[data-theme="light"] .overlay { background: rgba(20,32,47,.32); }
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes rise-in { from { transform: translateY(10px); opacity: 0 } to { transform: none; opacity: 1 } }
+.modal { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: var(--shadow); padding: 22px 24px 20px; animation: rise-in var(--fast) var(--ease); }
+.modal.wide { width: min(480px, 100%); }
+.modal h2 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.modal .step-eyebrow { margin-bottom: 8px; }
+.modal .lede { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin-bottom: 16px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.modal-actions.split { justify-content: space-between; }
+
+/* pairing: QR */
+.qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 0 4px; }
+.qr-box { width: 176px; height: 176px; border-radius: 12px; background: #f4f6f9; padding: 12px; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(20,32,47,.08); }
+.qr-grid { display: grid; width: 100%; height: 100%; }
+.qr-cell { background: transparent; }
+.qr-cell.on { background: #14202f; border-radius: 1px; }
+.qr-caption { font-size: 12.5px; color: var(--muted); text-align: center; }
+.qr-caption strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.wait-row { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--accent); animation: spin .8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* pairing: fingerprint */
+.pair-device-row { display: flex; align-items: center; gap: 12px; padding: 12px 0 16px; }
+.pair-device-row .device-icon-lg { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-glow); color: var(--accent); display: grid; place-items: center; }
+.pair-device-row .device-icon-lg svg { width: 22px; height: 22px; }
+.pair-device-row strong { font-size: 15px; font-weight: 600; display: block; }
+.pair-device-row small { font-size: 12px; color: var(--faint); }
+.fingerprint { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: 10px; background: var(--elevated); border: 1px solid var(--line-strong); font-family: var(--mono); font-size: 17px; font-weight: 600; letter-spacing: .06em; margin-bottom: 4px; }
+.fingerprint .tag { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; color: var(--faint); background: var(--raised); border-radius: 5px; padding: 2px 6px; font-family: var(--font); }
+
+/* pairing: presets */
+.preset-list { display: flex; flex-direction: column; gap: 8px; }
+.preset-card { display: flex; align-items: flex-start; gap: 11px; text-align: left; padding: 11px 13px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--elevated); width: 100%; }
+.preset-card .radio-dot { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--line-strong); flex-shrink: 0; margin-top: 1px; display: grid; place-items: center; }
+.preset-card .radio-dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: 0; }
+.preset-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.preset-card.selected .radio-dot { border-color: var(--accent); }
+.preset-card.selected .radio-dot::after { opacity: 1; }
+.preset-card strong { display: block; font-size: 13.5px; font-weight: 600; }
+.preset-card span { display: block; font-size: 12px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+.preset-note { font-size: 12px; color: var(--faint); margin-top: 12px; line-height: 1.5; }
+
+/* pairing: confirmed */
+.paired-check { width: 46px; height: 46px; border-radius: 50%; background: var(--success-soft); color: var(--success); display: grid; place-items: center; margin: 4px auto 14px; }
+.paired-check svg { width: 24px; height: 24px; }
+.modal.center-text { text-align: center; }
+.modal.center-text .lede { text-align: left; }
+
+/* ask approval */
+.ask-overlay { align-items: flex-end; justify-content: center; padding-bottom: 40px; }
+@media (min-width: 720px) { .ask-overlay { align-items: center; padding-bottom: 24px; } }
+.ask-modal { width: min(400px,100%); }
+.ask-source { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.ask-source .device-icon-lg { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-glow); color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+.ask-source .device-icon-lg svg { width: 19px; height: 19px; }
+.ask-source strong { font-size: 14px; font-weight: 600; display: block; }
+.ask-source small { font-size: 11.5px; color: var(--faint); }
+.ask-capability { background: var(--elevated); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; margin-bottom: 12px; }
+.ask-capability .eyebrow { margin-bottom: 3px; }
+.ask-capability strong { font-size: 16px; font-weight: 650; display: block; }
+.ask-on { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.ask-remember { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--muted); padding: 4px 0 2px; cursor: pointer; }
+.ask-remember input { margin: 0; width: 16px; height: 16px; accent-color: var(--accent); }
+.ask-remember-note { font-size: 11.5px; color: var(--faint); margin: -2px 0 4px 25px; }
+
+/* toast */
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); max-width: min(420px,85vw); background: var(--raised); border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; z-index: 60; box-shadow: var(--shadow); font-size: 13px; animation: rise-in var(--fast) var(--ease); }
+.toast .icon { color: var(--success); flex-shrink: 0; }
+.toast.deny .icon { color: var(--muted); }
+
+/* responsive */
+@media (max-width: 860px) {
+  .rail { position: absolute; inset: 0; width: auto; z-index: 2; }
+  .main { position: absolute; inset: 0; z-index: 3; background: var(--bg); }
+  .body[data-mobile-view="rail"] .main { display: none; }
+  .body[data-mobile-view="detail"] .rail { display: none; }
+  .back-btn { display: inline-flex; }
+  .main-inner { padding: 18px 16px 44px; }
+}
+@media (min-width: 861px) {
+  .rail, .main { position: static; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="head">
+    <div class="head-mark"><span class="icon" style="width:19px;height:19px" id="head-icon"></span></div>
+    <div class="head-text">
+      <h1>Devices</h1>
+      <p>OLIVE Connect &middot; local pairing and permissions</p>
+    </div>
+    <div class="head-status" id="head-status"><span class="dot"></span><span id="head-status-text">Connect off</span></div>
+    <details class="scenarios" id="scenarios">
+      <summary><span class="icon"></span>Scenarios</summary>
+      <div class="scenarios-panel">
+        <div class="scenarios-panel-inner" style="display:flex;flex-direction:column;gap:2px">
+          <button type="button" data-scenario="pair">Connect a device (QR)</button>
+          <button type="button" data-scenario="ask">Simulate an Ask request</button>
+          <button type="button" data-scenario="fail">Simulate connection failed</button>
+          <div class="divider"></div>
+          <button type="button" data-scenario="empty-paired">Show empty paired state</button>
+          <button type="button" data-scenario="empty-nearby">Show empty nearby state</button>
+          <div class="divider"></div>
+          <button type="button" data-scenario="reset">Reset demo</button>
+        </div>
+        <p class="note">These jump straight to a state for review. Nothing here reaches a real network.</p>
+      </div>
+    </details>
+  </header>
+
+  <div class="body" id="body" data-mobile-view="rail">
+    <aside class="rail">
+      <div class="rail-head">
+        <h2>Devices</h2>
+        <button class="icon-button" id="rail-add-btn" title="Connect a device" aria-label="Connect a device"><span class="icon" data-icon="plus"></span></button>
+      </div>
+      <div class="rail-scroll" id="rail-scroll"></div>
+      <div class="rail-foot" id="rail-foot"></div>
+    </aside>
+    <main class="main">
+      <div class="main-inner" id="main-inner"></div>
+    </main>
+  </div>
+</div>
+
+<div id="overlay-root"></div>
+<div id="toast-root"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- Icons ---------- */
+var ICON = {
+  connect: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M8.5 8.5a5 5 0 000 7M15.5 8.5a5 5 0 010 7M5.5 5.5a9 9 0 000 13M18.5 5.5a9 9 0 010 13"/></svg>',
+  laptop: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2.5 19h19l-1.7-3.2a1 1 0 00-.9-.5H5.1a1 1 0 00-.9.5z"/></svg>',
+  phone: '<svg viewBox="0 0 24 24"><rect x="7.5" y="2.5" width="9" height="19" rx="2"/><path d="M11 18.4h2"/></svg>',
+  monitor: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>',
+  tablet: '<svg viewBox="0 0 24 24"><rect x="4.5" y="3" width="15" height="18" rx="2"/><path d="M11 18h2"/></svg>',
+  radio: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.8"/><path d="M9 9a4.2 4.2 0 000 6M15 9a4.2 4.2 0 010 6M6.3 6.3a8.4 8.4 0 000 11.4M17.7 6.3a8.4 8.4 0 010 11.4" stroke-dasharray="2.4 2.6"/></svg>',
+  wifi: '<svg viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0119 0M5.7 12.2a10.4 10.4 0 0112.6 0M9 15.7a5.7 5.7 0 016 0"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/></svg>',
+  ethernet: '<svg viewBox="0 0 24 24"><path d="M8 3v6M16 3v6M6 9h12l-1.4 5.2H7.4z"/><path d="M9.6 14.2v3a2.4 2.4 0 002.4 2.4h0a2.4 2.4 0 002.4-2.4v-3"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  chevronLeft: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>',
+  shieldCheck: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6z"/><path d="M9 12l2 2 4-4.2"/></svg>',
+  shieldOff: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6z"/><path d="M9.3 9.3l5.4 5.4M14.7 9.3l-5.4 5.4"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.4 2"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  alert: '<svg viewBox="0 0 24 24"><path d="M12 3.3l9.3 16.4H2.7z"/><path d="M12 9.3v5M12 17.1h.01"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11.3 11h1.4v6h-1.7"/></svg>',
+  bell: '<svg viewBox="0 0 24 24"><path d="M6 10a6 6 0 0112 0c0 4.2 1.3 5.6 2 6.4H4c.7-.8 2-2.2 2-6.4z"/><path d="M9.7 19.6a2.5 2.5 0 004.6 0"/></svg>'
+};
+function iconSpan(name, cls){ return '<span class="icon '+(cls||'')+'">'+ICON[name]+'</span>'; }
+document.querySelectorAll('[data-icon]').forEach(function(el){ el.innerHTML = ICON[el.getAttribute('data-icon')] || ''; });
+document.getElementById('head-icon').innerHTML = ICON.connect;
+document.querySelector('#scenarios summary .icon').innerHTML = ICON.more;
+
+/* ---------- Data ---------- */
+var THIS_DEVICE = {
+  id: 'this', kind: 'this', name: "Diego's Laptop", os: 'CachyOS', gpu: 'RTX 3080 Ti', coreAvailable: true
+};
+
+function seedDevices(){
+  return [
+    {
+      id: 'iphone', kind: 'paired', name: "Diego's iPhone", cls: 'Phone', platform: 'iOS 18', icon: 'phone',
+      status: 'online', latency: 8, encrypted: true, pairedOn: 'Sep 12', lastSeen: null,
+      perms: {
+        chat: 'ask', tasks: 'allow', calendar: 'ask', reminders: 'allow', notifications: 'off',
+        receive_files: 'ask', shared_folders: 'off', full_filesystem: 'off',
+        studio: 'off', run_project: 'ask', remote_ai: 'allow', terminal: 'unavailable',
+        launch_apps: 'ask', desktop_control: 'unavailable', install_software: 'off'
+      },
+      activity: [
+        { tone: 'muted', label: 'Paired', time: 'Sep 12' },
+        { tone: 'success', label: 'Connected', time: '12:04' },
+        { tone: 'accent', label: 'Ping &middot; 8 ms', time: '12:05' },
+        { tone: 'warning', label: 'Permission denied: Studio run', time: '12:07' },
+        { tone: 'muted', label: 'Disconnected', time: '12:10' }
+      ]
+    },
+    {
+      id: 'gamingpc', kind: 'paired', name: 'Gaming PC', cls: 'Desktop', platform: 'Windows 11', icon: 'monitor',
+      status: 'offline', latency: null, encrypted: false, pairedOn: 'Aug 30', lastSeen: 'yesterday',
+      perms: {
+        chat: 'ask', tasks: 'off', calendar: 'off', reminders: 'off', notifications: 'off',
+        receive_files: 'allow', shared_folders: 'allow', full_filesystem: 'off',
+        studio: 'ask', run_project: 'ask', remote_ai: 'allow', terminal: 'ask',
+        launch_apps: 'allow', desktop_control: 'unavailable', install_software: 'off'
+      },
+      activity: [
+        { tone: 'muted', label: 'Paired', time: 'Aug 30' },
+        { tone: 'success', label: 'Connected', time: 'Yesterday, 18:42' },
+        { tone: 'muted', label: 'Disconnected', time: 'Yesterday, 19:15' }
+      ]
+    },
+    {
+      id: 'oldtablet', kind: 'paired', name: "Diego's Old Tablet", cls: 'Tablet', platform: 'Android 12', icon: 'tablet',
+      status: 'revoked', latency: null, encrypted: false, pairedOn: 'Jun 2', lastSeen: '3 weeks ago',
+      perms: {
+        chat: 'off', tasks: 'off', calendar: 'off', reminders: 'off', notifications: 'off',
+        receive_files: 'off', shared_folders: 'off', full_filesystem: 'off',
+        studio: 'off', run_project: 'off', remote_ai: 'off', terminal: 'unavailable',
+        launch_apps: 'off', desktop_control: 'unavailable', install_software: 'off'
+      },
+      activity: [
+        { tone: 'muted', label: 'Paired', time: 'Jun 2' },
+        { tone: 'success', label: 'Connected', time: 'Jun 14, 09:02' },
+        { tone: 'muted', label: 'Disconnected', time: 'Jun 14, 09:40' },
+        { tone: 'warning', label: 'Revoked', time: '3 weeks ago' }
+      ]
+    }
+  ];
+}
+
+var PERM_GROUPS = [
+  { key: 'personal', label: 'Personal', items: [
+    { key: 'chat', label: 'Chat' }, { key: 'tasks', label: 'Tasks' }, { key: 'calendar', label: 'Calendar' },
+    { key: 'reminders', label: 'Reminders' }, { key: 'notifications', label: 'Notifications' }
+  ]},
+  { key: 'files', label: 'Files', items: [
+    { key: 'receive_files', label: 'Receive files' }, { key: 'shared_folders', label: 'Shared folders' },
+    { key: 'full_filesystem', label: 'Full filesystem' }
+  ]},
+  { key: 'development', label: 'Development', items: [
+    { key: 'studio', label: 'Studio' }, { key: 'run_project', label: 'Run project' },
+    { key: 'remote_ai', label: 'Remote AI' },
+    { key: 'terminal', label: 'Terminal', unavailableNote: 'Unavailable for this device type' }
+  ]},
+  { key: 'system', label: 'System', items: [
+    { key: 'launch_apps', label: 'Launch apps' },
+    { key: 'desktop_control', label: 'Desktop Control', unavailableNote: 'Not available on this Wayland configuration' },
+    { key: 'install_software', label: 'Install software' }
+  ]}
+];
+
+var state = {
+  devices: seedDevices(),
+  selectedId: 'iphone',
+  tab: 'status',
+  connectOn: true,
+  interface: 'wifi',
+  discoveryOn: true,
+  nearby: [],
+  mobileView: 'rail',
+  modal: null,       // {type:'pairing', step, name, source} | {type:'revoke', id} | {type:'connfail'? }
+  ask: null,         // {device, capability, sub, allowSetsRemember}
+  pairTimer: null,
+  qrTimer: null,
+  qrSeconds: 107
+};
+
+function deviceById(id){
+  if (id === 'this') return THIS_DEVICE;
+  var i; for (i=0;i<state.devices.length;i++) if (state.devices[i].id===id) return state.devices[i];
+  return null;
+}
+
+/* ---------- Render: shell chrome ---------- */
+function renderHeadStatus(){
+  var el = document.getElementById('head-status');
+  var txt = document.getElementById('head-status-text');
+  el.setAttribute('data-on', state.connectOn ? 'true' : 'false');
+  if (!state.connectOn) { txt.textContent = 'Connect off'; return; }
+  var pairedCount = state.devices.filter(function(d){ return d.status !== 'revoked'; }).length;
+  txt.textContent = 'Connect on · ' + pairedCount + ' paired';
+}
+
+function setMobileView(v){
+  state.mobileView = v;
+  document.getElementById('body').setAttribute('data-mobile-view', v);
+}
+
+function select(id){
+  state.selectedId = id;
+  state.tab = 'status';
+  setMobileView('detail');
+  renderAll();
+}
+
+/* ---------- Render: rail ---------- */
+function statusPillHtml(d){
+  var map = {
+    online: ['online', 'Online · Local' + (d.latency ? ' · ' + d.latency + ' ms' : '')],
+    connecting: ['connecting', 'Connecting…'],
+    authenticating: ['connecting', 'Authenticating…'],
+    offline: ['offline', 'Offline'],
+    failed: ['failed', 'Connection failed'],
+    revoked: ['revoked', 'Revoked']
+  };
+  var m = map[d.status] || map.offline;
+  return '<span class="pill" data-tone="'+m[0]+'"><span class="dot"></span>'+m[1]+'</span>';
+}
+
+function railDeviceMeta(d){
+  if (d.status === 'online') return 'Online · Local' + (d.latency ? ' · ' + d.latency + ' ms' : '');
+  if (d.status === 'connecting') return 'Connecting…';
+  if (d.status === 'authenticating') return 'Authenticating…';
+  if (d.status === 'failed') return 'Connection failed';
+  if (d.status === 'revoked') return 'Revoked · disconnected';
+  return 'Offline · Last seen ' + (d.lastSeen || 'a while ago');
+}
+
+function renderRail(){
+  var scroll = document.getElementById('rail-scroll');
+  var html = '';
+
+  html += '<div class="rail-group">';
+  html += '<div class="rail-group-label"><span class="eyebrow">This device</span></div>';
+  html += deviceRowHtml({ id: 'this', name: THIS_DEVICE.name, icon: 'laptop', meta: THIS_DEVICE.os + ' · Connect ' + (state.connectOn ? 'on' : 'off') }, false);
+  html += '</div>';
+
+  var paired = state.devices;
+  html += '<div class="rail-group">';
+  html += '<div class="rail-group-label"><span class="eyebrow">Paired</span></div>';
+  if (!paired.length) {
+    html += '<p class="rail-empty-note">No paired devices yet.<br><button type="button" class="text-link" id="rail-empty-connect">Connect a device</button></p>';
+  } else {
+    paired.forEach(function(d){
+      html += deviceRowHtml({ id: d.id, name: d.name, icon: d.icon, meta: railDeviceMeta(d), live: d.status==='online' }, false);
+    });
+  }
+  html += '</div>';
+
+  html += '<div class="rail-group">';
+  html += '<div class="rail-group-label"><span class="eyebrow">Nearby</span></div>';
+  if (!state.nearby.length) {
+    html += '<p class="rail-empty-note">No nearby OLIVE devices found.<br>Pairing can still begin with a code.</p>';
+  } else {
+    state.nearby.forEach(function(n){
+      html += deviceRowHtml({ id: n.id, name: 'OLIVE device', icon: 'radio', meta: n.host + ' · Unpaired' }, true);
+    });
+  }
+  html += '</div>';
+
+  scroll.innerHTML = html;
+
+  scroll.querySelectorAll('.device-row[data-id]').forEach(function(row){
+    row.addEventListener('click', function(){
+      var id = row.getAttribute('data-id');
+      if (row.classList.contains('unpaired')) { openPairing({ source: 'nearby', nearbyId: id }); return; }
+      select(id);
+    });
+  });
+  var re = document.getElementById('rail-empty-connect');
+  if (re) re.addEventListener('click', function(){ openPairing({ source: 'new' }); });
+
+  scroll.querySelectorAll('.device-row.selected').forEach(function(r){ r.classList.toggle('selected', r.getAttribute('data-id')===state.selectedId); });
+}
+
+function deviceRowHtml(d, unpaired){
+  var selected = (d.id === state.selectedId) && !unpaired;
+  return '<button type="button" class="device-row'+(selected?' selected':'')+(unpaired?' unpaired':'')+'" data-id="'+d.id+'">'
+    + '<span class="device-icon">'+iconSpan(d.icon)+(d.live?'<span class="live-dot"></span>':'')+'</span>'
+    + '<span class="device-row-text"><strong>'+d.name+'</strong><span class="meta">'+d.meta+'</span></span>'
+    + (unpaired ? '<span class="pill" data-tone="unpaired" style="flex-shrink:0">Unpaired</span>' : '')
+    + '</button>';
+}
+
+function renderRailFoot(){
+  var foot = document.getElementById('rail-foot');
+  var iface = state.interface === 'wifi' ? 'Wi-Fi · 192.168.1.42' : 'Ethernet · 192.168.1.15';
+  foot.innerHTML =
+    '<div class="rail-foot-row">'
+    + '<span class="icon">'+ICON.connect+'</span>'
+    + '<span class="spacer"><strong>OLIVE Connect</strong><small>'+(state.connectOn ? iface : 'Off — not reachable') +'</small></span>'
+    + '<input type="checkbox" class="switch" id="rail-connect-switch" '+(state.connectOn?'checked':'')+'>'
+    + '</div>';
+  document.getElementById('rail-connect-switch').addEventListener('change', function(e){
+    state.connectOn = e.target.checked;
+    renderAll();
+  });
+}
+
+/* ---------- Render: main ---------- */
+function renderMain(){
+  var el = document.getElementById('main-inner');
+  var id = state.selectedId;
+  if (id === 'this') { el.innerHTML = renderThisDevice(); wireThisDevice(); return; }
+  var d = deviceById(id);
+  if (!d) { el.innerHTML = ''; return; }
+  el.innerHTML = renderPairedDevice(d);
+  wirePairedDevice(d);
+}
+
+function backBtnHtml(){
+  return '<button type="button" class="icon-button back-btn" id="back-btn" aria-label="Back to devices" style="margin-right:2px"><span class="icon">'+ICON.chevronLeft+'</span></button>';
+}
+
+function renderThisDevice(){
+  var iface = state.interface === 'wifi' ? { label: 'Wi-Fi', addr: '192.168.1.42', icon: 'wifi' } : { label: 'Ethernet', addr: '192.168.1.15', icon: 'ethernet' };
+  return ''
+  + '<div class="detail-head">' + backBtnHtml()
+  + '<div class="device-icon-lg accent">'+iconSpan('laptop')+'</div>'
+  + '<div class="detail-head-text"><h1>'+THIS_DEVICE.name+'</h1>'
+  + '<div class="detail-head-meta"><span class="pill" data-tone="offline">This device</span><span class="faint">'+THIS_DEVICE.os+'</span>'+(THIS_DEVICE.coreAvailable?'<span class="faint">&middot; OLIVE Core available</span>':'')+'<span class="faint">&middot; '+THIS_DEVICE.gpu+'</span></div>'
+  + '</div></div>'
+
+  + '<div class="panel">'
+  + '  <div class="panel-head"><div class="title"><h3>OLIVE Connect</h3><p>Lets paired devices reach this computer on your local network.</p></div>'
+  + '    <input type="checkbox" class="switch" id="connect-switch" '+(state.connectOn?'checked':'')+'>'
+  + '  </div>'
+  + '  <div class="panel-body">'
+  +      (state.connectOn ? '' : '<div class="notice" data-tone="accent"><span class="icon">'+ICON.info+'</span><p>OLIVE Connect is off. Paired devices can’t reach this computer until you turn it back on.</p></div>')
+  +      (state.connectOn ? renderInterfacePicker() : '')
+  +      (state.connectOn ? '<div class="notice"><span class="icon">'+ICON.info+'</span><p>OLIVE Connect listens only on the selected local interface and communicates with paired OLIVE devices.</p></div>' : '')
+  + '  </div>'
+  + (state.connectOn ? '  <div class="panel-foot"><div class="switch-row"><span class="icon" style="color:var(--muted)">'+ICON.radio+'</span><span class="switch-row-text"><strong>Nearby discovery</strong><small>Let this computer be found by other OLIVE devices on this network.</small></span><input type="checkbox" class="switch" id="discovery-switch" '+(state.discoveryOn?'checked':'')+'></div></div>' : '')
+  + '</div>'
+
+  + '<details class="disclosure">'
+  + '  <summary>Advanced details</summary>'
+  + '  <div class="disclosure-body"><dl class="facts">'
+  + '    <dt>Device ID</dt><dd class="mono">dmdo-9f21-4a6e-b103</dd>'
+  + '    <dt>Fingerprint</dt><dd class="mono">4B:19:E2:7C:8A:05</dd>'
+  + '    <dt>Protocol version</dt><dd>C3.1</dd>'
+  + '    <dt>Selected interface</dt><dd>'+iface.label+' ('+iface.addr+')</dd>'
+  + '    <dt>Connect port</dt><dd>47621</dd>'
+  + '  </dl>'
+  + '  <p class="preset-note">Firewall requirements: allow inbound TCP on the Connect port for the selected interface only. OLIVE never opens ports on other interfaces.</p>'
+  + '  </div>'
+  + '</details>';
+}
+
+function renderInterfacePicker(){
+  return ''
+  + '<div>'
+  + '<p class="eyebrow" style="margin-bottom:8px">Local interface</p>'
+  + '<div class="iface-grid">'
+  +   ifaceCardHtml('wifi', 'Wi-Fi', '192.168.1.42', 'wifi')
+  +   ifaceCardHtml('ethernet', 'Ethernet', '192.168.1.15', 'ethernet')
+  + '</div></div>';
+}
+function ifaceCardHtml(key, label, addr, icon){
+  var sel = state.interface === key;
+  return '<button type="button" class="iface-card'+(sel?' selected':'')+'" data-iface="'+key+'">'
+    + '<span class="icon">'+ICON[icon]+'</span>'
+    + '<span class="spacer"><strong>'+label+'</strong><span>'+addr+'</span></span>'
+    + (sel ? '<span class="icon check">'+ICON.check+'</span>' : '') + '</button>';
+}
+
+function wireThisDevice(){
+  var back = document.getElementById('back-btn'); if (back) back.addEventListener('click', function(){ setMobileView('rail'); });
+  var sw = document.getElementById('connect-switch');
+  if (sw) sw.addEventListener('change', function(e){ state.connectOn = e.target.checked; renderAll(); });
+  var dsw = document.getElementById('discovery-switch');
+  if (dsw) dsw.addEventListener('change', function(e){ state.discoveryOn = e.target.checked; renderAll(); });
+  document.querySelectorAll('.iface-card').forEach(function(c){
+    c.addEventListener('click', function(){ state.interface = c.getAttribute('data-iface'); renderAll(); });
+  });
+}
+
+function renderPairedDevice(d){
+  var actions = '';
+  if (d.status === 'revoked') {
+    // no reconnect offered after revocation
+  } else if (d.status === 'offline' || d.status === 'failed') {
+    actions += '<button type="button" class="quiet" id="reconnect-btn"><span class="icon">'+ICON.connect+'</span>Reconnect</button>';
+  }
+  var head = ''
+  + '<div class="detail-head">' + backBtnHtml()
+  + '<div class="device-icon-lg'+(d.status==='online'?' accent':'')+'">'+iconSpan(d.icon)+'</div>'
+  + '<div class="detail-head-text"><h1>'+d.name+'</h1>'
+  + '<div class="detail-head-meta">'+statusPillHtml(d)+(d.encrypted && d.status==='online' ? '<span class="chip-tls">'+ICON.shieldCheck.replace('<svg ', '<svg style="width:12px;height:12px" ')+'Encrypted &middot; TLS 1.3</span>' : '')+'<span class="faint">'+d.cls+' &middot; '+d.platform+'</span></div>'
+  + '</div>'
+  + '<div class="detail-head-actions">'+actions+'<button type="button" class="icon-button" id="more-btn" aria-label="More"><span class="icon">'+ICON.more+'</span></button></div>'
+  + '</div>';
+
+  var tabs = ''
+  + '<div class="tabs">'
+  + tabBtn('status','Status') + tabBtn('permissions','Permissions') + tabBtn('activity','Activity')
+  + '</div>';
+
+  var body = '';
+  if (state.tab === 'status') body = renderStatusTab(d);
+  else if (state.tab === 'permissions') body = renderPermissionsTab(d);
+  else body = renderActivityTab(d);
+
+  return head + tabs + body;
+}
+function tabBtn(key, label){ return '<button type="button" data-tab="'+key+'" class="'+(state.tab===key?'selected':'')+'">'+label+'</button>'; }
+
+function renderStatusTab(d){
+  var html = '<div class="panel"><div class="panel-body">';
+  if (d.status === 'revoked') {
+    html += '<div class="notice" data-tone="warning"><span class="icon">'+ICON.shieldOff+'</span><p><strong>Revoked · disconnected.</strong> This device lost OLIVE Connect access. It must be paired again before it can reconnect.</p></div>';
+  } else if (d.status === 'online') {
+    html += '<dl class="facts">'
+      + '<dt>Connection</dt><dd>Local network · authenticated</dd>'
+      + '<dt>Latency</dt><dd>'+d.latency+' ms</dd>'
+      + '<dt>Encryption</dt><dd>TLS 1.3, mutually authenticated</dd>'
+      + '<dt>Paired since</dt><dd>'+d.pairedOn+'</dd>'
+      + '</dl>';
+  } else if (d.status === 'failed') {
+    html += '<div class="notice" data-tone="warning"><span class="icon">'+ICON.alert+'</span><p><strong>Connection failed.</strong> OLIVE could not complete authentication with this device on the local network.</p></div>'
+      + '<dl class="facts"><dt>Paired since</dt><dd>'+d.pairedOn+'</dd></dl>';
+  } else {
+    html += '<p class="muted">'+d.name+' is offline. Last seen '+(d.lastSeen||'a while ago')+'.</p>'
+      + '<dl class="facts"><dt>Paired since</dt><dd>'+d.pairedOn+'</dd></dl>';
+  }
+  html += '</div>';
+  if (d.status !== 'revoked') {
+    html += '<div class="panel-foot"><span class="faint" style="font-size:12px">Removing access takes effect immediately.</span><button type="button" class="danger" id="revoke-btn"><span class="icon">'+ICON.shieldOff+'</span>Revoke device</button></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderPermissionsTab(d){
+  var revoked = d.status === 'revoked';
+  var html = '<div class="panel">';
+  if (revoked) html += '<div class="panel-body"><div class="notice" data-tone="warning"><span class="icon">'+ICON.shieldOff+'</span><p>Permissions are inactive while this device is revoked. Pair it again to set them.</p></div></div>';
+  html += '<div class="panel-body flush">';
+  PERM_GROUPS.forEach(function(group, gi){
+    html += '<div class="perm-section">';
+    html += '<div class="perm-section-head"><span class="eyebrow">'+group.label+'</span></div>';
+    group.items.forEach(function(item){
+      var v = d.perms[item.key];
+      if (v === 'unavailable') {
+        html += '<div class="perm-row unavailable"><div class="perm-row-text"><strong>'+item.label+'</strong><small>'+ (item.unavailableNote || 'Not available for this device') +'</small></div><span class="perm-unavailable-pill">Unavailable</span></div>';
+      } else {
+        html += '<div class="perm-row"><div class="perm-row-text"><strong>'+item.label+'</strong></div>'
+          + permSegHtml(d.id, item.key, v, revoked)
+          + '</div>';
+      }
+    });
+    html += '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+function permSegHtml(deviceId, key, value, disabled){
+  function b(v, label){ return '<button type="button" '+(disabled?'disabled':'')+' data-perm-device="'+deviceId+'" data-perm-key="'+key+'" data-perm-value="'+v+'" data-v="'+v+'" class="'+(value===v?'selected':'')+'">'+label+'</button>'; }
+  return '<div class="perm-seg">'+b('allow','Allow')+b('ask','Ask')+b('off','Off')+'</div>';
+}
+
+function renderActivityTab(d){
+  var html = '<div class="panel"><ul class="timeline">';
+  d.activity.forEach(function(a){
+    html += '<li data-tone="'+a.tone+'"><div class="t-row"><strong>'+a.label+'</strong><time>'+a.time+'</time></div></li>';
+  });
+  html += '</ul>';
+  html += '<div class="panel-foot"><span class="faint" style="font-size:12px">Shows connection and permission events only — never message content or file contents.</span></div>';
+  html += '</div>';
+  return html;
+}
+
+function wirePairedDevice(d){
+  var back = document.getElementById('back-btn'); if (back) back.addEventListener('click', function(){ setMobileView('rail'); });
+  document.querySelectorAll('[data-tab]').forEach(function(b){ b.addEventListener('click', function(){ state.tab = b.getAttribute('data-tab'); renderMain(); }); });
+  var rc = document.getElementById('reconnect-btn'); if (rc) rc.addEventListener('click', function(){ reconnectFlow(d); });
+  var rv = document.getElementById('revoke-btn'); if (rv) rv.addEventListener('click', function(){ openRevokeConfirm(d.id); });
+  document.querySelectorAll('.perm-seg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var dev = deviceById(b.getAttribute('data-perm-device'));
+      if (!dev) return;
+      dev.perms[b.getAttribute('data-perm-key')] = b.getAttribute('data-perm-value');
+      renderMain();
+    });
+  });
+}
+
+/* ---------- Reconnect: Offline -> Connecting -> Authenticating -> Online ---------- */
+function reconnectFlow(d){
+  d.status = 'connecting'; renderAll();
+  setTimeout(function(){
+    if (d.status !== 'connecting') return;
+    d.status = 'authenticating'; renderAll();
+    setTimeout(function(){
+      if (d.status !== 'authenticating') return;
+      d.status = 'online'; d.latency = 11; d.encrypted = true; d.lastSeen = null;
+      d.activity.push({ tone: 'success', label: 'Connected', time: 'Just now' });
+      renderAll();
+    }, 1100);
+  }, 900);
+}
+
+/* ---------- Revoke ---------- */
+function openRevokeConfirm(id){
+  var d = deviceById(id);
+  showOverlay(''
+    + '<div class="modal">'
+    + '<h2>Revoke device</h2>'
+    + '<p class="lede">This device will lose OLIVE Connect access immediately. It must be paired again before it can reconnect.</p>'
+    + '<div class="notice" data-tone="warning"><span class="icon">'+ICON.alert+'</span><p><strong>'+d.name+'</strong> will be disconnected right away.</p></div>'
+    + '<div class="modal-actions"><button type="button" class="quiet" id="revoke-cancel">Cancel</button><button type="button" class="danger" id="revoke-confirm">Revoke</button></div>'
+    + '</div>');
+  document.getElementById('revoke-cancel').addEventListener('click', closeOverlay);
+  document.getElementById('revoke-confirm').addEventListener('click', function(){
+    d.status = 'revoked'; d.encrypted = false; d.latency = null;
+    d.activity.push({ tone: 'warning', label: 'Revoked', time: 'Just now' });
+    closeOverlay();
+    renderAll();
+  });
+}
+
+/* ---------- Pairing flow ---------- */
+function qrPattern(size){
+  var cells = [], seed = 42;
+  function rnd(){ seed = (seed*9301+49297) % 233280; return seed/233280; }
+  for (var y=0;y<size;y++){ var row=[]; for (var x=0;x<size;x++) row.push(rnd() > 0.53 ? 1 : 0); cells.push(row); }
+  var finder = [[1,1,1,1,1,1,1],[1,0,0,0,0,0,1],[1,0,1,1,1,0,1],[1,0,1,1,1,0,1],[1,0,1,1,1,0,1],[1,0,0,0,0,0,1],[1,1,1,1,1,1,1]];
+  function stamp(ox,oy){ for (var yy=0; yy<7; yy++) for (var xx=0; xx<7; xx++) cells[oy+yy][ox+xx] = finder[yy][xx]; }
+  stamp(0,0); stamp(size-7,0); stamp(0,size-7);
+  return cells;
+}
+function qrHtml(){
+  var size = 15, cells = qrPattern(size), html = '<div class="qr-grid" style="grid-template-columns:repeat('+size+',1fr);grid-template-rows:repeat('+size+',1fr)">';
+  for (var y=0;y<size;y++) for (var x=0;x<size;x++) html += '<div class="qr-cell'+(cells[y][x]?' on':'')+'"></div>';
+  html += '</div>';
+  return html;
+}
+
+function openPairing(opts){
+  clearPairTimers();
+  var startStep = opts.source === 'nearby' ? 2 : 1;
+  state.modal = { type: 'pairing', step: startStep, source: opts.source, nearbyId: opts.nearbyId || null, name: "Diego's iPad", preset: 'off' };
+  renderPairingModal();
+}
+function clearPairTimers(){
+  if (state.pairTimer) { clearTimeout(state.pairTimer); state.pairTimer = null; }
+  if (state.qrTimer) { clearInterval(state.qrTimer); state.qrTimer = null; }
+}
+function closePairing(){ clearPairTimers(); state.modal = null; closeOverlay(); }
+
+function renderPairingModal(){
+  var m = state.modal;
+  if (m.step === 1) {
+    state.qrSeconds = 107;
+    showOverlay(''
+      + '<div class="modal">'
+      + '<p class="eyebrow step-eyebrow">Step 1 of 4</p>'
+      + '<h2>Connect a device</h2>'
+      + '<div class="qr-wrap"><div class="qr-box">'+qrHtml()+'</div>'
+      + '<p class="qr-caption">Expires in <strong id="qr-timer">1:47</strong></p></div>'
+      + '<div class="wait-row"><span class="spinner"></span>Waiting for another OLIVE device&hellip;</div>'
+      + '<div class="modal-actions"><button type="button" class="quiet" id="pair-cancel">Cancel</button></div>'
+      + '</div>');
+    document.getElementById('pair-cancel').addEventListener('click', closePairing);
+    state.qrTimer = setInterval(function(){
+      state.qrSeconds--;
+      var t = document.getElementById('qr-timer');
+      if (t) t.textContent = Math.floor(state.qrSeconds/60) + ':' + String(state.qrSeconds%60).padStart(2,'0');
+      if (state.qrSeconds <= 0) closePairing();
+    }, 1000);
+    state.pairTimer = setTimeout(function(){ m.step = 2; renderPairingModal(); }, 4200);
+  }
+  else if (m.step === 2) {
+    clearPairTimers();
+    showOverlay(''
+      + '<div class="modal">'
+      + '<p class="eyebrow step-eyebrow">Step '+(m.source==='nearby'?'1 of 3':'2 of 4')+'</p>'
+      + '<h2>Device found</h2>'
+      + '<div class="pair-device-row"><div class="device-icon-lg">'+iconSpan('tablet')+'</div><div><strong>'+m.name+'</strong><small>Requesting to pair over your local network</small></div></div>'
+      + '<p class="lede" style="margin-bottom:8px">Compare this value on both devices:</p>'
+      + '<div class="fingerprint"><span class="tag">C2/1</span>A7:F2:9D:3B</div>'
+      + '<div class="modal-actions split"><button type="button" class="quiet" id="pair-cancel">Cancel</button><button type="button" class="primary" id="pair-match">Values match</button></div>'
+      + '</div>');
+    document.getElementById('pair-cancel').addEventListener('click', closePairing);
+    document.getElementById('pair-match').addEventListener('click', function(){ m.step = 3; renderPairingModal(); });
+  }
+  else if (m.step === 3) {
+    showOverlay(''
+      + '<div class="modal wide">'
+      + '<p class="eyebrow step-eyebrow">Step '+(m.source==='nearby'?'2 of 3':'3 of 4')+'</p>'
+      + '<h2>Pairing confirmed</h2>'
+      + '<p class="lede">Now choose initial permissions for <strong>'+m.name+'</strong>.</p>'
+      + '<div class="preset-list">'
+      +   presetCard('off', 'Keep everything Off', 'Recommended — allow capabilities later, one at a time.')
+      +   presetCard('ask', 'Ask before anything', 'OLIVE checks with you the first time each capability is used.')
+      +   presetCard('choose', 'Choose individually', 'Open the full permissions list now.')
+      + '</div>'
+      + '<p class="preset-note">Every permission starts Off until you choose. OLIVE never enables anything on its own.</p>'
+      + '<div class="modal-actions"><button type="button" class="quiet" id="pair-cancel">Cancel</button><button type="button" class="primary" id="pair-continue">Continue</button></div>'
+      + '</div>');
+    document.getElementById('pair-cancel').addEventListener('click', closePairing);
+    document.querySelectorAll('.preset-card').forEach(function(c){ c.addEventListener('click', function(){ m.preset = c.getAttribute('data-preset'); renderPairingModal(); }); });
+    document.getElementById('pair-continue').addEventListener('click', function(){ finishPairing(m); });
+  }
+  else if (m.step === 4) {
+    showOverlay(''
+      + '<div class="modal center-text">'
+      + '<div class="paired-check">'+ICON.check+'</div>'
+      + '<h2>Device paired</h2>'
+      + '<p class="lede">'+m.name+'<br><span class="faint" style="font-size:12.5px">Offline · waiting for connection</span></p>'
+      + '<div class="notice" data-tone="accent"><span class="icon">'+ICON.info+'</span><p>Pairing confirms identity. '+m.name+' will show Online once it connects over your local network.</p></div>'
+      + '<div class="modal-actions" style="justify-content:center"><button type="button" class="primary" id="pair-done">Done</button></div>'
+      + '</div>');
+    document.getElementById('pair-done').addEventListener('click', function(){
+      closePairing();
+      select(m.newId);
+    });
+  }
+}
+function presetCard(key, title, desc){
+  var m = state.modal;
+  return '<button type="button" class="preset-card'+(m.preset===key?' selected':'')+'" data-preset="'+key+'"><span class="radio-dot"></span><span><strong>'+title+'</strong><span>'+desc+'</span></span></button>';
+}
+function finishPairing(m){
+  var basePerms = { chat:'off', tasks:'off', calendar:'off', reminders:'off', notifications:'off', receive_files:'off', shared_folders:'off', full_filesystem:'off', studio:'off', run_project:'off', remote_ai:'off', terminal:'unavailable', launch_apps:'off', desktop_control:'unavailable', install_software:'off' };
+  if (m.preset === 'ask') { Object.keys(basePerms).forEach(function(k){ if (basePerms[k] !== 'unavailable') basePerms[k] = 'ask'; }); }
+  var id = 'ipad-' + Date.now();
+  var device = { id: id, kind: 'paired', name: m.name, cls: 'Tablet', platform: 'iPadOS 18', icon: 'tablet',
+    status: 'offline', latency: null, encrypted: false, pairedOn: 'Just now', lastSeen: 'just now',
+    perms: basePerms,
+    activity: [ { tone: 'muted', label: 'Paired', time: 'Just now' } ] };
+  state.devices.push(device);
+  if (m.source === 'nearby' && m.nearbyId) state.nearby = state.nearby.filter(function(n){ return n.id !== m.nearbyId; });
+  m.newId = id;
+  m.step = 4;
+  renderPairingModal();
+}
+
+/* ---------- Ask approval ---------- */
+function openAsk(deviceId, capabilityLabel, sub){
+  var d = deviceById(deviceId);
+  state.ask = { deviceId: deviceId, capability: capabilityLabel, sub: sub };
+  showAskOverlay(''
+    + '<div class="modal ask-modal">'
+    + '<p class="eyebrow" style="margin-bottom:10px">Wants to run something on this laptop</p>'
+    + '<div class="ask-source"><div class="device-icon-lg">'+iconSpan(d.icon)+'</div><div><strong>'+d.name+'</strong><small>'+d.cls+' · '+d.platform+'</small></div></div>'
+    + '<div class="ask-capability"><span class="eyebrow">Requesting</span><strong>'+capabilityLabel+'</strong>'+(sub?'<span class="faint" style="font-size:12.5px">'+sub+'</span>':'')+'</div>'
+    + '<div class="ask-on"><span class="icon">'+ICON.laptop+'</span>On: This laptop</div>'
+    + '<label class="ask-remember"><input type="checkbox" id="ask-remember"> Remember for this device</label>'
+    + '<p class="ask-remember-note">Sets '+capabilityLabel+' to Allow for '+d.name+'.</p>'
+    + '<div class="modal-actions split"><button type="button" class="quiet" id="ask-deny">Deny</button><button type="button" class="primary" id="ask-allow">Allow once</button></div>'
+    + '</div>');
+  document.getElementById('ask-deny').addEventListener('click', function(){ resolveAsk(false); });
+  document.getElementById('ask-allow').addEventListener('click', function(){ resolveAsk(true); });
+}
+function resolveAsk(allow){
+  var ask = state.ask, d = deviceById(ask.deviceId);
+  var remember = document.getElementById('ask-remember');
+  var setPersist = allow && remember && remember.checked;
+  closeOverlay();
+  if (setPersist) d.perms['run_project'] = 'allow';
+  d.activity.push({ tone: allow ? 'success' : 'warning', label: (allow ? 'Approved once: ' : 'Permission denied: ') + ask.capability + (ask.sub ? ' ('+ask.sub+')' : ''), time: 'Just now' });
+  showToast(allow ? 'check' : 'x', allow ? (ask.capability + ' allowed once') : (ask.capability + ' denied'));
+  if (state.selectedId === ask.deviceId) renderMain();
+  state.ask = null;
+}
+
+/* ---------- Overlay / toast plumbing ---------- */
+function showOverlay(html){
+  document.getElementById('overlay-root').innerHTML = '<div class="overlay" id="overlay-el">'+html+'</div>';
+}
+function showAskOverlay(html){
+  document.getElementById('overlay-root').innerHTML = '<div class="overlay ask-overlay" id="overlay-el">'+html+'</div>';
+}
+function closeOverlay(){ document.getElementById('overlay-root').innerHTML = ''; }
+function showToast(icon, text){
+  var root = document.getElementById('toast-root');
+  root.innerHTML = '<div class="toast"><span class="icon">'+ICON[icon]+'</span>'+text+'</div>';
+  setTimeout(function(){ root.innerHTML = ''; }, 2600);
+}
+
+/* ---------- Scenarios ---------- */
+function applyScenario(name){
+  document.getElementById('scenarios').removeAttribute('open');
+  if (name === 'pair') { openPairing({ source: 'new' }); return; }
+  if (name === 'ask') { select('iphone'); openAsk('iphone', 'Run project', 'RaceDay'); return; }
+  if (name === 'fail') { var d = deviceById('gamingpc'); d.status = 'failed'; select('gamingpc'); return; }
+  if (name === 'empty-paired') { state.devices = []; state.selectedId = 'this'; renderAll(); return; }
+  if (name === 'empty-nearby') { state.nearby = []; renderAll(); return; }
+  if (name === 'reset') { state.devices = seedDevices(); state.nearby = []; state.selectedId = 'iphone'; state.tab='status'; state.connectOn = true; state.interface = 'wifi'; state.discoveryOn = true; closePairing(); closeOverlay(); renderAll(); scheduleDiscovery(); return; }
+}
+
+/* ---------- Simulated discovery ---------- */
+function scheduleDiscovery(){
+  setTimeout(function(){
+    if (state.nearby.length || !state.discoveryOn) return;
+    state.nearby.push({ id: 'nearby-1', host: 'olive-7f2a.local' });
+    renderRail();
+  }, 4200);
+}
+
+/* ---------- Wire static controls ---------- */
+document.getElementById('rail-add-btn').addEventListener('click', function(){ openPairing({ source: 'new' }); });
+document.querySelectorAll('.scenarios-panel button[data-scenario]').forEach(function(b){
+  b.addEventListener('click', function(){ applyScenario(b.getAttribute('data-scenario')); });
+});
+document.addEventListener('click', function(e){
+  var sc = document.getElementById('scenarios');
+  if (sc.hasAttribute('open') && !sc.contains(e.target)) sc.removeAttribute('open');
+});
+
+var mq = window.matchMedia('(max-width: 860px)');
+function syncMobile(){ setMobileView(mq.matches ? state.mobileView : 'rail'); }
+if (mq.addEventListener) mq.addEventListener('change', syncMobile); else mq.addListener(syncMobile);
+
+/* ---------- Full render ---------- */
+function renderAll(){
+  renderHeadStatus();
+  renderRail();
+  renderRailFoot();
+  renderMain();
+}
+renderAll();
+scheduleDiscovery();
+})();
+</script>
+</body>
+</html>
