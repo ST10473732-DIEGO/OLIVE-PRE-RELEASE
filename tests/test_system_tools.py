@@ -8,6 +8,12 @@ from olive.tools.system import SystemTool, WindowsApplicationResolver, _find_mat
 
 
 class SystemToolTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # These fixtures exercise the retained Windows adapter without OS calls.
+        guard = patch("olive.platform_support.require_windows")
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def test_resolves_start_menu_shortcut(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); roaming = root / "roaming"; programs = roaming / "Microsoft/Windows/Start Menu/Programs/Discord Inc"

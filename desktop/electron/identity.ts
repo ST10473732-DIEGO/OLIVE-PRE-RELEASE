@@ -23,12 +23,18 @@ export function normalizeEnvironment(env: NodeJS.ProcessEnv) {
   }
   return env;
 }
-export function resolveProfile(env: NodeJS.ProcessEnv, home = homedir()) {
+export function resolveProfile(env: NodeJS.ProcessEnv, home = homedir(), platform: NodeJS.Platform = process.platform) {
   const config = normalizeEnvironment({ ...env });
   if (config.OLIVE_DATA_DIR) return canonicalPath(config.OLIVE_DATA_DIR, home);
   const current = path.join(home, identity.default_directory), legacy = path.join(home, identity.legacy_directory);
   const occupied = (p: string) => existsSync(p) && (!statSync(p).isDirectory() || readdirSync(p).length > 0);
   if (occupied(current) && occupied(legacy) && canonicalPath(current) !== canonicalPath(legacy))
     throw new Error("Both OLIVE and legacy DMDO profile locations contain data. Set OLIVE_DATA_DIR explicitly; nothing was merged or moved.");
-  return canonicalPath(occupied(legacy) ? legacy : current);
+  const xdg = config.XDG_DATA_HOME;
+  const fallback = platform === "linux"
+    ? path.join(xdg && path.isAbsolute(xdg) ? xdg : path.join(home, ".local/share"), "olive")
+    : current;
+  if (occupied(fallback) && [current, legacy].some(p => occupied(p) && canonicalPath(p) !== canonicalPath(fallback)))
+    throw new Error("Multiple OLIVE profile locations contain data. Set OLIVE_DATA_DIR explicitly; nothing was merged or moved.");
+  return canonicalPath(occupied(legacy) ? legacy : occupied(current) ? current : fallback);
 }

@@ -8,7 +8,8 @@ class RebrandTests(unittest.TestCase):
  def test_profile_defaults_legacy_reuse_and_conflicts(self):
   with tempfile.TemporaryDirectory() as d:
    home=Path(d);legacy=home/'.dmdo';current=home/'.olive'
-   self.assertEqual(resolve_profile({},home),current)
+   self.assertEqual(resolve_profile({},home,platform='win32'),current)
+   self.assertEqual(resolve_profile({},home,platform='linux'),home/'.local/share/olive')
    legacy.mkdir();(legacy/'settings.json').write_text('{}')
    self.assertEqual(resolve_profile({},home),legacy)
    current.mkdir();self.assertEqual(resolve_profile({},home),legacy)

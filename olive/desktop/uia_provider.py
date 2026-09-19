@@ -18,8 +18,8 @@ class WindowsUIAutomationProvider:
         self.stop = stop or EmergencyStop()
 
     async def call(self, action, window, **arguments):
-        if os.name != "nt":
-            raise RuntimeError("Windows UI Automation is unavailable")
+        from ..platform_support import require_windows
+        require_windows('Desktop Control')
         if self.stop.is_set():
             raise InterruptedError("Desktop control stopped")
         request = json.dumps({"action": action, "window": window, **arguments, "stop_name": self.stop.name}).encode("utf-8")

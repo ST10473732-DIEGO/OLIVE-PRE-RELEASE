@@ -103,10 +103,10 @@ export default function Desktop({
       report(e);
     }
   };
-  const enabled = Boolean(state?.settings.enabled);
+  const enabled = state?.available !== false && Boolean(state?.settings.enabled);
   const headerStatus = !state
     ? "Checking"
-    : state.stopped
+    : state.available === false ? "Unavailable" : state.stopped
       ? "Stopped"
       : !enabled
         ? "Disabled"
@@ -169,9 +169,9 @@ export default function Desktop({
             <div className="callout ws-notice desktop-disabled" role="note" data-tone="warning">
               <AlertTriangle size={15} aria-hidden="true" />
               <p className="grow">
-                Desktop Control is disabled. Enable it in Settings when you want
+                {state.available === false ? state.unavailable_reason : <>Desktop Control is disabled. Enable it in Settings when you want
                 OLIVE to interact with applications. Local conversation remains
-                available.
+                available.</>}
               </p>
               <button className="text-button" onClick={settings}>
                 Open Settings

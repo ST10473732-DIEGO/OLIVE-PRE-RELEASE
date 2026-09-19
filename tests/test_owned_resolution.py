@@ -1,5 +1,6 @@
 """Owned-only diagnostic outcomes; controlled processes, no live UI access."""
 import unittest
+import sys
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -54,6 +55,7 @@ class ResolutionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(record.resolution['window_rejections']['unowned_pid'], 1)
         self.assertEqual(record.resolution['candidates'], [])
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows native UI/ConPTY requires Windows")
     def test_owned_visibility_and_title_filters_counted_without_unrelated_reads(self):
         from olive.desktop.windows_observation import windows_for_processes
         counts = {}

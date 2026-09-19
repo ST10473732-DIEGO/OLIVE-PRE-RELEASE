@@ -1,4 +1,5 @@
 """Controlled process/window fixtures; no real desktop interaction."""
+import sys
 import asyncio
 import tempfile
 import unittest
@@ -78,6 +79,7 @@ class OwnedIdentityTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             r.resolve(process_factory=lambda _:root,window_reader=lambda _: [window(hwnd=51)])
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows native UI/ConPTY requires Windows")
     def test_pid_filter_precedes_unrelated_title_or_metadata_reads(self):
         from olive.desktop.windows_observation import windows_for_processes
         def enumerate_handles(callback,unused):
@@ -158,6 +160,7 @@ class OwnedBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 await self.d.launch_local(str(selected),'executable')
         self.assertEqual(self.d.launch_targets.snapshot(),[])
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows native UI/ConPTY requires Windows")
     async def test_control_denial_and_focus_loss_never_reach_provider(self):
         from olive.desktop.application_sessions import ApplicationSession
         from olive.desktop.workflow import DesktopStep

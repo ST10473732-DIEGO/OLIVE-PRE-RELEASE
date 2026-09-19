@@ -19,7 +19,7 @@ const empty = {
 };
 export default function MailConnections() {
   const resource = useResource(
-    () => call<{ items: Connection[] }>("mail.connections", {}),
+    () => call<{ items: Connection[]; credentials_available?: boolean }>("mail.connections", {}),
     ["mail.changed"],
   );
   const op = useOperation(resource.refresh),
@@ -56,6 +56,7 @@ export default function MailConnections() {
   };
   return (
     <section className="mail-connections">
+      {resource.data?.credentials_available === false && <p role="status" className="muted">Secure credential storage for Linux is not available in this build yet. Credential-dependent live connections are unavailable. Local drafts and imports remain available.</p>}
       <div className="row spread">
         <div>
           <h2>Mail connections</h2>

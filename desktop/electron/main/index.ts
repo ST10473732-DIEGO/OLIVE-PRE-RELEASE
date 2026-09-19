@@ -15,6 +15,7 @@ import { identity, normalizeEnvironment, resolveProfile } from "../identity";
 import { Preview } from "./preview";
 import { OliveBrowser } from "./browser";
 import { Backend } from "./backend";
+import { backendPython, iconName } from "../platform";
 import { validateCall } from "../contracts";
 import { fileAction } from "./file-actions";
 
@@ -92,10 +93,7 @@ else {
     );
     session.defaultSession.setPermissionCheckHandler(() => false);
     backend = new Backend(
-      app.isPackaged
-        ? path.join(root, "python.exe")
-        : process.env.OLIVE_PYTHON ||
-            path.join(root, ".venv/Scripts/python.exe"),
+      backendPython(root, app.isPackaged, process.env),
       root,
       profile,
     );
@@ -107,8 +105,8 @@ else {
       backgroundColor: "#090d14",
       title: identity.name,
       icon: app.isPackaged
-        ? path.join(process.resourcesPath, "olive.ico")
-        : path.join(root, "assets/branding/olive.ico"),
+        ? path.join(process.resourcesPath, iconName())
+        : path.join(root, "assets/branding", iconName()),
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, "preload.cjs"),
@@ -315,6 +313,10 @@ else {
     await window.loadURL("dmdo://app/index.html");
   });
   app.on("window-all-closed", () => app.quit());
+  if (process.platform !== "win32") {
+    process.on("SIGTERM", () => app.quit());
+    process.on("SIGINT", () => app.quit());
+  }
   app.on("before-quit", (event) => {
     if (quitting || !backend) return;
     event.preventDefault();

@@ -58,6 +58,8 @@ class TerminalSession:
         self._flush_handle = None
 
     def start(self, environment: dict[str, str], command=None):
+        from ..platform_support import require_windows
+        require_windows('Studio interactive terminal')
         import winpty
         if command:
             executable = shutil.which(command[0], path=environment.get('PATH')) or command[0]

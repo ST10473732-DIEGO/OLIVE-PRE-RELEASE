@@ -73,6 +73,9 @@ class MailController:
 
     async def call(self,method,args=None,*,manual=False):
         args=validate(method,args or {})
+        if method in {'mail.google_import','mail.google_begin'}:
+            from ..platform_support import require_windows
+            require_windows('Secure credential storage')
         if method.startswith('mail.google_'):
             if not manual:raise PermissionError('Google authorization requires the explicit application interface')
             def guard():
@@ -108,6 +111,9 @@ class MailController:
             finally:args['secret']='';WRITE_GUARD.reset(token)
             # Raise outside the handler so the cached protocol task does not keep
             # a chained provider traceback containing secret-bearing locals.
+            if category=='PlatformUnavailable':
+                from ..platform_support import PlatformUnavailable
+                raise PlatformUnavailable('Secure credential storage for Linux is not available in this build yet.')
             if category:raise RuntimeError('Credential storage failed ('+category+'); no plaintext fallback was used')
             return result
         task=AgentTask('Native Mail operation');event=asyncio.Event()

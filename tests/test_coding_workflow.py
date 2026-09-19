@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import json
 import tempfile
@@ -85,6 +86,7 @@ class CodingWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 await self.s.coding.modify(workspace['id'], 'Add a feature')
         self.assertFalse((Path(workspace['root_path']).parent/'outside.py').exists())
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows native UI/ConPTY requires Windows")
     async def test_running_program_input_has_session_identity_and_deny_boundary(self):
         workspace = self.s.data.create_coding_project("Input", "python")
         (Path(workspace['root_path'])/'main.py').write_text("print(input(), flush=True)\n")

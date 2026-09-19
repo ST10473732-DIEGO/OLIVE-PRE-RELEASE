@@ -1,5 +1,5 @@
 """Current identity and narrow compatibility resolution; no data relocation."""
-import json,os
+import json,os,sys
 from pathlib import Path
 IDENTITY=json.loads(Path(__file__).with_name('identity.json').read_text(encoding='utf-8'))
 APP_NAME=IDENTITY['name']
@@ -21,7 +21,7 @@ def normalize_environment(environ=None):
     return env
 
 
-def resolve_profile(environ=None,home=None):
+def resolve_profile(environ=None,home=None,platform=None):
     env=normalize_environment(dict(os.environ if environ is None else environ))
     if env.get('OLIVE_DATA_DIR'):return Path(env['OLIVE_DATA_DIR']).expanduser().resolve()
     base=Path.home() if home is None else Path(home)
@@ -30,9 +30,15 @@ def resolve_profile(environ=None,home=None):
     occupied=lambda p:p.exists() and (not p.is_dir() or any(p.iterdir()))
     if occupied(current) and occupied(legacy) and current.resolve()!=legacy.resolve():
         raise ValueError('Both OLIVE and legacy DMDO profile locations contain data. Set OLIVE_DATA_DIR explicitly; nothing was merged or moved.')
+    default=current
+    if (platform or sys.platform).startswith('linux'):
+        xdg=Path(env.get('XDG_DATA_HOME',''))
+        default=(xdg if xdg.is_absolute() else base/'.local'/'share')/'olive'
+        if occupied(default) and any(occupied(p) and p.resolve()!=default.resolve() for p in (current,legacy)):
+            raise ValueError('Multiple OLIVE profile locations contain data. Set OLIVE_DATA_DIR explicitly; nothing was merged or moved.')
     if occupied(legacy):return legacy.resolve()
     if occupied(current):return current.resolve()
-    return current.resolve()
+    return default.resolve()
 
 
 def display_alias(value):

@@ -20,6 +20,8 @@ _MESSAGES = {
  'Stop the current request before changing its objective or context.': 'Stop the current request before changing its objective or context.',
 }
 def public_error(error):
+ from ..platform_support import PlatformUnavailable
+ if isinstance(error,PlatformUnavailable):return {'code':'PlatformUnavailable','message':str(error)}
  from ..personal.errors import PersonalOperationError
  from ..studio_tooling.errors import StudioToolingError
  if isinstance(error,PersonalOperationError):return {'code':'PersonalOperationError','message':str(error)}

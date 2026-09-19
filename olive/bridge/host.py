@@ -181,6 +181,9 @@ class Host:
         if method == 'desktop.status':
             from .desktop_routes import status
             return status(s)
+        if method.startswith('desktop.') and method not in {'desktop.pause','desktop.reset','desktop.launches','desktop.consequence_fields'}:
+            from ..platform_support import require_windows
+            require_windows('Desktop Control')
         if method == 'desktop.configure':
             return s.desktop.configure(**args)
         if method == 'data.restore':
@@ -197,15 +200,22 @@ class Host:
             finally:
                 self.restoring = False
         if method in {'connections.discord_configure','connections.discord_select','connections.discord_destinations'}:
+            from ..platform_support import require_windows, PlatformUnavailable
+            unavailable = False
             try:
+                require_windows('Secure credential storage')
                 action={'connections.discord_configure':s.discord_transport.configure,'connections.discord_select':s.discord_transport.select_destination,'connections.discord_destinations':s.discord_transport.destinations}[method]
                 return await action(**args)
+            except PlatformUnavailable:
+                unavailable = True
             except Exception:
                 # Do not retain provider exception tracebacks containing secret locals
                 # in the deduplication task cache, or return secret-bearing errors.
                 pass
             finally:
                 if 'token' in args:args['token'] = ''
+            if unavailable:
+                raise PlatformUnavailable('Secure credential storage for Linux is not available in this build yet.')
             raise ValueError('Discord connection could not be verified. Check the bot token, server/channel IDs, bot access and network availability.')
         if method == 'approval.respond':
             value, future = self.pending.get(args['approval_id'], (None, None))

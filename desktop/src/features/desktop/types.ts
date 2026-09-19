@@ -7,6 +7,8 @@ export interface DesktopControl {
   value?: string;
 }
 export interface DesktopState {
+  available?: boolean;
+  unavailable_reason?: string;
   active: boolean;
   stopped: boolean;
   provider: string;

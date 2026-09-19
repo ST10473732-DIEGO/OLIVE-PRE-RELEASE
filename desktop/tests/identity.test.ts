@@ -16,7 +16,8 @@ describe("shared OLIVE identity and profile continuity", () => {
     const home = mkdtempSync(path.join(tmpdir(), "olive-path-test-"));
     try {
       const old = path.join(home, ".dmdo"), current = path.join(home, ".olive");
-      expect(resolveProfile({}, home)).toBe(current);
+      expect(resolveProfile({}, home, "win32")).toBe(current);
+      expect(resolveProfile({}, home, "linux")).toBe(path.join(home, ".local/share/olive"));
       mkdirSync(old); writeFileSync(path.join(old, "settings.json"), "{}");
       expect(resolveProfile({}, home)).toBe(old);
       mkdirSync(current);

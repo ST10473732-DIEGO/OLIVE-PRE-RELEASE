@@ -58,6 +58,10 @@
       {
         "from": "../assets/branding/olive.ico",
         "to": "olive.ico"
+      },
+      {
+        "from": "../assets/branding/olive-256.png",
+        "to": "olive-256.png"
       }
     ],
     "files": [

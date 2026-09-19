@@ -3,7 +3,7 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from olive.application.service_container import ServiceContainer
 from olive.bridge.host import Host
@@ -30,7 +30,7 @@ class DesktopBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(value['session'])
         self.s.desktop.settings = {}
         self.s.desktop.launcher.open = AsyncMock(side_effect=AssertionError('Real launch forbidden'))
-        with self.assertRaises((PermissionError, InterruptedError)):
+        with patch('olive.platform_support.require_windows'), self.assertRaises((PermissionError, InterruptedError)):
             await self.host.execute('desktop.open_application', {'application_id': 'fixture'})
         self.s.desktop.provider.observe.assert_not_awaited()
         self.s.desktop.launcher.open.assert_not_awaited()
@@ -50,7 +50,8 @@ class DesktopBridgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_manual_fields_reach_existing_controller_unchanged(self):
         self.s.desktop.perform = AsyncMock(return_value={'verified':False,'state':'fixture'})
         args = {'action':'invoke','target':{'runtime_id':[1,2]},'arguments':{},'expected':{'name':'Fixture complete'}}
-        result = await self.host.execute('desktop.perform', args)
+        with patch('olive.platform_support.require_windows'):
+            result = await self.host.execute('desktop.perform', args)
         self.s.desktop.perform.assert_awaited_once_with(**args)
         self.assertFalse(result['verified'])
 

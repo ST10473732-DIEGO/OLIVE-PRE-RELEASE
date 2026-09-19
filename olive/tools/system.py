@@ -138,7 +138,11 @@ class SystemTool:
         if self.action == "open_path":
             path = Path(arguments["path"]).expanduser().resolve(strict=False)
             if not path.exists(): raise FileNotFoundError(path)
-            __import__("os").startfile(str(path)); return ToolResult(True, f"Opened {path}")
+            from ..platform_support import open_path
+            open_path(path)
+            return ToolResult(True, f"Requested opening {path}")
+        from ..platform_support import require_windows
+        require_windows('Native application control')
         if self.action == "open_application":
             application = str(arguments["application"]).strip()
             if not application or any(char in application for char in "&|><\n\r"): raise ValueError("Invalid application name")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 import re
+import sys
 
 from ..agent.tool_result import ToolResult
 from ..agent.tool_schema import ToolDefinition
@@ -26,7 +27,10 @@ class TerminalRunTool:
         if not cwd.is_dir(): raise NotADirectoryError("An existing explicit working directory is required")
         environment = str(arguments.get("environment", "powershell")).lower(); command = str(arguments.get("command", ""))
         if not command.strip(): raise ValueError("Command cannot be empty")
-        executable = {"powershell":"powershell.exe", "cmd":"cmd.exe", "python":"python.exe"}.get(environment)
+        if environment in {'powershell','cmd'}:
+            from ..platform_support import require_windows
+            require_windows('Windows command shells')
+        executable = {"powershell":"powershell.exe", "cmd":"cmd.exe", "python":"python.exe" if sys.platform == 'win32' else sys.executable}.get(environment)
         if not executable: raise ValueError("Environment must be powershell, cmd, or python")
         args = [executable, "-NoProfile", "-Command", command] if environment == "powershell" else \
                [executable, "/d", "/s", "/c", command] if environment == "cmd" else [executable, "-c", command]

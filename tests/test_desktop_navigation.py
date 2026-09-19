@@ -41,6 +41,7 @@ class NavigationAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.desktop.gateway.require_not_denied.side_effect = PermissionError("Revoked")
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(PermissionError):
-                await self.navigation.open_folder(folder)
+                with patch.dict("os.environ", {"WINDIR": str(Path(folder) / "Windows")}):
+                    await self.navigation.open_folder(folder)
         self.assertEqual(self.desktop.gateway.approval.await_count, 2)
         self.desktop.s.tool_registry.require.assert_not_called()

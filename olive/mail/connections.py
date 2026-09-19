@@ -50,7 +50,7 @@ class Connections:
                 records=[self.store.unpack(r) for r in rows]
                 c['sync_status']=next(({k:r.get(k) for k in ('state','last_success','count','category','mailbox')} for r in records if r['kind']=='sync'),None)
                 c['test_status']=next(({k:r.get(k) for k in ('results','configuration_revision','updated_at')} for r in records if r.get('type')=='connection_test'),None)
-            return {'items':items}
+            return {'items':items, 'credentials_available':getattr(self.vault,'available',True)}
 
     def record_test(self,connection,results):
         with self.store.transaction() as db:

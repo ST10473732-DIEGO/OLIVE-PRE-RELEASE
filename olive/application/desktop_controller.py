@@ -176,7 +176,11 @@ class DesktopController:
         return self.status()
 
     def status(self):
-        return {"settings": self.configuration(), "stopped": self.stop_event.is_set(),
+        import sys
+        available = sys.platform == 'win32'
+        return {"available": available,
+                "unavailable_reason": '' if available else 'Desktop Control for Linux is not available in this build yet.',
+                "settings": self.configuration(), "stopped": self.stop_event.is_set(),
                 "session": self.record.to_dict() if self.record else None,
                 "observation": self.observation, "capabilities": capability_map(self.observation),
                 "provider": self.provider.name, "active": self.operation is not None or self.universal.owner is not None,
