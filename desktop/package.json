@@ -24,6 +24,7 @@
     "lucide-react": "1.44.0",
     "monaco-editor": "0.56.0",
     "motion": "13.2.0",
+    "qrcode.react": "4.2.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "10.1.0",

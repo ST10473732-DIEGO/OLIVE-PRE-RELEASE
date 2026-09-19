@@ -41,6 +41,7 @@ export interface Feature {
 }
 
 export const features: Feature[] = [
+  {id:"devices", label:"Devices", description:"Local pairing and device permissions.", icon:Monitor, category:"System", availability:"ready", primary:true, aliases:["devices","connect","pair","paired devices"]},
   {
     id: "home",
     label: "Home",

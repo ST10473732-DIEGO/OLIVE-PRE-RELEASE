@@ -1,3 +1,4 @@
+import { connectSchemas } from "./connect-contracts";
 import { z } from "zod";
 import { m2Schemas } from "./m2-contracts";
 import { m3Schemas } from "./m3-contracts";
@@ -20,6 +21,7 @@ const workspace = { workspace_id: short };
 const file = { ...workspace, path: short };
 const empty = z.object({}).strict();
 export const schemas = {
+  ...connectSchemas,
   ...m2Schemas,
   ...m3Schemas,
   ...m4Schemas,

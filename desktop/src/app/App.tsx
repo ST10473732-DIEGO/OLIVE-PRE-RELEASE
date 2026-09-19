@@ -32,6 +32,7 @@ import { loadActiveWorkspace, saveActiveWorkspace } from "../features/studio/ses
 import { Core } from "../components/Core";
 import { Sheet } from "../components/Sheet";
 import { Chat } from "../features/Chat";
+import { Devices } from "../features/devices/Devices";
 import { Connections } from "../features/Connections";
 import { Go } from '../features/go/Go';
 import {
@@ -501,6 +502,7 @@ export default function App() {
                   report={report}
                 />
               )}
+              {route === "devices" && <Devices />}
               {route === 'browser' && <Go ask={text => {setRoute('chat'); void submit(text);}} openSettings={() => {setBrowserSettingsRequest(n => n + 1); navigate('settings');}} report={report} />}
               {mounted("agent") && chat && (
                 <div className="route-host" hidden={route !== "agent"}>
@@ -928,6 +930,7 @@ export default function App() {
           </div>
         </Sheet>
         <Sheet
+          centered={currentApproval?.tool_name === "connect.request"}
           open={Boolean(currentApproval)}
           onOpenChange={(open) => {
             if (!open && currentApproval)
@@ -953,7 +956,7 @@ export default function App() {
                     }).catch(report)
                   }
                 >
-                  Cancel
+                  {currentApproval.tool_name === "connect.request" ? "Deny" : "Cancel"}
                 </button>
                 <button
                   className="primary"
@@ -965,7 +968,7 @@ export default function App() {
                     }).catch(report)
                   }
                 >
-                  Approve this action
+                  {currentApproval.tool_name === "connect.request" ? "Allow once" : "Approve this action"}
                 </button>
               </div>
             </>

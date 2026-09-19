@@ -6,6 +6,7 @@ The exact dependency graph is in package-lock.json. Source packages retain their
 | --- | --- | --- |
 | Electron | MIT; Chromium and Node notices included upstream | Desktop shell |
 | React / React DOM | MIT | Presentation |
+| qrcode.react 4.2.0 | ISC (includes QR encoder MIT notice) | Local rendering of public C2 pairing offers |
 | Vite / React plugin | MIT | Build tooling |
 | TypeScript | Apache-2.0 | Strict typing |
 | Monaco Editor | MIT | Local source/diff editor and workers |

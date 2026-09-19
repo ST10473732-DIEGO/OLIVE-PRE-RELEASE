@@ -1,5 +1,24 @@
 import type { Approval } from "../services/api";
 export function ApprovalSummary({ approval }: { approval: Approval }) {
+  if (approval.tool_name === "connect.request")
+    return (
+      <div className="connect-approval">
+        <p className="ws-eyebrow">OLIVE Connect request</p>
+        <h3>{String(approval.arguments.source_name || "Paired device")}</h3>
+        <div className="ws-panel">
+          <p className="ws-eyebrow">Requesting</p>
+          <strong>{approval.summary}</strong>
+          <p>
+            One read-only operation. No message content or inference access.
+          </p>
+        </div>
+        <p>On: {String(approval.arguments.target_name || "This device")}</p>
+        <p className="muted">
+          Allow once applies only to this exact request. The saved permission
+          stays Ask.
+        </p>
+      </div>
+    );
   const targets = approval.presentation?.targets || approval.targets;
   return (
     <>
