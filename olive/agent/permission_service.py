@@ -43,6 +43,21 @@ class PermissionService:
 
     def __init__(self, path: Path): self.store = JsonStore(path)
 
+    @staticmethod
+    def evaluate_device(rules: list[dict], capability: str, scope: str | None = None) -> PermissionDecision:
+        """Connect uses exact opaque scopes, never local path/application trust.
+
+        Missing device grants default to Off (DENY). More specific exact scopes
+        override a device-wide rule; conflicting equal scopes fail closed.
+        """
+        matching = [r for r in rules if r['capability'] == capability and r['scope'] == scope]
+        if not matching and scope is not None:
+            matching = [r for r in rules if r['capability'] == capability and r['scope'] is None]
+        decisions = {PermissionDecision(r['decision']) for r in matching}
+        if not decisions or PermissionDecision.DENY in decisions:
+            return PermissionDecision.DENY
+        return PermissionDecision.ASK if PermissionDecision.ASK in decisions else PermissionDecision.ALLOW
+
     def policies(self) -> dict:
         value = self.store.read({"schema_version": 1, "permissions": {}, "scopes": [], "trusted_actions": []})
         if not isinstance(value, dict): value = {"schema_version": 1, "permissions": {}, "scopes": []}

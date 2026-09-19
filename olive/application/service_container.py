@@ -173,6 +173,8 @@ class ServiceContainer:
         self.agent_task_repo = AgentTaskRepository(data / "agent_tasks.json")
         self.agent_task_repo.recover_interrupted()
         self.permissions = PermissionService(data / "permissions.json")
+        from ..connect.service import DesktopDeviceService
+        self.connect = DesktopDeviceService(data)
         self.agent_audit = AuditService(data / "agent_audit.jsonl")
         self.tool_registry = ToolRegistry()
         for tool in [
@@ -327,4 +329,5 @@ class ServiceContainer:
             if not self.restart_required:
                 self.save_chats()
         finally:
+            self.connect.close()
             await self.local_ollama_runtime.close()

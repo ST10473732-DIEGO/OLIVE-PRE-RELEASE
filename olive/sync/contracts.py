@@ -36,8 +36,14 @@ class RecordEnvelope:
     deleted:bool
     data:dict
     schema_version:int=1
+    # Additive v1 fields: legacy records have an unknown update instant (0).
+    # device_id is the updating device; collection is the record kind.
+    updated_at:int=0
+    payload_version:int=1
 
     def validate(self):
+        if type(self.updated_at) is not int or not 0<=self.updated_at<=253402300799:raise ValueError('Invalid update instant')
+        if type(self.payload_version) is not int or self.payload_version!=1:raise ValueError('Unsupported payload version')
         if self.schema_version!=1 or self.collection not in COLLECTIONS:raise ValueError('Unsupported sync record schema')
         uuid.UUID(self.record_id);uuid.UUID(self.device_id)
         if type(self.revision) is not int or type(self.base_revision) is not int or self.base_revision<0 or self.revision<=self.base_revision:raise ValueError('Invalid revision ancestry')
