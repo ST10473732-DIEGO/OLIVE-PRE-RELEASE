@@ -1,67 +1,64 @@
-# Linux port readiness
+# Linux application readiness
 
-This is preparation for a future CachyOS/Linux port of the current OLIVE
-application. It implements no Linux, mobile, Connect, desktop-shell or OS work.
+OLIVE now has native Linux launch, local inference, Studio terminals, secure
+credentials, notifications and user-session startup integration. This document
+tracks the application, not an OLIVE OS, ISO, custom desktop shell, Connect,
+Mobile or cross-device milestone.
 
-## Portable core
+Validated checkpoints and detailed classifications:
 
-- `olive/interaction/`: natural-language interpretation, capability routing and
-  interaction context. Keep authorization outside model responses.
-- `olive/agent/`, application controllers, repositories and JSON stores:
-  planning, confirmation, persistence, task history and completion evidence.
-- Knowledge extraction, chunking, indexing and lexical/semantic retrieval;
-  local Ollama inference, preset policy and most research providers.
-- Mail MIME handling, IMAP/SMTP and OAuth protocols; personal tasks, calendars,
-  reminders, projects and memory. Existing data schemas and migration rules
-  should remain the same, including reuse of legacy profiles in place.
-- React/Monaco/xterm presentation, Electron IPC contracts, LSP/DAP protocols,
-  build/test orchestration and local web previews.
+- [L1: native launch, portable data and Wayland](LINUX_L1_REPORT.md)
+- [L2: local NVIDIA inference, OLIVE GO and Studio](LINUX_L2_REPORT.md)
+- [L3: native services, DEEP/media and parity evidence](LINUX_L3_REPORT.md)
+- [Preserved Windows baseline](WINDOWS_STABLE_BASELINE.md)
 
-Portable does not mean already tested on Linux. Audit path normalization,
-case sensitivity, symlinks, executable discovery and packaging in each area.
+## Supported application foundation
 
-## Windows boundaries and future equivalents
-
-| Current boundary | Future Linux work |
+| Area | Linux implementation and evidence |
 | --- | --- |
-| `olive/studio_tooling/pty.py`, pywinpty/ConPTY | POSIX PTY adapter behind the existing terminal service; process groups and reliable descendant cleanup; retain xterm and session ownership |
-| Native process launch, `.exe`, PowerShell/cmd and `.venv/Scripts` discovery | Platform executable discovery, argument-array process launches, `.venv/bin`, explicit shell choices |
-| `olive/desktop/windows_*`, UIA/pywinauto, HWND ownership/focus and WinForms | AT-SPI where available; compositor/session-specific observation and input adapters; retain ACT → OBSERVE → VERIFY |
-| Windows Credential Manager and DPAPI diagnostics | Secret Service/keyring with no plaintext fallback; protected diagnostic storage and explicit user opt-in |
-| Native notifications, tray and startup integration | Desktop notifications, tray support and user-session startup adapters; preserve reminder deduplication |
-| Electron native browser views, focus, bounds and file/confirmation dialogs | Validate under both X11 and Wayland, fractional scaling and multiple monitors; preserve sandbox/private-session boundaries |
-| Windows .NET debugger/OmniSharp paths, WinForms designer and owned GUI probes | Linux tool binaries and distribution checks; WinForms remains Windows-specific, with honest unsupported status |
-| Windows `.bat` setup/launcher and backend packaging | Linux development launcher and packaging in the future port; do not translate shell strings mechanically |
-| Windows path comparisons and vault/profile scope | Case-sensitive identity tests, permission bits, symlink containment and profile locks |
+| Launch | `./run_olive.sh`; native KDE Wayland/default display launch; single profile instance and owned shutdown |
+| Data | XDG fresh profile, configured paths authoritative, existing legacy profiles retained; no destructive migration |
+| Local AI | Ollama, NVIDIA FAST/NORMAL/MAX; cancellation, model switching and supervised app-owned runtime |
+| DEEP | Native parsing/OCR, bounded retrieval and citations; real qwen3-vl:8b scanned-page inference passed in L3 |
+| Studio | POSIX PTY, Python/C# interactive input, local LSP/DAP, Git and Monaco; Windows ConPTY retained |
+| Mail credentials | SecretStorage → Secret Service → KWallet, encrypted sessions, fail closed when locked/unavailable; synthetic OAuth and provider readiness |
+| Notifications | Linux Electron/Plasma adapter; bounded completion events, durable deduplication, native reminder/restart acceptance |
+| Login startup | Explicit XDG user autostart enable/disable commands; no daemon/root service; real logout/login still manual |
+| Browser | Native sandboxed views, local fixture navigation, downloads, private storage and restart; Google CAPTCHA remains an external constraint |
+| REIMAGINE | Fixed loopback ComfyUI workflows and SDXL; lazy managed Linux runtime with owned cleanup; real generation/edit/cancel and both Chat handoffs passed with `--cache-none` |
+| Personal features | Tasks, calendars, reminders, projects, knowledge, memory and Mail local data covered by native UI/portable regression |
 
-## Expected CachyOS dependencies
+## Desktop Control is a foundation, not Linux automation parity
 
-Plan for Python with venv support, Node/npm, Electron's required system
-libraries, Ollama with the appropriate GPU runtime, .NET SDK when selected,
-Python LSP/debugpy, and available C# language/debug adapters. Optional document
-features need their existing parser/OCR dependencies. Optional ComfyUI/SDXL
-needs a compatible PyTorch/GPU stack and locally installed model assets.
-Do not automatically download large models or make a hosted service mandatory.
+Linux session detection and honest unavailable UI are implemented. KDE's
+Screenshot and RemoteDesktop portals are present on the acceptance host, but
+OLIVE does not yet request consent or implement a portal input/capture session.
+The AT-SPI user bus is present, but AT-SPI and Linux window enumeration are not integrated. There is no certified
+Linux focus/observe/verify adapter, under either Wayland or X11. Do not force X11
+or grant root privileges to imitate Windows automation.
 
-Exact package names and versions must be verified against CachyOS repositories
-when that milestone starts. These are dependency categories, not an installation
-script or a claim that the Windows dependency pins work on Linux.
+Explicit application copy/paste, native file dialogs, Electron shell operations
+and xdg-open remain separate from Agent desktop authority. Windows native entry
+points reject Linux, including below the bridge. Existing deterministic scopes,
+confirmations, emergency stop and model-untrusted boundaries remain authoritative.
 
-## Blockers and recommended order
+## Remaining validation and parity gaps
 
-1. Establish isolated Linux CI for the portable Python core and frontend checks.
-2. Audit path/permission/profile-lock behavior and implement the process and
-   credential adapters needed to launch the application safely.
-3. Port terminal sessions, owned process shutdown and toolchain discovery;
-   repeat Python/C# frontend stdin, LSP, DAP and build/test acceptance.
-4. Validate the Electron shell, OLIVE GO native views, dialogs, downloads,
-   notifications, fractional scaling and restart on X11 and Wayland.
-5. Validate local Ollama and optional media GPU handoff on real Linux hardware.
-6. Port desktop observation first, then guarded input and verification using
-   owned fixtures. Wayland may require explicit portals/user consent; never
-   bypass compositor security to imitate Windows automation coverage.
-7. Run the full isolated acceptance suite, then opt-in live local tests.
+- Physical X11 session, multiple monitors/fractional scaling and real native
+  picker interaction require manual acceptance. Controlled picker responses in
+  automated tests do not certify those dialogs.
+- Actual logout/login startup and user-visible notification presentation under
+  DND/session lock require manual checks. Reminder popup acknowledgement and
+  restart deduplication have automated native coverage.
+- Linux Desktop Control needs consent-aware portal/AT-SPI adapters and owned
+  fixtures before exposing controls. X11-only capabilities must be labelled.
+- Windows native execution is not certified by Linux fixture passes; run the
+  preserved native Windows suite before a cross-platform release.
+- Java and optional Python language-server code actions remain outside this
+  milestone's certified toolchain coverage.
+- DPAPI diagnostics remain Windows-only; Linux uses safe metadata diagnostics.
+- Clean-machine packaging/installer certification remains separate. This
+  checkout's provisioned runtimes and models are local ignored installations.
 
-Desktop automation parity, credential migration, GPU compatibility and native
-view/focus behavior require real Linux evidence. Preserve the Windows baseline
-while resolving these; no general promise of arbitrary-app automation is made.
+Use the L3 report's test totals and failure/skip/manual classifications for the
+acceptance decision. Do not interpret missing capability rows as passed tests.
