@@ -33,6 +33,8 @@ export function Devices() {
     [discovery, setDiscovery] = useState(false),
     [editing, setEditing] = useState(false),
     [name, setName] = useState(""),
+    [importing, setImporting] = useState(false),
+    [pairingCode, setPairingCode] = useState(""),
     [pairing, setPairing] = useState<PairingState | null>(null),
     [revoke, setRevoke] = useState(false),
     [endpoint, setEndpoint] = useState(""),
@@ -83,10 +85,18 @@ export function Devices() {
     setEndpoint("");
     setPort("");
   };
-  const startPairing = () =>
+  const startPairing = () => {
+    if (data?.network.state !== "on") {
+      setError(
+        "Select a local interface and enable Connect in This device before pairing.",
+      );
+      select("this");
+      return;
+    }
     void act(async () =>
       setPairing(await call<PairingState>("connect.pair_create", {})),
     );
+  };
   const device =
     selected === "this"
       ? data?.local
@@ -150,6 +160,24 @@ export function Devices() {
             <div className="devices-rail-scroll">
               <p className="devices-eyebrow">This device</p>
               {row(data.local, true)}
+              <button onClick={() => setImporting(true)}>Pair device</button>
+              {data.pairing_recovery?.map((session) => (
+                <button
+                  key={session.session_id}
+                  onClick={() =>
+                    void act(async () =>
+                      setPairing(
+                        await call<PairingState>("connect.pair_status", {
+                          session_id: session.session_id,
+                        }),
+                      ),
+                    )
+                  }
+                >
+                  Pairing completion ·{" "}
+                  {session.state === "completed" ? "Completed" : "Pending"}
+                </button>
+              ))}
               <p className="devices-eyebrow">Paired</p>
               {data.devices.map((d) => row(d))}
               {!data.devices.length && (
@@ -757,6 +785,52 @@ export function Devices() {
           </main>
         </div>
       )}
+      <Dialog.Root open={importing} onOpenChange={setImporting}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="devices-overlay" />
+          <Dialog.Content className="devices-modal">
+            <Dialog.Title>Pair device</Dialog.Title>
+            <Dialog.Description>
+              Paste the public offer from the other OLIVE desktop. Select and
+              enable your local Connect interface first. A completion code can
+              also reconcile a previously confirmed session.
+            </Dialog.Description>
+            <label>
+              Pairing code
+              <textarea
+                value={pairingCode}
+                maxLength={12288}
+                onChange={(event) => setPairingCode(event.target.value)}
+              />
+            </label>
+            {error && (
+              <p role="alert">
+                Could not use this pairing code. Check the code, expiry and
+                selected interface.
+              </p>
+            )}
+            <div className="devices-modal-actions">
+              <button onClick={() => setImporting(false)}>Cancel</button>
+              <button
+                disabled={busy || !pairingCode.trim()}
+                onClick={() =>
+                  void act(async () => {
+                    const result = await call<PairingState>(
+                      "connect.pair_accept",
+                      { offer: pairingCode.trim() },
+                    );
+                    setPairing(result);
+                    setImporting(false);
+                    setPairingCode("");
+                  })
+                }
+              >
+                Use pairing code
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       {pairing && (
         <Pairing
           key={pairing.session_id}

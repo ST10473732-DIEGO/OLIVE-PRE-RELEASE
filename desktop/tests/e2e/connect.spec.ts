@@ -110,7 +110,22 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
         Boolean(document.activeElement?.closest('[role="dialog"]')),
       ),
     ).toBe(true);
-    const paired = await control("pair");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await control("listener")).toBe(false);
+    const remoteOffer = await control("responder_offer");
+    await page
+      .getByRole("button", { name: "Pair device", exact: true })
+      .click();
+    await page
+      .getByLabel("Pairing code", { exact: true })
+      .fill(remoteOffer.offer);
+    await page
+      .getByRole("button", { name: "Use pairing code", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Compare both devices" }),
+    ).toBeVisible();
+    const paired = await control("comparison");
     await expect(
       page.getByRole("heading", { name: "Compare both devices" }),
     ).toBeVisible();
@@ -119,7 +134,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       .getByLabel("Value observed on the other device")
       .fill(paired.comparison);
     await page
-      .getByRole("button", { name: "Confirm comparison", exact: true })
+      .getByRole("button", { name: "Values match", exact: true })
       .click();
     await expect(
       page.getByText("Waiting for the other device’s confirmation…"),
@@ -244,7 +259,10 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     await page.getByRole("button", { name: "Revoke", exact: true }).click();
     await expect(page.locator(".devices-detail-head")).toContainText("Revoked");
     await shot("revoked");
-    expect(await control("peer_status")).toMatchObject({encrypted:false,latency_ms:null});
+    expect(await control("peer_status")).toMatchObject({
+      encrypted: false,
+      latency_ms: null,
+    });
     await expect(
       page.getByRole("button", { name: "Connect", exact: true }),
     ).toHaveCount(0);
@@ -338,7 +356,14 @@ test("C4 expiry, regeneration and mismatched comparison never pair", async () =>
           }
         })
         .toBe(id);
+      return JSON.parse(
+        await readFile(path.join(profile, "fixture-result.json"), "utf8"),
+      ).result;
     };
+    await page.getByRole("button", { name: /127\.0\.0\.1/ }).click();
+    await page
+      .getByRole("button", { name: "Turn Connect on", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "Connect a device", exact: true })
       .click();
@@ -349,6 +374,22 @@ test("C4 expiry, regeneration and mismatched comparison never pair", async () =>
     ).toBeVisible();
     await expect(page.locator(".devices-qr svg")).toHaveCount(0);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await command("listener")).toBe(false);
+    const unreachable = await command("responder_unreachable");
+    await page
+      .getByRole("button", { name: "Pair device", exact: true })
+      .click();
+    await page
+      .getByLabel("Pairing code", { exact: true })
+      .fill(unreachable.offer);
+    await page
+      .getByRole("button", { name: "Use pairing code", exact: true })
+      .click();
+    await expect(
+      page.getByText(/Could not reach pairing device/),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
     await page
       .getByRole("button", { name: "Connect a device", exact: true })
       .click();
@@ -358,7 +399,7 @@ test("C4 expiry, regeneration and mismatched comparison never pair", async () =>
       .getByLabel("Value observed on the other device")
       .fill("C2/1:incorrect");
     await page
-      .getByRole("button", { name: "Confirm comparison", exact: true })
+      .getByRole("button", { name: "Values match", exact: true })
       .click();
     await expect(
       page.getByText("Pairing failed. A new session is required."),

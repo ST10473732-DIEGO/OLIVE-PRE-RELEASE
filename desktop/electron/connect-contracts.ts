@@ -44,6 +44,9 @@ export const connectSchemas = {
   "connect.disconnect": z.object({ device_id: id }).strict(),
   "connect.ping": z.object({ device_id: id }).strict(),
   "connect.pair_create": empty,
+  "connect.pair_accept": z
+    .object({ offer: z.string().min(1).max(12288) })
+    .strict(),
   "connect.pair_status": z.object({ session_id: id }).strict(),
   "connect.pair_confirm": z
     .object({ session_id: id, compared_value: z.string().min(1).max(256) })

@@ -54,34 +54,21 @@ Measure latency performs a real Connect ping. A denied ping shows an error, not
 an invented latency. C3 clears its measurement on disconnect. Recorded last-seen
 and paired timestamps remain separate from current connection state.
 
-## Pairing and current limitation
+## Real desktop pairing (C4.1)
 
-Create pairing calls real C2 `create_offer`. Pinned `qrcode.react` renders the exact
-strict offer string; no permissions or private material are added. The displayed
-expiry derives from the backend expiry, with an independent display clock and
-backend monotonic expiry enforcement. Expiry hides the QR and prevents confirmation.
-Regeneration cancels the old active offer and creates a new session UUID.
+C4.1 closes the desktop carrier gap. After selecting and enabling a local
+interface, Connect a device creates a real short-lived pairing endpoint and QR;
+Pair device accepts a pasted public offer on the second ordinary desktop.
+The existing C2 TLS identity authentication and full comparison run over real
+sockets. Both users confirm, both records become paired with permissions Off,
+and the pairing listener closes. C3 uses a separate authenticated channel.
 
-The new C2 `presentation` accessor exposes only session state, expiry, candidate
-UUID, public fingerprint, full session comparison and completed device UUID. It
-never serializes the TLS object. Candidate names/platforms are not in the reviewed
-C2 offer, so the UI does not invent them. Paired metadata remains “unknown” where
-C2 did not record it.
-
-Both devices must compare the complete C2 value. The user enters/pastes the value
-observed on the other device; the backend's unchanged exact comparison enforces
-mismatch failure. There is no skip or auto-confirm. Local confirmation waits for
-the other side's authenticated confirmation before the real record is completed.
-All permissions start Off. Pairing never claims the device is currently online.
-
-**Ordinary desktop-to-desktop pairing transport is not implemented in C2/C3.** C2
-exchanges in-memory TLS bytes; C3 accepts already-paired identities only. C4 does
-not silently add an unauthenticated pairing listener or expose TLS exchange to the
-renderer. Production explicitly explains this limitation while presenting real C2
-offers. The existing compatible synthetic C2 peer drives complete acceptance over
-private test-process pipes. There is no Mobile app, scanner or camera access. This
-is a real pairing UI over C2, not a claim that two ordinary desktop installations
-can yet exchange pairing traffic without a compatible peer adapter.
+[The C4.1 pairing reference](OLIVE_CONNECT_C4_PAIRING.md) documents explicit V2
+offers, same-key C2 confirmation receipts, bounded completion-code reconciliation,
+restart/cancellation behavior, listener limits, firewall guidance, ordinary
+three-process attack acceptance and actual desktop responder coverage. V1 C2
+synthetic tests remain unchanged. No OLIVE Mobile exists yet; desktop pairing is
+the reference implementation future Mobile must match.
 
 ## Permissions and trusted Ask
 
@@ -191,7 +178,7 @@ synthetic identities and host interface candidates; no user profiles are committ
 
 ## Remaining limitations
 
-In addition to pairing transport above, native Windows networking/vault acceptance
+Native Windows networking/vault acceptance
 cannot be certified on this Linux host. Existing Windows contracts and portable
 CI remain intact. Physical LAN/firewall and host mDNS acceptance remain separate;
 C4 does not claim a physical second-machine run. No installer, release, push or
@@ -241,3 +228,13 @@ Selected local evidence:
 [narrow detail](../artifacts/connect-c4/narrow-detail.png),
 [light mode](../artifacts/connect-c4/light-mode.png),
 [revoked](../artifacts/connect-c4/revoked.png).
+
+## C4.1 verification update
+
+The desktop pairing carrier gap above is closed by
+[C4.1](OLIVE_CONNECT_C4_PAIRING.md). The updated run passed 958 Python tests with
+8 platform skips, 112 portable Connect tests, 40 frontend tests and the original
+9 Linux desktop acceptance cases. TypeScript, ESLint, production builds and
+repository-source compilation passed. The ignored PySide6 Jinja whole-tree
+compile exception remains. See the C4.1 reference for precise completion recovery
+semantics, test commands, environment notes and physical-LAN/Windows limitations.

@@ -51,6 +51,26 @@ describe("Devices contracts and truthful presentation", () => {
         }).success,
       ).toBe(true);
   });
+  it("accepts only bounded local desktop offer imports and explicit comparisons", () => {
+    const imported = connectSchemas["connect.pair_accept"];
+    expect(imported.safeParse({ offer: "public C2 payload" }).success).toBe(
+      true,
+    );
+    for (const bad of [
+      { offer: "" },
+      { offer: "x".repeat(12289) },
+      { offer: "public", confirmed: true },
+      { offer: "public", permissions: [] },
+    ])
+      expect(imported.safeParse(bad).success).toBe(false);
+    expect(
+      connectSchemas["connect.pair_confirm"].safeParse({
+        session_id: crypto.randomUUID(),
+        compared_value: "observed value",
+        auto_confirm: true,
+      }).success,
+    ).toBe(false);
+  });
   it("reports latency only for an authenticated online local channel", () => {
     const d: Device = {
       device_id: "test",

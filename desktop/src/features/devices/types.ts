@@ -50,6 +50,7 @@ export interface DevicesState {
     discovery: boolean;
   };
   nearby: { instance: string; address: string; port: number; state: string }[];
+  pairing_recovery?: { session_id: string; state: string }[];
   activity: {
     id: number;
     source_device_id: string;
@@ -66,6 +67,10 @@ export interface PairingState {
   comparison?: string;
   fingerprint?: string;
   candidate_id?: string;
+  candidate_name?: string;
+  completion_code?: string;
+  listener_active?: boolean;
+  error?: string;
   device_id?: string;
 }
 export function deviceStatus(device: Device): string {

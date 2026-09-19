@@ -29,9 +29,13 @@ export function Pairing({
           setState(value);
           setNow(Date.now());
           if (
-            ["completed", "cancelled", "expired", "failed"].includes(
-              value.state,
-            )
+            [
+              "completed",
+              "cancelled",
+              "expired",
+              "failed",
+              "interrupted",
+            ].includes(value.state)
           )
             return;
         }
@@ -55,7 +59,11 @@ export function Pairing({
   }, []);
   const seconds = Math.max(0, Math.ceil(state.expires_at - now / 1000));
   const expired =
-    state.state !== "completed" && (seconds === 0 || state.state === "expired");
+    state.state === "expired" ||
+    (!["completed", "cancelled", "failed", "interrupted"].includes(
+      state.state,
+    ) &&
+      seconds === 0);
   const cancel = async () => {
     if (!["completed", "cancelled", "failed", "expired"].includes(state.state))
       await call("connect.pair_cancel", { session_id: state.session_id }).catch(
@@ -77,11 +85,13 @@ export function Pairing({
           <Dialog.Title>
             {state.state === "completed"
               ? "Device paired"
-              : expired
-                ? "Pairing expired"
-                : state.comparison
-                  ? "Compare both devices"
-                  : "Connect a device"}
+              : state.state === "interrupted"
+                ? "Pairing interrupted"
+                : expired
+                  ? "Pairing expired"
+                  : state.comparison
+                    ? "Compare both devices"
+                    : "Connect a device"}
           </Dialog.Title>
           <Dialog.Description>
             {state.state === "completed"
@@ -100,9 +110,8 @@ export function Pairing({
               </p>
               <p>Waiting for another OLIVE device…</p>
               <p className="muted">
-                Desktop pairing transport is not yet available. A compatible C2
-                test peer can complete this ceremony. There is no OLIVE Mobile
-                app yet.
+                On the other desktop, choose Pair device and paste this public
+                offer. There is no OLIVE Mobile app yet.
               </p>
               <button
                 onClick={() =>
@@ -115,6 +124,33 @@ export function Pairing({
               </button>
             </>
           )}
+          {state.state === "interrupted" && (
+            <p role="alert">
+              {state.error === "pairing_unreachable"
+                ? "Could not reach pairing device. Check that both devices selected the same local network. If the host firewall blocks pairing, allow OLIVE on that private network for this session; no firewall settings are changed automatically."
+                : "Pairing interrupted. The peer may have cancelled. Start a new session, or exchange completion codes if both users already confirmed."}
+            </p>
+          )}
+          {state.state === "cancelled" && <p>Pairing cancelled.</p>}
+          {state.completion_code && (
+            <details>
+              <summary>Recover confirmed pairing</summary>
+              <p>
+                If completion was interrupted, exchange these public completion
+                codes using Pair device. Recovery requires the original local
+                confirmation on each desktop.
+              </p>
+              <button
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(state.completion_code!)
+                    .catch(() => setError("Could not copy completion code."))
+                }
+              >
+                Copy completion code
+              </button>
+            </details>
+          )}
           {expired && (
             <p>
               The offer is invalid. Close this window and create a new pairing
@@ -126,7 +162,11 @@ export function Pairing({
           )}
           {!expired && state.comparison && (
             <>
-              <p>Compare this value on both devices.</p>
+              <p>Candidate: {state.candidate_name || state.candidate_id}</p>
+              <p>
+                Compare this value on both devices. Expires{" "}
+                {new Date(state.expires_at * 1000).toLocaleTimeString()}.
+              </p>
               <code className="devices-comparison">
                 {state.comparison.split(":").map((part, index, parts) => (
                   <Fragment key={index}>
@@ -196,7 +236,7 @@ export function Pairing({
                     .finally(() => setBusy(false));
                 }}
               >
-                Confirm comparison
+                Values match
               </button>
             )}
           </div>
