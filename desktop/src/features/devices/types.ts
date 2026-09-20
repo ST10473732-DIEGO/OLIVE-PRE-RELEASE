@@ -24,6 +24,8 @@ export interface Transfer {
   error: string | null;
 }
 export interface Device {
+  studio_shares?: import("./StudioShares").StudioShare[];
+  studio_jobs?: {job_id: string; workspace_id: string; operation: string; state: string}[];
   remote_ai?: { presets: Record<string, boolean>; jobs: { job_id: string; preset: string; state: string }[] };
   transfers?: Transfer[];
   sync?: DevicesState["sync"];
@@ -145,8 +147,6 @@ export const permissionGroups = [
   [
     "Development",
     [
-      ["studio.view", "Studio"],
-      ["studio.run", "Run project"],
       ["models.remote", "Remote AI"],
       ["terminal", "Terminal"],
     ],

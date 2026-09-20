@@ -6,7 +6,16 @@ const address = z
   .min(1)
   .max(64)
   .regex(/^[0-9a-fA-F:.]+$/);
+const studioCapability = z.enum(["studio.view", "studio.edit", "studio.build", "studio.test", "studio.run", "studio.debug"]);
 export const connectSchemas = {
+  "connect.studio_local_workspaces": empty,
+  "connect.studio_share": z.object({device_id: id, workspace_id: id}).strict(),
+  "connect.studio_unshare": z.object({device_id: id, workspace_id: id}).strict(),
+  "connect.studio_permission": z.object({device_id: id, workspace_id: id, capability: studioCapability, decision: z.enum(["deny", "ask", "allow"])}).strict(),
+  "connect.studio_stop": z.object({device_id: id, job_id: id}).strict(),
+  "connect.studio_request": z.object({device_id: id, workspace_id: id.optional(), share_revision: z.number().int().min(0),
+    operation: z.enum(["workspaces", "tree", "read", "save", "build", "test", "run", "run_status", "run_cancel"]),
+    arguments: z.record(z.string(), z.unknown())}).strict(),
   "connect.model_targets": empty,
   "connect.inference_stop": z.object({ device_id: id, job_id: id }).strict(),
   "connect.file_start": z.object({ transfer_id: id }).strict(),

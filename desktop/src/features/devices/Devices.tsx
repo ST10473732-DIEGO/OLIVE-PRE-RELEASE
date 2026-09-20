@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { call } from "../../services/api";
 import { FilesPanel } from "./FilesPanel";
+import { StudioShares } from "./StudioShares";
 import { RemoteAI } from "./RemoteAI";
 import { SyncPanel } from "./SyncPanel";
 import { Pairing } from "./Pairing";
@@ -669,6 +670,7 @@ export function Devices() {
                               refresh={refresh}
                             />
                           )}
+                        {(tab === "permissions" || tab === "status") && device.trust_state === "paired" && <StudioShares key={`studio-${device.device_id}`} device={device} refresh={refresh} />}
                         {tab === "permissions" && (
                           <div className="devices-panel">
                             {device.trust_state === "revoked" && (

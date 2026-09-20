@@ -1,3 +1,5 @@
+import { RemoteStudio } from "./studio/RemoteStudio";
+import type { ComponentProps } from "react";
 import { usePanelLayout } from "./studio/panelLayout";
 import {
   lazy,
@@ -155,7 +157,7 @@ const LANGUAGE_IDS: Record<string, string> = {
   cshtml: "html",
   razor: "html",
 };
-export default function Studio({
+function LocalStudio({
   chat,
   submit,
   interactionBusy,
@@ -1628,4 +1630,17 @@ export default function Studio({
       {comparison && <Compare disk={comparison.disk_text} model={comparison.file.model} close={() => setComparison(null)} reconcile={() => void reconcile().catch(report)} />}
     </div>
   );
+}
+
+export default function Studio(props: ComponentProps<typeof LocalStudio>) {
+  const [remote, setRemote] = useState(false);
+  const [remoteVisited, setRemoteVisited] = useState(false);
+  return <div style={{height: "100%", display: "flex", flexDirection: "column"}}>
+    <div className="studio-bar" role="group" aria-label="Studio workspace location">
+      <button aria-pressed={!remote} onClick={() => setRemote(false)}>Local</button>
+      <button aria-pressed={remote} onClick={() => { setRemoteVisited(true); setRemote(true); }}>Remote</button>
+    </div>
+    <div style={{display: remote ? "none" : "contents"}}><LocalStudio {...props} visible={props.visible !== false && !remote} /></div>
+    <div style={{display: remote ? "block" : "none", flex: 1, minHeight: 0}}>{remoteVisited && <RemoteStudio theme={props.theme} visible={props.visible !== false && remote} />}</div>
+  </div>;
 }

@@ -234,3 +234,14 @@ describe("C6 file boundary", () => {
     expect(html).not.toContain("read-only operation");
   });
 });
+
+describe("C8 Studio authority", () => {
+  it("requires peer and opaque workspace scope and excludes executable operations", () => {
+    const device_id = crypto.randomUUID(), workspace_id = crypto.randomUUID();
+    expect(connectSchemas["connect.studio_permission"].safeParse({device_id, workspace_id, capability: "studio.edit", decision: "ask"}).success).toBe(true);
+    expect(connectSchemas["connect.studio_permission"].safeParse({device_id, capability: "studio.edit", decision: "allow"}).success).toBe(false);
+    for (const operation of ["terminal", "shell", "install", "debug", "git", "permission", "create_project"])
+      expect(connectSchemas["connect.studio_request"].safeParse({device_id, workspace_id, share_revision: 1, operation, arguments: {}}).success).toBe(false);
+    expect(connectSchemas["connect.studio_share"].safeParse({device_id, workspace_id: "/home/project"}).success).toBe(false);
+  });
+});
