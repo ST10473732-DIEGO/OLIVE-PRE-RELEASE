@@ -1,5 +1,6 @@
 """Dedicated opt-in LAN transport. Bounded threads, queues and fresh TLS per socket."""
 from collections import deque
+from contextlib import nullcontext
 from concurrent.futures import Future
 import ipaddress
 import json
@@ -14,7 +15,7 @@ from cryptography.hazmat.primitives import serialization
 
 from .contracts import ConnectError, RequestEnvelope, canonical, _unique_object
 from .discovery import LocalDiscovery, interfaces
-from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, frame, header,
+from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
                            require_current, tls_context)
 
 CONNECT_TIMEOUT = 3.0
@@ -86,21 +87,30 @@ class Channel:
                 raise ConnectError('connection_closed')
             offset += sent
 
-    def request(self, raw, timeout=REQUEST_TIMEOUT):
-        request = RequestEnvelope.decode(raw)
+    def sync_request(self, raw, *, admission=None):
+        return self.request(raw, _sync=True, _admission=admission)
+
+    def request(self, raw, timeout=REQUEST_TIMEOUT, *, _sync=False, _admission=None):
+        if _sync:
+            from ..sync.records import SyncRequest
+            request = SyncRequest.decode(raw)
+        else:
+            request = RequestEnvelope.decode(raw)
         if request.source_device_id != self.owner.service.local_id or request.target_device_id != self.peer:
             raise ConnectError('source_mismatch')
         self.check()
         future = Future()
-        with self.lock:
-            if len(self.pending) >= MAX_PENDING or request.request_id in self.pending:
-                raise ConnectError('backpressure')
-            self.pending[request.request_id] = future
-            try:
-                self.writes.put_nowait(frame(REQUEST, raw))
-            except queue.Full:
-                self.pending.pop(request.request_id)
-                raise ConnectError('backpressure') from None
+        with (_admission() if _admission else nullcontext()):
+            with self.lock:
+                if len(self.pending) >= MAX_PENDING or request.request_id in self.pending:
+                    raise ConnectError('backpressure')
+                future.sync_protocol = 'olive-sync/1' if _sync else 'olive-connect/1'
+                self.pending[request.request_id] = future
+                try:
+                    self.writes.put_nowait(frame(SYNC_REQUEST if _sync else REQUEST, raw))
+                except queue.Full:
+                    self.pending.pop(request.request_id)
+                    raise ConnectError('backpressure') from None
         start = time.monotonic()
         try:
             response = future.result(timeout=min(timeout, REQUEST_TIMEOUT))
@@ -122,7 +132,13 @@ class Channel:
             raise ConnectError('connection_closed')
         if kind == HELLO:
             raise ConnectError('unexpected_hello')
-        if kind == REQUEST:
+        if kind == SYNC_REQUEST:
+            sync = self.owner.service.sync
+            if sync is None:
+                raise ConnectError('sync_unavailable')
+            response = sync.receive(payload, self.peer, self.public)
+            self.write(frame(SYNC_RESPONSE, canonical(response)))
+        elif kind == REQUEST:
             # This is the sole network dispatch entry. TLS supplies public and peer.
             response = self.owner.service._receive(payload, peer_device_id=self.peer, public=self.public)
             self.write(frame(RESPONSE, canonical(response)))
@@ -130,14 +146,14 @@ class Channel:
             try:
                 response = json.loads(payload, object_pairs_hook=_unique_object,
                     parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-                if (type(response) is not dict or response.get('protocol_version') != 'olive-connect/1'
+                if (type(response) is not dict or response.get('protocol_version') != ('olive-sync/1' if kind == SYNC_RESPONSE else 'olive-connect/1')
                         or response.get('state') not in ('completed', 'rejected')
                         or set(response) != {'protocol_version', 'request_id', 'state',
                             'result' if response['state'] == 'completed' else 'error'}):
                     raise ValueError()
                 with self.lock:
                     future = self.pending.get(response['request_id'])
-                    if future is None or future.done():
+                    if future is None or future.done() or getattr(future, 'sync_protocol', 'olive-connect/1') != response['protocol_version']:
                         raise ValueError()
                     # Untrusted peer result is returned to the local caller only, never logged.
                     future.set_result(response)

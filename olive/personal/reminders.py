@@ -70,7 +70,10 @@ class ReminderScheduler:
         definitions=[self.store.unpack(r) for r in rows]
         restored=db.execute("SELECT value FROM metadata WHERE key='restore_cutoff'").fetchone()
         cutoff=datetime.fromisoformat(restored[0]) if restored else None
+        has_sync = db.execute("SELECT 1 FROM sqlite_master WHERE name='sync_reminder_cutoff_v1'").fetchone()
         for reminder in definitions:
+            sync_row = db.execute('SELECT cutoff FROM sync_reminder_cutoff_v1 WHERE id=?', (reminder['id'],)).fetchone() if has_sync else None
+            sync_cutoff = datetime.fromisoformat(sync_row[0]) if sync_row else None
             try:target=self.store.get(db,reminder['target_kind'],reminder['target_id'])
             except LookupError:continue
             wanted=[]
@@ -89,9 +92,11 @@ class ReminderScheduler:
                 key=hashlib.sha256((reminder['id']+'\0'+occurrence).encode()).hexdigest()
                 row=db.execute('SELECT state FROM deliveries WHERE id=?',(key,)).fetchone()
                 if row is None:
-                    state='restored' if cutoff and due.astimezone(UTC)<=cutoff and datetime.fromisoformat(reminder['created_at'])<=cutoff else 'pending'
+                    state='restored' if sync_cutoff and due.astimezone(UTC)<=sync_cutoff else 'restored' if cutoff and due.astimezone(UTC)<=cutoff and datetime.fromisoformat(reminder['created_at'])<=cutoff else 'pending'
                     db.execute('INSERT INTO deliveries(id,reminder_id,occurrence,due_at,state,updated_at) VALUES(?,?,?,?,?,?)',
                                (key,reminder['id'],occurrence,due.astimezone(UTC).isoformat(),state,timestamp()))
+                elif row['state']=='pending' and sync_cutoff and due.astimezone(UTC)<=sync_cutoff:
+                    db.execute("UPDATE deliveries SET state='restored',due_at=?,updated_at=? WHERE id=?",(due.astimezone(UTC).isoformat(),timestamp(),key))
                 elif row['state']=='pending':
                     db.execute('UPDATE deliveries SET due_at=?,updated_at=? WHERE id=?',(due.astimezone(UTC).isoformat(),timestamp(),key))
                 elif row['state']=='cancelled' and due>now:

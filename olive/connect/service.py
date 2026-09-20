@@ -20,6 +20,7 @@ class DesktopDeviceService:
         self.network = None
         self._network_lock = RLock()
         self.approvals = None
+        self.sync = None
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -37,6 +38,11 @@ class DesktopDeviceService:
         self.pairing = PairingService(self, self.identities, monotonic=monotonic)
         from .pairing_transport import DesktopPairingTransport
         self.pairing_transport = DesktopPairingTransport(self)
+
+    def attach_sync(self, personal):
+        from ..sync.service import RecordSyncService
+        self.sync = RecordSyncService(self, personal)
+        return self.sync
 
     def cryptographic_identity(self):
         if self.closed:
@@ -84,7 +90,14 @@ class DesktopDeviceService:
         return record
 
     def capabilities(self):
-        return self.this_device()['capabilities']
+        values = self.this_device()['capabilities']
+        if self.sync is not None:
+            from ..sync.records import CAPABILITIES
+            existing = {v['capability']: v for v in values}
+            values = [v for v in values if v['capability'] not in CAPABILITIES]
+            values += [dict(capability=c, supported=(c != 'sync.chat' or self.sync.store.chat is not None),
+                            policy_disabled=existing.get(c, {}).get('policy_disabled', False)) for c in sorted(CAPABILITIES)]
+        return values
 
     def enroll_fixture(self, name, *, capabilities=()):
         if not self.fixture_mode or self.closed:
@@ -258,6 +271,8 @@ class DesktopDeviceService:
     def disable_network(self):
         with self._network_lock:
             self.pairing_transport.close()
+            if self.sync is not None:
+                self.sync.close()
             if self.network is not None:
                 self.network.close()
                 self.network = None

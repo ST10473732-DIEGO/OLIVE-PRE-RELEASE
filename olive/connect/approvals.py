@@ -12,7 +12,11 @@ from .contracts import ConnectError
 from .identity import fingerprint
 
 LABELS = {'connect.ping': 'Connect ping', 'device.status': 'Device status',
-          'chat.metadata.read': 'Chat availability metadata'}
+          'chat.metadata.read': 'Chat availability metadata',
+          'sync.tasks': 'Tasks: send and receive up to 8 records in this exact exchange',
+          'sync.calendar': 'Calendar: send and receive up to 8 records in this exact exchange',
+          'sync.chat': 'Selected chats: send and receive up to 8 records in this exact exchange',
+          'sync.reminders': 'Reminders: send and receive up to 8 records in this exact exchange'}
 
 
 class ConnectApprovals:
@@ -46,7 +50,7 @@ class ConnectApprovals:
                 raise ConnectError('approval_capacity_reached')
             deadline = now + min(120, request.expires_at - self.service.clock())
             prompt = ConfirmationRequest(task_id=request.request_id, tool_name='connect.request',
-                summary=LABELS[request.capability], risk_level='low',
+                summary=LABELS[request.capability], risk_level='medium' if request.capability.startswith('sync.') else 'low',
                 targets=[record['display_name']], allow_remember=False,
                 arguments=dict(source_device_id=record['device_id'],
                     public_fingerprint=binding[1], request_id=request.request_id,

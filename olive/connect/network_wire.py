@@ -11,23 +11,25 @@ from .tls_identity import identity_context
 HEADER = struct.Struct('!IBB')
 VERSION = 1
 REQUEST, RESPONSE, CLOSE, HELLO = 1, 2, 3, 4
+SYNC_REQUEST, SYNC_RESPONSE = 5, 6
+MAX_SYNC_BYTES = 256_000
 
 
 def frame(kind, payload=b''):
-    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO) or type(payload) is not bytes:
+    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE) or type(payload) is not bytes:
         raise ConnectError('invalid_frame')
-    if len(payload) > MAX_MESSAGE_BYTES or (kind in (CLOSE, HELLO) and payload):
+    if len(payload) > (MAX_SYNC_BYTES if kind in (SYNC_REQUEST, SYNC_RESPONSE) else MAX_MESSAGE_BYTES) or (kind in (CLOSE, HELLO) and payload):
         raise ConnectError('invalid_frame_size')
     return HEADER.pack(len(payload), VERSION, kind) + payload
 
 
 def header(raw):
     size, version, kind = HEADER.unpack(raw)
-    if size > MAX_MESSAGE_BYTES:
+    if size > (MAX_SYNC_BYTES if kind in (SYNC_REQUEST, SYNC_RESPONSE) else MAX_MESSAGE_BYTES):
         raise ConnectError('frame_too_large')
     if version != VERSION:
         raise ConnectError('unsupported_protocol')
-    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO) or (kind in (CLOSE, HELLO) and size):
+    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE) or (kind in (CLOSE, HELLO) and size):
         raise ConnectError('invalid_frame')
     return size, kind
 

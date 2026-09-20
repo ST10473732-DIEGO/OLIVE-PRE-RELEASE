@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import logging
+import asyncio
 from ..config import DATA_DIR, EMBEDDING_MODEL
 from ..models import Chat
 from ..services.chat_service import ChatService
@@ -194,6 +195,8 @@ class ServiceContainer:
         )
         from ..personal.controller import PersonalController
         self.personal = PersonalController(self)
+        self.connect.attach_sync(self.personal.records)
+        self.connect.sync.changed = self.sync_personal_changed
         from ..mail.controller import MailController
         self.mail = MailController(self)
         self.model_router = ModelRouter(self.model_registry, lambda: self.settings.get("model_policy", {}),
@@ -229,6 +232,8 @@ class ServiceContainer:
         from .studio_controller import StudioController
 
         self.chat = ChatController(self)
+        self.connect.sync.store.attach_chat(self.chat_repo, live=lambda: self.chats,
+            busy=lambda: set(self.chat.generations), publish=self.sync_chat_changed)
         self.agent = AgentController(self)
         self.knowledge = KnowledgeController(self)
         self.mail.composition.restore_knowledge_sources()
@@ -271,11 +276,48 @@ class ServiceContainer:
     def publish(self, topic, value):
         self.emit(topic, deepcopy(value))
 
+    def sync_personal_changed(self):
+        self.personal.scheduler.changed()
+        for domain in ('tasks', 'calendar', 'reminders'):
+            self.publish('personal.changed', {'domain': domain})
+
+    def sync_chat_changed(self):
+        if self.current_chat_id not in self.chats:
+            if not self.chats:
+                chat = Chat(title="New Chat")
+                self.chats[chat.id] = chat
+                self.chat_repo.save_all(self.chats.values())
+            self.current_chat_id = next(iter(self.chats))
+        self.publish("chats", self.chat.list())
+
     def save_chats(self):
         self.chat_repo.save_all(self.chats.values())
         self.publish("chats", self.chat.list())
 
     async def initialize(self):
+        import asyncio
+        from concurrent.futures import Future
+        import threading
+        loop = asyncio.get_running_loop()
+        owner = threading.get_ident()
+        def dispatch_sync(action):
+            if threading.get_ident() == owner:
+                return action()
+            future = Future()
+            def run():
+                if not future.set_running_or_notify_cancel():
+                    return
+                try:
+                    future.set_result(action())
+                except BaseException as error:
+                    future.set_exception(error)
+            loop.call_soon_threadsafe(run)
+            try:
+                return future.result(timeout=4)
+            except TimeoutError:
+                future.cancel()
+                raise
+        self.connect.sync.dispatch = dispatch_sync
         self.personal.scheduler.start()
         self.mail.background.start()
         try:
@@ -329,5 +371,5 @@ class ServiceContainer:
             if not self.restart_required:
                 self.save_chats()
         finally:
-            self.connect.close()
+            await asyncio.to_thread(self.connect.close)
             await self.local_ollama_runtime.close()
