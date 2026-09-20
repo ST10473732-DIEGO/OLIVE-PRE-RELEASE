@@ -312,6 +312,9 @@ Hosted success requires a later push; this task does not push, merge, tag or
 release, and no hosted Windows/Ubuntu result is inferred from local Linux runs.
 Native Windows GUI/PTY/.NET parity remains unverified.
 
+The subsequent hosted reconnect/newline failures and their local repair evidence
+are recorded in [C8 portable repair](OLIVE_CONNECT_C8_PORTABLE_REPAIR.md).
+
 ### Measured local results — 2026-09-20
 
 All Python checks used the project venv. No missing toolchain was installed.
