@@ -52,6 +52,8 @@ class Channel:
         self.public = None
         self.tls = None
         self.stop = threading.Event()
+        # Protected by owner.lock; explicit local intent outlives worker cleanup.
+        self.locally_disconnected = False
         self.ready = Future()
         self.writes = queue.Queue(MAX_PENDING)
         self.pending = {}
@@ -211,6 +213,7 @@ class Channel:
                 self.sock.connect(self.endpoint)
                 self.check()
                 with self.owner.lock:
+                    self.check()
                     self.owner.states[self.expected] = dict(state='authenticating', error=None)
                 self.owner.audit(self.expected, 'connection_started')
             ctx, peers = tls_context(self.owner.service, self.expected, local=self.owner.local_identity)
@@ -399,12 +402,16 @@ class LocalNetwork:
                 result = channel.ready.result(timeout=CONNECT_TIMEOUT + 2 * HANDSHAKE_TIMEOUT + 1)
                 if not _automatic:
                     with self.lock:
+                        if channel.stop.is_set() or self.stopping.is_set():
+                            raise ConnectError('connection_closed')
                         self.targets[peer] = dict(address=address, port=port, attempts=0,
                                                   next=time.monotonic() + .5)
                 return result
             except Exception:
                 channel.close()
                 with self.lock:
+                    if channel.locally_disconnected or self.stopping.is_set():
+                        raise ConnectError('connection_closed') from None
                     current = self.channels.get(peer)
                     if current is not None and not current.stop.is_set():
                         return current
@@ -480,7 +487,7 @@ class LocalNetwork:
                 affected = True
                 self.channels.pop(peer)
                 self.states[peer] = dict(state='offline', error=reason)
-            elif peer and peer not in self.channels:
+            elif peer and peer not in self.channels and not channel.locally_disconnected:
                 self.states[peer] = dict(state='failed', error=reason)
         if affected:
             self.service.files.invalidate(peer, 'connection_closed')
@@ -506,6 +513,7 @@ class LocalNetwork:
             self.targets.pop(peer, None)
             for channel in list(self.workers):
                 if peer in (channel.peer, channel.expected):
+                    channel.locally_disconnected = True
                     channel.close()
             self.channels.pop(peer, None)
             self.states[peer] = dict(state='offline', error='device_revoked' if revoked else None)

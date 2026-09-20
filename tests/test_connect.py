@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 import json
+import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
@@ -62,6 +63,20 @@ class ConnectTests(unittest.TestCase):
         stranger = str(uuid.uuid4())
         result = self.service.receive_fixture(canonical(dict(self.message, source_device_id=stranger)), peer_device_id=stranger)
         self.assertEqual(result['error'], 'unknown_device')
+
+    def test_read_snapshot_cannot_write_and_observes_committed_revocation(self):
+        repository = self.service.repository
+        with repository.transaction() as writer:
+            record = repository.get(writer, self.peer)
+            record.update(trust_state='revoked', revoked_at=self.now, permissions=[])
+            repository.put(writer, record)
+            self.assertEqual(self.service.device(self.peer, timeout=.25)['trust_state'], 'paired')
+            with repository.transaction(timeout=.25, read_only=True) as reader:
+                with self.assertRaises(sqlite3.OperationalError) as failure:
+                    repository.audit(reader, self.peer, None, None, self.now, 'forbidden')
+                self.assertEqual(failure.exception.sqlite_errorcode, sqlite3.SQLITE_READONLY)
+        self.assertEqual(self.service.device(self.peer, timeout=.25)['trust_state'], 'revoked')
+        self.rejected('device_not_paired')
 
     def test_revocation_overrides_cached_result_and_permissions_after_restart(self):
         self.assertEqual(self.send()['state'], 'completed')

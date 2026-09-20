@@ -174,6 +174,14 @@ introduced. Capacity exhaustion is an actionable failure, not silent authority
 reset. Kernel TLS/TCP buffers and Zeroconf's DNS cache are library/OS managed;
 these application limits do not promise immunity to network-level denial of service.
 
+Device and paired-device lookups use short `BEGIN` snapshot transactions with
+SQLite `query_only` enabled. They do not reserve the writer slot while a channel
+audits its teardown. They retain the 0.25-second network lock wait and can still
+fail under an exclusive database lock. Claims, execution authority, permission
+changes, revocation and audit writes retain `BEGIN IMMEDIATE`; a lookup snapshot
+is never sufficient authority to execute a request. See
+[the portable lock repair report](OLIVE_CONNECT_PORTABLE_LOCK_REPAIR.md).
+
 The channel, not request metadata, supplies authenticated source identity.
 Dispatch rechecks exact stored public identity and revocation, strict envelope,
 source/target/freshness, safe operation, availability and current permission. A
@@ -205,6 +213,20 @@ matching active/connecting sockets. Pending requests fail and no permission cach
 survives. Worker checks also observe changes from another repository instance.
 A request that already completed its fixed read-only execution transaction may
 finish before the revoke transaction; not-yet-authorized work cannot execute.
+
+Local `disconnect()` cancels reconnect intent, signals channel stop/shutdown and
+publishes offline telemetry immediately; worker cleanup is asynchronous. Cleanup
+must preserve that explicit local state. A connect completion racing with this
+cancellation cannot re-arm reconnect. Service disable/close additionally joins
+the owned workers before returning. Test process commands that require channel
+completion acknowledge a bounded worker join, not merely receipt of the command.
+
+A remote revoke is a transport loss to the other desktop, not a notification
+that cancels its local reconnect intent. Its live state can therefore transition
+from `offline` to `connecting`/`authenticating` and then `failed` when the revoked
+peer rejects a retry. Tests must observe the original channel's completion and
+failed fresh authentication, rather than require observation of the transient
+offline state. See [the Windows portable lifecycle report](OLIVE_CONNECT_WINDOWS_LIFECYCLE_REPAIR.md).
 
 Wire errors contain fixed categories, never exception text, paths, stack traces,
 vault errors, certificate material or request content. TLS/framing/abuse failures
