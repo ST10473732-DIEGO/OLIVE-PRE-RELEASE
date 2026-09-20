@@ -32,7 +32,7 @@ class FileProcessTests(unittest.TestCase):
                     value=call(i,op)
                     if predicate(value):return value
                     time.sleep(.025)
-                self.fail(f'timed out: {op}: {value}')
+                self.fail(f'timed out: {op}: {value}; file I/O categories: {call(i, "diagnostics")}')
             try:
                 for i in range(2):
                     parent,child=ctx.Pipe();p=ctx.Process(target=worker,args=(child,str(root/str(i)),vaults[i].values))
@@ -75,6 +75,7 @@ class FileProcessTests(unittest.TestCase):
                 call(0,'connect',ids[1],ports[1])
                 source.write_bytes(data)
                 retry=send()
+                self.assertNotEqual(retry['transfer_id'], partial['transfer_id'])
                 wait(1,'list',lambda r:r[0]['transfer_id']==retry['transfer_id'] and r[0]['state']=='completed')
                 wait(0,'list',lambda r:r[0]['state']=='completed')
                 self.assertEqual((artifact.parent/(retry['transfer_id']+'.bin')).read_bytes(),data)

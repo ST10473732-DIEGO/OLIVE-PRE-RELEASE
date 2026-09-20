@@ -85,8 +85,8 @@ class NetworkTests(unittest.TestCase):
     def disconnect_and_join(self):
         workers = []
         for network, peer in ((self.na, self.b.local_id), (self.nb, self.a.local_id)):
+            network.disconnect(peer)
             with network.lock:
-                network.disconnect(peer)
                 workers.extend(network.workers)
         deadline = time.monotonic() + 4
         for worker in workers:
@@ -191,7 +191,7 @@ class NetworkTests(unittest.TestCase):
         workspace = DevicesWorkspace(self.a)
         with patch.object(self.na, 'finished', side_effect=held_finished):
             try:
-                self.na.disconnect(self.b.local_id)
+                self.na.disconnect(self.b.local_id, wait=False)
                 self.assertTrue(entered.wait(3))
                 self.assertEqual(workspace.snapshot()['devices'][0]['live']['state'], 'offline')
                 self.assertNotIn(self.b.local_id, self.na.targets)
@@ -206,6 +206,29 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(live['state'], 'offline')
         self.assertFalse(live['encrypted'])
         self.assertIsNone(live['latency_ms'])
+
+    def test_disconnect_returns_only_after_worker_completion(self):
+        channel = self.connect()
+        entered, release = threading.Event(), threading.Event()
+        original = self.na.finished
+        def held_finished(worker, reason):
+            entered.set()
+            if not release.wait(4):
+                raise AssertionError('completion not released')
+            return original(worker, reason)
+        with patch.object(self.na, 'finished', held_finished), ThreadPoolExecutor(1) as pool:
+            completion = pool.submit(self.na.disconnect, self.b.local_id)
+            try:
+                self.assertTrue(entered.wait(3))
+                self.assertFalse(completion.done())
+            finally:
+                release.set()
+            completion.result(4)
+        self.assertFalse(channel.thread.is_alive())
+        self.assertEqual(channel.sock.fileno(), -1)
+        self.assertNotIn(channel, self.na.workers)
+        self.assertNotIn(self.b.local_id, self.na.targets)
+        self.assertEqual(self.na.status(self.b.local_id)['state'], 'offline')
 
     def test_disconnect_before_connect_returns_cannot_rearm_reconnect(self):
         from concurrent.futures import Future
@@ -497,7 +520,7 @@ class NetworkTests(unittest.TestCase):
 
         with patch.object(self.a.repository, 'audit', side_effect=held_audit):
             try:
-                self.na.disconnect(self.b.local_id)
+                self.na.disconnect(self.b.local_id, wait=False)
                 self.assertTrue(entered.wait(3))
                 self.assertFalse(self.na.channels)
                 self.assertIn(channel, self.na.workers)

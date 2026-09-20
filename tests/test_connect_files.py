@@ -1,5 +1,8 @@
 """Actual C3 file bytes, isolated profiles, portable security boundaries."""
 import hashlib
+import errno
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import os
 import tempfile
@@ -49,11 +52,19 @@ class FileTests(unittest.TestCase):
 
     def allow(self): self.b.set_permission(self.a.local_id, 'files.receive', 'allow')
 
+    def diagnostics(self):
+        return dict(local=self.na.status(self.b.local_id), remote=self.nb.status(self.a.local_id),
+                    channel_failure=self.channel.failure_category,
+                    file_io=list(self.a.files.io_failures) + list(self.b.files.io_failures))
+
     def send_file(self):
         row = self.a.files.prepare(self.b.local_id, self.path)
         self.a.files.start(row['transfer_id'])
         until(lambda: self.a.files.list()[0]['state'] in {'completed','failed','interrupted'}, timeout=15)
-        return self.a.files.list()[0]
+        result = self.a.files.list()[0]
+        if result['error'] == 'file_io_failed':
+            result = {**result, 'test_diagnostics': self.diagnostics()}
+        return result
 
     def test_real_multichunk_export_inert_and_off_default(self):
         self.assertEqual(self.b.permission(self.a.local_id, 'files.receive').value, 'deny')
@@ -135,7 +146,9 @@ class FileTests(unittest.TestCase):
         self.assertFalse(self.b.files.store.path(offer.transfer_id,'part').exists())
         self.channel=self.na.connect(self.b.local_id,'127.0.0.1',self.nb.port)
         self.assertEqual(self.channel.file_request(offer.encode())['result']['state'],'interrupted')
-        self.assertEqual(self.send_file()['state'],'completed')
+        fresh = self.send_file()
+        self.assertNotEqual(fresh['transfer_id'], offer.transfer_id)
+        self.assertEqual(fresh['state'], 'completed', fresh)
         self.assertEqual(len(list(self.b.files.store.directory.glob('*.bin'))),1)
 
     def test_source_change_and_special_files(self):
@@ -225,8 +238,192 @@ class FileTests(unittest.TestCase):
         until(lambda:self.a.files.list()[0]['state'] in {'failed','interrupted'})
         self.assertFalse(self.b.files.store.path(row['transfer_id'],'bin').exists())
         self.assertFalse(self.b.files.store.path(row['transfer_id'],'part').exists())
-        self.assertTrue(self.na.status(self.b.local_id)['encrypted'])
+        self.assertTrue(self.na.status(self.b.local_id)['encrypted'], self.diagnostics())
 
+
+    def test_windows_flush_and_closed_exclusive_publication(self):
+        self.allow()
+        opened = []
+        original_open, original_fsync, original_link = Path.open, os.fsync, os.link
+
+        def track(path, *args, **kwargs):
+            stream = original_open(path, *args, **kwargs)
+            if path.suffix in {'.part', '.out'}:
+                opened.append(stream)
+            return stream
+
+        def windows_flush(fd):
+            stream = next((s for s in opened if not s.closed and s.fileno() == fd), None)
+            if stream is not None and not stream.writable():
+                raise OSError(errno.EBADF, 'synthetic read-only flush')
+            return original_fsync(fd)
+
+        def windows_publish(source, destination):
+            if any(not s.closed for s in opened):
+                raise PermissionError(errno.EACCES, 'synthetic Windows sharing violation')
+            return original_link(source, destination)
+
+        with patch.object(Path, 'open', track), patch('os.fsync', windows_flush), patch('os.link', windows_publish):
+            self.assertEqual(self.send_file()['state'], 'completed')
+        self.assertFalse(self.b.files.io_failures)
+
+    def test_finalization_failure_and_cleanup_remain_file_scoped(self):
+        self.allow()
+        self.b.set_permission(self.a.local_id, 'connect.ping', 'allow')
+        for stage, target in [('flush_failed', 'os.fsync'), ('finalize_failed', 'os.link')]:
+            with self.subTest(stage=stage), patch(target, side_effect=OSError(errno.EACCES, 'private synthetic path')):
+                row = self.send_file()
+                self.assertEqual(row['state'], 'failed', row)
+                self.assertEqual(row['error'], 'file_io_failed')
+            self.assertIn((stage, errno.EACCES), self.b.files.io_failures)
+            self.assertFalse(self.b.files.store.path(row['transfer_id'], 'part').exists())
+            self.assertFalse(self.b.files.store.path(row['transfer_id'], 'bin').exists())
+            self.assertTrue(self.channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        self.assertEqual(self.send_file()['state'], 'completed')
+        self.assertNotIn('private synthetic path', str(self.b.repository.activity()))
+
+    def test_receipt_failure_rolls_back_artifact_without_closing_channel(self):
+        import sqlite3
+        self.allow()
+        self.b.set_permission(self.a.local_id, 'connect.ping', 'allow')
+        original = self.b.files.store.put
+        def fail_completed(db, row):
+            if row['state'] == 'completed':
+                raise sqlite3.OperationalError('synthetic receipt failure')
+            return original(db, row)
+        with patch.object(self.b.files.store, 'put', fail_completed):
+            row = self.send_file()
+        self.assertEqual(row['state'], 'failed')
+        self.assertEqual(self.b.files.list()[0]['state'], 'failed')
+        self.assertFalse(self.b.files.store.path(row['transfer_id'], 'bin').exists())
+        self.assertFalse(self.b.files.store.path(row['transfer_id'], 'part').exists())
+        self.assertIn(('receipt_failed', None), self.b.files.io_failures)
+        self.assertTrue(self.channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+
+    def test_failure_receipt_contention_does_not_close_channel(self):
+        import sqlite3
+        self.allow()
+        self.b.set_permission(self.a.local_id, 'connect.ping', 'allow')
+        offer = self.offer()
+        self.channel.file_request(offer.encode())
+        original = self.b.files.store.put
+        def fail_receipt(db, row):
+            if row['state'] == 'failed':
+                raise sqlite3.OperationalError('synthetic busy')
+            return original(db, row)
+        with patch.object(self.b.files.store, 'put', fail_receipt):
+            answer = self.send_request(offer, 'complete')
+            self.assertEqual(answer['error'], 'content_integrity_failed')
+            self.assertTrue(self.channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        self.b.files._cleanup_pass()
+        self.assertEqual(self.b.files.list()[0]['state'], 'failed')
+        self.assertFalse(self.b.files.store.path(offer.transfer_id, 'part').exists())
+        self.assertFalse(self.b.files.failed_pending)
+
+    def test_cleanup_failure_is_deferred_without_losing_receipt(self):
+        self.allow()
+        original = Path.unlink
+        def held_partial(path, *args, **kwargs):
+            if path.suffix == '.part':
+                raise PermissionError(errno.EACCES, 'synthetic sharing violation')
+            return original(path, *args, **kwargs)
+        with patch.object(Path, 'unlink', held_partial):
+            row = self.send_file()
+            self.assertEqual(row['state'], 'completed')
+            self.assertTrue(self.b.files.cleanup_pending)
+        self.b.files._cleanup_pass()
+        self.assertFalse(self.b.files.cleanup_pending)
+        self.assertFalse(self.b.files.store.path(row['transfer_id'], 'part').exists())
+        self.assertEqual(self.b.files.list()[0]['state'], 'completed')
+        self.assertEqual(self.b.files.store.path(row['transfer_id'], 'bin').read_bytes(), self.data)
+
+    def test_finalization_is_exclusive(self):
+        self.allow()
+        original = os.link
+        collisions = []
+        def collide(source, destination):
+            destination.write_bytes(b'existing artifact')
+            collisions.append(destination)
+            return original(source, destination)
+        with patch('os.link', collide):
+            row = self.send_file()
+        self.assertEqual(row['state'], 'failed')
+        self.assertEqual(collisions[0].read_bytes(), b'existing artifact')
+        self.assertFalse(self.b.files.store.path(row['transfer_id'], 'part').exists())
+
+    def test_cleanup_serializes_with_finalization_and_receipt(self):
+        self.allow()
+        entered, release = threading.Event(), threading.Event()
+        original = os.link
+        def held_link(source, destination):
+            entered.set()
+            if not release.wait(4):
+                raise AssertionError('publication not released')
+            return original(source, destination)
+        row = self.a.files.prepare(self.b.local_id, self.path)
+        with patch('os.link', held_link), ThreadPoolExecutor(1) as pool:
+            self.a.files.start(row['transfer_id'])
+            try:
+                self.assertTrue(entered.wait(4))
+                acquired = self.b.files.lock.acquire(blocking=False)
+                if acquired:
+                    self.b.files.lock.release()
+                self.assertFalse(acquired)
+                cleanup = pool.submit(self.b.files.invalidate, self.a.local_id)
+            finally:
+                release.set()
+            cleanup.result(4)
+        until(lambda: self.a.files.list()[0]['state'] == 'completed')
+        self.assertEqual(self.b.files.list()[0]['state'], 'completed')
+        self.assertEqual(self.b.files.store.path(row['transfer_id'], 'bin').read_bytes(), self.data)
+
+    def test_old_channel_cleanup_cannot_interrupt_new_admission(self):
+        self.allow()
+        offer = self.offer()
+        self.channel.file_request(offer.encode())
+        entered, release = threading.Event(), threading.Event()
+        original = self.b.files.invalidate
+        def held_invalidate(*args, **kwargs):
+            entered.set()
+            if not release.wait(4):
+                raise AssertionError('invalidation not released')
+            return original(*args, **kwargs)
+        with patch.object(self.b.files, 'invalidate', held_invalidate):
+            try:
+                self.na.disconnect(self.b.local_id)
+                self.assertTrue(entered.wait(4))
+                acquired = self.b.files.lock.acquire(blocking=False)
+                if acquired:
+                    self.b.files.lock.release()
+                self.assertFalse(acquired, 'old teardown exposed fresh file admission')
+            finally:
+                release.set()
+        self.channel = self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
+        fresh = self.send_file()
+        self.assertNotEqual(fresh['transfer_id'], offer.transfer_id)
+        self.assertEqual(fresh['state'], 'completed', fresh)
+
+    def test_file_timeout_late_reply_preserves_channel(self):
+        self.allow()
+        self.b.set_permission(self.a.local_id, 'connect.ping', 'allow')
+        entered, release = threading.Event(), threading.Event()
+        original = self.b.files.receive
+        def held_receive(*args):
+            entered.set()
+            if not release.wait(4):
+                raise AssertionError('request not released')
+            return original(*args)
+        with patch.object(self.b.files, 'receive', held_receive), ThreadPoolExecutor(1) as pool:
+            with patch('olive.connect.network.REQUEST_TIMEOUT', .1):
+                pending = pool.submit(self.channel.file_request, self.offer().encode())
+                try:
+                    self.assertTrue(entered.wait(3))
+                    with self.assertRaisesRegex(ConnectError, 'file_request_timeout'):
+                        pending.result(3)
+                finally:
+                    release.set()
+        self.assertTrue(self.channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        self.assertTrue(self.na.status(self.b.local_id)['encrypted'], self.diagnostics())
 
 class FileProtocolTests(unittest.TestCase):
     def test_filename_paths_and_reserved_names(self):

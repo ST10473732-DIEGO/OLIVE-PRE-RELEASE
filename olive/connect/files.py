@@ -4,14 +4,16 @@ import mimetypes
 import os
 from pathlib import Path
 import stat
+import sqlite3
 import threading
 import time
 import uuid
+from collections import deque
 
 from ..agent.permission_service import PermissionDecision, PermissionService
 from .contracts import ConnectError, canonical
 from .file_protocol import FileRequest, PROTOCOL, CHUNK_SIZE, MAX_FILE_SIZE, TERMINAL, filename
-from .file_store import FileStore
+from .file_store import FileStore, FileIOFailure, finalize_partial
 
 
 class FileTransferService:
@@ -27,6 +29,9 @@ class FileTransferService:
         self.stopping = threading.Event()
         self.reaper = None
         self.accepting = False
+        self.io_failures = deque(maxlen=32)  # Local/test only: category and errno, no paths.
+        self.cleanup_pending = set()
+        self.failed_pending = {}
 
     def activate(self):
         with self.lock:
@@ -42,15 +47,30 @@ class FileTransferService:
 
     def _reap(self):
         while not self.stopping.wait(.5):
-            with self.lock, self.service.repository.transaction() as db:
-                now = time.monotonic()
-                for row in self.store.list(db):
-                    if row['state'] in TERMINAL:
-                        continue
-                    started, last = self.activity.get(row['transfer_id'], (now, now))
-                    limit = 120 if row['state'] in {'offered', 'awaiting_approval'} else 30
-                    if now - started > 600 or now - last > limit:
-                        self._finish(db, row, 'interrupted', 'transfer_timeout')
+            try:
+                self._cleanup_pass()
+            except sqlite3.Error:
+                self.io_failures.append(('receipt_failed', None))
+
+    def _cleanup_pass(self):
+        with self.lock, self.service.repository.transaction() as db:
+            for tid, (peer, code, published) in tuple(self.failed_pending.items()):
+                self._failed_receipt(db, tid, peer, code, published)
+            # Keep queued failures until the transaction has committed.
+            settled = tuple(self.failed_pending)
+            for tid, suffix in tuple(self.cleanup_pending):
+                self._remove(tid, suffix)
+            now = time.monotonic()
+            for row in self.store.list(db):
+                if row['state'] in TERMINAL:
+                    continue
+                started, last = self.activity.get(row['transfer_id'], (now, now))
+                limit = 120 if row['state'] in {'offered', 'awaiting_approval'} else 30
+                if now - started > 600 or now - last > limit:
+                    self._finish(db, row, 'interrupted', 'transfer_timeout')
+        with self.lock:
+            for tid in settled:
+                self.failed_pending.pop(tid, None)
 
     def _touch(self, tid):
         now = time.monotonic()
@@ -59,12 +79,22 @@ class FileTransferService:
     def _finish(self, db, row, state, error=None):
         self.store.finish(db, row, state, error)
         tid = row['transfer_id']
+        for suffix in ('part', 'out'):
+            self._remove(tid, suffix)
         self.hashes.pop(tid, None)
         self.sources.pop(tid, None)
         self.activity.pop(tid, None)
         approval = self.approval_ids.pop(tid, None)
         if approval and self.service.approvals is not None:
             self.service.approvals.discard(*approval)
+
+    def _remove(self, tid, suffix):
+        try:
+            self.store.path(tid, suffix).unlink(missing_ok=True)
+            self.cleanup_pending.discard((tid, suffix))
+        except OSError as error:
+            self.io_failures.append(('cleanup_failed', error.errno))
+            self.cleanup_pending.add((tid, suffix))
 
     def _authority(self, db, peer, public, capability):
         record = self.service.repository.get(db, peer)
@@ -96,8 +126,16 @@ class FileTransferService:
         return approvals.check(request, public, record, target_name='This device')
 
     def receive(self, packet, peer, public):
+        # Keep rollback, failure receipt and cleanup in the same exclusion region
+        # as successful publication. Policy invalidation/reaping cannot interleave.
+        with self.lock:
+            return self._receive_locked(packet, peer, public)
+
+    def _receive_locked(self, packet, peer, public):
         request, data = FileRequest.decode(packet)
         row = None
+        published = False
+        category = 'open_failed'
         try:
             with self.lock, self.service.repository.transaction(timeout=.25) as db:
                 if request.source_device_id != peer or public['device_id'] != peer:
@@ -115,6 +153,8 @@ class FileTransferService:
                 if row and row['peer_id'] != peer:
                     row = None
                     raise ConnectError('transfer_owner_mismatch')
+                if request.transfer_id in self.failed_pending:
+                    raise ConnectError('file_io_failed')
                 if request.operation == 'cancel':
                     if not row:
                         raise ConnectError('unknown_transfer')
@@ -164,7 +204,10 @@ class FileTransferService:
                         if request.arguments['offset'] != row['received_size'] or row['received_size'] + len(data) > row['metadata']['size']:
                             raise ConnectError('invalid_chunk_offset_or_size')
                         with self.store.path(request.transfer_id, 'part').open('ab') as stream:
+                            category = 'write_failed'
                             stream.write(data)
+                            category = 'flush_failed'
+                            stream.flush()
                         self.hashes[request.transfer_id].update(data)
                         if row['state'] == 'accepted':
                             self.store.audit(db, row, 'transfer_started')
@@ -176,24 +219,37 @@ class FileTransferService:
                         self.store.put(db, row)
                         if row['received_size'] != row['metadata']['size'] or self.hashes[request.transfer_id].hexdigest() != row['metadata']['sha256']:
                             raise ConnectError('content_integrity_failed')
-                        path = self.store.path(request.transfer_id, 'part')
-                        with path.open('rb') as stream:
-                            os.fsync(stream.fileno())
-                        path.replace(self.store.path(request.transfer_id, 'bin'))
+                        finalize_partial(self.store.path(request.transfer_id, 'part'),
+                            self.store.path(request.transfer_id, 'bin'), row['metadata'])
+                        published = True
+                        category = 'receipt_failed'
                         self._finish(db, row, 'completed')
                 result = dict(state=row['state'], received_size=row['received_size'])
             return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='completed', result=result)
         except Exception as error:
             code = str(error) if isinstance(error, ConnectError) else 'file_io_failed'
+            if not isinstance(error, ConnectError):
+                self.io_failures.append((error.category if isinstance(error, FileIOFailure) else
+                                         'receipt_failed' if isinstance(error, sqlite3.Error) else category,
+                                         getattr(error, 'errno', None)))
             # Exceptions roll back SQLite; clean the owned partial in a new transaction.
-            with self.lock, self.service.repository.transaction() as db:
-                if row is not None:
-                    current = self.store.get(db, request.transfer_id)
-                    if current and current['peer_id'] == peer:
-                        self._finish(db, current, 'declined' if code == 'request_denied' else 'failed', code)
-                        if current['state'] != 'completed':
-                            self.store.path(request.transfer_id, 'bin').unlink(missing_ok=True)
+            if row is not None:
+                try:
+                    with self.service.repository.transaction(timeout=.25) as db:
+                        self._failed_receipt(db, request.transfer_id, peer, code, published)
+                except sqlite3.Error:
+                    # Failure recording is still file-scoped. Deny further use
+                    # until the cleanup worker can commit or startup reconciles.
+                    self.io_failures.append(('receipt_failed', None))
+                    self.failed_pending[request.transfer_id] = (peer, code, published)
             return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='rejected', error=code)
+
+    def _failed_receipt(self, db, tid, peer, code, published):
+        current = self.store.get(db, tid)
+        if current and current['peer_id'] == peer:
+            self._finish(db, current, 'declined' if code == 'request_denied' else 'failed', code)
+            if published and current['state'] != 'completed':
+                self._remove(tid, 'bin')
 
     def _record(self, tid, peer, direction, meta):
         now = int(self.service.clock())
@@ -203,7 +259,7 @@ class FileTransferService:
             created_at=now, updated_at=now, error=None, artifact_reference=tid)
 
     def list(self, peer=None):
-        with self.lock, self.service.repository.transaction() as db:
+        with self.lock, self.service.repository.transaction(read_only=True) as db:
             return [{k: v for k, v in row.items() if k not in {'offer', 'permission_binding'}}
                     for row in self.store.list(db) if peer is None or row['peer_id'] == peer][:100]
 

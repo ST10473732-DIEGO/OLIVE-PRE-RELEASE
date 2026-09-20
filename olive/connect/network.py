@@ -60,6 +60,7 @@ class Channel:
         self.lock = threading.Lock()
         self.thread = threading.Thread(target=self.run, name='olive-connect-channel', daemon=True)
         self.last_latency_ms = None
+        self.failure_category = None  # Transient diagnostics, never provider text.
 
     def check(self):
         if self.stop.is_set() or self.owner.stopping.is_set():
@@ -275,7 +276,8 @@ class Channel:
                     started = time.monotonic() if buffer else None
         except ConnectError as error:
             reason = str(error)
-        except Exception:
+        except Exception as error:
+            self.failure_category = type(error).__name__
             reason = 'tls_or_connection_failed'
         finally:
             self.close()
@@ -449,7 +451,9 @@ class LocalNetwork:
         return self.connect(peer, entry['address'], entry['port'], retries=retries)
 
     def adopt(self, channel):
-        with self.lock:
+        # File admission uses files.lock -> network.lock. Keep that order and
+        # finish old transfer invalidation before publishing a replacement.
+        with self.service.files.lock, self.lock:
             channel.check()
             existing = self.channels.get(channel.peer)
             # Both sides prefer the socket initiated by the lower stable C2 UUID.
@@ -481,16 +485,17 @@ class LocalNetwork:
 
     def finished(self, channel, reason):
         affected = False
-        with self.lock:
-            peer = channel.peer or channel.expected
-            if self.channels.get(peer) is channel:
-                affected = True
-                self.channels.pop(peer)
-                self.states[peer] = dict(state='offline', error=reason)
-            elif peer and peer not in self.channels and not channel.locally_disconnected:
-                self.states[peer] = dict(state='failed', error=reason)
-        if affected:
-            self.service.files.invalidate(peer, 'connection_closed')
+        with self.service.files.lock:
+            with self.lock:
+                peer = channel.peer or channel.expected
+                if self.channels.get(peer) is channel:
+                    affected = True
+                    self.channels.pop(peer)
+                    self.states[peer] = dict(state='offline', error=reason)
+                elif peer and peer not in self.channels and not channel.locally_disconnected:
+                    self.states[peer] = dict(state='failed', error=reason)
+            if affected:
+                self.service.files.invalidate(peer, 'connection_closed')
         try:
             self.audit(peer, 'connection_closed' if channel.peer else 'connection_failed')
         finally:
@@ -508,16 +513,24 @@ class LocalNetwork:
                          latency_ms=channel.last_latency_ms if channel else None)
             return state
 
-    def disconnect(self, peer, *, revoked=False):
-        with self.lock:
-            self.targets.pop(peer, None)
-            for channel in list(self.workers):
-                if peer in (channel.peer, channel.expected):
+    def disconnect(self, peer, *, revoked=False, wait=True):
+        with self.service.files.lock:
+            with self.lock:
+                self.targets.pop(peer, None)
+                workers = [c for c in self.workers if peer in (c.peer, c.expected)]
+                for channel in workers:
                     channel.locally_disconnected = True
                     channel.close()
-            self.channels.pop(peer, None)
-            self.states[peer] = dict(state='offline', error='device_revoked' if revoked else None)
-        self.service.files.invalidate(peer, 'device_revoked' if revoked else 'connection_closed')
+                self.channels.pop(peer, None)
+                self.states[peer] = dict(state='offline', error='device_revoked' if revoked else None)
+            self.service.files.invalidate(peer, 'device_revoked' if revoked else 'connection_closed')
+        if wait:
+            deadline = time.monotonic() + 4
+            for channel in workers:
+                if channel.thread is not threading.current_thread():
+                    channel.thread.join(max(0, deadline - time.monotonic()))
+            if any(c.thread.is_alive() and c.thread is not threading.current_thread() for c in workers):
+                raise ConnectError('disconnect_timeout')
         if revoked:
             self.audit(peer, 'revoked_connection_closed')
 

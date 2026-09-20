@@ -79,8 +79,17 @@ class DesktopPairingTests(unittest.TestCase):
         self.assertEqual(self.ua.ping(self.b.local_id)['error'], 'permission_off')
         self.b.set_permission(self.a.local_id, 'connect.ping', 'allow')
         self.assertTrue(self.ua.ping(self.b.local_id)['result']['pong'])
+        channel = self.a.network.channels[self.b.local_id]
         self.b.revoke(self.a.local_id)
-        wait(lambda: self.a.network.status(self.b.local_id)['state'] == 'offline')
+        self.assertEqual(self.b.network.status(self.a.local_id)['state'], 'offline')
+        channel.thread.join(4)
+        self.assertFalse(channel.thread.is_alive())
+        self.assertTrue(channel.stop.is_set())
+        self.assertIsNone(channel.last_latency_ms)
+        # Remote revocation does not remove this desktop's reconnect intent.
+        # End local intent explicitly before asserting stable offline status.
+        self.a.network.disconnect(self.b.local_id)
+        self.assertEqual(self.a.network.status(self.b.local_id)['state'], 'offline')
         with self.assertRaises(ConnectError):
             self.b.pairing.completion.complete(self.sid)
 
@@ -253,8 +262,8 @@ def desktop_worker(pipe, profile):
         network = service.network
         with network.lock:
             workers = [c for c in network.workers if device_id in (c.peer, c.expected)]
-            if not revoke:
-                network.disconnect(device_id)
+        if not revoke:
+            network.disconnect(device_id)
         if revoke:
             service.revoke(device_id)
         join_channels(workers)

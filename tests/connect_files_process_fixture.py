@@ -27,6 +27,7 @@ def worker(pipe, profile, values):
                     elif op=='prepare':result=await asyncio.to_thread(service.files.prepare,*args)
                     elif op=='start':result=await asyncio.to_thread(service.files.start,*args)
                     elif op=='list':result=await asyncio.to_thread(service.files.list)
+                    elif op=='diagnostics':result=list(service.files.io_failures)
                     elif op=='export':result=await asyncio.to_thread(service.files.export,*args)
                     elif op=='pending':result=[p[0] for p in host.pending.values()]
                     elif op=='approve':

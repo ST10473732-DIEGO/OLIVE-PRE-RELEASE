@@ -61,10 +61,12 @@ Artifacts have opaque UUID filenames and `.part`, `.out` or `.bin` suffixes.
 The remote display filename is metadata only. Duplicate display names have
 distinct UUID artifacts and never overwrite each other.
 
-After exact length and SHA-256 verification, the partial is renamed to the
-completed inert artifact and its receipt committed. No reader/export route
-accepts a partial record. Startup removes noncompleted artifacts left by a crash
-between rename and receipt commit. Completed bytes are retained until an explicit
+After writable flush/fsync and descriptor closure, exact length and SHA-256
+verification close their reader before exclusive same-directory hard-link
+publication of the completed inert artifact. The partial link is removed and
+the completed receipt committed. Existing artifacts are never replaced. No
+reader/export route accepts a partial record. Startup removes noncompleted artifacts left by a crash
+between publication and receipt commit. Completed bytes are retained until an explicit
 local **Dismiss from Inbox**; dismiss retains the replay receipt.
 
 **Save** uses the native local save dialog via the same Electron file broker.
@@ -296,3 +298,6 @@ Resume, automatic uncertain-receipt reconciliation, natural-language sending,
 batch/directory transfer, automatic imports, ledger archival and remote AI remain
 explicitly deferred. The next roadmap stages are C7 Remote AI, C8 Remote Studio,
 C9 OLIVE Mobile and C10 Internet direct / relay.
+
+C6 hosted reliability repair and its evidence/remaining hosted verification are
+documented in [the portable repair report](OLIVE_CONNECT_C6_PORTABLE_REPAIR.md).

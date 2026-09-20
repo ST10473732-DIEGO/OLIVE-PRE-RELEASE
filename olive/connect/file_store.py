@@ -18,6 +18,43 @@ LEDGER_LIMIT = 10_000
 MAX_ACTIVE = 4
 
 
+class FileIOFailure(OSError):
+    """Bounded local diagnostic; never includes an OS message or a private path."""
+    def __init__(self, category, error):
+        super().__init__(category)
+        self.category = category
+        self.errno = getattr(error, 'errno', None)
+
+
+def finalize_partial(partial, final, metadata):
+    """Flush with write access, close, verify, then publish without replacement.
+
+    Caller holds the transfer lock through the receipt commit. A hard link is an
+    exclusive same-directory publication on both Windows and POSIX; unsupported
+    filesystems fail closed. No owned handle survives into link/unlink.
+    """
+    category = 'open_failed'
+    try:
+        with partial.open('r+b') as stream:
+            category = 'flush_failed'
+            stream.flush()
+            os.fsync(stream.fileno())
+        category = 'hash_failed'
+        digest, size = hashlib.sha256(), 0
+        with partial.open('rb') as stream:
+            while data := stream.read(CHUNK_SIZE):
+                size += len(data)
+                if size > metadata['size']:
+                    raise ConnectError('content_integrity_failed')
+                digest.update(data)
+        if size != metadata['size'] or digest.hexdigest() != metadata['sha256']:
+            raise ConnectError('content_integrity_failed')
+        category = 'finalize_failed'
+        os.link(partial, final)
+    except OSError as error:
+        raise FileIOFailure(category, error) from None
+
+
 class FileStore:
     def __init__(self, service, profile):
         self.service = service
@@ -81,8 +118,6 @@ class FileStore:
             return
         row.update(state=state, error=error)
         self.put(db, row)
-        for suffix in ('part', 'out'):
-            self.path(row['transfer_id'], suffix).unlink(missing_ok=True)
         self.audit(db, row, {'completed': 'transfer_completed', 'declined': 'file_declined',
             'cancelled': 'transfer_cancelled'}.get(state, 'transfer_failed'))
 
