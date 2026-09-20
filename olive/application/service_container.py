@@ -223,6 +223,8 @@ class ServiceContainer:
         self.model_infos = []
         from ..services.presets import PresetCatalog
         self.presets = PresetCatalog(self)
+        from ..connect.inference_client import RemoteInferenceClient
+        self.remote_inference = RemoteInferenceClient(self.connect)
         self.current_chat_id = max(self.chats.values(), key=lambda chat: chat.updated_at).id
         self.ollama_state = "Checking Ollama"
         from .chat_controller import ChatController
@@ -296,6 +298,8 @@ class ServiceContainer:
 
     async def initialize(self):
         import asyncio
+        from ..services.remote_inference_runtime import RemoteInferenceRuntime
+        self.connect.attach_inference(RemoteInferenceRuntime(self.presets, self.ollama), asyncio.get_running_loop())
         from concurrent.futures import Future
         import threading
         loop = asyncio.get_running_loop()
@@ -353,6 +357,8 @@ class ServiceContainer:
 
     async def shutdown(self):
         try:
+            if self.connect.inference is not None:
+                await self.connect.inference.shutdown()
             await self.media.shutdown()
             self.closing = True
             await self.personal.close()

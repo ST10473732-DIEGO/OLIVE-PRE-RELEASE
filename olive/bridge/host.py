@@ -115,7 +115,7 @@ class Host:
         validate(request)
         # A bounded read-only live snapshot must not consume the durable-action
         # deduplication budget every 1.5 seconds while Devices is open.
-        if request['method'] == 'connect.snapshot':
+        if request['method'] in ('connect.snapshot', 'connect.model_targets'):
             if self.closed:
                 raise RuntimeError('Runtime is shutting down')
             return await self.execute(request['method'], request['args'])
@@ -320,6 +320,7 @@ class Host:
             'chat.draft': s.chat.save_draft,
             'chat.rename': s.chat.update, 'chat.model': s.chat.update,
             'chat.preset': s.chat.update,
+            'chat.run_on': s.chat.run_on,
             'chat.regenerate': lambda **a: s.chat.send(**a, regenerate=True),
             'chat.branch': s.chat.branch,
             'interaction.submit': s.interaction.submit, 'interaction.cancel': s.interaction.cancel,

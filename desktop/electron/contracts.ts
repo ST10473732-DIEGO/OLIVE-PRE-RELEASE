@@ -54,6 +54,7 @@ export const schemas = {
   "chat.rename": z.object({ ...chat, title: short }).strict(),
   "chat.model": z.object({ ...chat, model: short }).strict(),
   "chat.preset": z.object({ ...chat, preset: z.enum(["fast", "normal", "max", "deep", "reimagine"]) }).strict(),
+  "chat.run_on": z.object({ ...chat, device_id: z.union([z.string().uuid(), z.literal("")]) }).strict(),
   "chat.regenerate": z.object(chat).strict(),
   "chat.branch": z
     .object({

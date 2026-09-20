@@ -19,6 +19,7 @@ export interface Preset {
   resource_policy: string;
 }
 export interface Message {
+  provider?: { runtime?: string; preset?: string; device_id?: string; device_name?: string; request_id?: string };
   completion_state?: "complete" | "incomplete" | "unverified";
   id: string;
   role: string;
@@ -26,6 +27,8 @@ export interface Message {
   sources: { label?: string; name?: string }[];
 }
 export interface Chat {
+  run_on?: string;
+  remote_provider?: Message["provider"];
   preset?: string;
   research_session_ids?: string[];
   id: string;

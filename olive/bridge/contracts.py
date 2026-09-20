@@ -37,6 +37,7 @@ METHODS = {
     'chat.rename': ({'chat_id': str, 'title': str}, {}),
     'chat.model': ({'chat_id': str, 'model': str}, {}),
     'chat.preset': ({'chat_id': str, 'preset': str}, {}),
+    'chat.run_on': ({'chat_id': str, 'device_id': str}, {}),
     'chat.regenerate': ({'chat_id': str}, {}),
     'chat.branch': ({'chat_id': str, 'user_index': int, 'direction': int}, {}),
     'interaction.submit': ({'chat_id': str, 'text': str}, {'research_mode': str}),

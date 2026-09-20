@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives import serialization
 
 from .contracts import ConnectError, MAX_MESSAGE_BYTES
 from .file_protocol import MAX_PACKET
+from .inference_protocol import MAX_FRAME as MAX_INFERENCE_BYTES
 from .identity import validate_public
 from .tls_identity import identity_context
 
@@ -15,14 +16,17 @@ REQUEST, RESPONSE, CLOSE, HELLO = 1, 2, 3, 4
 SYNC_REQUEST, SYNC_RESPONSE = 5, 6
 MAX_SYNC_BYTES = 256_000
 FILE_REQUEST, FILE_RESPONSE = 7, 8
+INFERENCE_REQUEST, INFERENCE_RESPONSE = 9, 10
 
 
 def limit(kind):
+    if kind in (INFERENCE_REQUEST, INFERENCE_RESPONSE):
+        return MAX_INFERENCE_BYTES
     return MAX_PACKET if kind == FILE_REQUEST else MAX_SYNC_BYTES if kind in (SYNC_REQUEST, SYNC_RESPONSE) else MAX_MESSAGE_BYTES
 
 
 def frame(kind, payload=b''):
-    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE) or type(payload) is not bytes:
+    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE, INFERENCE_REQUEST, INFERENCE_RESPONSE) or type(payload) is not bytes:
         raise ConnectError('invalid_frame')
     if len(payload) > limit(kind) or (kind in (CLOSE, HELLO) and payload):
         raise ConnectError('invalid_frame_size')
@@ -35,7 +39,7 @@ def header(raw):
         raise ConnectError('frame_too_large')
     if version != VERSION:
         raise ConnectError('unsupported_protocol')
-    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE) or (kind in (CLOSE, HELLO) and size):
+    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE, INFERENCE_REQUEST, INFERENCE_RESPONSE) or (kind in (CLOSE, HELLO) and size):
         raise ConnectError('invalid_frame')
     return size, kind
 

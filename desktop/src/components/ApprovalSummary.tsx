@@ -8,7 +8,11 @@ export function ApprovalSummary({ approval }: { approval: Approval }) {
         <div className="ws-panel">
           <p className="ws-eyebrow">Requesting</p>
           <strong>{approval.summary}</strong>
-          {approval.arguments.file ? (
+          {approval.arguments.inference ? <>
+            <p>OLIVE {String((approval.arguments.inference as Record<string, unknown>).preset).toUpperCase()}</p>
+            <p>{String((approval.arguments.inference as Record<string, unknown>).message_count)} visible messages · {String((approval.arguments.inference as Record<string, unknown>).input_bytes)} bytes of context</p>
+            <p>Tool-free text inference only. No access to this device’s private context.</p>
+          </> : approval.arguments.file ? (
             <>
               <p>
                 {String(

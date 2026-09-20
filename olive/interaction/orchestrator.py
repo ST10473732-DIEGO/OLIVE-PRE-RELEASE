@@ -133,6 +133,10 @@ class NaturalLanguageOrchestrator:
             context.remember_user(text)
             return self.reply(chat_id, text, question)
         steps = interpretation["steps"]
+        if getattr(self.s.chat, 'targets', {}).get(chat_id) and (
+                len(steps) != 1 or steps[0]['intent'] != 'conversation.answer'):
+            return self.reply(chat_id, text,
+                'Remote AI provides text answers only. Select This device to use actions, Research or local documents. No remote action was performed.')
         if len(steps) == 1 and steps[0]["intent"] in {"conversation.answer", "knowledge.query"}:
             document = {}
             if chat_id in self.active:

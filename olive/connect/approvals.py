@@ -12,6 +12,7 @@ from .contracts import ConnectError
 from .identity import fingerprint
 
 LABELS = {'files.receive': 'Receive an untrusted file into OLIVE Inbox',
+          'models.remote': 'Remote AI: tool-free text inference',
           'files.send': 'Send this selected file to the paired device', 'connect.ping': 'Connect ping', 'device.status': 'Device status',
           'chat.metadata.read': 'Chat availability metadata',
           'sync.tasks': 'Tasks: send and receive up to 8 records in this exact exchange',
@@ -58,7 +59,12 @@ class ConnectApprovals:
                     capability=request.capability, operation=request.operation,
                     envelope_fingerprint=binding[0], revision=record['revision'],
                     source_name=record['display_name'], target_name=target_name,
-                    **({'file': dict(request.arguments)} if request.capability.startswith('files.') else {})))
+                    **({'file': dict(request.arguments)} if request.capability.startswith('files.') else {}),
+                    **({'inference': dict(preset=request.arguments['preset'],
+                        message_count=len(request.arguments['messages']),
+                        input_bytes=sum(len(m['content'].encode('utf-8')) for m in request.arguments['messages']),
+                        max_tokens=request.arguments['max_tokens'], expires_at=request.expires_at)}
+                       if request.capability == 'models.remote' else {})))
             entry = dict(binding=binding, deadline=deadline, state='pending', future=None)
             self.entries[key] = entry
             entry['future'] = asyncio.run_coroutine_threadsafe(self._ask(key, entry, prompt), self.loop)

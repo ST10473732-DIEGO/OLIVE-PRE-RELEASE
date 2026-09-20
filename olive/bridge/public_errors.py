@@ -34,6 +34,17 @@ _MESSAGES = {
  'The run has no supported loopback preview origin': 'This run has no supported local web preview. Its output is still available in Studio.',
  'Stop the current request before changing its objective or context.': 'Stop the current request before changing its objective or context.',
 }
+from ..connect.inference_client import MESSAGES as _REMOTE_AI_MESSAGES
+_MESSAGES.update({message: message for message in _REMOTE_AI_MESSAGES.values()})
+for _message in (
+ 'Remote inference failed. No local fallback was used.',
+ 'Remote AI is text only. Remove attachments before sending; their bytes are not shared.',
+ 'Remote AI supports OLIVE FAST, NORMAL and MAX. DEEP and REIMAGINE are unavailable remotely.',
+ 'Action results cannot be regenerated as Remote AI answers.',
+ 'Finish the current request before changing its target',
+):
+ _MESSAGES[_message] = _message
+
 def public_error(error):
  from ..platform_support import PlatformUnavailable
  if isinstance(error,PlatformUnavailable):return {'code':'PlatformUnavailable','message':str(error)}

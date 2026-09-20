@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { call } from "../../services/api";
 import { FilesPanel } from "./FilesPanel";
+import { RemoteAI } from "./RemoteAI";
 import { SyncPanel } from "./SyncPanel";
 import { Pairing } from "./Pairing";
 import {
@@ -649,6 +650,8 @@ export function Devices() {
                           </div>
                         )}
                         {tab === "status" &&
+                          device.device_id !== data.local.device_id && <RemoteAI device={device} refresh={refresh}/>}
+                        {tab === "status" &&
                           device.device_id !== data.local.device_id && (
                             <FilesPanel
                               key={`files-${device.device_id}`}
@@ -690,6 +693,7 @@ export function Devices() {
                                     !metadata.policy_disabled &&
                                     [
                                       "files.send",
+                                      "models.remote",
                                       "files.receive",
                                       "connect.ping",
                                       "device.status",

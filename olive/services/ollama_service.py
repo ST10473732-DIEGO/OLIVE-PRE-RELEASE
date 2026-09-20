@@ -11,6 +11,10 @@ import ollama
 from ..config import EMBEDDING_NAME_HINTS, OLLAMA_HOST, VISION_NAME_HINTS
 
 
+class GenerationOutputLimit(RuntimeError):
+    """Provider ended at its requested token limit; visible text is incomplete."""
+
+
 @dataclass(slots=True)
 class ModelInfo:
     name: str
@@ -186,7 +190,7 @@ class OllamaService:
                     if not has_content:
                         raise RuntimeError("The model returned no answer content. Retry the request or select another installed model.")
                     if finish_reason == "length":
-                        raise RuntimeError("The response reached the model output limit. The partial answer is retained; ask to continue or retry with a larger response budget.")
+                        raise GenerationOutputLimit("The response reached the model output limit. The partial answer is retained; ask to continue or retry with a larger response budget.")
                     if not completed:
                         raise RuntimeError("The model stopped before completing its response. The partial answer is retained; retry when the local model is ready.")
                     success = True

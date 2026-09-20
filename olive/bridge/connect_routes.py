@@ -3,6 +3,8 @@ import asyncio
 from ..connect.workspace import DevicesWorkspace
 
 SPEC = {
+    'connect.model_targets': ({}, {}),
+    'connect.inference_stop': ({'device_id': str, 'job_id': str}, {}),
     'connect.file_prepare': ({'device_id': str, 'path': str}, {}),
     'connect.file_start': ({'transfer_id': str}, {}),
     'connect.file_cancel': ({'transfer_id': str}, {}),
@@ -35,7 +37,7 @@ def validate_arguments(method, args):
     """Match the preload's narrow types even for a direct private-pipe caller."""
     import ipaddress
     from ..connect.contracts import identifier, display_name, SAFE_OPERATIONS
-    for key in ('device_id', 'session_id', 'transfer_id'):
+    for key in ('device_id', 'session_id', 'transfer_id', 'job_id'):
         if key in args:
             identifier(args[key])
     if 'offer' in args and not 1 <= len(args['offer'].encode('utf-8')) <= 12288:
@@ -49,7 +51,7 @@ def validate_arguments(method, args):
     if 'port' in args and not 1 <= args['port'] <= 65535:
         raise ValueError('Invalid Connect port')
     if method == 'connect.permission':
-        if args['capability'] not in (set(SAFE_OPERATIONS) | {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.send', 'files.receive'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
+        if args['capability'] not in (set(SAFE_OPERATIONS) | {'models.remote', 'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.send', 'files.receive'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
             raise ValueError('Unsupported Connect permission')
     if 'conversation_id' in args:
         from ..sync.records import record_id
@@ -64,6 +66,12 @@ def validate_arguments(method, args):
 
 async def call(host, method, args):
     service = host.services.connect
+    if method == 'connect.model_targets':
+        return await host.services.remote_inference.targets()
+    if method == 'connect.inference_stop':
+        if service.inference is not None:
+            await asyncio.to_thread(service.inference.stop, args['device_id'], args['job_id'])
+        return {'cancellation_requested': True}
     if not hasattr(host, 'devices_workspace'):
         host.devices_workspace = DevicesWorkspace(service)
     workspace = host.devices_workspace
@@ -100,6 +108,8 @@ async def call(host, method, args):
         'connect.pair_cancel': lambda session_id: service.pairing_transport.cancel(session_id),
     }
     result = await asyncio.to_thread(routes[method], **args)
+    if method == 'connect.disable' and service.inference is not None:
+        await service.inference.shutdown()
     if method == 'connect.revoke':
         return {'revoked': result['trust_state'] == 'revoked'}
     return result

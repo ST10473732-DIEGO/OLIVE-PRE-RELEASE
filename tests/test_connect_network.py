@@ -627,7 +627,8 @@ class NetworkTests(unittest.TestCase):
 
 class WireTests(unittest.TestCase):
     def test_header_bounds(self):
-        for values in ((16385, 1, 1), (0, 2, 1), (0, 1, 9), (1, 1, 3)):
+        # C7 assigns 9/10 to inference; 11 remains an unknown frame type.
+        for values in ((16385, 1, 1), (0, 2, 1), (0, 1, 11), (1, 1, 3)):
             with self.assertRaises(ConnectError):
                 header(HEADER.pack(*values))
         with self.assertRaises(ConnectError):

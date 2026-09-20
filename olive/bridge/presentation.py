@@ -4,6 +4,12 @@
 def approval_presentation(value, services=None):
     arguments = value.get("arguments", {})
     if value['tool_name'] == 'connect.request':
+        if arguments.get('capability') == 'models.remote':
+            info = arguments['inference']
+            return dict(action='Remote AI · OLIVE ' + info['preset'].upper(), targets=[arguments['source_name']],
+                content=f"{info['message_count']} visible messages · {info['input_bytes']} bytes of context",
+                scope='This exact authenticated text request only.',
+                consequence='Uses this device’s local model. No tools or private context. Saved permission remains Ask.')
         return dict(action=value['summary'], targets=[arguments['target_name']],
             content='Read-only Connect operation from ' + arguments['source_name'],
             scope='This exact authenticated request only.',

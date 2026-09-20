@@ -32,6 +32,7 @@ import { Details } from "../components/WorkspacePage";
 import {NativeProposals} from './personal/Proposals';
 import { ResearchEvidence } from "./chat/ResearchEvidence";
 import { MediaTools } from './chat/MediaTools';
+import { RemoteTarget, RemoteAttribution } from './chat/RemoteTarget';
 
 const HISTORY_KEY = "olive.chat.history";
 // The conversation rail is docked open on a wide window and remembered;
@@ -315,13 +316,14 @@ export function Chat({
                   {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
                   {snapshot.presets?.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name}{m.status !== "Ready" ? ` · ${m.status}` : ""}
+                      {m.name}{chat.run_on ? (["deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
                     </option>
                   ))}
                 </select>
               </label>
             </div>
             <span className="chat-tool-divider" aria-hidden="true" />
+            <RemoteTarget chat={chat} busy={busy} changed={setChat} report={report}/>
             <button
               className="quiet"
               disabled={busy}
@@ -369,6 +371,7 @@ export function Chat({
             </details>
           </div>
         </header>
+        {chat.run_on && <div className="chat-banner"><p>Remote AI shares up to 24 visible messages with the selected paired device. Text only; no attachments, tools or private context. Failures require an explicit retry or a change to This device.</p></div>}
         {chat.preset==='reimagine'&&<div className="chat-banner"><p>REIMAGINE uses media tools. Raster edits are local; generation needs a configured engine.</p><button onClick={()=>setMediaOpen(true)}>Open media tools</button></div>}
         <MediaTools open={mediaOpen} close={setMediaOpen}/>
         <div className="messages">
@@ -378,7 +381,7 @@ export function Chat({
               <h1>A place to think out loud.</h1>
               <p className="muted">
                 Ask a question, explore an idea, or tell OLIVE what you want to
-                do. Everything runs on this device.
+                do. Choose where text inference runs using Run on.
               </p>
               <div className="chat-starters" aria-label="Starting points">
                 {STARTERS.map((starter) => (
@@ -409,6 +412,7 @@ export function Chat({
               </div>
               <div className="message-body">
                 <Markdown text={m.content} />
+                <RemoteAttribution provider={m.provider}/>
                 {m.completion_state === "incomplete" && <p className="small" role="status">Incomplete response — generation stopped or failed. The partial text is retained.</p>}
                 {m.completion_state === "unverified" && <p className="small">Saved alternate response — completion status was not recorded.</p>}
               </div>
@@ -507,6 +511,7 @@ export function Chat({
               </div>
             </article>
           )}
+          {chat.generating && <RemoteAttribution provider={chat.remote_provider} complete={false}/>}
           <div ref={end} />
         </div>
         <div className="chat-composer">
@@ -599,8 +604,8 @@ export function Chat({
               </div>
               <span className="composer-hint">
                 {busy
-                  ? "OLIVE is working…"
-                  : "Enter to send · Shift+Enter for a new line · local model"}
+                  ? chat.remote_provider ? `Thinking on ${chat.remote_provider.device_name}…` : "OLIVE is working…"
+                  : `Enter to send · Shift+Enter for a new line · ${chat.run_on ? "paired device" : "local model"}`}
               </span>
               <button
                 className="send"

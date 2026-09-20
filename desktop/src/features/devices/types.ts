@@ -3,6 +3,7 @@ export type SafeCapability =
   | "device.status"
   | "chat.metadata.read"
   | "files.receive"
+  | "models.remote"
   | "files.send";
 export interface NetworkInterface {
   name: string;
@@ -23,6 +24,7 @@ export interface Transfer {
   error: string | null;
 }
 export interface Device {
+  remote_ai?: { presets: Record<string, boolean>; jobs: { job_id: string; preset: string; state: string }[] };
   transfers?: Transfer[];
   sync?: DevicesState["sync"];
   device_id: string;

@@ -7,6 +7,8 @@ const address = z
   .max(64)
   .regex(/^[0-9a-fA-F:.]+$/);
 export const connectSchemas = {
+  "connect.model_targets": empty,
+  "connect.inference_stop": z.object({ device_id: id, job_id: id }).strict(),
   "connect.file_start": z.object({ transfer_id: id }).strict(),
   "connect.file_cancel": z.object({ transfer_id: id }).strict(),
   "connect.file_dismiss": z.object({ transfer_id: id }).strict(),
@@ -39,6 +41,7 @@ export const connectSchemas = {
     .object({
       device_id: id,
       capability: z.enum([
+        "models.remote",
         "files.send",
         "files.receive",
         "connect.ping",

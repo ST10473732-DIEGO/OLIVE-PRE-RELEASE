@@ -17,6 +17,8 @@ class ChatController:
         self.partials = {}
         self.images = {}
         self.suggestions = {}
+        self.targets = {}  # Explicit session-local selection; restart defaults local.
+        self.remote_providers = {}
 
     def list(self):
         return [
@@ -30,6 +32,8 @@ class ChatController:
         value["documents"] = [ref.to_dict() for ref in chat.documents]
         value["generating"] = chat.id in self.generations
         value["partial"] = self.partials.get(chat.id, "")
+        value['run_on'] = self.targets.get(chat.id, '')
+        value['remote_provider'] = self.remote_providers.get(chat.id)
         value["images"] = [{"name": name} for name, _ in self.images.get(chat.id, [])]
         interaction = getattr(self.s, "interaction", None)
         context = interaction.contexts.get(chat.id) if interaction else None
@@ -76,6 +80,19 @@ class ChatController:
         self.s.save_chats()
         return {"chat_id": chat_id, "saved": True}
 
+    def run_on(self, chat_id, device_id):
+        from ..connect.contracts import identifier
+        interaction = getattr(self.s, 'interaction', None)
+        if (chat_id not in self.s.chats or chat_id in self.generations or
+                interaction and (chat_id in interaction.active or interaction.interpreting.get(chat_id))):
+            raise ValueError('Finish the current request before changing its target')
+        if device_id:
+            identifier(device_id)
+            if self.s.connect.device(device_id)['trust_state'] != 'paired':
+                raise ValueError('The device is not paired')
+        self.targets[chat_id] = device_id
+        return self.get(chat_id)
+
     def delete(self, chat_id):
         interaction = getattr(self.s, "interaction", None)
         if interaction and (chat_id in interaction.active or interaction.interpreting.get(chat_id)):
@@ -87,6 +104,7 @@ class ChatController:
         for ref in self.s.chats[chat_id].documents:
             self.s.rag.delete_document(ref.id)
         del self.s.chats[chat_id]
+        self.targets.pop(chat_id, None)
         self.images.pop(chat_id, None)
         self.s.current_chat_id = next(iter(self.s.chats))
         self.s.save_chats()
@@ -105,12 +123,18 @@ class ChatController:
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
+        remote = self.targets.get(chat_id)
         images = [data for _, data in self.images.get(chat_id, [])]
         try:
-            if any(not ref.indexed for ref in chat.documents):
+            if remote and (images or chat.documents or selected_document_id):
+                raise ValueError('Remote AI is text only. Remove attachments before sending; their bytes are not shared.')
+            if remote and chat.preset not in ('fast', 'normal', 'max'):
+                raise ValueError('Remote AI supports OLIVE FAST, NORMAL and MAX. DEEP and REIMAGINE are unavailable remotely.')
+            if not remote and any(not ref.indexed for ref in chat.documents):
                 raise ValueError("Wait for attached documents to finish indexing, or remove failed attachments")
-            self.s.presets.require(chat)
-            if not chat.model:
+            if not remote:
+                self.s.presets.require(chat)
+            if not remote and not chat.model:
                 raise ValueError("Select an installed Ollama chat model first")
             if images and chat.preset != "deep" and not await self.s.ollama.is_vision_model(chat.model):
                 raise ValueError("Choose a vision-capable model before sending images")
@@ -131,6 +155,8 @@ class ChatController:
                 or chat.messages[-2].role != "user"
             ):
                 raise ValueError("No answer is available to regenerate")
+            if remote and not chat.messages[-1].provider:
+                raise ValueError('Action results cannot be regenerated as Remote AI answers.')
             previous = chat.messages.pop()
             text = chat.messages[-1].content
         else:
@@ -148,9 +174,17 @@ class ChatController:
         prepared = None
         stream = None
         completed = False
+        provider = None
         try:
             selection = {"selected_document_id": selected_document_id} if selected_document_id else {}
-            stream, prepared = await self.s.chat_service.stream_reply(chat, text, image_base64=images, **selection)
+            if remote:
+                stream, provider = self.s.remote_inference.prepare(remote, chat.preset, chat.messages)
+                self.remote_providers[chat_id] = provider
+                self.s.publish('interaction_activity', {'chat_id': chat_id,
+                    'message': 'Thinking on ' + provider['device_name'] + '…'})
+                self.s.publish('chat', self.get(chat_id))
+            else:
+                stream, prepared = await self.s.chat_service.stream_reply(chat, text, image_base64=images, **selection)
             last_emit = 0.0
             async for token in stream:
                 full += token
@@ -161,21 +195,28 @@ class ChatController:
             completed = True
         except asyncio.CancelledError:
             self.s.publish("notification", {"kind": "info", "message": "Generation stopped"})
+        except Exception as error:
+            if remote:
+                from ..connect.inference_client import MESSAGES
+                from ..connect.contracts import ConnectError
+                code = str(error) if isinstance(error, ConnectError) else 'inference_failed'
+                raise ValueError(MESSAGES.get(code, 'Remote inference failed. No local fallback was used.')) from None
+            raise
         finally:
             if stream and hasattr(stream, "aclose"):
                 await stream.aclose()
-            if full.strip() and prepared:
+            if full.strip() and (prepared or provider):
                 final = full.strip()
                 message = chat.add_message(
                     "assistant",
                     final,
-                    sources=[r.source_dict() for r in prepared.rag_results],
-                    memory_ids=[m.id for m in prepared.memories],
-                    grounding=self.s.grounding.analyze(final, prepared.rag_results).to_dict(),
+                    sources=[r.source_dict() for r in prepared.rag_results] if prepared else [],
+                    memory_ids=[m.id for m in prepared.memories] if prepared else [],
+                    grounding=self.s.grounding.analyze(final, prepared.rag_results).to_dict() if prepared else None,
                 )
                 message.completion_state = "complete" if completed else "incomplete"
                 info = next((m for m in self.s.model_infos if m.name == chat.model), None)
-                message.provider = {"runtime": "Ollama", "model": chat.model,
+                message.provider = provider or {"runtime": "Ollama", "model": chat.model,
                                     "digest": getattr(info, "digest", ""), "preset": chat.preset}
                 branches = chat.response_branches.setdefault(str(user_index), [])
                 for value in ([previous.content] if previous else []) + [final]:
@@ -191,9 +232,10 @@ class ChatController:
                     chat.documents.remove(ref)
             self.generations.pop(chat_id, None)
             self.partials.pop(chat_id, None)
+            self.remote_providers.pop(chat_id, None)
             self.s.save_chats()
             self.s.publish("chat", self.get(chat_id))
-        if not regenerate and self.s.settings.get("automatic_memory_suggestions", True):
+        if not remote and not regenerate and self.s.settings.get("automatic_memory_suggestions", True):
             proposals = self.s.memory_suggestions.suggest(
                 text, chat.id, user_index, chat.messages[user_index].id
             )
@@ -222,6 +264,7 @@ class ChatController:
             chat.messages[user_index + 1].sources = []
             chat.messages[user_index + 1].memory_ids = []
             chat.messages[user_index + 1].grounding = None
+            chat.messages[user_index + 1].provider = {}
             chat.messages[user_index + 1].completion_state = "unverified"
             chat.branch_index[key] = index
             self.s.save_chats()
