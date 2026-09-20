@@ -178,10 +178,10 @@ OLIVE was formerly named DMDO. See [the rebrand compatibility map](docs/OLIVE_RE
 - C1–C3: device identity, explicit pairing, permissions and opt-in authenticated local transport.
 - C4/C4.1: [Devices workspace and trusted local Ask approvals](docs/OLIVE_CONNECT_C4.md), with [ordinary desktop pairing and completion recovery](docs/OLIVE_CONNECT_C4_PAIRING.md).
 - C5: [Structured record sync](docs/OLIVE_CONNECT_C5.md): Tasks, Calendar, Reminders and selected Chat continuity; shared data, never shared authority.
-- C6: file transfer.
+- C6: [Secure inert file transfer](docs/OLIVE_CONNECT_C6.md): bounded authenticated bytes, OLIVE Inbox and explicit local Save.
 - C7: remote AI.
 - C8: remote Studio.
 - C9: OLIVE Mobile.
 - C10: Internet direct / relay.
 
-C6–C10 remain future work; C5 does not add remote action capabilities.
+C7–C10 remain future work. C5 structured records and C6 inert files do not grant remote execution or filesystem access.
