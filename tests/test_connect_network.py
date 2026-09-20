@@ -257,6 +257,75 @@ class NetworkTests(unittest.TestCase):
         self.assertNotIn(self.b.local_id, self.na.targets)
         self.assertEqual(self.na.status(self.b.local_id)['state'], 'offline')
 
+    def test_disconnect_waits_for_peer_retirement_before_immediate_reconnect(self):
+        channel = self.connect(); self.allow()
+        remote = self.nb.channels[self.a.local_id]
+        local_retired, remote_retiring, release = (threading.Event() for _ in range(3))
+        local_finished, remote_finished = self.na.finished, self.nb.finished
+
+        def finished_local(worker, reason):
+            local_finished(worker, reason)
+            if worker is channel:
+                local_retired.set()
+
+        def held_remote(worker, reason):
+            if worker is remote:
+                remote_retiring.set()
+                if not release.wait(4):
+                    raise AssertionError('peer retirement was not released')
+            remote_finished(worker, reason)
+
+        with patch.object(self.na, 'finished', finished_local), \
+             patch.object(self.nb, 'finished', held_remote), ThreadPoolExecutor(1) as pool:
+            completion = pool.submit(self.na.disconnect, self.b.local_id)
+            try:
+                self.assertTrue(local_retired.wait(3))
+                self.assertTrue(remote_retiring.wait(3))
+                self.assertFalse(completion.done())
+                self.assertNotEqual(channel.sock.fileno(), -1)
+                self.assertNotIn(self.b.local_id, self.na.channels)
+                with self.assertRaisesRegex(ConnectError, 'connection_closed'):
+                    channel.request(canonical(request(self.a, self.b)))
+            finally:
+                release.set()
+            completion.result(4)
+        # No peer-map polling, sleep or reconnect retry between return and connect.
+        replacement = self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
+        self.assertTrue(replacement.request(canonical(request(self.a, self.b)))['result']['pong'])
+        self.assertIsNot(replacement, channel)
+        remote.thread.join(4)
+        self.assertFalse(remote.thread.is_alive())
+        self.assertFalse(channel.thread.is_alive())
+        self.assertEqual(channel.sock.fileno(), -1)
+        self.assertEqual(remote.sock.fileno(), -1)
+
+    def test_disconnect_peer_retirement_timeout_is_not_success(self):
+        channel = self.connect()
+        remote = self.nb.channels[self.a.local_id]
+        entered, release = threading.Event(), threading.Event()
+        finished = self.nb.finished
+
+        def held_remote(worker, reason):
+            if worker is remote:
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('peer retirement was not released')
+            finished(worker, reason)
+
+        with patch.object(self.nb, 'finished', held_remote), \
+             patch('olive.connect.network.WRITE_TIMEOUT', .1), ThreadPoolExecutor(1) as pool:
+            completion = pool.submit(self.na.disconnect, self.b.local_id)
+            try:
+                self.assertTrue(entered.wait(3))
+                with self.assertRaisesRegex(ConnectError, 'disconnect_timeout'):
+                    completion.result(4)
+                self.assertFalse(channel.thread.is_alive())
+                self.assertEqual(channel.sock.fileno(), -1)
+                self.assertNotIn(self.b.local_id, self.na.targets)
+            finally:
+                release.set()
+        remote.thread.join(4)
+
     def test_channel_close_snapshot_and_disable_join(self):
         from olive.connect.workspace import DevicesWorkspace
         channel = self.connect(); self.allow()

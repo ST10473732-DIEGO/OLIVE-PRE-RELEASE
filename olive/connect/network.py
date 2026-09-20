@@ -55,6 +55,8 @@ class Channel:
         self.stop = threading.Event()
         # Protected by owner.lock; explicit local intent outlives worker cleanup.
         self.locally_disconnected = False
+        self.graceful_disconnect = False
+        self.peer_closed = False
         self.ready = Future()
         self.writes = queue.Queue(MAX_PENDING)
         self.pending = {}
@@ -368,15 +370,50 @@ class Channel:
             self.failure_category = type(error).__name__
             reason = 'tls_or_connection_failed'
         finally:
-            self.close()
-            self.sock.close()
-            if not self.ready.done():
-                self.ready.set_exception(ConnectError(reason))
-            with self.lock:
-                for future in self.pending.values():
-                    if not future.done():
-                        future.set_exception(ConnectError('connection_closed'))
-            self.owner.finished(self, reason)
+            # Revoke authority before publishing EOF. A peer waiting for EOF
+            # may immediately establish a fresh authenticated channel.
+            self.stop.set()
+            try:
+                if not self.ready.done():
+                    self.ready.set_exception(ConnectError(reason))
+                with self.lock:
+                    for future in self.pending.values():
+                        if not future.done():
+                            future.set_exception(ConnectError('connection_closed'))
+                self.owner.finished(self, reason)
+                if self.graceful_disconnect:
+                    self.peer_closed = self.drain_disconnect()
+            finally:
+                self.close()
+                self.sock.close()
+                with self.owner.lock:
+                    self.owner.workers.discard(self)
+
+    def drain_disconnect(self):
+        """Worker-only half-close barrier; no TLS/application work after this.
+
+        FIN makes the peer's TLS reader retire its channel. Its EOF is published
+        only after authority cleanup above. Discard in-flight encrypted bytes;
+        they cannot become responses or actions on a disconnected channel.
+        """
+        deadline = time.monotonic() + WRITE_TIMEOUT
+        try:
+            self.sock.shutdown(socket.SHUT_WR)
+            while time.monotonic() < deadline:
+                readable, _, _ = select.select([self.sock], [], [], max(0, deadline - time.monotonic()))
+                if not readable:
+                    break
+                try:
+                    if not self.sock.recv(16384):
+                        return True
+                except (BlockingIOError, InterruptedError):
+                    continue
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            # A peer reset also retires its transport.
+            return True
+        except OSError:
+            return False
+        return False
 
     def close(self):
         self.stop.set()
@@ -591,11 +628,7 @@ class LocalNetwork:
                     self.states[peer] = dict(state='failed', error=reason)
             if affected:
                 self.service.files.invalidate(peer, 'connection_closed')
-        try:
-            self.audit(peer, 'connection_closed' if channel.peer else 'connection_failed')
-        finally:
-            with self.lock:
-                self.workers.discard(channel)
+        self.audit(peer, 'connection_closed' if channel.peer else 'connection_failed')
 
     def status(self, peer):
         with self.lock:
@@ -631,7 +664,13 @@ class LocalNetwork:
                 workers = [c for c in self.workers if peer in (c.peer, c.expected)]
                 for channel in workers:
                     channel.locally_disconnected = True
-                    channel.close()
+                    if wait and not revoked and channel.ready.done() and not channel.stop.is_set():
+                        # The owning worker finishes its last TLS call, removes
+                        # authority, half-closes and waits for the peer to retire.
+                        channel.graceful_disconnect = True
+                        channel.stop.set()
+                    else:
+                        channel.close()
                 self.channels.pop(peer, None)
                 self.states[peer] = dict(state='offline', error='device_revoked' if revoked else None)
             self.service.files.invalidate(peer, 'device_revoked' if revoked else 'connection_closed')
@@ -641,6 +680,8 @@ class LocalNetwork:
                 if channel.thread is not threading.current_thread():
                     channel.thread.join(max(0, deadline - time.monotonic()))
             if any(c.thread.is_alive() and c.thread is not threading.current_thread() for c in workers):
+                raise ConnectError('disconnect_timeout')
+            if any(c.graceful_disconnect and not c.peer_closed for c in workers):
                 raise ConnectError('disconnect_timeout')
         if revoked:
             self.audit(peer, 'revoked_connection_closed')

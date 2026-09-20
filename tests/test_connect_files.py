@@ -388,16 +388,18 @@ class FileTests(unittest.TestCase):
             if not release.wait(4):
                 raise AssertionError('invalidation not released')
             return original(*args, **kwargs)
-        with patch.object(self.b.files, 'invalidate', held_invalidate):
+        with patch.object(self.b.files, 'invalidate', held_invalidate), ThreadPoolExecutor(1) as pool:
+            completion = pool.submit(self.na.disconnect, self.b.local_id)
             try:
-                self.na.disconnect(self.b.local_id)
                 self.assertTrue(entered.wait(4))
+                self.assertFalse(completion.done(), 'disconnect returned before peer file cleanup')
                 acquired = self.b.files.lock.acquire(blocking=False)
                 if acquired:
                     self.b.files.lock.release()
                 self.assertFalse(acquired, 'old teardown exposed fresh file admission')
             finally:
                 release.set()
+            completion.result(4)
         self.channel = self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
         fresh = self.send_file()
         self.assertNotEqual(fresh['transfer_id'], offer.transfer_id)

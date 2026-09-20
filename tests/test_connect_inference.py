@@ -364,10 +364,22 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         for _ in range(5):
             self.assertEqual((await self.send(self.start_request()))['error'], 'busy')
         self.assertEqual((await self.send(self.start_request()))['error'], 'rate_limited')
+        old = self.channel
+        remote = self.nb.channels[self.a.local_id]
+        admission_budget = self.b.inference.rates[self.a.local_id]
+        transport_budget = self.nb.inference_rates[self.a.local_id]
         await asyncio.to_thread(self.na.disconnect, self.b.local_id)
+        self.assertFalse(old.thread.is_alive())
+        self.assertEqual(old.sock.fileno(), -1)
+        self.assertTrue(remote.stop.is_set())
+        self.assertIsNot(self.nb.channels.get(self.a.local_id), remote)
+        # No inference cleanup wait, peer-map polling or retry before reconnect.
         self.channel = await asyncio.to_thread(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
         self.assertEqual((await self.send(self.start_request()))['error'], 'rate_limited')
+        self.assertIs(self.b.inference.rates[self.a.local_id], admission_budget)
+        self.assertIs(self.nb.inference_rates[self.a.local_id], transport_budget)
         self.assertEqual(len(self.eb.calls), 1)
+        await self.released(req)
 
     async def test_local_remote_model_transitions(self):
         await self.policy('allow')
