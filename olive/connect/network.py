@@ -2,6 +2,7 @@
 from collections import deque
 from contextlib import nullcontext
 from concurrent.futures import Future
+import errno
 import ipaddress
 import json
 import queue
@@ -27,6 +28,9 @@ REQUEST_TIMEOUT = 5.0
 IDLE_TIMEOUT = 60.0
 MAX_CONNECTIONS = 8
 MAX_PENDING = 8
+PEER_CLOSED_ERRNOS = frozenset(getattr(errno, name) for name in (
+    'ECONNRESET', 'ECONNABORTED', 'ENOTCONN', 'EPIPE',
+    'WSAECONNRESET', 'WSAECONNABORTED', 'WSAENOTCONN') if hasattr(errno, name))
 
 
 class Budget:
@@ -56,7 +60,7 @@ class Channel:
         # Protected by owner.lock; explicit local intent outlives worker cleanup.
         self.locally_disconnected = False
         self.graceful_disconnect = False
-        self.peer_closed = False
+        self.peer_closed = False  # Latched EOF/reset for this exact socket only.
         self.ready = Future()
         self.writes = queue.Queue(MAX_PENDING)
         self.pending = {}
@@ -327,6 +331,7 @@ class Channel:
             while len(received) < len(hello):
                 part = self.io(lambda: self.tls.recv(len(hello) - len(received)), deadline)
                 if not part:
+                    self.peer_closed = True
                     raise ConnectError('connection_closed')
                 received.extend(part)
             if bytes(received) != hello:
@@ -351,6 +356,7 @@ class Channel:
                     select.select([self.sock], [], [], .05)
                     continue
                 if not data:
+                    self.peer_closed = True
                     raise ConnectError('connection_closed')
                 last = now
                 if not buffer:
@@ -367,6 +373,13 @@ class Channel:
         except ConnectError as error:
             reason = str(error)
         except Exception as error:
+            # OpenSSL can consume EOF before explicit disconnect sets its stop
+            # flag. Retain that terminal state instead of requiring a new EOF.
+            if isinstance(error, SSL.ZeroReturnError) or (
+                    isinstance(error, SSL.SysCallError) and (
+                        error.args == (-1, 'Unexpected EOF') or
+                        (error.args and error.args[0] in PEER_CLOSED_ERRNOS))):
+                self.peer_closed = True
             self.failure_category = type(error).__name__
             reason = 'tls_or_connection_failed'
         finally:
@@ -381,7 +394,7 @@ class Channel:
                         if not future.done():
                             future.set_exception(ConnectError('connection_closed'))
                 self.owner.finished(self, reason)
-                if self.graceful_disconnect:
+                if self.graceful_disconnect and not self.peer_closed:
                     self.peer_closed = self.drain_disconnect()
             finally:
                 self.close()
@@ -411,8 +424,10 @@ class Channel:
         except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
             # A peer reset also retires its transport.
             return True
-        except OSError:
-            return False
+        except OSError as error:
+            # An established socket can retire before TLS consumes its EOF.
+            # ENOTCONN is terminal state, not a missed retirement notification.
+            return error.errno in PEER_CLOSED_ERRNOS
         return False
 
     def close(self):
@@ -664,6 +679,10 @@ class LocalNetwork:
                 workers = [c for c in self.workers if peer in (c.peer, c.expected)]
                 for channel in workers:
                     channel.locally_disconnected = True
+                    if wait and not revoked and channel.graceful_disconnect:
+                        # Another caller already owns this exact retirement.
+                        # Join it; do not turn our own SHUT_RD into a false EOF.
+                        continue
                     if wait and not revoked and channel.ready.done() and not channel.stop.is_set():
                         # The owning worker finishes its last TLS call, removes
                         # authority, half-closes and waits for the peer to retire.

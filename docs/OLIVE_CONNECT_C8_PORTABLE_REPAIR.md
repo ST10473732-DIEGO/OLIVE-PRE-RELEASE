@@ -142,3 +142,90 @@ portable command passed with all original file-admission assertions retained.
 The repair must still be pushed by an authorized user and verified on both
 hosted runners before claiming Ubuntu/Windows hosted success. No push, merge,
 tag, release or C9 work occurred during this repair.
+
+## Final Ubuntu follow-up: EOF already consumed before disconnect
+
+At the start of this follow-up, the user reported hosted Windows Connect green
+and one Ubuntu failure in
+`NetworkTests.test_malformed_request_unknown_capability_and_message_type`, during
+`disconnect_and_join()`. All hosted C8 Studio tests passed. The changes below
+preserve the active-peer retirement barrier from `3933711`.
+
+### Exact failing transition
+
+The first two test payloads are malformed JSON and an unknown capability. B's C1
+receiver returns a rejection with no decoded request ID. A cannot correlate that
+response and closes with `invalid_response`. Thus **A closes first** in these
+cases; the test name does not imply B's worker closes first. The last payload, an
+unknown frame kind, instead fails framing on B. Neither malformed path gains
+authority or executes a request.
+
+The failing cleanup schedule was reproduced with real TLS and Events:
+
+1. A closes and joins its worker; its descriptor is closed and authority removed.
+2. B's TLS receive has consumed A's EOF and raised
+   `SSL.SysCallError(-1, 'Unexpected EOF')`, but B has not yet processed that
+   exception in `Channel.run()`. The regression holds this exact boundary.
+3. B still has `stop == false` and owns its old channel-map entry. Explicit
+   disconnect captures this exact worker and sets `graceful_disconnect`.
+4. B processes EOF, removes its authority and finishes cleanup. Before this fix,
+   it did not retain the observed EOF in `peer_closed`.
+5. Its redundant `shutdown(SHUT_WR)` returns Linux `ENOTCONN` (107). Instrumented
+   real sockets confirmed this native error. `drain_disconnect()` classified it
+   as failure, leaving `peer_closed == false` even after B's worker joined.
+6. Disconnect therefore raised `disconnect_timeout`. This was a false timeout
+   caused by discarded terminal state, not an elapsed wait for a live peer.
+
+Both the malformed-response and remote-close event-gated regressions failed on
+the previous implementation with that exception. Unforced baseline repetitions
+did not reliably expose the scheduling window.
+
+### State repair and generation safety
+
+Only `olive/connect/network.py` changes production behavior. EOF, TLS close and
+known native disconnect/reset errors now latch `peer_closed` on the exact
+`Channel` object. After authority cleanup, an already-observed terminal state
+satisfies the peer-retirement barrier without trying to obtain another EOF.
+`ENOTCONN` also counts as terminal state if the kernel retired the established
+socket before TLS observed it. Other socket errors still fail; a live peer that
+does not retire still produces `disconnect_timeout`.
+
+No timeout changed. No sleep, reconnect retry, catch-and-ignore, protocol
+exception downgrade or unconditional success path was added. The existing
+worker join remains the completion signal. EOF state is never shared by peer ID:
+a fresh channel starts with `peer_closed == false`. Existing exact-object checks
+in `finished()` still prevent an old worker from removing a replacement channel.
+Concurrent repeated disconnect callers join the same graceful retirement rather
+than issuing another local read shutdown, which could masquerade as peer EOF.
+Malformed frames continue to close their channel, and C2/C3 security, explicit
+disconnect intent, revocation and C6–C8 invalidation remain unchanged.
+
+`tests/test_connect_network.py` adds real-TLS regressions for consumed EOF during
+malformed cleanup, consumed EOF after remote close, repeated post-retirement
+disconnect, concurrent repeated disconnect, and delayed old-worker cleanup while
+a replacement is already live.
+The existing live-disconnect/reconnect and genuinely-stalled-peer tests remain
+unchanged. Events and worker joins select the failing transitions.
+
+Final local checks use the project venv and the already-installed toolchains:
+
+| Check | Result |
+| --- | --- |
+| Malformed cleanup test repetitions after final repair | 100/100 passed |
+| Live-disconnect/immediate-reconnect repetitions | 50/50 passed |
+| Genuinely stalled peer timeout repetitions | 50/50 passed |
+| Concurrent repeated disconnect repetitions | 20/20 passed |
+| Complete network module | 43 passed: 39 NetworkTests and 4 wire/budget tests |
+| Exact portable Connect workflow command | 226 passed |
+| Full Python discovery | 1,080 tests: 1,072 passed, 8 platform skips |
+| Frontend | 50 passed in 14 files |
+| Typecheck / lint / production build | All passed |
+| Repository Python source compilation | All 653 sources passed |
+| Literal whole-tree compileall | Same existing ignored PySide6 Jinja-template syntax error |
+| Diff whitespace / branding / secrets / user-data review | Passed |
+
+Production changes are confined to `olive/connect/network.py`; regressions are
+in `tests/test_connect_network.py`, and this document records the evidence.
+Full discovery emitted the same existing 26-uncollectable-object shutdown warning.
+This repair is not a claim of hosted Ubuntu success; a later authorized push
+must verify that result. No push, merge, tag, release or C9 work is included.

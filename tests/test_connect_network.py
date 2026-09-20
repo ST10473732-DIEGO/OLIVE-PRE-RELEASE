@@ -326,6 +326,150 @@ class NetworkTests(unittest.TestCase):
                 release.set()
         remote.thread.join(4)
 
+    def disconnect_after_peer_eof(self, *, malformed):
+        from OpenSSL import SSL
+        channel = self.connect()
+        remote = self.nb.channels[self.a.local_id]
+        with self.na.lock:
+            self.na.targets.pop(self.b.local_id, None)
+        eof, release, disconnecting = (threading.Event() for _ in range(3))
+        receive, invalidate = remote.tls.recv, self.b.files.invalidate
+
+        def observed_eof():
+            eof.set()
+            if not release.wait(4):
+                raise AssertionError('observed peer EOF was not released')
+
+        def held_receive(*args, **kwargs):
+            try:
+                data = receive(*args, **kwargs)
+            except (SSL.ZeroReturnError, SSL.SysCallError):
+                observed_eof()
+                raise
+            if not data:
+                observed_eof()
+            return data
+
+        def entered_disconnect(*args, **kwargs):
+            result = invalidate(*args, **kwargs)
+            if threading.current_thread() is not remote.thread:
+                disconnecting.set()
+            return result
+
+        with patch.object(remote.tls, 'recv', held_receive), \
+             patch.object(self.b.files, 'invalidate', entered_disconnect), ThreadPoolExecutor(1) as pool:
+            try:
+                if malformed:
+                    channel.writes.put_nowait(frame(1, b'{'))
+                else:
+                    channel.close()
+                self.assertTrue(eof.wait(3))
+                channel.thread.join(4)
+                self.assertFalse(channel.thread.is_alive())
+                self.assertEqual(channel.sock.fileno(), -1)
+                # The exact peer transport is gone, but its TLS EOF has not yet
+                # reached run()'s exception/finally transition on this worker.
+                self.assertFalse(remote.stop.is_set())
+                self.assertIs(self.nb.channels.get(self.a.local_id), remote)
+                completion = pool.submit(self.nb.disconnect, self.a.local_id)
+                self.assertTrue(disconnecting.wait(3))
+                self.assertFalse(completion.done())
+                self.assertTrue(remote.graceful_disconnect)
+                release.set()
+                completion.result(4)
+            finally:
+                release.set()
+        self.assertTrue(remote.peer_closed)
+        self.assertFalse(remote.thread.is_alive())
+        self.assertEqual(remote.sock.fileno(), -1)
+        # Retired workers and repeated cleanup must not require a new EOF edge.
+        for _ in range(2):
+            self.disconnect_and_join()
+        self.assertFalse(self.na.targets)
+        self.assertFalse(self.nb.targets)
+        self.allow()
+        replacement = self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
+        self.assertTrue(replacement.request(canonical(request(self.a, self.b)))['result']['pong'])
+
+    def test_disconnect_after_malformed_protocol_observed_eof_is_idempotent(self):
+        self.disconnect_after_peer_eof(malformed=True)
+
+    def test_disconnect_after_remote_close_observed_eof_is_idempotent(self):
+        self.disconnect_after_peer_eof(malformed=False)
+
+    def test_repeated_disconnect_joins_same_live_retirement(self):
+        channel = self.connect()
+        remote = self.nb.channels[self.a.local_id]
+        entered, release, both_callers = (threading.Event() for _ in range(3))
+        finished, invalidate = self.nb.finished, self.a.files.invalidate
+        calls = []
+
+        def held_finished(worker, reason):
+            if worker is remote:
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('peer retirement was not released')
+            finished(worker, reason)
+
+        def invalidated(*args, **kwargs):
+            result = invalidate(*args, **kwargs)
+            calls.append(True)  # Both callers hold files.lock here.
+            if len(calls) == 2:
+                both_callers.set()
+            return result
+
+        with patch.object(self.nb, 'finished', held_finished), \
+             patch.object(self.a.files, 'invalidate', invalidated), \
+             patch.object(channel, 'close', wraps=channel.close) as close, ThreadPoolExecutor(2) as pool:
+            first = pool.submit(self.na.disconnect, self.b.local_id)
+            try:
+                self.assertTrue(entered.wait(3))
+                second = pool.submit(self.na.disconnect, self.b.local_id)
+                self.assertTrue(both_callers.wait(3))
+                close.assert_not_called()
+                self.assertFalse(first.done())
+                self.assertFalse(second.done())
+            finally:
+                release.set()
+            first.result(4); second.result(4)
+        self.assertTrue(channel.peer_closed)
+        self.assertFalse(channel.thread.is_alive())
+        self.assertEqual(channel.sock.fileno(), -1)
+
+    def test_old_worker_retirement_cannot_clear_replacement_or_share_eof(self):
+        channel = self.connect(); self.allow()
+        remote = self.nb.channels[self.a.local_id]
+        with self.na.lock:
+            self.na.targets.pop(self.b.local_id, None)
+        entered, release = threading.Event(), threading.Event()
+        finished = self.na.finished
+
+        def held_finished(worker, reason):
+            if worker is channel:
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('old worker retirement was not released')
+            finished(worker, reason)
+
+        with patch.object(self.na, 'finished', held_finished):
+            try:
+                remote.close()
+                remote.thread.join(4)
+                self.assertFalse(remote.thread.is_alive())
+                self.assertTrue(entered.wait(3))
+                replacement = self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
+                self.assertIsNot(replacement, channel)
+                self.assertTrue(channel.peer_closed)
+                self.assertFalse(replacement.peer_closed)
+            finally:
+                release.set()
+                channel.thread.join(4)
+        self.assertFalse(channel.thread.is_alive())
+        self.assertIs(self.na.channels[self.b.local_id], replacement)
+        self.assertEqual(self.na.status(self.b.local_id)['state'], 'online')
+        self.assertFalse(replacement.peer_closed)
+        self.assertTrue(replacement.request(canonical(request(self.a, self.b)))['result']['pong'])
+
     def test_channel_close_snapshot_and_disable_join(self):
         from olive.connect.workspace import DevicesWorkspace
         channel = self.connect(); self.allow()
