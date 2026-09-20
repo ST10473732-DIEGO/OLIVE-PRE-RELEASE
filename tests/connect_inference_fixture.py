@@ -25,6 +25,9 @@ class Engine:
         self.started = asyncio.Event()
         self.stopped = asyncio.Event()
         self.release = asyncio.Event()
+        self.cleanup_entered = asyncio.Event()
+        self.cleanup_release = asyncio.Event()
+        self.hold_cleanup = False
         self.parts = ['First visible delta. ' * 20, 'Second visible delta. ' * 20]
 
     async def list(self):
@@ -65,6 +68,9 @@ class Engine:
                     yield {'done': True, 'done_reason': 'length' if self.mode == 'token_limit' else 'stop',
                            'message': {'content': '', 'thinking': 'SECRET'}}
             finally:
+                self.cleanup_entered.set()
+                if self.hold_cleanup:
+                    await self.cleanup_release.wait()
                 self.stopped.set()
         return parts()
 

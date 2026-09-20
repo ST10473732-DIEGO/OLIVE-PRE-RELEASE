@@ -207,6 +207,11 @@ bridge error allowlist; raw exceptions, paths and provider diagnostics do not.
 Requester Stop sends cancellation for its exact peer/job. Target Stop uses the
 trusted local Devices route. Both cancel the runtime coroutine, close the existing
 provider stream and release its residency lease. Repeated cancellation is inert.
+Cancel responses, terminal stream responses and the trusted target Stop call wait
+for the actual task's release acknowledgement, outside service/database locks.
+Logical terminal state suppresses output immediately; it alone is not proof of
+runtime release. The five-second release deadline returns a bounded timeout on
+failure instead of a successful cancellation acknowledgement.
 Another peer cannot cancel, poll or recover this job. Connection loss cancels the
 exact channel's jobs, so old cleanup cannot cancel work on a replacement channel.
 Revocation also closes C3 and prevents fresh authentication and result recovery.
@@ -355,3 +360,98 @@ Next stages remain **C8 Remote Studio**, **C9 OLIVE Mobile**, **C10 Internet
 direct / relay**. None is implemented here. No remote shell, project execution,
 Desktop Control, browsing, Research, Mail, media, target-private retrieval or
 automatic multi-device scheduling is exposed by C7.
+
+## Windows portable cancellation repair
+
+The first hosted run was reported as Ubuntu green and Windows 195 passed / one
+failure out of 196. The failing two-process assertion was
+`assertFalse(call(1, 'counts')['active'])`. This repair is local evidence only;
+hosted Windows must verify the repair after a separately authorized push.
+
+### Root cause and synchronization
+
+`counts.active` is exactly `bool(service.inference.active)`. It is not a logical
+request-state flag. `_admit` sets it to the owning job; `_run` clears it through
+`_release` after closing the remote runtime stream. OllamaService closes the
+engine stream before leaving ModelResidencyService's lease.
+
+Previously, the cancel dispatcher committed `cancelled`, called the
+`run_coroutine_threadsafe` concurrent Future's `cancel()`, and immediately sent
+the response. That Future becomes cancelled before its actual asyncio task has
+finished unwinding. The fixture's engine `stopped` event was also too early to
+prove outer lease/job release: it is emitted inside the engine generator's
+`finally`. Thus both the response and that fixture event could precede
+`active = None`. No cross-thread/process happens-before relationship prevented
+the Windows pipe command from observing the still-active job. Linux usually
+completed cleanup before that observation. There is no evidence requiring a
+Windows-specific event-loop, pipe or provider workaround.
+
+A test-controlled engine cleanup Event reproduced the same premature response
+on Linux before the fix: the response was `cancelled` while active ownership
+remained true. The original assertion was preserved and strengthened.
+
+Each scheduled job now has a `threading.Event` acknowledgement set by the actual
+asyncio Task's done callback, after provider close, residency release, active-slot
+release and task exit. The scheduled-owner registry also covers work cancelled
+before its coroutine starts. Job futures are not prematurely cancelled; a shared
+helper requests actual Task cancellation once, and repeated cancellation does
+not interrupt asynchronous provider cleanup a second time.
+
+The protocol waits for this event before sending a terminal result. It commits
+the logical cancellation immediately to stop output, releases its repository
+transaction and service lock while waiting, then rechecks current authority and
+rebuilds the result inside the existing transmission transaction. Target Stop
+waits for the same event. Disconnect, revocation, permission removal, monitor
+expiry, Connect disable and shutdown use the same cancellation helper and job
+completion signal. Authority removal remains immediate; shutdown explicitly
+awaits outstanding owners. A release timeout is a bounded failure, not a false
+successful completion. Counts continue to report actual state.
+
+### Regression evidence
+
+The engine-only fixture can hold its `finally` behind an `asyncio.Event` while
+the real C3 protocol and model-service/residency stack remain running. Tests prove
+requester cancellation and trusted target Stop remain pending while cleanup is
+held, ownership stays visible, and release permits completion. A repeated
+invalidation cannot skip the held cleanup. Existing disconnect, revocation and
+permission tests now also assert the release signal and empty task/owner state.
+
+The ordinary-process command waits for the existing requester Chat task's full
+cancellation/persistence flow, just as the original test's subsequent `wait_chat`
+did. Immediately afterward the regression asserts active false, residency
+inactive, zero queued jobs, zero inference tasks and provider stopped, without
+waiting for the earlier engine event. It checks no subsequent stream event and
+a successful next inference. The separate processes, real TLS, approvals,
+permissions, quotas and native Chat ownership are unchanged.
+
+The strengthened ordinary-process acceptance passed **50 consecutive independent
+repetitions**, each with fresh processes/profiles and unchanged quotas, in 97.025
+seconds. The runner was fail-fast; no failing acceptance was retried or counted
+as a pass. An initial stdin-based runner could not spawn its child main module;
+that launch error was excluded and replaced by a spawn-compatible `python -c`
+runner. The intentionally failing pre-fix reproduction is also excluded from
+passing regression totals.
+
+Final local repair validation (project Python 3.14 venv, Linux):
+
+| Check | Result |
+| --- | --- |
+| C7 inference and ordinary-process tests | **33 passed**, no skips/failures |
+| Exact C1–C7 Connect workflow command | **198 passed**, no skips/failures |
+| Full Python discovery | **1,052 run: 1,044 passed, 8 platform skips, 0 failures** |
+| Frontend tests | **49 passed in 14 files** |
+| Frontend typecheck / lint / build | All passed |
+| Source compilation | **641 repository Python files passed** |
+| Literal whole-tree compileall | Only the known venv PySide6 Android Jinja template failure; no OLIVE source failure |
+| Ordinary-process stress | **50/50 passed**, separate from the suite totals |
+
+The existing 26-object Python shutdown ResourceWarning remains documented; it
+is not counted as an ownership-release pass. Temporary evidence logs are
+`c7-cancel-red.log`, `c7-cancel-repeat-50.log`, `c7-cancel-c7-final.log`,
+`c7-cancel-connect-final.log`, `c7-cancel-python.log`, frontend/typecheck/lint/build
+logs with the same prefix, and `c7-cancel-compileall.log`. No profiles or secrets
+are included in the repair diff. No hosted repair success is claimed.
+
+This is a lifecycle-only change: no permission defaults, approval bindings,
+identity checks, fingerprints, model mappings, quotas, tool/context boundaries
+or Ollama exposure policy changed. No C8 work is included.

@@ -100,12 +100,19 @@ def worker(pipe, profile, values, live=False):
                     elif op == 'mode':
                         engine.mode = args[0]; engine.started.clear(); engine.stopped.clear(); result = True
                     elif op == 'cancel':
-                        services.chat.stop(services.current_chat_id); result = True
+                        services.chat.stop(services.current_chat_id)
+                        # The UI Stop requests cancellation; its existing Chat task
+                        # owns the full protocol cancellation/persistence flow.
+                        await asyncio.wait_for(asyncio.shield(task), 10)
+                        result = True
                     elif op == 'wait_stopped':
                         await asyncio.wait_for(engine.stopped.wait(), 5); result = True
                     elif op == 'counts':
                         result = dict(invocations=len(engine.calls), messages=len(services.chat.get()['messages']),
                             streams=sum(t == 'chat_stream' for t, _ in events), active=bool(service.inference.active),
+                            queued=sum(j.state == 'queued' for j in service.inference.jobs.values()),
+                            tasks=len(service.inference.tasks), residency_active=bool(services.ollama.residency.active),
+                            provider_stopped=engine.stopped.is_set(),
                             models=[c['model'] for c in engine.calls])
                     elif op == 'stored':
                         result = [c.to_dict() for c in services.chat_repo.load_all().values()]

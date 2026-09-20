@@ -55,6 +55,14 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
     async def policy(self, value, peer=None):
         await asyncio.to_thread(self.b.set_permission, peer or self.a.local_id, 'models.remote', value)
 
+    async def released(self, req):
+        job = self.b.inference.jobs[(self.a.local_id, req.job_id)]
+        self.assertTrue(await asyncio.to_thread(job.released.wait, 3))
+        self.assertIsNone(self.b.inference.active)
+        self.assertIsNone(self.sb.ollama.residency.active)
+        self.assertFalse(self.b.inference.tasks)
+        self.assertFalse(self.b.inference.owners)
+
     async def poll(self, req, after=0, channel=None, client=None):
         return await self.send((client or self.client).make(self.b.local_id, 'poll', job_id=req.job_id,
             arguments={'after': after}), channel)
@@ -170,8 +178,75 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(self.eb.started.wait(), 3)
         await self.policy('deny')
         await asyncio.wait_for(self.eb.stopped.wait(), 3)
+        await self.released(req)
         self.assertEqual((await self.poll(req))['error'], 'permission_denied')
         self.assertIsNone(self.sb.ollama.residency.active)
+
+    async def test_cancel_ack_waits_for_provider_cleanup(self):
+        await self.policy('allow')
+        self.eb.mode = 'long'
+        self.eb.hold_cleanup = True
+        req = self.start_request(); await self.send(req)
+        await asyncio.wait_for(self.eb.started.wait(), 3)
+        waiting = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        original = self.b.inference._wait_released
+        def observed(job):
+            loop.call_soon_threadsafe(waiting.set)
+            return original(job)
+        operation = None
+        try:
+            cancel = self.client.make(self.b.local_id, 'cancel', job_id=req.job_id)
+            with patch.object(self.b.inference, '_wait_released', observed):
+                operation = asyncio.create_task(self.send(cancel))
+                await asyncio.wait_for(self.eb.cleanup_entered.wait(), 3)
+                await asyncio.wait_for(waiting.wait(), 3)
+                self.assertFalse(operation.done())
+                self.assertIsNotNone(self.b.inference.active)
+                self.assertIsNotNone(self.sb.ollama.residency.active)
+                # Repeated cancellation must not interrupt the provider's cleanup.
+                await asyncio.to_thread(self.b.inference.invalidate, self.a.local_id, 'cancelled')
+                self.assertFalse(self.eb.stopped.is_set())
+                self.eb.cleanup_release.set()
+                result = await asyncio.wait_for(operation, 5)
+            self.assertEqual(result['result']['state'], 'cancelled')
+            self.assertIsNone(self.b.inference.active)
+            self.assertIsNone(self.sb.ollama.residency.active)
+            self.assertFalse(self.b.inference.tasks)
+            self.assertFalse(self.b.inference.owners)
+            self.assertTrue(self.eb.stopped.is_set())
+            self.assertEqual((await self.poll(req))['result']['events'], [])
+        finally:
+            self.eb.cleanup_release.set()
+            if operation:
+                await asyncio.gather(operation, return_exceptions=True)
+
+    async def test_target_stop_waits_for_provider_cleanup(self):
+        await self.policy('allow')
+        self.eb.mode = 'long'; self.eb.hold_cleanup = True
+        req = self.start_request(); await self.send(req)
+        await asyncio.wait_for(self.eb.started.wait(), 3)
+        self.host.services = self.sb
+        operation = asyncio.create_task(self.host.execute('connect.inference_stop',
+            dict(device_id=self.a.local_id, job_id=req.job_id)))
+        try:
+            await asyncio.wait_for(self.eb.cleanup_entered.wait(), 3)
+            self.assertFalse(operation.done())
+            self.assertIsNotNone(self.b.inference.active)
+            self.assertIsNotNone(self.sb.ollama.residency.active)
+            self.eb.cleanup_release.set()
+            await asyncio.wait_for(operation, 5)
+            self.assertIsNone(self.b.inference.active)
+            self.assertIsNone(self.sb.ollama.residency.active)
+            self.assertFalse(self.b.inference.tasks)
+            self.assertFalse(self.b.inference.owners)
+            self.assertEqual((await self.poll(req))['result']['events'], [])
+            self.eb.mode = 'normal'; self.eb.hold_cleanup = False
+            next_request = self.start_request(); await self.send(next_request)
+            self.assertEqual((await self.terminal(next_request))[0]['state'], 'completed')
+        finally:
+            self.eb.cleanup_release.set()
+            await asyncio.gather(operation, return_exceptions=True)
 
     async def test_queue_permission_recheck_and_local_priority(self):
         await self.policy('allow')
@@ -184,10 +259,11 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_revocation_closes_channel_cancels_and_denies_reconnect(self):
         await self.policy('allow'); self.eb.mode = 'long'
-        await self.send(self.start_request())
+        req = self.start_request(); await self.send(req)
         await asyncio.wait_for(self.eb.started.wait(), 3)
         await asyncio.to_thread(self.b.revoke, self.a.local_id)
         await asyncio.wait_for(self.eb.stopped.wait(), 3)
+        await self.released(req)
         await asyncio.to_thread(self.channel.thread.join, 4)
         self.assertTrue(self.channel.stop.is_set())
         with self.assertRaises(ConnectError):
@@ -202,6 +278,7 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(self.eb.started.wait(), 3)
         await asyncio.to_thread(self.na.disconnect, self.b.local_id)
         await asyncio.wait_for(self.eb.stopped.wait(), 3)
+        await self.released(req)
         self.assertIsNone(self.sb.ollama.residency.active)
         self.channel = await asyncio.to_thread(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
         self.assertEqual((await self.send(req))['error'], 'connection_lost')

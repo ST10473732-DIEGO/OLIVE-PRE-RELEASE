@@ -63,11 +63,25 @@ class InferenceProcessTests(unittest.TestCase):
                 call(1, 'mode', 'long')
                 call(0, 'send', ids[1], 'normal', 'Explain an iterator.')
                 self.assertTrue(call(0, 'wait_partial')['partial'])
+                self.assertTrue(call(1, 'counts')['active'])
                 call(0, 'cancel')
+                # No provider-event wait or polling may conceal a late release.
+                counts = call(1, 'counts')
+                self.assertFalse(counts['active'])
+                self.assertFalse(counts['residency_active'])
+                self.assertEqual(counts['queued'], 0)
+                self.assertEqual(counts['tasks'], 0)
+                self.assertTrue(counts['provider_stopped'])
                 cancelled = call(0, 'wait_chat')['chat']['messages'][-1]
                 self.assertEqual(cancelled['completion_state'], 'incomplete')
-                call(1, 'wait_stopped')
                 self.assertFalse(call(1, 'counts')['active'])
+                streams = call(0, 'counts')['streams']
+                call(0, 'targets')  # Real protocol turn; no stale deltas after Stop.
+                self.assertEqual(call(0, 'counts')['streams'], streams)
+                call(1, 'mode', 'normal')
+                call(0, 'send', ids[1], 'fast', 'Explain the next iterator.')
+                self.assertIsNone(call(0, 'wait_chat')['error'])
+                self.assertEqual(call(1, 'counts')['invocations'], counts['invocations'] + 1)
                 self.assertEqual(call(0, 'counts')['invocations'], 0)
             finally:
                 for pipe, process in zip(pipes, children):

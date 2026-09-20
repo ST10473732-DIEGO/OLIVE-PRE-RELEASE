@@ -2,7 +2,7 @@
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
-from threading import RLock
+from threading import Event, RLock
 import time
 
 from ..agent.permission_service import PermissionDecision, PermissionService
@@ -21,6 +21,9 @@ class Job:
     state: str = 'awaiting_approval'
     error: str | None = None
     future: object = None
+    task: object = None
+    cancel_requested: bool = False
+    released: Event = field(default_factory=Event)
     events: deque = field(default_factory=deque)
     sequence: int = 0
     acknowledged: int = 0
@@ -28,6 +31,9 @@ class Job:
     last_poll: float = 0
     ended: float = 0
     queued_at: float = 0
+
+    def __post_init__(self):
+        self.released.set()  # No runtime owner until execution is scheduled.
 
     @property
     def peer(self):
@@ -54,6 +60,7 @@ class RemoteInferenceService:
         self.monitor = None
         self.monitor_task = None
         self.tasks = set()  # Actual coroutines on the existing model event loop.
+        self.owners = {}  # Includes scheduled tasks that have not started yet.
 
     def activate(self):
         with self.lock:
@@ -111,7 +118,26 @@ class RemoteInferenceService:
             self._audit(db, job, state)
         if self.service.approvals:
             self.service.approvals.discard(job.peer, job.request.request_id)
-        # Future cancellation is performed by callers outside the running task.
+
+    def _cancel(self, job):
+        # Called under self.lock. Cancelling a concurrent Future marks it done
+        # before its coroutine unwinds. Keep that future intact; cancel the actual
+        # task once, so repeated Stop/invalidation cannot interrupt async cleanup.
+        if job.future is not None and not job.cancel_requested and not job.released.is_set():
+            job.cancel_requested = True
+            self.loop.call_soon_threadsafe(self._cancel_task, job)
+
+    @staticmethod
+    def _cancel_task(job):
+        if job.task is not None and not job.task.done() and not job.task.cancelling():
+            job.task.cancel()
+        # Before task creation, _run observes the already-terminal job instead.
+
+    @staticmethod
+    def _wait_released(job):
+        # Never wait while holding the service lock or a repository transaction.
+        if not job.released.wait(5):
+            raise ConnectError('generation_timeout')
 
     def _rate(self, peer):
         now = self.clock()
@@ -135,15 +161,23 @@ class RemoteInferenceService:
         req = None
         try:
             req = InferenceRequest.decode(raw)
-            with self.lock, self.service.repository.transaction(timeout=.25) as db:
-                record, decision = self._authority(db, req, channel, permission=req.operation not in ('status', 'cancel'))
-                now = int(self.service.clock())
-                if req.timestamp > now + 5 or req.expires_at <= now:
-                    raise ConnectError('expired_request')
-                result = self._dispatch(db, req, channel, record, decision)
-                deliver(canonical(dict(protocol_version=PROTOCOL, request_id=req.request_id,
-                    job_id=req.job_id, result=result, error=None)))
-            return
+            while True:
+                with self.lock, self.service.repository.transaction(timeout=.25) as db:
+                    record, decision = self._authority(db, req, channel, permission=req.operation not in ('status', 'cancel'))
+                    now = int(self.service.clock())
+                    if req.timestamp > now + 5 or req.expires_at <= now:
+                        raise ConnectError('expired_request')
+                    result = self._dispatch(db, req, channel, record, decision)
+                    job = self.jobs.get((channel.peer, req.job_id))
+                    if not (job and result.get('state') in TERMINAL and not job.released.is_set()):
+                        deliver(canonical(dict(protocol_version=PROTOCOL, request_id=req.request_id,
+                            job_id=req.job_id, result=result, error=None)))
+                        return
+                # Terminal metadata suppresses output immediately, but is not a
+                # completion acknowledgement until stream, lease and task exit.
+                self._wait_released(job)
+                # Recheck current authority and refresh output under the original
+                # transmission transaction after waiting (never reuse old data).
         except ConnectError as error:
             code = str(error)
             code = {'request_denied': 'permission_denied', 'approval_changed_request': 'changed_duplicate',
@@ -170,8 +204,7 @@ class RemoteInferenceService:
                 if job:
                     self._finish(job, 'failed', 'changed_duplicate', db=db)
                     job.events.clear()
-                    if job.future:
-                        job.future.cancel()
+                    self._cancel(job)
                 raise ConnectError('changed_duplicate')
             if receipt and not job:
                 return dict(state=receipt['state'], events=[], error=receipt['error'])
@@ -183,7 +216,7 @@ class RemoteInferenceService:
                 return dict(state=job.state, events=[], error=job.error)
             if job is None:
                 self._rate(channel.peer)
-                live = [j for j in self.jobs.values() if j.state not in TERMINAL]
+                live = [j for j in self.jobs.values() if j.state not in TERMINAL or not j.released.is_set()]
                 if (len(self.jobs) >= 32 or any(j.peer == channel.peer for j in live)
                         or sum(j.state == 'awaiting_approval' for j in live) >= self.APPROVALS):
                     raise ConnectError('busy')
@@ -208,6 +241,8 @@ class RemoteInferenceService:
             self._audit(db, job, 'approved')
             job.state = 'queued'
             job.queued_at = self.clock()
+            job.released.clear()
+            self.owners[key] = job
             job.future = asyncio.run_coroutine_threadsafe(self._run(job), self.loop)
             return dict(state=job.state, events=[], error=None)
         if not receipt:
@@ -219,8 +254,7 @@ class RemoteInferenceService:
         if req.operation == 'cancel':
             self._finish(job, 'cancelled', 'cancelled', db=db)
             job.events.clear()
-            if job.future:
-                job.future.cancel()
+            self._cancel(job)
             return dict(state=job.state, events=[], error=job.error)
         self._job_authority(db, job)
         after = req.arguments['after']
@@ -276,9 +310,17 @@ class RemoteInferenceService:
             if self.active is job:
                 self.active = None
 
+    def _job_done(self, job, task):
+        with self.lock:
+            self.owners.pop((job.peer, job.request.job_id), None)
+            self.tasks.discard(task)
+            job.released.set()  # Task done, after stream close and residency release.
+
     async def _run(self, job):
         task = asyncio.current_task()
+        job.task = task
         self.tasks.add(task)
+        task.add_done_callback(lambda done: self._job_done(job, done))
         stream = None
         try:
             while not await asyncio.to_thread(self._admit, job):
@@ -331,10 +373,7 @@ class RemoteInferenceService:
                 if stream:
                     await stream.aclose()
             finally:
-                try:
-                    await asyncio.to_thread(self._release, job)
-                finally:
-                    self.tasks.discard(task)
+                await asyncio.to_thread(self._release, job)
 
     async def _monitor(self):
         task = self.monitor_task = asyncio.current_task()
@@ -351,7 +390,7 @@ class RemoteInferenceService:
             now = self.clock()
             for key, job in list(self.jobs.items()):
                 if job.state in TERMINAL:
-                    if now - job.ended >= self.RETENTION and (not job.future or job.future.done()):
+                    if now - job.ended >= self.RETENTION and job.released.is_set():
                         del self.jobs[key]
                     continue
                 reason = None
@@ -373,8 +412,7 @@ class RemoteInferenceService:
                 if reason:
                     self._finish(job, 'connection_lost' if reason == 'connection_lost' else 'failed', reason)
                     job.events.clear()
-                    if job.future:
-                        job.future.cancel()
+                    self._cancel(job)
 
     def stop(self, peer, job_id):
         with self.lock:
@@ -382,8 +420,9 @@ class RemoteInferenceService:
             if job:
                 self._finish(job, 'cancelled', 'cancelled')
                 job.events.clear()
-                if job.future:
-                    job.future.cancel()
+                self._cancel(job)
+        if job:
+            self._wait_released(job)
 
     def invalidate(self, peer=None, reason='permission_denied', channel=None):
         with self.lock:
@@ -393,8 +432,7 @@ class RemoteInferenceService:
                         state = 'revoked' if reason == 'device_revoked' else 'connection_lost' if reason == 'connection_lost' else 'cancelled'
                         self._finish(job, state, reason)
                     job.events.clear()
-                    if job.future and not job.future.done():
-                        job.future.cancel()
+                    self._cancel(job)
 
     def snapshot(self, peer):
         with self.lock:
@@ -412,13 +450,12 @@ class RemoteInferenceService:
 
     async def shutdown(self):
         await asyncio.to_thread(self.close)
-        # concurrent.futures cancellation alone is not proof the coroutine's
-        # finally released its model lease. Wait for actual ownership release.
-        async with asyncio.timeout(5):
-            tasks = list(self.tasks)
-            if self.monitor_task is not None:
-                tasks.append(self.monitor_task)
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-            if self.active is not None:
-                raise TimeoutError('remote_inference_shutdown_timeout')
+        with self.lock:
+            owners = list(self.owners.values())
+        # Same acknowledgement as requester/target Stop, including scheduled
+        # tasks not yet registered in self.tasks. Timeout never recancels cleanup.
+        await asyncio.gather(*(asyncio.to_thread(self._wait_released, job) for job in owners))
+        if self.monitor_task is not None:
+            await asyncio.wait_for(asyncio.shield(asyncio.gather(self.monitor_task, return_exceptions=True)), 5)
+        if self.active is not None:
+            raise TimeoutError('remote_inference_shutdown_timeout')
