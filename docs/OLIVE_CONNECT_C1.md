@@ -189,10 +189,10 @@ or SQLite databases are actually synchronized.
 - C4: per-device permission UX / Devices UI.
 - C5: structured record sync.
 - C6: file transfer.
-- C7: remote AI.
-- C8: remote Studio.
+- C7: [Remote AI / trusted device text inference](OLIVE_CONNECT_C7.md).
+- C8: Remote Studio (future; separate authority).
 - C9: OLIVE Mobile.
-- C10: direct remote / relay.
+- C10: Internet direct / relay.
 
 There is no listener (public or loopback), LAN exposure, Internet dependency,
 remote terminal/control/install/communication, file access, live inference,
