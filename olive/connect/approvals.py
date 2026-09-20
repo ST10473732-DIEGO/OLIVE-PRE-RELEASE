@@ -11,7 +11,7 @@ from ..agent.confirmation_service import ConfirmationRequest
 from .contracts import ConnectError
 from .identity import fingerprint
 
-LABELS = {'files.receive': 'Receive an untrusted file into OLIVE Inbox',
+LABELS = {**{'studio.' + action: 'Remote Studio: ' + action for action in ('view', 'edit', 'build', 'test', 'run', 'debug')}, 'files.receive': 'Receive an untrusted file into OLIVE Inbox',
           'models.remote': 'Remote AI: tool-free text inference',
           'files.send': 'Send this selected file to the paired device', 'connect.ping': 'Connect ping', 'device.status': 'Device status',
           'chat.metadata.read': 'Chat availability metadata',
@@ -52,13 +52,16 @@ class ConnectApprovals:
                 raise ConnectError('approval_capacity_reached')
             deadline = now + min(120, request.expires_at - self.service.clock())
             prompt = ConfirmationRequest(task_id=request.request_id, tool_name='connect.request',
-                summary=LABELS[request.capability], risk_level='medium' if request.capability.startswith(('sync.', 'files.')) else 'low',
+                summary=LABELS[request.capability], risk_level='medium' if request.capability.startswith(('sync.', 'files.', 'studio.')) else 'low',
                 targets=[record['display_name']], allow_remember=False,
                 arguments=dict(source_device_id=record['device_id'],
                     public_fingerprint=binding[1], request_id=request.request_id,
                     capability=request.capability, operation=request.operation,
                     envelope_fingerprint=binding[0], revision=record['revision'],
                     source_name=record['display_name'], target_name=target_name,
+                    **({'studio': dict(workspace_id=request.workspace_id, operation=request.operation,
+                        path=request.arguments.get('path', ''), share_revision=request.share_revision,
+                        expected_hash=request.arguments.get('expected_hash', ''))} if request.capability.startswith('studio.') else {}),
                     **({'file': dict(request.arguments)} if request.capability.startswith('files.') else {}),
                     **({'inference': dict(preset=request.arguments['preset'],
                         message_count=len(request.arguments['messages']),

@@ -299,6 +299,8 @@ class ServiceContainer:
     async def initialize(self):
         import asyncio
         from ..services.remote_inference_runtime import RemoteInferenceRuntime
+        from ..connect.studio_runtime import StudioRuntime
+        self.connect.attach_studio(StudioRuntime(self), asyncio.get_running_loop())
         self.connect.attach_inference(RemoteInferenceRuntime(self.presets, self.ollama), asyncio.get_running_loop())
         from concurrent.futures import Future
         import threading
@@ -359,6 +361,8 @@ class ServiceContainer:
         try:
             if self.connect.inference is not None:
                 await self.connect.inference.shutdown()
+            if self.connect.studio is not None:
+                await self.connect.studio.shutdown()
             await self.media.shutdown()
             self.closing = True
             await self.personal.close()

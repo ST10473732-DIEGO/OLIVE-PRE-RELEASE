@@ -13,6 +13,6 @@ jobs:
         with:
           python-version: '3.14'
       - run: python -m pip install "cryptography>=50.0.1,<51" "pyOpenSSL>=26.0,<27" "psutil>=7,<8" "zeroconf>=0.151.3,<0.152" "python-dateutil>=2.9,<3" tzdata "ollama>=0.6" "httpx==0.28.1"
-      - run: python -m unittest tests.test_connect tests.test_connect_pairing tests.test_connect_network tests.test_connect_process tests.test_connect_workspace tests.test_connect_desktop_pairing tests.test_connect_sync tests.test_connect_sync_process tests.test_connect_sync_security tests.test_connect_files tests.test_connect_files_process tests.test_connect_inference tests.test_connect_inference_process -v
+      - run: python -m unittest tests.test_connect tests.test_connect_pairing tests.test_connect_network tests.test_connect_process tests.test_connect_workspace tests.test_connect_desktop_pairing tests.test_connect_sync tests.test_connect_sync_process tests.test_connect_sync_security tests.test_connect_files tests.test_connect_files_process tests.test_connect_inference tests.test_connect_inference_process tests.test_connect_studio tests.test_connect_studio_process -v
       # Real sockets and independent synthetic profiles; no multicast requirement.
       # Actual mDNS acceptance is opt-in: python scripts/check_connect_lan.py.

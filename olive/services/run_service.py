@@ -122,7 +122,7 @@ class RunService:
 
     async def start(self,workspace:Workspace,command:list[str],application_type:str="console",
                     policy:ExecutionPolicy|None=None,extra_environment:dict[str,str]|None=None,cwd:str|None=None,interactive:bool=False,
-                    configured_environment:dict[str,str]|None=None) -> RunSession:
+                    configured_environment:dict[str,str]|None=None,owned_children:bool=False) -> RunSession:
         if not command or not str(command[0]).strip():raise ValueError("Executable is required")
         # A working directory may only narrow the workspace, never leave it.
         directory=workspace.root_path
@@ -151,10 +151,13 @@ class RunService:
                 process = ProgramProcess(self.terminals, workspace.id, directory, session.command, environment)
                 session.terminal_session_id = process.terminal.id
             else:
-                process=await provider.start(session.command,directory,environment,limits,**({"interactive": True} if interactive else {}))
+                process=await provider.start(session.command,directory,environment,limits,**({"interactive": True} if interactive else {}),
+                    **({"owned_children": True} if owned_children and provider.name == "native" else {}))
         except Exception:
             session.state = 'failed'
             session.ended_at = now_iso()
+            if owned_children:
+                self.sessions.pop(session.id, None)
             raise
         session.accepts_input = interactive
         session.process_id=process.pid;session.state="running";session.started_at=now_iso();self._processes[session.id]=process

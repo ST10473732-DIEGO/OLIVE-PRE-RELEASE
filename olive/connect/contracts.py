@@ -32,7 +32,7 @@ class ConnectionState(str, Enum):
 CAPABILITIES = frozenset({
     'connect.ping', 'device.status', 'chat.metadata.read', 'chat', 'tasks',
     'calendar', 'reminders', 'notifications', 'files.receive', 'files.send', 'files.shared',
-    'filesystem.full', 'studio.view', 'studio.run', 'models.remote', 'apps.launch',
+    'filesystem.full', 'studio.view', 'studio.edit', 'studio.build', 'studio.test', 'studio.debug', 'studio.run', 'models.remote', 'apps.launch',
     'terminal', 'desktop_control', 'software.install',
     'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat',
 })

@@ -5,6 +5,7 @@ from pathlib import Path
 import uuid
 import hashlib
 import os
+from threading import RLock
 
 from .editing_service import EditingService
 from .checkpoint_service import CheckpointService
@@ -24,18 +25,24 @@ class StudioFileState:
 
 
 class StudioService:
-    def __init__(self,workspace:Workspace,checkpoints:CheckpointService):
+    def __init__(self,workspace:Workspace,checkpoints:CheckpointService, *, write_lock=None):
+        self.write_lock = write_lock or RLock()
         self.workspace=workspace;self.checkpoints=checkpoints;self.open_files:dict[str,StudioFileState]={};self.active_path=None
 
-    def tree(self,limit=2000):
+    def tree(self,limit=2000, *, max_depth=None, exclude_hidden=False):
         root=Path(self.workspace.root_path);values=[]
         ignored={".git",".venv","venv","node_modules","bin","obj","dist","build","__pycache__"}
         if limit <= 0:return values
         for directory, directories, files in os.walk(root, followlinks=False):
             directories[:] = sorted(name for name in directories if name.casefold() not in ignored
+                                    and not (exclude_hidden and name.startswith("."))
                                     and not (Path(directory) / name).is_symlink()
                                     and not getattr(Path(directory) / name, "is_junction", lambda: False)())
+            if max_depth is not None and len(Path(directory).relative_to(root).parts) >= max_depth:
+                directories[:] = []
+                continue
             for name in [*directories, *sorted(files)]:
+                if exclude_hidden and name.startswith("."):continue
                 path = Path(directory) / name
                 try:self.workspace.resolve(path)
                 except (PermissionError, OSError):continue
@@ -56,9 +63,10 @@ class StudioService:
     def update(self,relative_path:str,text:str):self.open_files[relative_path].text=text
 
     def save(self,relative_path:str,task_id:str|None=None):
-        state=self.open_files[relative_path];task_id=task_id or f"studio-{uuid.uuid4()}";self.checkpoints.create(self.workspace,task_id,[relative_path])
-        record=EditingService(self.workspace).replace_content(relative_path,state.text,task_id,state.loaded_hash)
-        state.loaded_hash=record.after_hash;state.saved_text=state.text;return record
+        with self.write_lock:
+            state=self.open_files[relative_path];task_id=task_id or f"studio-{uuid.uuid4()}";self.checkpoints.create(self.workspace,task_id,[relative_path])
+            record=EditingService(self.workspace).replace_content(relative_path,state.text,task_id,state.loaded_hash)
+            state.loaded_hash=record.after_hash;state.saved_text=state.text;return record
 
     def search_file(self,relative_path:str,query:str):
         return [{"line":i,"text":line} for i,line in enumerate(self.open_files[relative_path].text.splitlines(),1) if query.casefold() in line.casefold()]

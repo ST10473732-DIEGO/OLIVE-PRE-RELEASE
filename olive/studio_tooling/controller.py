@@ -348,15 +348,21 @@ class StudioToolingController:
     def _job_summary(self, job: dict) -> dict:
         return {key: value for key, value in job.items() if key not in {"task"}}
 
-    async def _run_job(self, workspace, kind: str, command: list[str], label: str, application_type: str, on_done) -> dict:
+    async def _run_job(self, workspace, kind: str, command: list[str], label: str, application_type: str, on_done, *, timeout=1200, owned_children=False) -> dict:
         job = {"id": uuid.uuid4().hex, "workspace_id": workspace.id, "kind": kind, "label": label, "command": command, "state": "running",
                "started_at": time.time(), "ended_at": None, "exit_code": None, "output": "", "session_id": None, "cancelled": False}
         self.jobs[job["id"]] = job
         for stale in [j for j in self.jobs.values() if j["workspace_id"] == workspace.id and j["state"] != "running"][:-30]:
             self.jobs.pop(stale["id"], None)
-        policy = ExecutionPolicy(workspace.trust_level, 1200, False, True)
+        policy = ExecutionPolicy(workspace.trust_level, timeout, False, True)
         environment = self._environment(workspace, dotnet_context=command[0] == "dotnet")
-        session = await self.s.run_service.start(workspace, command, application_type, policy, environment)
+        try:
+            session = await self.s.run_service.start(workspace, command, application_type, policy, environment, owned_children=owned_children)
+        except Exception:
+            job.update(state="failed", ended_at=time.time())
+            if owned_children:
+                self.jobs.pop(job["id"], None)
+            raise
         job["session_id"] = session.id
         self._publish("build.progress", self._job_summary(job))
 
@@ -400,6 +406,8 @@ class StudioToolingController:
         if not target:
             raise ValueError("No .NET solution or project was found in this workspace")
         command = dotnet.build_command(target, config["configuration"], arguments["mode"])
+        if arguments.get("_remote"):
+            command.append("--no-restore")
 
         async def done(job, session):
             diagnostics = dotnet.parse_build_diagnostics(job["output"])
@@ -407,7 +415,7 @@ class StudioToolingController:
                 {"file": self._relative(root, d["file"]), "line": d["line"], "column": d["column"], "severity": d["severity"], "message": f"{d['code']}: {d['message']}"}
                 for d in diagnostics]})
             return {"diagnostics": diagnostics, "target": target}
-        job = await self._run_job(workspace, arguments["mode"], command, f"{arguments['mode'].title()} {Path(target).name}", "dotnet_build", done)
+        job = await self._run_job(workspace, arguments["mode"], command, f"{arguments['mode'].title()} {Path(target).name}", "dotnet_build", done, timeout=120 if arguments.get("_remote") else 1200, owned_children=bool(arguments.get("_remote")))
         return self._job_summary(job)
 
     @staticmethod
@@ -449,9 +457,12 @@ class StudioToolingController:
             target = arguments.get("target") or (scanned["solutions"][0]["path"] if scanned["solutions"] and len(test_projects) > 1 else test_projects[0]["path"])
             testing_platform = any(p["uses_testing_platform"] for p in test_projects)
             results_directory = root / "obj" / ".olive-tests" / uuid.uuid4().hex[:8]
+            workspace.resolve(results_directory)
             results_directory.mkdir(parents=True, exist_ok=True)
             config = self.run_configs.get(workspace.id, root)
             command = dotnet.test_command(target, config["configuration"], str(results_directory), filters, testing_platform, list_only)
+            if arguments.get("_remote"):
+                command.extend(["--no-restore", "--no-build"])
 
             async def done(job, session):
                 if list_only:
@@ -460,6 +471,9 @@ class StudioToolingController:
                 if not reports:
                     return {"summary": {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "duration_seconds": 0.0}, "results": [],
                             "error": "No TRX report was produced; the build or discovery failed. Inspect the raw log.", "runner": "vstest"}
+                workspace.resolve(reports[-1])
+                if arguments.get("_remote") and reports[-1].stat().st_size > 1_000_000:
+                    return {"error": "Test report exceeds the remote report budget"}
                 parsed = dotnet.parse_trx(reports[-1])
                 for item in parsed["results"]:
                     if item["file"]:
@@ -467,10 +481,11 @@ class StudioToolingController:
                 self._publish("tests.results", {"workspace_id": workspace.id, "job_id": job["id"], **parsed})
                 return {**parsed, "runner": "testing-platform" if testing_platform else "vstest"}
             job = await self._run_job(workspace, "test-list" if list_only else "test", command,
-                                      "Discover tests" if list_only else ("Run selected tests" if filters else "Run tests"), "dotnet_test", done)
+                                      "Discover tests" if list_only else ("Run selected tests" if filters else "Run tests"), "dotnet_test", done, timeout=120 if arguments.get("_remote") else 1200, owned_children=bool(arguments.get("_remote")))
             return self._job_summary(job)
         python = self.run_configs.get(workspace.id, root)["interpreter"] or python_executable(root)
         report = root / "obj" / ".olive-tests" / (uuid.uuid4().hex[:8] + ".json")
+        workspace.resolve(report)
         report.parent.mkdir(parents=True, exist_ok=True)
         runner = str(Path(__file__).with_name("python_tests.py"))
         start = "tests" if (root / "tests").is_dir() else "."
@@ -479,6 +494,9 @@ class StudioToolingController:
         async def done(job, session):
             import json
             try:
+                workspace.resolve(report)
+                if arguments.get("_remote") and report.stat().st_size > 1_000_000:
+                    return {"error": "Test report exceeds the remote report budget"}
                 parsed = json.loads(report.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 return {"summary": {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "duration_seconds": 0.0}, "results": [],
@@ -491,7 +509,7 @@ class StudioToolingController:
             self._publish("tests.results", {"workspace_id": workspace.id, "job_id": job["id"], **parsed})
             return {**parsed, "runner": "unittest"}
         job = await self._run_job(workspace, "test-list" if list_only else "test", command,
-                                  "Discover tests" if list_only else "Run tests", "python_test", done)
+                                  "Discover tests" if list_only else "Run tests", "python_test", done, timeout=120 if arguments.get("_remote") else 1200, owned_children=bool(arguments.get("_remote")))
         return self._job_summary(job)
 
     async def test(self, workspace_id: str, filters: list[str] | None = None, list_only: bool = False, target: str = "") -> dict:

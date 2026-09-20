@@ -57,10 +57,14 @@ class EditingService:
         if expected and actual!=expected: raise RuntimeError("File changed since it was read")
         return actual
 
-    @staticmethod
-    def _write(path:Path,text:str,before:str|None,kind:str,task_id:str,newline:str|None=None):
+    def _write(self,path:Path,text:str,before:str|None,kind:str,task_id:str,newline:str|None=None):
         fd,tmp_name=tempfile.mkstemp(prefix=path.name+".",suffix=".tmp",dir=path.parent); os.close(fd); tmp=Path(tmp_name)
-        try: tmp.write_text(text,encoding="utf-8",newline=newline); tmp.replace(path)
+        try:
+            tmp.write_text(text,encoding="utf-8",newline=newline)
+            # Revalidate after staging: a local/external edit during staging wins.
+            if self.workspace.resolve(path) != path or file_hash(path) != before:
+                raise RuntimeError("File changed since it was read")
+            tmp.replace(path)
         finally:
             if tmp.exists(): tmp.unlink()
         return EditRecord(str(path),before,file_hash(path),kind,task_id)

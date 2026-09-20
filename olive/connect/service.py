@@ -22,6 +22,7 @@ class DesktopDeviceService:
         self.approvals = None
         self.sync = None
         self.inference = None
+        self.studio = None
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -53,6 +54,13 @@ class DesktopDeviceService:
         if self.network is not None:
             self.inference.activate()
         return self.inference
+
+    def attach_studio(self, runtime, loop):
+        from .studio import RemoteStudioService
+        self.studio = RemoteStudioService(self, runtime, loop)
+        if self.network:
+            self.studio.activate()
+        return self.studio
 
     def cryptographic_identity(self):
         if self.closed:
@@ -116,6 +124,10 @@ class DesktopDeviceService:
         if self.inference is not None:
             values = [v for v in values if v['capability'] != 'models.remote'] + [
                 dict(capability='models.remote', supported=True, policy_disabled=policies.get('models.remote', False))]
+        if self.studio is not None:
+            from .studio_protocol import CAPABILITIES as studio_caps
+            values = [v for v in values if v['capability'] not in studio_caps] + [
+                dict(capability=c, supported=c != 'studio.debug', policy_disabled=policies.get(c, False)) for c in sorted(studio_caps)]
         return values
 
     def enroll_fixture(self, name, *, capabilities=()):
@@ -143,6 +155,8 @@ class DesktopDeviceService:
             record.update(permissions=rules, revision=record['revision'] + 1)
             self.repository.put(db, record)
             self.repository.audit(db, device_id, None, capability, int(self.clock()), 'permission_changed')
+        if self.studio is not None:
+            self.studio.invalidate(device_id)
         self.files.invalidate(device_id, 'permission_or_trust_changed')
         if self.inference is not None:
             self.inference.invalidate(device_id)
@@ -168,6 +182,8 @@ class DesktopDeviceService:
                               connection_state='offline', permissions=[], revision=record['revision'] + 1)
                 self.repository.put(db, record)
                 self.repository.audit(db, device_id, None, None, int(self.clock()), 'device_revoked')
+        if self.studio is not None:
+            self.studio.invalidate(device_id)
         self.files.invalidate(device_id, 'permission_or_trust_changed')
         if self.inference is not None:
             self.inference.invalidate(device_id, 'device_revoked')
@@ -292,6 +308,8 @@ class DesktopDeviceService:
             network = LocalNetwork(self, address, port=port, discovery=discovery)
             self.network = network
             self.files.activate()
+            if self.studio is not None:
+                self.studio.activate()
             if self.inference is not None:
                 self.inference.activate()
             return network
@@ -300,6 +318,8 @@ class DesktopDeviceService:
         with self._network_lock:
             self.pairing_transport.close()
             self.files.close()
+            if self.studio is not None:
+                self.studio.close()
             if self.inference is not None:
                 self.inference.close()
             if self.sync is not None:

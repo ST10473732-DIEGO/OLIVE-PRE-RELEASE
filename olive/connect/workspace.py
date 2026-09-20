@@ -42,6 +42,8 @@ class DevicesWorkspace:
             value['live'] = network.status(record['device_id']) if network else dict(
                 state='offline', error=None, encrypted=False, connection=None, latency_ms=None)
             value['transfers'] = s.files.list(record['device_id'])
+            value['studio_shares'] = s.studio.shared(record['device_id']) if s.studio else []
+            value['studio_jobs'] = s.studio.snapshot(record['device_id']) if s.studio else []
             value['remote_ai'] = s.inference.snapshot(record['device_id']) if s.inference else None
             value['sync'] = s.sync.status(record['device_id']) if s.sync else None
             devices.append(value)

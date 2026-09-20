@@ -115,7 +115,8 @@ class Host:
         validate(request)
         # A bounded read-only live snapshot must not consume the durable-action
         # deduplication budget every 1.5 seconds while Devices is open.
-        if request['method'] in ('connect.snapshot', 'connect.model_targets'):
+        if (request['method'] in ('connect.snapshot', 'connect.model_targets', 'connect.studio_local_workspaces')
+                or request['method'] == 'connect.studio_request' and request['args']['operation'] in ('workspaces', 'tree', 'read', 'run_status')):
             if self.closed:
                 raise RuntimeError('Runtime is shutting down')
             return await self.execute(request['method'], request['args'])

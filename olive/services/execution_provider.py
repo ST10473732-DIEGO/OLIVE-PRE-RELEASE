@@ -16,12 +16,17 @@ class SandboxLimits:
 class NativeExecutionProvider:
     name="native"
     def available(self):return True
-    async def start(self,command,cwd,environment,limits,interactive=False):
+    async def start(self,command,cwd,environment,limits,interactive=False,owned_children=False):
         if sys.platform == "linux":
             from ..studio_tooling.posix_process import start_owned_process
             return await start_owned_process(command, cwd=str(cwd), env=environment,
                 stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        if sys.platform == "win32" and owned_children:
+            from ..studio_tooling.windows_process import start_owned_process
+            return await start_owned_process(command, cwd=str(cwd), env=environment,
+                stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0))
         return await asyncio.create_subprocess_exec(*command,cwd=str(cwd),env=environment,stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,creationflags=getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)|getattr(subprocess,"CREATE_NO_WINDOW",0))
 
 class DockerExecutionProvider:

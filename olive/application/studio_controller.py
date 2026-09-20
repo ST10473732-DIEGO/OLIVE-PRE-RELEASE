@@ -30,6 +30,7 @@ class StudioController:
         self.s = services
         self.services = {}
         self.locks = {}
+        self.write_locks = {}
         self.monitors = set()
         self.terminal_ids = {}
         self.launching = set()
@@ -46,7 +47,9 @@ class StudioController:
     def service(self, workspace):
         approved = require_approved_workspace(self.s.workspace_repo, workspace)
         if approved.id not in self.services:
-            self.services[approved.id] = StudioService(approved, self.s.checkpoints)
+            from threading import RLock
+            lock = self.write_locks.setdefault(approved.id, RLock())
+            self.services.setdefault(approved.id, StudioService(approved, self.s.checkpoints, write_lock=lock))
         return self.services[approved.id]
 
     async def install_package(self, workspace_id, manager, package):

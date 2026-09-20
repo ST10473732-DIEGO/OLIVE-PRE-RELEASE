@@ -3,6 +3,12 @@ import asyncio
 from ..connect.workspace import DevicesWorkspace
 
 SPEC = {
+    'connect.studio_local_workspaces': ({}, {}),
+    'connect.studio_share': ({'device_id': str, 'workspace_id': str}, {}),
+    'connect.studio_unshare': ({'device_id': str, 'workspace_id': str}, {}),
+    'connect.studio_permission': ({'device_id': str, 'workspace_id': str, 'capability': str, 'decision': str}, {}),
+    'connect.studio_stop': ({'device_id': str, 'job_id': str}, {}),
+    'connect.studio_request': ({'device_id': str, 'operation': str, 'share_revision': int, 'arguments': dict}, {'workspace_id': str}),
     'connect.model_targets': ({}, {}),
     'connect.inference_stop': ({'device_id': str, 'job_id': str}, {}),
     'connect.file_prepare': ({'device_id': str, 'path': str}, {}),
@@ -37,9 +43,18 @@ def validate_arguments(method, args):
     """Match the preload's narrow types even for a direct private-pipe caller."""
     import ipaddress
     from ..connect.contracts import identifier, display_name, SAFE_OPERATIONS
-    for key in ('device_id', 'session_id', 'transfer_id', 'job_id'):
+    for key in ('device_id', 'session_id', 'transfer_id', 'job_id', 'workspace_id'):
         if key in args:
             identifier(args[key])
+    if method == 'connect.studio_request':
+        from ..connect.studio_protocol import request, StudioRequest
+        import uuid
+        StudioRequest.decode(request(str(uuid.uuid4()), args['device_id'], args['operation'],
+            args.get('workspace_id'), args['share_revision'], args['arguments']))
+    if method == 'connect.studio_permission':
+        from ..connect.studio_protocol import CAPABILITIES
+        if args['capability'] not in CAPABILITIES or args['decision'] not in {'allow', 'ask', 'deny'}:
+            raise ValueError('Invalid Studio permission')
     if 'offer' in args and not 1 <= len(args['offer'].encode('utf-8')) <= 12288:
         raise ValueError('Invalid pairing code size')
     if 'name' in args:
@@ -66,6 +81,17 @@ def validate_arguments(method, args):
 
 async def call(host, method, args):
     service = host.services.connect
+    if method == 'connect.studio_local_workspaces':
+        return [dict(id=w.id, title=w.title) for w in host.services.workspace_repo.load_all().values()]
+    if method == 'connect.studio_request':
+        from ..connect.studio_client import exchange
+        return await exchange(service, **args)
+    if method.startswith('connect.studio_'):
+        routes = {'connect.studio_share': service.studio.share,
+                  'connect.studio_unshare': service.studio.unshare,
+                  'connect.studio_permission': service.studio.permission,
+                  'connect.studio_stop': service.studio.stop}
+        return await asyncio.to_thread(routes[method], **args)
     if method == 'connect.model_targets':
         return await host.services.remote_inference.targets()
     if method == 'connect.inference_stop':
@@ -108,6 +134,8 @@ async def call(host, method, args):
         'connect.pair_cancel': lambda session_id: service.pairing_transport.cancel(session_id),
     }
     result = await asyncio.to_thread(routes[method], **args)
+    if method == 'connect.disable' and service.studio is not None:
+        await service.studio.shutdown()
     if method == 'connect.disable' and service.inference is not None:
         await service.inference.shutdown()
     if method == 'connect.revoke':

@@ -17,7 +17,7 @@ from .contracts import ConnectError, RequestEnvelope, canonical, _unique_object
 from .discovery import LocalDiscovery, interfaces
 from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
                            require_current, tls_context, FILE_REQUEST, FILE_RESPONSE,
-                           INFERENCE_REQUEST, INFERENCE_RESPONSE)
+                           INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE)
 
 CONNECT_TIMEOUT = 3.0
 HANDSHAKE_TIMEOUT = 3.0
@@ -146,6 +146,32 @@ class Channel:
             with self.lock:
                 self.pending.pop(request.request_id, None)
 
+    def studio_request(self, raw):
+        from .studio_protocol import StudioRequest, PROTOCOL
+        request = StudioRequest.decode(raw)
+        if request.source_device_id != self.owner.service.local_id or request.target_device_id != self.peer:
+            raise ConnectError('invalid_request')
+        self.check()
+        future = Future()
+        future.sync_protocol = PROTOCOL
+        future.studio_request = request
+        with self.lock:
+            if len(self.pending) >= MAX_PENDING or request.request_id in self.pending:
+                raise ConnectError('busy')
+            self.pending[request.request_id] = future
+            try:
+                self.writes.put_nowait(frame(STUDIO_REQUEST, raw))
+            except queue.Full:
+                self.pending.pop(request.request_id)
+                raise ConnectError('busy') from None
+        try:
+            return future.result(timeout=REQUEST_TIMEOUT)
+        except TimeoutError:
+            raise ConnectError('connection_lost') from None
+        finally:
+            with self.lock:
+                self.pending.pop(request.request_id, None)
+
     def request(self, raw, timeout=REQUEST_TIMEOUT, *, _sync=False, _admission=None):
         if _sync:
             from ..sync.records import SyncRequest
@@ -182,7 +208,8 @@ class Channel:
 
     def process(self, kind, payload):
         self.check()
-        allowed = (self.owner.allow_inference_message(self.peer) if kind in (INFERENCE_REQUEST, INFERENCE_RESPONSE)
+        allowed = (self.owner.allow_studio_message(self.peer) if kind in (STUDIO_REQUEST, STUDIO_RESPONSE)
+                   else self.owner.allow_inference_message(self.peer) if kind in (INFERENCE_REQUEST, INFERENCE_RESPONSE)
                    else self.owner.allow_file_message(self.peer) if kind in (FILE_REQUEST, FILE_RESPONSE)
                    else self.owner.allow_message(self.peer))
         if not allowed:
@@ -191,7 +218,23 @@ class Channel:
             raise ConnectError('connection_closed')
         if kind == HELLO:
             raise ConnectError('unexpected_hello')
-        if kind == INFERENCE_REQUEST:
+        if kind == STUDIO_REQUEST:
+            studio = self.owner.service.studio
+            if studio is None:
+                raise ConnectError('capability_unavailable')
+            studio.receive(payload, self, lambda raw: self.write(frame(STUDIO_RESPONSE, raw)))
+        elif kind == STUDIO_RESPONSE:
+            from .studio_protocol import response as decode_studio, validate_result, PROTOCOL
+            response = decode_studio(payload)
+            with self.lock:
+                future = self.pending.get(response['request_id'])
+                if future is not None:
+                    if future.done() or getattr(future, 'sync_protocol', '') != PROTOCOL:
+                        raise ConnectError('invalid_request')
+                    if response['error'] is None:
+                        validate_result(future.studio_request, response['result'])
+                    future.set_result(response)
+        elif kind == INFERENCE_REQUEST:
             inference = self.owner.service.inference
             if inference is None:
                 raise ConnectError('capability_unavailable')
@@ -367,6 +410,7 @@ class LocalNetwork:
         self.rates = {}
         self.file_rates = {}
         self.inference_rates = {}
+        self.studio_rates = {}
         self.targets = {}
         self.attempts = Budget(12, 60)
         self.audit_budget = Budget(30, 60)
@@ -530,6 +574,8 @@ class LocalNetwork:
             return self.file_rates[peer].take()
 
     def finished(self, channel, reason):
+        if self.service.studio is not None:
+            self.service.studio.invalidate(channel=channel, reason="connection_lost")
         if self.service.inference is not None:
             # Exact channel identity avoids old teardown cancelling replacement work.
             self.service.inference.invalidate(channel=channel, reason='connection_lost')
@@ -561,6 +607,14 @@ class LocalNetwork:
             state.update(connection='local' if channel else None, encrypted=bool(channel),
                          latency_ms=channel.last_latency_ms if channel else None)
             return state
+
+    def allow_studio_message(self, peer):
+        with self.lock:
+            if peer not in self.studio_rates:
+                if len(self.studio_rates) >= 256:
+                    return False
+                self.studio_rates[peer] = Budget(300, 60)
+            return self.studio_rates[peer].take()
 
     def allow_inference_message(self, peer):
         with self.lock:
