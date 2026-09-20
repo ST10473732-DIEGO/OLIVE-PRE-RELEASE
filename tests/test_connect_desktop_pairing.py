@@ -217,17 +217,66 @@ def desktop_worker(pipe, profile):
     """Test control pipe invokes the same facade as the C4 bridge; no TLS pump."""
     service = DesktopDeviceService(Path(profile), key_store=DeviceKeyStore(MemoryVault()))
     workspace = DevicesWorkspace(service)
+    connected = {}
+
+    def join_channels(workers):
+        deadline = time.monotonic() + 4
+        for worker in workers:
+            worker.thread.join(max(0, deadline - time.monotonic()))
+        if any(worker.thread.is_alive() or worker.sock.fileno() != -1 for worker in workers):
+            # Bounded, test-only diagnostics: no identity, transcript or payload.
+            details = [dict(alive=c.thread.is_alive(), stopped=c.stop.is_set(),
+                            socket_open=c.sock.fileno() != -1) for c in workers]
+            raise ConnectError('fixture_channel_shutdown_timeout: ' + json.dumps(details))
+
+    def observe_channel(device_id):
+        with service.network.lock:
+            connected[device_id] = service.network.channels[device_id]
+        return True
+
+    def connect(device_id, address, port):
+        result = workspace.connect(device_id, address, port)
+        observe_channel(device_id)
+        return result
+
+    def await_closed(device_id):
+        # Observe the original worker's natural exit; do not cause a disconnect.
+        channel = connected[device_id]
+        join_channels([channel])
+        with channel.lock:
+            settled = all(future.done() for future in channel.pending.values())
+        if not channel.stop.is_set() or not settled or channel.last_latency_ms is not None:
+            raise ConnectError('fixture_channel_cleanup_incomplete')
+        return dict(completed=True, live=service.network.status(device_id))
+
+    def end_channel(device_id, *, revoke=False):
+        network = service.network
+        with network.lock:
+            workers = [c for c in network.workers if device_id in (c.peer, c.expected)]
+            if not revoke:
+                network.disconnect(device_id)
+        if revoke:
+            service.revoke(device_id)
+        join_channels(workers)
+        with network.lock:
+            if device_id in network.targets:
+                raise ConnectError('fixture_reconnect_still_armed')
+        return dict(completed=True, snapshot=workspace.snapshot())
+
     try:
         while True:
             command, args = pipe.recv()
             try:
                 if command == 'close':
-                    service.close(); pipe.send(True); return
+                    service.close(); pipe.send(dict(result=dict(closed=True))); return
                 methods = dict(enable=workspace.enable, create=workspace.create_pairing,
                     accept=workspace.accept_pairing, status=workspace.pairing_status,
                     confirm=workspace.confirm_pairing, snapshot=workspace.snapshot,
-                    permission=workspace.permission, connect=workspace.connect,
-                    ping=workspace.ping, revoke=service.revoke, rename=lambda name: service.rename(service.local_id, name))
+                    permission=workspace.permission, connect=connect, await_closed=await_closed,
+                    observe_channel=observe_channel,
+                    disconnect=end_channel, disable=workspace.disable,
+                    ping=workspace.ping, revoke=lambda device_id: end_channel(device_id, revoke=True),
+                    rename=lambda name: service.rename(service.local_id, name))
                 pipe.send(dict(result=methods[command](**args)))
             except Exception as error:
                 pipe.send(dict(error=str(error)))
@@ -243,7 +292,7 @@ class DesktopProcessAcceptance(unittest.TestCase):
             children, pipes = [], []
             def call(index, command, **args):
                 pipes[index].send((command, args))
-                self.assertTrue(pipes[index].poll(10), 'ordinary desktop response timeout')
+                self.assertTrue(pipes[index].poll(10), f'ordinary desktop {index} {command} response timeout')
                 response = pipes[index].recv()
                 if 'error' in response:
                     raise ConnectError(response['error'])
@@ -286,15 +335,52 @@ class DesktopProcessAcceptance(unittest.TestCase):
                 self.assertEqual(call(0, 'ping', device_id=ids[1])['error'], 'permission_off')
                 call(1, 'permission', device_id=ids[0], capability='connect.ping', decision='allow')
                 self.assertTrue(call(0, 'ping', device_id=ids[1])['result']['pong'])
-                call(1, 'revoke', device_id=ids[0])
-                wait(lambda: call(0, 'snapshot')['devices'][0]['live']['state'] == 'offline')
+                # Completion replies, not receipt of a command, order each next step.
+                for _ in range(3):
+                    call(1, 'observe_channel', device_id=ids[0])
+                    ended = call(0, 'disconnect', device_id=ids[1])
+                    self.assertTrue(ended['completed'])
+                    self.assertEqual(ended['snapshot']['devices'][0]['live']['state'], 'offline')
+                    for _ in range(3):
+                        live = call(0, 'snapshot')['devices'][0]['live']
+                        self.assertEqual(live['state'], 'offline')
+                        self.assertFalse(live['encrypted'])
+                        self.assertIsNone(live['latency_ms'])
+                    call(1, 'await_closed', device_id=ids[0])
+                    call(0, 'connect', device_id=ids[1], address='127.0.0.1', port=snapshots[1]['network']['port'])
+                    self.assertTrue(call(0, 'ping', device_id=ids[1])['result']['pong'])
+                revoked = call(1, 'revoke', device_id=ids[0])
+                self.assertTrue(revoked['completed'])
+                self.assertEqual(revoked['snapshot']['devices'][0]['live']['state'], 'offline')
+                closed = call(0, 'await_closed', device_id=ids[1])
+                self.assertTrue(closed['completed'])
+                self.assertFalse(closed['live']['encrypted'])
+                self.assertIsNone(closed['live']['latency_ms'])
+                # Remote revoke does not cancel A's local reconnect intent. A failed
+                # retry may already have replaced its transient 'offline' state.
+                with self.assertRaises(ConnectError):
+                    call(0, 'connect', device_id=ids[1], address='127.0.0.1', port=snapshots[1]['network']['port'])
+                ended = call(0, 'disconnect', device_id=ids[1])
+                self.assertEqual(ended['snapshot']['devices'][0]['live']['state'], 'offline')
+                self.assertEqual(call(0, 'snapshot')['devices'][0]['live']['state'], 'offline')
+                disabled = call(0, 'disable')
+                self.assertEqual(disabled['network']['state'], 'off')
+                self.assertEqual(disabled['devices'][0]['live']['state'], 'offline')
             finally:
+                shutdown_errors = []
                 for pipe, process in zip(pipes, children):
                     if process.is_alive():
                         pipe.send(('close', {}))
                         if pipe.poll(5):
-                            pipe.recv()
+                            if pipe.recv() != dict(result=dict(closed=True)):
+                                shutdown_errors.append('close did not acknowledge completion')
+                        else:
+                            shutdown_errors.append('close acknowledgement timed out')
                     process.join(5)
                     if process.is_alive():
+                        shutdown_errors.append('process did not exit after close')
                         process.terminate(); process.join(5)
+                    if process.exitcode != 0:
+                        shutdown_errors.append('process exit was not clean')
                     pipe.close()
+                self.assertEqual(shutdown_errors, [])

@@ -145,6 +145,116 @@ class NetworkTests(unittest.TestCase):
         with self.assertRaises(ConnectError):
             self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
 
+    def test_remote_revoke_closes_worker_but_reconnect_can_report_failed(self):
+        from olive.connect.workspace import DevicesWorkspace
+        channel = self.connect(); self.allow()
+        self.assertTrue(channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        # Choose the scheduling order explicitly, without waiting for the retry timer.
+        with self.na.lock:
+            self.na.targets[self.b.local_id]['next'] = float('inf')
+        self.b.revoke(self.a.local_id)
+        channel.thread.join(4)
+        self.assertFalse(channel.thread.is_alive())
+        self.assertEqual(channel.sock.fileno(), -1)
+        self.assertIsNone(channel.last_latency_ms)
+        workspace = DevicesWorkspace(self.a)
+        self.assertEqual(workspace.snapshot()['devices'][0]['live']['state'], 'offline')
+        with self.assertRaises(ConnectError):
+            self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port, _automatic=True)
+        with self.na.lock:
+            workers = list(self.na.workers)
+        for worker in workers:
+            worker.thread.join(4)
+            self.assertFalse(worker.thread.is_alive())
+        live = workspace.snapshot()['devices'][0]['live']
+        self.assertEqual(live['state'], 'failed')
+        self.assertFalse(live['encrypted'])
+        self.assertIsNone(live['latency_ms'])
+        self.assertIn(self.b.local_id, self.na.targets)
+
+    def test_explicit_disconnect_state_survives_worker_completion(self):
+        from olive.connect.workspace import DevicesWorkspace
+        from concurrent.futures import Future
+        channel = self.connect()
+        entered, release = threading.Event(), threading.Event()
+        original = self.na.finished
+
+        def held_finished(worker, reason):
+            entered.set()
+            if not release.wait(4):
+                raise AssertionError('worker completion was not released')
+            original(worker, reason)
+
+        pending = Future()
+        with channel.lock:
+            channel.pending['test-pending'] = pending
+        workspace = DevicesWorkspace(self.a)
+        with patch.object(self.na, 'finished', side_effect=held_finished):
+            try:
+                self.na.disconnect(self.b.local_id)
+                self.assertTrue(entered.wait(3))
+                self.assertEqual(workspace.snapshot()['devices'][0]['live']['state'], 'offline')
+                self.assertNotIn(self.b.local_id, self.na.targets)
+                with self.assertRaises(ConnectError):
+                    pending.result(1)
+            finally:
+                release.set()
+                channel.thread.join(4)
+        self.assertFalse(channel.thread.is_alive())
+        self.assertEqual(channel.sock.fileno(), -1)
+        live = workspace.snapshot()['devices'][0]['live']
+        self.assertEqual(live['state'], 'offline')
+        self.assertFalse(live['encrypted'])
+        self.assertIsNone(live['latency_ms'])
+
+    def test_disconnect_before_connect_returns_cannot_rearm_reconnect(self):
+        from concurrent.futures import Future
+        from olive.connect.network import Channel
+        entered, release = threading.Event(), threading.Event()
+        original = Future.result
+
+        def held_result(future, *args, **kwargs):
+            result = original(future, *args, **kwargs)
+            if isinstance(result, Channel):
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('connect result was not released')
+            return result
+
+        with patch.object(Future, 'result', held_result), ThreadPoolExecutor(1) as pool:
+            attempt = pool.submit(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port, retries=1)
+            try:
+                self.assertTrue(entered.wait(3))
+                self.na.disconnect(self.b.local_id)
+            finally:
+                release.set()
+            with self.assertRaises(ConnectError):
+                attempt.result(4)
+        self.disconnect_and_join()
+        self.assertNotIn(self.b.local_id, self.na.targets)
+        self.assertEqual(self.na.status(self.b.local_id)['state'], 'offline')
+
+    def test_channel_close_snapshot_and_disable_join(self):
+        from olive.connect.workspace import DevicesWorkspace
+        channel = self.connect(); self.allow()
+        self.assertTrue(channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        with self.na.lock:
+            self.na.targets[self.b.local_id]['next'] = float('inf')
+        channel.close()
+        live = DevicesWorkspace(self.a).snapshot()['devices'][0]['live']
+        self.assertEqual(live['state'], 'offline')
+        self.assertFalse(live['encrypted'])
+        self.assertIsNone(live['latency_ms'])
+        with self.assertRaises(ConnectError):
+            channel.request(canonical(request(self.a, self.b)))
+        self.a.disable_network()
+        self.assertFalse(channel.thread.is_alive())
+        self.assertEqual(channel.sock.fileno(), -1)
+        self.assertFalse(self.na.thread.is_alive())
+        self.assertFalse(self.na.reconnector.is_alive())
+        self.assertFalse(self.na.workers)
+        self.assertIsNone(self.a.network)
+
     def test_unknown_and_wrong_endpoint_never_online(self):
         nc = self.c.enable_network('127.0.0.1', discovery=False)
         with self.assertRaises(ConnectError):

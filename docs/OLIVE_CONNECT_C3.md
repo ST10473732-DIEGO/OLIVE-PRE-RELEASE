@@ -214,6 +214,20 @@ survives. Worker checks also observe changes from another repository instance.
 A request that already completed its fixed read-only execution transaction may
 finish before the revoke transaction; not-yet-authorized work cannot execute.
 
+Local `disconnect()` cancels reconnect intent, signals channel stop/shutdown and
+publishes offline telemetry immediately; worker cleanup is asynchronous. Cleanup
+must preserve that explicit local state. A connect completion racing with this
+cancellation cannot re-arm reconnect. Service disable/close additionally joins
+the owned workers before returning. Test process commands that require channel
+completion acknowledge a bounded worker join, not merely receipt of the command.
+
+A remote revoke is a transport loss to the other desktop, not a notification
+that cancels its local reconnect intent. Its live state can therefore transition
+from `offline` to `connecting`/`authenticating` and then `failed` when the revoked
+peer rejects a retry. Tests must observe the original channel's completion and
+failed fresh authentication, rather than require observation of the transient
+offline state. See [the Windows portable lifecycle report](OLIVE_CONNECT_WINDOWS_LIFECYCLE_REPAIR.md).
+
 Wire errors contain fixed categories, never exception text, paths, stack traces,
 vault errors, certificate material or request content. TLS/framing/abuse failures
 can close the channel without an application response. Locally retained activity
