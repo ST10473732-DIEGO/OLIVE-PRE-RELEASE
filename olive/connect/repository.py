@@ -29,11 +29,15 @@ class DeviceRepository:
             db.execute('PRAGMA user_version=2')
 
     @contextmanager
-    def transaction(self, *, timeout=10):
+    def transaction(self, *, timeout=10, read_only=False):
         # Separate connections support multiple repository instances and threads.
         db = sqlite3.connect(self.path, timeout=timeout)
         try:
-            db.execute('BEGIN IMMEDIATE')
+            if read_only:
+                # Snapshot lookups must not contend for the single writer slot.
+                # Enforce this mode so it cannot accidentally perform a write.
+                db.execute('PRAGMA query_only=ON')
+            db.execute('BEGIN' if read_only else 'BEGIN IMMEDIATE')
             yield db
             db.commit()
         except BaseException:
@@ -86,7 +90,7 @@ class DeviceRepository:
             'SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 
     def devices(self, *, timeout=10):
-        with self.transaction(timeout=timeout) as db:
+        with self.transaction(timeout=timeout, read_only=True) as db:
             return [validate_record(json.loads(row[0])) for row in db.execute('SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 
     @staticmethod

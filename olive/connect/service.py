@@ -69,7 +69,9 @@ class DesktopDeviceService:
 
     def device(self, device_id, *, timeout=10):
         identifier(device_id)
-        with self.repository.transaction(timeout=timeout) as db:
+        # A short committed snapshot; dispatch rechecks authority under its
+        # writer transaction before claiming or executing any request.
+        with self.repository.transaction(timeout=timeout, read_only=True) as db:
             record = self.repository.get(db, device_id)
             if record is None:
                 raise ConnectError('unknown_device')

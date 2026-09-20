@@ -1,8 +1,10 @@
 """Real loopback TLS with distinct C2 identities; no multicast requirement in CI."""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 import json
 from pathlib import Path
 import socket
+import sqlite3
 import tempfile
 import threading
 import time
@@ -79,6 +81,19 @@ class NetworkTests(unittest.TestCase):
 
     def allow(self):
         self.b.set_permission(self.a.local_id, 'connect.ping', 'allow')
+
+    def disconnect_and_join(self):
+        workers = []
+        for network, peer in ((self.na, self.b.local_id), (self.nb, self.a.local_id)):
+            with network.lock:
+                network.disconnect(peer)
+                workers.extend(network.workers)
+        deadline = time.monotonic() + 4
+        for worker in workers:
+            worker.thread.join(max(0, deadline - time.monotonic()))
+            self.assertFalse(worker.thread.is_alive(), 'channel teardown did not finish')
+        self.assertFalse(self.na.workers)
+        self.assertFalse(self.nb.workers)
 
     def test_ipv6_loopback_when_available(self):
         from olive.connect.discovery import interfaces
@@ -346,15 +361,57 @@ class NetworkTests(unittest.TestCase):
     def test_malformed_request_unknown_capability_and_message_type(self):
         for payload in (b'{', canonical(dict(request(self.a, self.b), capability='arbitrary.tool'))):
             channel = self.connect()
+            # This test owns each reconnect; automatic reconnect is tested separately.
+            with self.na.lock:
+                self.na.targets.pop(self.b.local_id, None)
             with patch.object(self.b, '_execute') as execute:
                 channel.writes.put_nowait(frame(1, payload))
                 until(lambda: not self.na.channels)
                 execute.assert_not_called()
-            self.na.disconnect(self.b.local_id)
-            until(lambda: not self.nb.channels)
+            self.disconnect_and_join()
         channel = self.connect()
         channel.writes.put_nowait(HEADER.pack(0, 1, 99))
         until(lambda: not self.nb.channels)
+
+    def test_device_reads_during_previous_channel_closing_audit(self):
+        channel = self.connect()
+        entered, release = threading.Event(), threading.Event()
+        original = self.a.repository.audit
+
+        def held_audit(db, peer, request_id, capability, now, state):
+            original(db, peer, request_id, capability, now, state)
+            if state == 'connection_closed':
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('closing audit was not released')
+
+        with patch.object(self.a.repository, 'audit', side_effect=held_audit):
+            try:
+                self.na.disconnect(self.b.local_id)
+                self.assertTrue(entered.wait(3))
+                self.assertFalse(self.na.channels)
+                self.assertIn(channel, self.na.workers)
+                self.assertTrue(channel.thread.is_alive())
+                # The old worker still owns a real SQLite write transaction.
+                # These are snapshots, not request execution authorization.
+                record = self.a.device(self.b.local_id, timeout=.25)
+                self.assertEqual(record['trust_state'], 'paired')
+                self.a.require_paired_identity(record['public_identity'], timeout=.25)
+                self.assertEqual(len(self.a.paired_devices(timeout=.25)), 1)
+            finally:
+                release.set()
+                self.disconnect_and_join()
+        self.assertIsNot(self.connect(), channel)
+
+    def test_device_read_exclusive_lock_remains_bounded(self):
+        with closing(sqlite3.connect(self.a.repository.path)) as holder:
+            holder.execute('BEGIN EXCLUSIVE')
+            started = time.monotonic()
+            with self.assertRaises(sqlite3.OperationalError) as failure:
+                self.a.device(self.b.local_id, timeout=.25)
+            self.assertEqual(failure.exception.sqlite_errorcode, sqlite3.SQLITE_BUSY)
+            self.assertLess(time.monotonic() - started, 1.5)
+        self.assertEqual(self.a.device(self.b.local_id)['trust_state'], 'paired')
 
     def test_idle_and_request_timeouts_clear_authority(self):
         with patch('olive.connect.network.IDLE_TIMEOUT', .15):

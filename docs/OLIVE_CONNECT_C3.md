@@ -174,6 +174,14 @@ introduced. Capacity exhaustion is an actionable failure, not silent authority
 reset. Kernel TLS/TCP buffers and Zeroconf's DNS cache are library/OS managed;
 these application limits do not promise immunity to network-level denial of service.
 
+Device and paired-device lookups use short `BEGIN` snapshot transactions with
+SQLite `query_only` enabled. They do not reserve the writer slot while a channel
+audits its teardown. They retain the 0.25-second network lock wait and can still
+fail under an exclusive database lock. Claims, execution authority, permission
+changes, revocation and audit writes retain `BEGIN IMMEDIATE`; a lookup snapshot
+is never sufficient authority to execute a request. See
+[the portable lock repair report](OLIVE_CONNECT_PORTABLE_LOCK_REPAIR.md).
+
 The channel, not request metadata, supplies authenticated source identity.
 Dispatch rechecks exact stored public identity and revocation, strict envelope,
 source/target/freshness, safe operation, availability and current permission. A
