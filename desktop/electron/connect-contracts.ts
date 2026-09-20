@@ -7,6 +7,9 @@ const address = z
   .max(64)
   .regex(/^[0-9a-fA-F:.]+$/);
 export const connectSchemas = {
+  "connect.file_start": z.object({ transfer_id: id }).strict(),
+  "connect.file_cancel": z.object({ transfer_id: id }).strict(),
+  "connect.file_dismiss": z.object({ transfer_id: id }).strict(),
   "connect.sync_now": z.object({ device_id: id }).strict(),
   "connect.sync_cancel": empty,
   "connect.sync_conflicts": empty,
@@ -36,6 +39,8 @@ export const connectSchemas = {
     .object({
       device_id: id,
       capability: z.enum([
+        "files.send",
+        "files.receive",
         "connect.ping",
         "device.status",
         "chat.metadata.read",

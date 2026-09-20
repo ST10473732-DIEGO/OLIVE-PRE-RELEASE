@@ -8,9 +8,34 @@ export function ApprovalSummary({ approval }: { approval: Approval }) {
         <div className="ws-panel">
           <p className="ws-eyebrow">Requesting</p>
           <strong>{approval.summary}</strong>
-          <p>
-            One read-only operation. No message content or inference access.
-          </p>
+          {approval.arguments.file ? (
+            <>
+              <p>
+                {String(
+                  (approval.arguments.file as Record<string, unknown>).name,
+                )}
+              </p>
+              <p>
+                {String(
+                  (approval.arguments.file as Record<string, unknown>).size,
+                )}{" "}
+                bytes ·{" "}
+                {String(
+                  (approval.arguments.file as Record<string, unknown>).mime,
+                )}
+              </p>
+              <p>
+                Inert file transfer only. Receipt does not open, execute or
+                import the file.
+              </p>
+            </>
+          ) : (
+            <p>
+              {String(approval.arguments.capability).startsWith("sync.")
+                ? "This exact structured record exchange."
+                : "One read-only operation. No message content or inference access."}
+            </p>
+          )}
         </div>
         <p>On: {String(approval.arguments.target_name || "This device")}</p>
         <p className="muted">

@@ -10,6 +10,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { call } from "../../services/api";
+import { FilesPanel } from "./FilesPanel";
 import { SyncPanel } from "./SyncPanel";
 import { Pairing } from "./Pairing";
 import {
@@ -648,6 +649,14 @@ export function Devices() {
                           </div>
                         )}
                         {tab === "status" &&
+                          device.device_id !== data.local.device_id && (
+                            <FilesPanel
+                              key={`files-${device.device_id}`}
+                              device={device}
+                              refresh={refresh}
+                            />
+                          )}
+                        {tab === "status" &&
                           data.sync &&
                           device.trust_state === "paired" && (
                             <SyncPanel
@@ -680,6 +689,8 @@ export function Devices() {
                                     metadata.supported &&
                                     !metadata.policy_disabled &&
                                     [
+                                      "files.send",
+                                      "files.receive",
                                       "connect.ping",
                                       "device.status",
                                       "chat.metadata.read",

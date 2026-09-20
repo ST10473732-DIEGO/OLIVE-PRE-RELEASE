@@ -237,6 +237,126 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       syncPanel.getByText("No conflicts require review."),
     ).toBeVisible();
     await shot("c5-sync-conflict-resolved");
+    // C6: real peer bytes and the actual trusted local Ask modal.
+    const files = page.getByRole("region", {
+      name: "File transfers",
+      exact: true,
+    });
+    await expect(
+      files.getByRole("button", { name: "Send file", exact: true }),
+    ).toBeDisabled();
+    await control("file_send");
+    await expect
+      .poll(async () => (await control("file_list"))[0].state)
+      .toBe("failed");
+    await page
+      .getByRole("button", { name: "Permissions", exact: true })
+      .click();
+    const receive = page
+      .locator(".devices-permission")
+      .filter({ has: page.getByText("Receive files", { exact: true }) });
+    await expect(
+      receive.getByRole("button", { name: "Off", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await receive.getByRole("button", { name: "Ask", exact: true }).click();
+    await control("file_send");
+    await expect(
+      page.getByText("Receive an untrusted file into OLIVE Inbox", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Deny", exact: true }).click();
+    await expect
+      .poll(async () => (await control("file_list"))[0].state)
+      .toBe("failed");
+    await page.getByRole("button", { name: "Status", exact: true }).click();
+    await expect(files.locator("article").first()).toContainText("declined");
+    await control("file_send");
+    await page.getByRole("button", { name: "Allow once", exact: true }).click();
+    await expect
+      .poll(async () =>
+        Number(
+          await files.getByRole("progressbar").first().getAttribute("value"),
+        ),
+      )
+      .toBeGreaterThan(0);
+    await files
+      .getByRole("button", { name: "Cancel transfer", exact: true })
+      .first()
+      .click();
+    await expect(files.locator("article").first()).toContainText("cancelled");
+    await control("file_send");
+    await page.getByRole("button", { name: "Allow once", exact: true }).click();
+    await expect(files.locator("article").first()).toContainText(
+      "Received · Transfer verified",
+      { timeout: 20000 },
+    );
+    const receivedPath = path.join(profile, "exported-C6.bin");
+    await app.evaluate(({ dialog }, target) => {
+      dialog.showSaveDialog = async () => ({
+        canceled: false,
+        filePath: target,
+      });
+    }, receivedPath);
+    await files
+      .getByRole("button", { name: "Save", exact: true })
+      .first()
+      .click();
+    await expect
+      .poll(async () => {
+        try {
+          return (await readFile(receivedPath)).length;
+        } catch {
+          return 0;
+        }
+      })
+      .toBe(2097152);
+    expect(await readFile(receivedPath)).toEqual(
+      Buffer.from(Array.from({ length: 2097152 }, (_, i) => i % 256)),
+    );
+    await page
+      .getByRole("button", { name: "Permissions", exact: true })
+      .click();
+    await expect(
+      receive.getByRole("button", { name: "Ask", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const sendFiles = page
+      .locator(".devices-permission")
+      .filter({ has: page.getByText("Send selected files", { exact: true }) });
+    await sendFiles.getByRole("button", { name: "Allow", exact: true }).click();
+    await control("file_receive_allow");
+    await app.evaluate(({ dialog }, target) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [target],
+      });
+    }, receivedPath);
+    await page.getByRole("button", { name: "Status", exact: true }).click();
+    await files.getByRole("button", { name: "Send file", exact: true }).click();
+    await expect(
+      files.getByRole("button", { name: "Send reviewed file", exact: true }),
+    ).toBeVisible();
+    await writeFile(receivedPath, Buffer.from("changed after review"));
+    await files
+      .getByRole("button", { name: "Send reviewed file", exact: true })
+      .click();
+    await expect(files.locator("article").first()).toContainText("failed");
+    await writeFile(
+      receivedPath,
+      Buffer.from(Array.from({ length: 2097152 }, (_, i) => i % 256)),
+    );
+    await files.getByRole("button", { name: "Send file", exact: true }).click();
+    await files
+      .getByRole("button", { name: "Send reviewed file", exact: true })
+      .click();
+    await expect(files.locator("article").first()).toContainText(
+      "Sent · Transfer verified",
+      { timeout: 20000 },
+    );
+    await expect
+      .poll(async () => (await control("file_list"))[0].state)
+      .toBe("completed");
+    await shot("c6-transfers");
     await control("nearby");
     await expect(
       page.getByRole("button", { name: /OLIVE device.*Discovered/ }),
@@ -290,6 +410,15 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       .fill(String(peerEndpoint.port));
     await page.getByRole("button", { name: "Connect", exact: true }).click();
     await expect(page.locator(".devices-tls")).toBeVisible();
+    await control("file_send");
+    await page.getByRole("button", { name: "Allow once", exact: true }).click();
+    await expect
+      .poll(async () =>
+        Number(
+          await files.getByRole("progressbar").first().getAttribute("value"),
+        ),
+      )
+      .toBeGreaterThan(0);
     await page
       .getByRole("button", { name: "Revoke device", exact: true })
       .click();
@@ -297,6 +426,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     expect((await control("peer_status")).encrypted).toBe(true);
     await page.getByRole("button", { name: "Revoke", exact: true }).click();
     await expect(page.locator(".devices-detail-head")).toContainText("Revoked");
+    await expect(files.locator("article").first()).toContainText("interrupted");
     await shot("revoked");
     expect(await control("peer_status")).toMatchObject({
       encrypted: false,

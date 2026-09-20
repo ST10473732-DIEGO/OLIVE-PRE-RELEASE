@@ -80,6 +80,8 @@ async def start(self, directory):
                             result=await rpc('complete',sid=sid)
                         elif action=='connect':
                             result=await rpc('connect',peer=service.local_id,port=service.network.port)
+                        elif action in ('file_send', 'file_list', 'file_receive_allow'):
+                            result=await rpc(action,peer=service.local_id)
                         elif action=='sync_setup':
                             result=await rpc('sync_setup',peer=service.local_id)
                         elif action=='sync_conflict':

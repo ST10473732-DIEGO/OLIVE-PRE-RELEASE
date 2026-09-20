@@ -53,6 +53,16 @@ try:
                 network = service.network or service.enable_network('127.0.0.1', discovery=False)
                 channel = network.connect(data['peer'], '127.0.0.1', data['port'])
                 value = dict(id=service.local_id,port=network.port)
+            elif command == 'file_send':
+                service.set_permission(data['peer'], 'files.send', 'allow')
+                path = Path(sys.argv[1]) / 'RaceDay.bin'
+                path.write_bytes(bytes(range(256)) * 8192)
+                value = service.files.prepare(data['peer'], path)
+                service.files.start(value['transfer_id'])
+            elif command == 'file_list':
+                value = service.files.list()
+            elif command == 'file_receive_allow':
+                service.set_permission(data['peer'], 'files.receive', 'allow'); value = True
             elif command == 'sync_setup':
                 service.set_permission(data['peer'], 'sync.tasks', 'allow')
                 value = personal.save('task', {'title': 'C5 synthetic task'})

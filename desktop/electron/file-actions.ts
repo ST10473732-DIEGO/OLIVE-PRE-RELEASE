@@ -1,6 +1,8 @@
 import { z } from "zod";
 const id = z.string().min(1).max(4096);
 export const fileActionSchema = z.discriminatedUnion("action", [
+  z.object({action:z.literal('connect-file-select'),device_id:z.string().uuid()}).strict(),
+  z.object({action:z.literal('connect-file-save'),transfer_id:z.string().uuid()}).strict(),
   z.object({action:z.literal('media-import')}).strict(),
   z.object({action:z.literal('media-export'),artifact_id:id}).strict(),
   z.object({action:z.literal("mail-google-client")}).strict(),

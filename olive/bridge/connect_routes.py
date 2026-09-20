@@ -3,6 +3,11 @@ import asyncio
 from ..connect.workspace import DevicesWorkspace
 
 SPEC = {
+    'connect.file_prepare': ({'device_id': str, 'path': str}, {}),
+    'connect.file_start': ({'transfer_id': str}, {}),
+    'connect.file_cancel': ({'transfer_id': str}, {}),
+    'connect.file_export': ({'transfer_id': str, 'path': str}, {}),
+    'connect.file_dismiss': ({'transfer_id': str}, {}),
     'connect.sync_chats': ({'device_id': str}, {}),
     'connect.sync_select': ({'device_id': str, 'conversation_id': str, 'selected': bool}, {}),
     'connect.sync_now': ({'device_id': str}, {}),
@@ -30,7 +35,7 @@ def validate_arguments(method, args):
     """Match the preload's narrow types even for a direct private-pipe caller."""
     import ipaddress
     from ..connect.contracts import identifier, display_name, SAFE_OPERATIONS
-    for key in ('device_id', 'session_id'):
+    for key in ('device_id', 'session_id', 'transfer_id'):
         if key in args:
             identifier(args[key])
     if 'offer' in args and not 1 <= len(args['offer'].encode('utf-8')) <= 12288:
@@ -44,7 +49,7 @@ def validate_arguments(method, args):
     if 'port' in args and not 1 <= args['port'] <= 65535:
         raise ValueError('Invalid Connect port')
     if method == 'connect.permission':
-        if args['capability'] not in (set(SAFE_OPERATIONS) | {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
+        if args['capability'] not in (set(SAFE_OPERATIONS) | {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.send', 'files.receive'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
             raise ValueError('Unsupported Connect permission')
     if 'conversation_id' in args:
         from ..sync.records import record_id
@@ -68,6 +73,11 @@ async def call(host, method, args):
         service.sync.changed()
         return result
     routes = {
+        'connect.file_prepare': service.files.prepare,
+        'connect.file_start': service.files.start,
+        'connect.file_cancel': service.files.cancel,
+        'connect.file_export': service.files.export,
+        'connect.file_dismiss': service.files.dismiss,
         'connect.sync_chats': lambda device_id: service.sync.owned(lambda: service.sync.store.chat.selections(device_id)),
         'connect.sync_select': lambda device_id, conversation_id, selected: service.sync.owned(lambda: service.sync.store.chat.select(device_id, conversation_id, selected)),
         'connect.sync_now': service.sync.start if service.sync else None,

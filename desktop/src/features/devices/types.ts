@@ -1,5 +1,9 @@
 export type SafeCapability =
-  "connect.ping" | "device.status" | "chat.metadata.read";
+  | "connect.ping"
+  | "device.status"
+  | "chat.metadata.read"
+  | "files.receive"
+  | "files.send";
 export interface NetworkInterface {
   name: string;
   address: string;
@@ -10,7 +14,16 @@ export interface Capability {
   supported: boolean;
   policy_disabled: boolean;
 }
+export interface Transfer {
+  transfer_id: string;
+  direction: "incoming" | "outgoing";
+  metadata: { name: string; size: number; sha256: string; mime: string };
+  state: string;
+  received_size: number;
+  error: string | null;
+}
 export interface Device {
+  transfers?: Transfer[];
   sync?: DevicesState["sync"];
   device_id: string;
   display_name: string;
@@ -122,6 +135,7 @@ export const permissionGroups = [
     "Files",
     [
       ["files.receive", "Receive files"],
+      ["files.send", "Send selected files"],
       ["files.shared", "Shared folders"],
       ["filesystem.full", "Full filesystem"],
     ],

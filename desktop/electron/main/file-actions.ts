@@ -9,6 +9,16 @@ export async function fileAction(
   input: unknown,
 ) {
   const value = fileActionSchema.parse(input);
+  if(value.action === 'connect-file-select') {
+    const chosen = await dialog.showOpenDialog(window, {title:'Select one file to send', properties:['openFile']});
+    if(chosen.canceled || chosen.filePaths.length !== 1) return null;
+    return backend.request('connect.file_prepare', {device_id:value.device_id,path:chosen.filePaths[0]});
+  }
+  if(value.action === 'connect-file-save') {
+    const chosen = await dialog.showSaveDialog(window, {title:'Save received file to a new file',defaultPath:'OLIVE-received-file'});
+    if(chosen.canceled || !chosen.filePath) return null;
+    return backend.request('connect.file_export', {transfer_id:value.transfer_id,path:chosen.filePath});
+  }
   if(value.action==='media-import') {
     const chosen=await dialog.showOpenDialog(window,{title:'Preserve an original image for REIMAGINE',properties:['openFile'],filters:[{name:'Raster image',extensions:['png','jpg','jpeg','webp','bmp']}]});
     if(chosen.canceled||chosen.filePaths.length!==1)return null;

@@ -180,3 +180,57 @@ describe("C5 local sync contracts", () => {
     ).toBe(false);
   });
 });
+
+describe("C6 file boundary", () => {
+  it("permits scoped file settings without exposing paths or remote approvals", () => {
+    for (const capability of ["files.receive", "files.send"])
+      for (const decision of ["deny", "ask", "allow"])
+        expect(
+          connectSchemas["connect.permission"].safeParse({
+            device_id: crypto.randomUUID(),
+            capability,
+            decision,
+          }).success,
+        ).toBe(true);
+    expect(
+      connectSchemas["connect.file_start"].safeParse({
+        transfer_id: crypto.randomUUID(),
+        path: "/invented",
+      }).success,
+    ).toBe(false);
+    expect(
+      connectSchemas["connect.file_start"].safeParse({
+        transfer_id: crypto.randomUUID(),
+        approved: true,
+      }).success,
+    ).toBe(false);
+    expect("connect.file_prepare" in connectSchemas).toBe(false);
+    expect("connect.file_export" in connectSchemas).toBe(false);
+  });
+  it("shows untrusted filename and type as inert text without a malware safety claim", () => {
+    const html = renderToStaticMarkup(
+      createElement(ApprovalSummary, {
+        approval: {
+          id: "a",
+          fingerprint: "f",
+          summary: "Receive an untrusted file into OLIVE Inbox",
+          tool_name: "connect.request",
+          risk_level: "medium",
+          targets: [],
+          arguments: {
+            capability: "files.receive",
+            file: {
+              name: "<script>name</script>",
+              size: 123,
+              mime: "application/octet-stream",
+            },
+          },
+        },
+      }),
+    );
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("123");
+    expect(html).toContain("does not open, execute or import");
+    expect(html).not.toContain("read-only operation");
+  });
+});
