@@ -1,0 +1,1593 @@
+<title>OLIVE Mobile</title>
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#0b0f16; --surface:#11171f; --elevated:#182029; --raised:#1f2933;
+  --text:#e8eef7; --muted:#9db0c7; --faint:#6f819a;
+  --accent:#7cc4ff; --accent-strong:#3d9cf5; --accent-soft:rgba(124,196,255,.12); --accent-glow:rgba(124,196,255,.28);
+  --on-accent:#06131f;
+  --line:rgba(197,216,240,.09); --line-strong:rgba(197,216,240,.16); --hover:rgba(197,216,240,.06);
+  --field:rgba(9,13,20,.55);
+  --success:#7fd8a8; --success-soft:rgba(127,216,168,.14);
+  --warning:#f0c36b; --warning-soft:rgba(240,195,107,.14);
+  --error:#ff8f8f; --error-soft:rgba(255,143,143,.14);
+  --olive:#9ab534; --olive-glow:rgba(154,181,52,.16); --pimento:#c0232a;
+  --shadow:0 18px 50px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35);
+  --radius:14px; --radius-sm:9px; --radius-lg:20px;
+  --fast:140ms; --ease:cubic-bezier(.2,.7,.2,1);
+  --font:-apple-system,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",sans-serif;
+  --font-display:-apple-system,"SF Pro Display",system-ui,sans-serif;
+  --mono:"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#eef1f6; --surface:#ffffff; --elevated:#eef2f8; --raised:#ffffff;
+    --text:#141d29; --muted:#54637a; --faint:#78889f;
+    --accent:#1e63c8; --accent-strong:#1554b3; --accent-soft:rgba(30,99,200,.1); --accent-glow:rgba(30,99,200,.22);
+    --on-accent:#ffffff;
+    --line:rgba(20,32,47,.1); --line-strong:rgba(20,32,47,.16); --hover:rgba(20,32,47,.05);
+    --field:rgba(255,255,255,.9);
+    --success:#1c7a4c; --success-soft:rgba(28,122,76,.12);
+    --warning:#8a5a0b; --warning-soft:rgba(138,90,11,.12);
+    --error:#b3303a; --error-soft:rgba(179,48,58,.1);
+    --olive:#5f7016; --olive-glow:rgba(95,112,22,.12); --pimento:#b31f26;
+    --shadow:0 18px 50px rgba(20,32,47,.16),0 2px 8px rgba(20,32,47,.06);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#eef1f6; --surface:#ffffff; --elevated:#eef2f8; --raised:#ffffff;
+  --text:#141d29; --muted:#54637a; --faint:#78889f;
+  --accent:#1e63c8; --accent-strong:#1554b3; --accent-soft:rgba(30,99,200,.1); --accent-glow:rgba(30,99,200,.22);
+  --on-accent:#ffffff;
+  --line:rgba(20,32,47,.1); --line-strong:rgba(20,32,47,.16); --hover:rgba(20,32,47,.05);
+  --field:rgba(255,255,255,.9);
+  --success:#1c7a4c; --success-soft:rgba(28,122,76,.12);
+  --warning:#8a5a0b; --warning-soft:rgba(138,90,11,.12);
+  --error:#b3303a; --error-soft:rgba(179,48,58,.1);
+  --olive:#5f7016; --olive-glow:rgba(95,112,22,.12); --pimento:#b31f26;
+  --shadow:0 18px 50px rgba(20,32,47,.16),0 2px 8px rgba(20,32,47,.06);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased;padding-inline:16px}
+[hidden]{display:none!important}
+button,input,textarea,select{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+.icon{width:18px;height:18px;display:inline-flex;flex-shrink:0}
+.icon svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.icon.filled svg{fill:currentColor;stroke:none}
+::selection{background:var(--accent-glow)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ============================= LAYOUT SHELL ============================= */
+.stage{max-width:1180px;margin:0 auto;padding-block:28px 48px;display:flex;flex-direction:column;gap:22px}
+.stage-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand-mark{width:38px;height:38px;border-radius:11px;background:radial-gradient(circle at 32% 28%,color-mix(in srgb,var(--olive) 88%,white 6%),var(--olive) 60%);position:relative;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.brand-mark::after{content:"";position:absolute;top:5px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--pimento);box-shadow:0 0 0 1.5px rgba(0,0,0,.18)}
+.stage-head h1{font-family:var(--font-display);font-size:19px;font-weight:650;letter-spacing:-.01em}
+.stage-head .sub{font-size:12.5px;color:var(--muted)}
+.stage-head .tag{margin-left:auto;font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line-strong);border-radius:999px;padding:4px 10px}
+.layout{display:grid;grid-template-columns:minmax(0,420px) minmax(280px,340px);gap:26px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+
+/* ============================= PHONE CHROME ============================= */
+.phone-wrap{position:sticky;top:20px;display:flex;justify-content:center}
+@media (max-width:900px){.phone-wrap{position:static}}
+.phone{
+  width:min(390px,calc(100vw - 32px));
+  aspect-ratio:390/844;
+  background:#000; border-radius:52px; padding:12px;
+  box-shadow:var(--shadow),0 0 0 1px rgba(255,255,255,.04) inset;
+  position:relative;
+}
+.phone-screen{
+  position:relative; height:100%; width:100%; border-radius:40px; overflow:hidden;
+  background:var(--bg); display:flex; flex-direction:column; isolation:isolate;
+  font-size:13.5px;
+}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:34%;height:22px;background:#000;border-radius:0 0 16px 16px;z-index:60}
+.statusbar{position:relative;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:8px 24px 2px;font-size:12.5px;font-weight:650;color:var(--text);flex-shrink:0;font-variant-numeric:tabular-nums}
+.statusbar .sb-icons{display:flex;align-items:center;gap:5px;color:var(--text)}
+.home-indicator{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:118px;height:4px;border-radius:3px;background:var(--text);opacity:.55;z-index:60}
+
+.screen-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.screen-body::-webkit-scrollbar{width:0;height:0}
+
+/* nav bar (drill-down) */
+.navbar{display:flex;align-items:center;gap:6px;padding:8px 8px 10px;flex-shrink:0;min-height:38px}
+.navbar h2{font-size:16.5px;font-weight:650;letter-spacing:-.005em;flex:1;text-align:center;margin-right:34px}
+.navbar.left h2{text-align:left;margin-right:0;padding-left:6px}
+.nav-back{display:inline-flex;align-items:center;gap:2px;color:var(--accent);background:none;border:0;padding:4px 4px 4px 2px;min-height:30px;font-size:14.5px;font-weight:500}
+.nav-back .icon{width:22px;height:22px}
+.nav-action{background:none;border:0;color:var(--accent);font-size:14.5px;font-weight:500;padding:4px 6px;min-height:30px}
+.nav-title-big{padding:2px 14px 8px;flex-shrink:0}
+.nav-title-big h1{font-family:var(--font-display);font-size:26px;font-weight:700;letter-spacing:-.02em}
+
+/* tab bar */
+.tabbar{display:flex;align-items:stretch;border-top:1px solid var(--line);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(14px);flex-shrink:0;padding-bottom:2px}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;border-radius:0;color:var(--faint);padding:6px 2px 4px;min-height:48px;font-size:10px;font-weight:600}
+.tabbar button .icon{width:21px;height:21px}
+.tabbar button.active{color:var(--accent)}
+
+/* ============================= COMPONENTS (reused desktop tokens) ============================= */
+.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+.row{display:flex;align-items:center;gap:10px}
+.spread{justify-content:space-between}
+.stack{display:flex;flex-direction:column;gap:10px}
+.spacer{flex:1;min-width:0}
+
+.pad{padding:12px 14px}
+.section{padding:14px 14px 4px}
+.section-title{display:flex;align-items:center;gap:8px;padding:0 2px 8px}
+.section-title h3{font-size:13px;font-weight:650}
+.section-title .link{margin-left:auto;font-size:12.5px;color:var(--accent);font-weight:500;background:none;border:0;padding:2px}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.card + .card{margin-top:10px}
+.card-pad{padding:13px 14px}
+.card-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:0;border-radius:0;padding:12px 14px;min-height:0}
+.card-row:not(:last-child){border-bottom:1px solid var(--line)}
+.card-row:active{background:var(--hover)}
+.card-row strong{display:block;font-weight:600;font-size:13.5px}
+.card-row small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+.chev{color:var(--faint);flex-shrink:0}
+
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;font-size:11px;font-weight:650;background:var(--elevated);color:var(--muted);white-space:nowrap}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.pill[data-tone="online"]{color:var(--success);background:var(--success-soft)}
+.pill[data-tone="busy"]{color:var(--warning);background:var(--warning-soft)}
+.pill[data-tone="busy"] .dot{animation:pulse 1.1s ease-in-out infinite}
+.pill[data-tone="offline"]{color:var(--faint);background:var(--elevated)}
+.pill[data-tone="waiting"]{color:var(--accent);background:var(--accent-soft)}
+.pill[data-tone="waiting"] .dot{animation:pulse 1.1s ease-in-out infinite}
+.pill[data-tone="revoked"]{color:var(--faint);background:transparent;border:1px dashed var(--line-strong)}
+.pill[data-tone="off"]{color:var(--faint);background:transparent;border:1px solid var(--line-strong)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.badge[data-tone="neutral"]{background:var(--elevated);color:var(--muted)}
+.badge[data-tone="success"]{background:var(--success-soft);color:var(--success)}
+.badge[data-tone="warning"]{background:var(--warning-soft);color:var(--warning)}
+.badge[data-tone="error"]{background:var(--error-soft);color:var(--error)}
+
+button.btn{cursor:pointer;border:1px solid var(--line);background:var(--elevated);border-radius:var(--radius-sm);min-height:38px;padding:8px 14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:600;font-size:13.5px;width:100%;transition:background var(--fast) var(--ease)}
+button.btn:active{background:var(--raised)}
+button.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+button.btn.ghost{background:transparent}
+button.btn.danger{background:transparent;color:var(--error);border-color:color-mix(in srgb,var(--error) 45%,transparent)}
+button.btn.sm{min-height:30px;padding:5px 11px;font-size:12.5px;width:auto}
+.btn-row{display:flex;gap:8px}
+.btn-row > button{flex:1}
+.icon-btn{background:none;border:0;color:var(--muted);width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.icon-btn:active{background:var(--hover)}
+
+.field{width:100%;background:var(--field);border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 11px;min-height:38px;color:var(--text)}
+.field:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field::placeholder{color:var(--faint)}
+.check-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;min-height:0}
+.check-row:not(:last-child){border-bottom:1px solid var(--line)}
+.check-row strong{font-size:13.5px;font-weight:550}
+.check-row small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+.switch{position:relative;width:44px;height:26px;border-radius:14px;background:var(--elevated);border:1px solid var(--line-strong);flex-shrink:0}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform var(--fast) var(--ease)}
+.switch[data-on="true"]{background:var(--success);border-color:transparent}
+.switch[data-on="true"]::after{transform:translateX(18px)}
+
+.segmented{display:inline-flex;padding:2px;border-radius:9px;background:var(--elevated);border:1px solid var(--line);gap:1px;width:100%}
+.segmented button{flex:1;border:0;background:transparent;min-height:28px;padding:4px 6px;border-radius:7px;color:var(--muted);font-size:12px;font-weight:600}
+.segmented button.selected{background:var(--raised);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:44px 26px}
+.empty .icon-lg{width:46px;height:46px;color:var(--faint);border:1px solid var(--line-strong);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.empty .icon-lg .icon{width:22px;height:22px}
+.empty h3{font-size:14.5px;font-weight:650}
+.empty p{font-size:12.5px;color:var(--muted);max-width:260px;line-height:1.5}
+
+.banner{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius-sm);background:var(--elevated);border:1px solid var(--line-strong)}
+.banner.warn{background:var(--warning-soft);border-color:transparent}
+.banner.info{background:var(--accent-soft);border-color:transparent}
+.banner.err{background:var(--error-soft);border-color:transparent}
+.banner p{font-size:12px;line-height:1.5;color:var(--text)}
+.banner strong{display:block;font-size:12.5px;margin-bottom:1px}
+
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--elevated);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted)}
+.avatar.olive{background:var(--olive-glow);color:var(--olive);position:relative}
+.avatar.olive::after{content:"";position:absolute;top:4px;right:4px;width:4px;height:4px;border-radius:50%;background:var(--pimento)}
+
+/* ---------- overlay sheets / flows ---------- */
+.overlay{position:absolute;inset:0;z-index:80;display:flex;flex-direction:column;background:var(--bg)}
+.sheet-backdrop{position:absolute;inset:0;z-index:70;background:rgba(4,7,12,.55);display:flex;align-items:flex-end}
+.sheet{position:relative;z-index:71;width:100%;max-height:88%;background:var(--surface);border-radius:20px 20px 0 0;border:1px solid var(--line-strong);border-bottom:0;box-shadow:0 -12px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden}
+.sheet-grab{width:36px;height:4px;border-radius:3px;background:var(--line-strong);margin:9px auto 2px}
+.sheet-head{padding:6px 16px 10px;flex-shrink:0}
+.sheet-head h2{font-size:16px;font-weight:650}
+.sheet-body{padding:0 16px 18px;overflow-y:auto}
+.sheet-body::-webkit-scrollbar{width:0}
+
+/* chat */
+.msg-list{display:flex;flex-direction:column;gap:14px;padding:12px 14px 6px}
+.msg{display:flex;gap:8px;max-width:100%}
+.msg.user{flex-direction:row-reverse}
+.bubble{max-width:78%;padding:9px 12px;border-radius:16px;font-size:13.5px;line-height:1.48}
+.msg.user .bubble{background:var(--accent);color:var(--on-accent);border-bottom-right-radius:5px}
+.msg.olive .bubble{background:var(--elevated);border:1px solid var(--line);border-bottom-left-radius:5px}
+.attrib{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:650;color:var(--faint);margin:0 0 5px 40px}
+.attrib .icon{width:11px;height:11px}
+.code-block{background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden}
+.code-block .code-head{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:10.5px;color:var(--faint)}
+.code-block pre{margin:0;padding:10px 12px;font-family:var(--mono);font-size:11.5px;line-height:1.55;overflow-x:auto;color:var(--text)}
+.code-block .code-head button{margin-left:auto;background:none;border:0;color:var(--faint);font-size:10.5px;display:flex;align-items:center;gap:4px;padding:2px}
+.cursor-blink{display:inline-block;width:6px;height:13px;background:var(--text);vertical-align:middle;margin-left:1px;animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.chat-input-bar{flex-shrink:0;border-top:1px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:8px}
+.chat-input-row{display:flex;align-items:flex-end;gap:8px}
+.chat-input-row textarea{flex:1;resize:none;max-height:80px;border-radius:18px;padding:9px 14px}
+.send-btn{width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--on-accent);border:0;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.send-btn:disabled{opacity:.35}
+.model-row{display:flex;align-items:center;gap:8px}
+.model-picker{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--muted);background:var(--elevated);border:1px solid var(--line);border-radius:999px;padding:4px 9px 4px 6px}
+.convo-row .snippet{color:var(--muted);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* timeline */
+.timeline{padding:8px 14px 4px;position:relative}
+.tl-item{display:flex;gap:12px;position:relative;padding-bottom:16px}
+.tl-item:last-child{padding-bottom:2px}
+.tl-time{width:52px;flex-shrink:0;font-size:11px;font-weight:650;color:var(--muted);padding-top:2px;font-variant-numeric:tabular-nums}
+.tl-rail{width:10px;display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.tl-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);margin-top:4px;flex-shrink:0;box-shadow:0 0 0 3px var(--accent-soft)}
+.tl-dot.done{background:var(--faint);box-shadow:none}
+.tl-dot.overdue{background:var(--error);box-shadow:0 0 0 3px var(--error-soft)}
+.tl-line{flex:1;width:1.5px;background:var(--line-strong);margin-top:3px}
+.tl-body{flex:1;min-width:0;padding-top:0}
+.tl-body strong{display:block;font-size:13px;font-weight:600}
+.tl-body small{color:var(--muted);font-size:11.5px}
+
+/* swipe rows (Today timeline, Reminders) */
+.swipe-row{position:relative;overflow:hidden;border-radius:10px}
+.swipe-actions{position:absolute;top:0;right:0;bottom:0;display:flex;align-items:stretch}
+.swipe-actions button{border:0;border-radius:0;min-width:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:650;color:#fff}
+.swipe-actions .a-complete{background:var(--success)}
+.swipe-actions .a-snooze{background:var(--warning);color:#3a2c05}
+.swipe-actions .a-dismiss{background:var(--error)}
+.swipe-content{position:relative;background:var(--bg);touch-action:pan-y;transition:transform var(--fast) var(--ease)}
+
+/* devices */
+.dev-icon{width:38px;height:38px;border-radius:11px;background:var(--elevated);display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0}
+.cap-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.perm-row{display:flex;align-items:center;gap:10px;padding:11px 14px}
+.perm-row:not(:last-child){border-bottom:1px solid var(--line)}
+.perm-row .icon-btn{background:var(--elevated);color:var(--muted)}
+.perm-name{flex:1;font-size:13.5px;font-weight:550}
+
+/* qr / pairing */
+.qr-frame{aspect-ratio:1;margin:20px 30px;border:2px dashed var(--line-strong);border-radius:22px;display:flex;align-items:center;justify-content:center;position:relative;background:var(--surface)}
+.qr-frame .corner{position:absolute;width:26px;height:26px;border-color:var(--accent);border-style:solid;border-width:0}
+.qr-frame .c1{top:10px;left:10px;border-top-width:3px;border-left-width:3px;border-radius:8px 0 0 0}
+.qr-frame .c2{top:10px;right:10px;border-top-width:3px;border-right-width:3px;border-radius:0 8px 0 0}
+.qr-frame .c3{bottom:10px;left:10px;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 8px}
+.qr-frame .c4{bottom:10px;right:10px;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 8px 0}
+.fingerprint-words{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:14px 10px}
+.fp-word{background:var(--elevated);border:1px solid var(--line-strong);border-radius:9px;padding:9px 12px;font-family:var(--mono);font-weight:650;font-size:14px;letter-spacing:.02em}
+.spinner{width:28px;height:28px;border-radius:50%;border:2.5px solid var(--line-strong);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.step-dots{display:flex;gap:6px;justify-content:center;padding:10px 0}
+.step-dots span{width:6px;height:6px;border-radius:50%;background:var(--line-strong)}
+.step-dots span.on{background:var(--accent)}
+
+/* files */
+.progress-track{height:5px;border-radius:3px;background:var(--elevated);overflow:hidden;margin-top:7px}
+.progress-fill{height:100%;background:var(--accent);border-radius:3px}
+.progress-fill.err{background:var(--error)}
+.progress-fill.ok{background:var(--success)}
+.file-icon{width:36px;height:36px;border-radius:9px;background:var(--elevated);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
+
+/* studio */
+.studio-toolbar{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
+.file-tree-row{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:13px}
+.file-tree-row .icon{color:var(--faint)}
+.file-tree-row.depth1{padding-left:30px}
+.file-tree-row.depth2{padding-left:46px}
+.editor-pane{background:var(--bg);margin:0 14px;border-radius:10px;border:1px solid var(--line);overflow:hidden}
+.editor-pane pre{margin:0;padding:12px;font-family:var(--mono);font-size:11.5px;line-height:1.6;overflow-x:auto}
+.ln{color:var(--faint);display:inline-block;width:20px;user-select:none}
+.output-panel{background:#05070c;border-radius:10px;margin:10px 14px 0;padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.65;color:#b9e6c4;max-height:150px;overflow-y:auto}
+.output-panel .l-err{color:#ff9d9d}
+.output-panel .l-warn{color:#f0c36b}
+.output-panel .l-muted{color:#6f819a}
+
+/* notification banner */
+.notif-banner{position:absolute;top:14px;left:10px;right:10px;z-index:90;background:color-mix(in srgb,var(--raised) 96%,transparent);backdrop-filter:blur(10px);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow);padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+
+/* ============================= CONTROL PANEL ============================= */
+.panel{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px}
+@media (max-width:900px){.panel{position:static}}
+.panel-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+.panel-card h4{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:13px 15px 8px}
+.jump-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 12px}
+.jump-btn{display:flex;align-items:center;gap:8px;text-align:left;background:var(--elevated);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:12px;font-weight:600;min-height:0}
+.jump-btn:hover{background:var(--raised)}
+.jump-btn.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.jump-btn .icon{width:15px;height:15px;flex-shrink:0}
+.sim-list{display:flex;flex-direction:column}
+.sim-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 15px;font-size:12.5px;border-top:1px solid var(--line)}
+.sim-row span{line-height:1.35}
+.sim-note{padding:6px 15px 13px;font-size:11px;color:var(--faint);line-height:1.5}
+.notes{padding:14px 15px 16px;font-size:12.5px;line-height:1.65;color:var(--muted)}
+.notes h4{color:var(--text);font-size:13px;margin-bottom:4px}
+.notes p{margin-bottom:10px}
+.notes ul{margin:0 0 10px;padding-left:18px}
+.notes li{margin-bottom:4px}
+.small-switch{position:relative;width:34px;height:20px;border-radius:11px;background:var(--elevated);border:1px solid var(--line-strong);flex-shrink:0}
+.small-switch::after{content:"";position:absolute;top:1.5px;left:1.5px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform var(--fast) var(--ease)}
+.small-switch[data-on="true"]{background:var(--warning);border-color:transparent}
+.small-switch[data-on="true"]::after{transform:translateX(14px)}
+</style>
+
+<div class="stage">
+  <div class="stage-head">
+    <div class="brand-mark"></div>
+    <div>
+      <h1>OLIVE Mobile — C9 Design</h1>
+      <div class="sub">Interactive product spec for iPhone · built on OLIVE Connect C1–C8</div>
+    </div>
+    <div class="tag">Design phase · not implementation</div>
+  </div>
+
+  <div class="layout">
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="phone-screen" id="screen"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================ ICONS ============================================================ */
+const I = {
+  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
+  chat:'<path d="M4 5h16v11H8l-4 4Z"/><path d="M8 9h8M8 12.5h5"/>',
+  today:'<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="M8 14.2h2M8 17h5"/>',
+  devices:'<rect x="3.5" y="4.5" width="17" height="11" rx="1.5"/><path d="M8 20h8M12 15.5V20"/>',
+  files:'<path d="M4 8h4l2 2h10v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M4 8V6a1 1 0 0 1 1-1h4l2 2"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V19.5a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H4.5a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10a1.7 1.7 0 0 0 1-1.55V4.5a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10a1.7 1.7 0 0 0 1.55 1h.19a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1Z"/>',
+  chevronLeft:'<path d="M15 5l-7 7 7 7"/>',
+  chevronRight:'<path d="M9 5l7 7-7 7"/>',
+  chevronDown:'<path d="M5 9l7 7 7-7"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
+  checkCircle:'<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.3"/>',
+  bell:'<path d="M6 9a6 6 0 0 1 12 0v5l1.5 3h-15L6 14Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  qr:'<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M15 15h2v2h-2Zm3.5 0H20v2M15 19.5h2M18.5 19.5H20v-2"/>',
+  fingerprint:'<path d="M12 4a7 7 0 0 1 7 7v2.5"/><path d="M5 11a7 7 0 0 1 10.5-6.06M5 13.5V11a7 7 0 0 1 .34-2.16"/><path d="M8.5 20a10 10 0 0 1-1.7-3.4M12 21a13 13 0 0 1-2.3-4.2M15.5 20A13 13 0 0 0 16 11a4 4 0 0 0-7.9-.8"/><path d="M12 11a2.5 2.5 0 0 1 5 0v2a11 11 0 0 1-.6 3.6"/>',
+  shieldCheck:'<path d="M12 3l7 3v6c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6Z"/><path d="M9 12l2 2 4-4.2"/>',
+  shieldOff:'<path d="M12 3l7 3v6c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6Z"/><path d="M9.3 9.3l5.4 5.4M14.7 9.3l-5.4 5.4"/>',
+  wifi:'<path d="M2.5 8.5a15 15 0 0 1 19 0M5.7 12.2a10.4 10.4 0 0 1 12.6 0M9 15.7a5.7 5.7 0 0 1 6 0"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/>',
+  wifiOff:'<path d="M2.5 8.5a15 15 0 0 1 6.6-3.4M21.5 8.5a15 15 0 0 0-4-2.5M5.7 12.2a10.4 10.4 0 0 1 4-1.7M18.3 12.2a10.4 10.4 0 0 0-2-1.1M9 15.7a5.7 5.7 0 0 1 6 0M2 2l20 20"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/>',
+  refresh:'<path d="M4 4v6h6M20 20v-6h-6"/><path d="M4.6 15A8 8 0 0 0 19 15.5M19.4 9A8 8 0 0 0 5 8.5"/>',
+  play:'<path d="M7 5.5v13l11-6.5Z"/>',
+  square:'<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  beaker:'<path d="M9 3h6M10 3v6.2L5.5 18a2 2 0 0 0 1.8 3h9.4a2 2 0 0 0 1.8-3L14 9.2V3"/><path d="M8 15h8"/>',
+  hammer:'<path d="m14.5 6.5 3 3L9 18l-4 1 1-4Z"/><path d="m13 8 3-3 3 3-3 3"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>',
+  send:'<path d="M4 12 20 4l-6 16-3-7Z"/>',
+  download:'<path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M5 19h14"/>',
+  trash:'<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/>',
+  alert:'<path d="M12 3 2 20h20Z"/><path d="M12 10v4m0 3h.01"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5m0-8.7v.1"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  folder:'<path d="M4 7h5l2 2h9v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/>',
+  file:'<path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v4h4"/>',
+  laptop:'<rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2.5 19h19l-1.7-3.2a1 1 0 0 0-.9-.5H5.1a1 1 0 0 0-.9.5Z"/>',
+  monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+  tablet:'<rect x="4.5" y="3" width="15" height="18" rx="2"/><path d="M11 18h2"/>',
+  phone:'<rect x="7.5" y="2.5" width="9" height="19" rx="2"/><path d="M11 18.4h2"/>',
+  radio:'<circle cx="12" cy="12" r="1.8"/><path d="M9 9a4.2 4.2 0 0 0 0 6M15 9a4.2 4.2 0 0 1 0 6M6.3 6.3a8.4 8.4 0 0 0 0 11.4M17.7 6.3a8.4 8.4 0 0 1 0 11.4"/>',
+  more:'<circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4.3-4.3"/>',
+  flag:'<path d="M6 3v18"/><path d="M6 4h11l-2.5 4L17 12H6"/>',
+  link:'<path d="M9 15l6-6"/><path d="M10 6.5 11.5 5a3.5 3.5 0 0 1 5 5L15 11.5M14 17.5 12.5 19a3.5 3.5 0 0 1-5-5L9 12.5"/>',
+  edit:'<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17Z"/>',
+  moon:'<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/>',
+  sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2.5 12h2M19.5 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  sliders:'<path d="M4 6h9M17 6h3M4 12h3M9 12h11M4 18h13M20 18h0"/><circle cx="15" cy="6" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  arrowRight:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  terminal:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/>',
+  helpCircle:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8.9c0 1.7-2.3 2-2.3 3.4M12 17v.1"/>',
+  cloud:'<path d="M7 18a4.2 4.2 0 0 1-.6-8.35A5.5 5.5 0 0 1 17 8.5 4 4 0 0 1 17.5 18Z"/>',
+  share:'<path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V19.5a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H4.5a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10a1.7 1.7 0 0 0 1-1.55V4.5a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10a1.7 1.7 0 0 0 1.55 1h.19a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1Z"/>',
+};
+const ic = (name,size=18)=>`<span class="icon" style="width:${size}px;height:${size}px"><svg viewBox="0 0 24 24">${I[name]||''}</svg></span>`;
+
+/* ============================================================ DATA ============================================================ */
+const DATA = {
+  identity: { name:'Diego\u2019s iPhone', code:'4F9A\u201121C6', created:'Added Sep 2, 2026' },
+  devices: [
+    { id:'studio', name:'Diego\u2019s Studio PC', kind:'monitor', platform:'Windows \u00b7 OLIVE Desktop', status:'online', paired:'Paired 42 days ago',
+      caps:{ ai:'ask', tasksSync:'allow', chatContinuity:'allow', receiveFiles:'ask', sendFiles:'allow', studio:'off' },
+      aiPresets:['FAST','NORMAL'], aiModel:'olive-normal (Ollama)' },
+    { id:'gaming', name:'Gaming PC', kind:'monitor', platform:'Windows \u00b7 OLIVE Desktop', status:'busy', paired:'Paired 19 days ago',
+      caps:{ ai:'allow', tasksSync:'off', chatContinuity:'off', receiveFiles:'ask', sendFiles:'ask', studio:'allow' },
+      aiPresets:['MAX'], aiModel:'olive-max-70b (Ollama)', busyNote:'Serving another MAX request', workspaces:['raceday','olivetest'] },
+    { id:'laptop', name:'Work Laptop', kind:'laptop', platform:'macOS \u00b7 OLIVE Desktop', status:'offline', paired:'Paired 71 days ago', lastSeen:'Last seen 3h ago',
+      caps:{ ai:'off', tasksSync:'allow', chatContinuity:'ask', receiveFiles:'ask', sendFiles:'off', studio:'ask' }, workspaces:['coursework'] },
+    { id:'ipad', name:'Diego\u2019s iPad', kind:'tablet', platform:'iPadOS \u00b7 OLIVE Mobile', status:'waiting', paired:'Requested pairing 4 min ago',
+      caps:{ ai:'off', tasksSync:'off', chatContinuity:'off', receiveFiles:'off', sendFiles:'off', studio:'off' } },
+    { id:'oldmac', name:'Old MacBook', kind:'laptop', platform:'macOS \u00b7 OLIVE Desktop', status:'revoked', paired:'Revoked 12 days ago',
+      caps:{ ai:'off', tasksSync:'off', chatContinuity:'off', receiveFiles:'off', sendFiles:'off', studio:'off' } },
+  ],
+  studioWorkspaces: {
+    raceday: { id:'raceday', name:'RaceDay', device:'gaming', mainFile:'physics.py', revision:'r118',
+      files:[ {path:'raceday/',type:'dir',depth:0}, {path:'src/',type:'dir',depth:1}, {path:'physics.py',type:'file',depth:2}, {path:'track_loader.py',type:'file',depth:2}, {path:'assets/',type:'dir',depth:1}, {path:'car_model.gltf',type:'file',depth:2}, {path:'tests/',type:'dir',depth:0}, {path:'test_physics.py',type:'file',depth:1} ],
+      code:'def apply_drag(velocity, coefficient):\n    """Slows the car each physics tick."""\n    return velocity * (1 - coefficient)',
+      build:[['Compiling track geometry\u2026','l-muted'],['Linking physics module','l-muted'],['Build succeeded in 6.1s','']],
+      test:{passed:11,failed:1,skipped:2,duration:'3.4s',lines:[['test_apply_drag \u2014 passed',''],['test_track_bounds \u2014 passed',''],['test_tire_wear \u2014 FAILED: expected 0.42, got 0.39','l-err'],['2 skipped (no GPU on this runner)','l-warn']]},
+      run:[['Starting RaceDay dev build\u2026','l-muted'],['Loaded 3 tracks','l-muted'],['Listening on local preview port','']] },
+    olivetest: { id:'olivetest', name:'OLIVE Test Project', device:'gaming', mainFile:'pairing.py', revision:'r482',
+      files:[ {path:'olive/',type:'dir',depth:0}, {path:'connect/',type:'dir',depth:1}, {path:'pairing.py',type:'file',depth:2}, {path:'transport.py',type:'file',depth:2}, {path:'services/',type:'dir',depth:1}, {path:'ollama_service.py',type:'file',depth:2}, {path:'tests/',type:'dir',depth:0}, {path:'test_pairing.py',type:'file',depth:1} ],
+      code:'class PairingSession:\n    """Tracks one mutual-trust handshake."""\n\n    def confirm(self, fingerprint: str) -> bool:\n        if fingerprint != self.expected:\n            return False\n        self.state = "confirmed"\n        return True',
+      build:[['Resolving connect/ package\u2026','l-muted'],['Compiling pairing.py','l-muted'],['Build succeeded in 4.2s','']],
+      test:{passed:4,failed:0,skipped:0,duration:'1.1s',lines:[['test_confirm_matches \u2014 passed',''],['test_confirm_rejects_mismatch \u2014 passed',''],['Coverage: 88% (connect/pairing.py)','l-muted']]},
+      run:[['Starting OLIVE Connect (dev)\u2026','l-muted'],['Listening on local pairing channel','l-muted'],['Ready.','']] },
+    coursework: { id:'coursework', name:'Coursework', device:'laptop', mainFile:'essay-draft.md', revision:'r7',
+      files:[ {path:'coursework/',type:'dir',depth:0}, {path:'essay-draft.md',type:'file',depth:1}, {path:'notes.txt',type:'file',depth:1}, {path:'data/',type:'dir',depth:0}, {path:'survey-results.csv',type:'file',depth:1} ],
+      code:'# Essay Draft\n\n## Thesis\nLocal-first software keeps control with the person using it,\nnot the vendor operating a server on their behalf.',
+      build:null, test:null, run:null },
+  },
+  nearby: [ { id:'mini', name:'Living Room Mac mini', platform:'macOS \u00b7 OLIVE Desktop', kind:'monitor' } ],
+  conversations: [
+    { id:'c1', title:'Explain the C7 approval flow', snippet:'So the desktop always shows an exact approval before\u2026', time:'2m ago', attrib:'Diego\u2019s Studio PC', preset:'NORMAL' },
+    { id:'c2', title:'Refactor sync tombstones', snippet:'Here\u2019s a smaller version of that migration\u2026', time:'1h ago', attrib:'Gaming PC', preset:'MAX' },
+    { id:'c3', title:'Vacation packing list', snippet:'You: anything I\u2019m missing for the coast trip?', time:'Yesterday', attrib:'Diego\u2019s Studio PC', preset:'FAST' },
+  ],
+  tasks: [
+    { id:'t1', title:'Review OLIVE Connect C9 design', due:'Today 2:00 PM', done:false, project:'OLIVE Connect', overdue:false },
+    { id:'t2', title:'Renew Studio PC TLS cert reminder', due:'Yesterday', done:false, project:'OLIVE Connect', overdue:true },
+    { id:'t3', title:'Reply to Diego re: build flakiness', due:'Today 4:30 PM', done:false, project:null, overdue:false, linked:'Linked to Chat \u00b7 Refactor sync tombstones' },
+    { id:'t4', title:'Pack for coast trip', due:'Tomorrow', done:false, project:null, overdue:false },
+    { id:'t5', title:'Approve Gaming PC file share', due:'Completed', done:true, project:null, overdue:false },
+  ],
+  events: [
+    { id:'e1', title:'Dentist appointment', time:'11:30 AM \u2013 12:15 PM', allDay:false },
+    { id:'e2', title:'Studio PC maintenance window', time:'9:00 PM \u2013 9:30 PM', allDay:false },
+    { id:'e3', title:'Coast trip', time:'All day', allDay:true },
+  ],
+  reminders: [
+    { id:'r1', title:'Water the olive tree', when:'Today 6:00 PM', state:'due' },
+    { id:'r2', title:'Back up Studio PC workspace', when:'Tomorrow 9:00 AM', state:'upcoming' },
+    { id:'r3', title:'Check Inbox storage usage', when:'Snoozed until Fri', state:'snoozed' },
+    { id:'r4', title:'Confirm iPad pairing', when:'Completed', state:'done' },
+  ],
+  files: [
+    { id:'f1', name:'connect-c9-notes.pdf', from:'Diego\u2019s Studio PC', size:'412 KB', state:'verified', hash:'8f2c\u2026a91d', time:'10:02 AM' },
+    { id:'f2', name:'build-log-0920.txt', from:'Diego\u2019s Studio PC', size:'1.1 MB', state:'receiving', progress:62, time:'Now' },
+    { id:'f3', name:'olive-icon-set.zip', from:'Diego\u2019s Studio PC', size:'6.4 MB', state:'interrupted', progress:34, time:'8:41 AM' },
+    { id:'f4', name:'screenshot-bug.png', from:'Gaming PC', size:'2.0 MB', state:'pending', time:'Just now' },
+    { id:'f5', name:'race-telemetry.csv', from:'Gaming PC', size:'88 KB', state:'verifying', progress:100, time:'Just now' },
+    { id:'f6', name:'old-build-log.txt', from:'Diego\u2019s Studio PC', size:'640 KB', state:'failed', time:'Yesterday' },
+    { id:'f7', name:'spreadsheet.xlsx', from:'Work Laptop', size:'96 KB', state:'declined', time:'2 days ago' },
+  ],
+};
+
+/* ============================================================ STATE ============================================================ */
+const SIM = {
+  connectOn:true, noDevices:false, noNearby:true, noChatHistory:false, noTasksToday:false,
+  gamingOffline:false, allOffline:false, aiDisabled:false, allBusy:false, staleSync:false,
+  studioUnavailable:false, studioConflict:false,
+};
+const S = {
+  tab:'home',
+  stacks:{ home:[{s:'root'}], chat:[{s:'list'}], today:[{s:'root'}], devices:[{s:'list'}], files:[{s:'list'}], settings:[{s:'root'}] },
+  overlayStack:[],
+  banner:null,
+  chatPhase:'idle', streamText:'', chatChosenId:null, chatAnsweredBy:null, chatAnsweredPreset:null,
+  studioOutput:[], studioRunning:false, studioDirty:false, studioShowConflict:false,
+};
+let outputTimer=null;
+
+function devices(){
+  let list = DATA.devices.filter(d=>d.status!=='waiting'||true);
+  if (SIM.noDevices) list = list.filter(d=>d.status==='revoked');
+  return list.map(d=>{
+    let x = {...d};
+    if (x.id==='gaming' && SIM.gamingOffline) x.status='offline';
+    if (SIM.allOffline && x.status!=='waiting' && x.status!=='revoked') x.status='offline';
+    if (SIM.aiDisabled) x.caps = {...x.caps, ai:'off'};
+    if (SIM.studioUnavailable) x.caps = {...x.caps, studio:'off'};
+    if (SIM.allBusy && x.status==='online' && x.caps.ai!=='off') x.status='busy';
+    return x;
+  });
+}
+function pairedDevices(){ return devices().filter(d=>d.status!=='waiting'&&d.status!=='revoked'); }
+function waitingDevices(){ return devices().filter(d=>d.status==='waiting'); }
+function revokedDevices(){ return devices().filter(d=>d.status==='revoked'); }
+function aiDevices(){ return devices().filter(d=>d.caps.ai && d.caps.ai!=='off'); }
+function byId(id){ return devices().find(d=>d.id===id); }
+
+function statusPill(d){
+  const map = { online:['online','Online'], busy:['busy',d.busyNote?'Busy':'Busy'], offline:['offline','Offline'], waiting:['waiting','Waiting'], revoked:['revoked','Revoked'] };
+  const [tone,label] = map[d.status];
+  return `<span class="pill" data-tone="${tone}"><span class="dot"></span>${label}</span>`;
+}
+function permLabel(v){ return v==='allow'?'Allow':v==='ask'?'Ask':'Off'; }
+function devIcon(d){ return ic(d.kind,19); }
+
+/* ============================================================ NAV HELPERS ============================================================ */
+const ROOT_SCREEN = { home:'root', chat:'list', today:'root', devices:'list', files:'root', settings:'root' };
+function stackTop(tab){ const st=S.stacks[tab]; return st[st.length-1]; }
+function push(tab,screen,params){ S.stacks[tab].push({s:screen,...params}); render(); }
+function pop(tab){ if (S.stacks[tab].length>1) S.stacks[tab].pop(); render(); }
+function goTab(tab){ S.tab=tab; closeAllOverlays(); render(); }
+function openOverlay(type,params){ S.overlayStack.push({type, ...(params||{})}); render(); }
+function closeOverlay(){ S.overlayStack.pop(); render(); }
+function closeAllOverlays(){ S.overlayStack=[]; }
+/* jump() is for entry points that should discard a tab's existing history: switching
+   tabs from elsewhere, or completing a flow (pairing) that shouldn't stay in back-stack.
+   Same-tab drill-downs use push()/pop() so the back chevron behaves normally. */
+function jump(tab,screen,params){
+  const root = ROOT_SCREEN[tab];
+  const target = screen || root;
+  S.stacks[tab] = target===root ? [{s:root, ...(params||{})}] : [{s:root},{s:target,...(params||{})}];
+  S.tab = tab;
+  closeAllOverlays();
+  render();
+}
+
+/* ============================================================ SCREEN: HOME ============================================================ */
+function screenHome(){
+  const ai = aiDevices();
+  const allowDevice = ai.find(d=>d.caps.ai==='allow');
+  const askDevice = ai.find(d=>d.caps.ai==='ask');
+  const aiSubtitle = allowDevice? 'Served by '+allowDevice.name : askDevice? 'Ask to run on '+askDevice.name : 'No Remote AI device available';
+  const paired = pairedDevices();
+  const studioDevices = paired.filter(d=>d.caps.studio==='allow' && d.workspaces && d.workspaces.length);
+  const workspaceCount = studioDevices.reduce((n,d)=>n+d.workspaces.length,0);
+  const next = SIM.noTasksToday ? null : DATA.events[0];
+  const dueTasks = SIM.noTasksToday ? [] : DATA.tasks.filter(t=>!t.done && t.due.startsWith('Today'));
+  const overdue = DATA.tasks.filter(t=>t.overdue);
+  const lastChat = SIM.noChatHistory ? null : DATA.conversations[0];
+
+  return `
+  <div class="navbar" style="padding:8px 12px 0"><span class="spacer"></span><button class="nav-action" onclick="jump('settings','root')" aria-label="Settings">${ic('gear',20)}</button></div>
+  <div class="nav-title-big" style="padding-top:0"><h1>Good afternoon, Diego</h1><div class="muted" style="font-size:12.5px;margin-top:2px">${todayStr()}</div></div>
+  <div class="section">
+    <button class="card" style="width:100%;text-align:left;border-color:var(--line-strong)" onclick="jump('chat','list')">
+      <div class="row card-pad">
+        <span class="avatar olive">${ic('chat',16)}</span>
+        <div class="spacer"><div style="font-weight:600;font-size:13.5px">Ask OLIVE\u2026</div><div class="faint" style="font-size:11.5px">${aiSubtitle}</div></div>
+        ${ic('arrowRight',16)}
+      </div>
+    </button>
+  </div>
+
+  ${!SIM.connectOn ? `
+  <div class="section"><div class="banner err">${ic('wifiOff',16)}<div><strong>Connect is off</strong><p>Remote AI, sync and file transfer are paused. Turn Connect back on in Settings.</p></div></div></div>
+  ` : ''}
+  ${SIM.staleSync ? `
+  <div class="section"><div class="banner warn">${ic('clock',16)}<div><strong>Showing data from 3h ago</strong><p>Diego\u2019s Studio PC is offline, so synced Chat and Tasks may be stale.</p></div></div></div>
+  ` : ''}
+
+  <div class="section-title"><h3>Today</h3><button class="link" onclick="jump('today','root')">See all</button></div>
+  <div class="section" style="padding-top:0">
+    <div class="card">
+      ${next ? `<div class="card-row"><span class="dev-icon">${ic('today',17)}</span><div class="spacer"><strong>${next.title}</strong><small>${next.time}</small></div></div>` : `<div class="card-row"><span class="dev-icon">${ic('checkCircle',17)}</span><div class="spacer"><strong>No events left today</strong><small>Enjoy the rest of your day</small></div></div>`}
+      <div class="card-row"><span class="dev-icon">${ic('flag',17)}</span><div class="spacer"><strong>${dueTasks.length} task${dueTasks.length===1?'':'s'} due today</strong><small>${overdue.length} overdue</small></div></div>
+      <div class="card-row"><span class="dev-icon">${ic('bell',17)}</span><div class="spacer"><strong>${DATA.reminders.filter(r=>r.state==='due').length} reminder due</strong><small>${DATA.reminders[0].title}</small></div></div>
+    </div>
+  </div>
+
+  <div class="section-title"><h3>Recent chat</h3><button class="link" onclick="jump('chat','list')">Open</button></div>
+  <div class="section" style="padding-top:0">
+    ${lastChat ? `<button class="card" style="width:100%;text-align:left" onclick="jump('chat','thread',{id:'${lastChat.id}'})"><div class="card-row"><span class="avatar olive">${ic('chat',15)}</span><div class="spacer"><strong>${lastChat.title}</strong><small>${lastChat.snippet}</small></div>${ic('chevronRight',16,)}</div></button>` : `<div class="card"><div class="empty" style="padding:24px"><div class="icon-lg">${ic('chat',20)}</div><h3>No conversations yet</h3><p>Ask OLIVE something to get started.</p></div></div>`}
+  </div>
+
+  <div class="section-title"><h3>Devices</h3><button class="link" onclick="jump('devices','list')">Manage</button></div>
+  <div class="section" style="padding-top:0;padding-bottom:16px">
+    <div class="card">
+      ${paired.length? paired.slice(0,3).map(d=>`
+        <div class="card-row"><span class="dev-icon">${devIcon(d)}</span><div class="spacer"><strong>${d.name}</strong><small>${d.caps.ai!=='off'?'Remote AI \u00b7 ':''}${statusText(d)}</small></div>${statusPill(d)}</div>
+      `).join('') : `<div class="empty" style="padding:24px"><div class="icon-lg">${ic('devices',20)}</div><h3>No paired devices</h3><p>Pair a desktop to enable Remote AI, sync and file transfer.</p><button class="btn primary sm" onclick="jump('devices','pair-start')">Pair a device</button></div>`}
+    </div>
+  </div>
+
+  <div class="section-title"><h3>Remote Studio</h3></div>
+  <div class="section" style="padding-top:0;padding-bottom:16px">
+    <button class="card" style="width:100%;text-align:left" onclick="jump('devices','studio-workspaces')">
+      <div class="card-row">
+        <span class="dev-icon">${ic('terminal',18)}</span>
+        <div class="spacer"><strong>${workspaceCount? workspaceCount+' shared workspace'+(workspaceCount===1?'':'s') : 'No shared workspaces'}</strong><small>${studioDevices.length? studioDevices.map(d=>d.name).join(', ') : 'Companion review, edits and build/test/run only'}</small></div>
+        ${ic('chevronRight',16)}
+      </div>
+    </button>
+  </div>
+  `;
+}
+function statusText(d){
+  if (d.status==='offline') return d.lastSeen||'Offline';
+  if (d.status==='busy') return d.busyNote||'Busy';
+  if (d.status==='online') return d.aiModel? d.aiModel : 'Online';
+  return d.paired;
+}
+function todayStr(){ return new Date(2026,8,20).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}); }
+
+/* ============================================================ SCREEN: CHAT ============================================================ */
+function chatDeviceOptions(preset){
+  return aiDevices().filter(d=>d.aiPresets && d.aiPresets.includes(preset));
+}
+function screenChatList(){
+  const convos = SIM.noChatHistory? [] : DATA.conversations;
+  return `
+  <div class="navbar left"><h2 style="padding-left:6px">Chat</h2><span class="spacer"></span><button class="nav-action" onclick="push('chat','thread',{id:'new'})">${ic('edit',19)}</button></div>
+  <div class="section" style="padding-top:2px">
+  ${convos.length? convos.map(c=>`
+    <button class="card" style="width:100%;text-align:left;margin-bottom:8px" onclick="push('chat','thread',{id:'${c.id}'})">
+      <div class="card-row convo-row">
+        <span class="avatar olive">${ic('chat',15)}</span>
+        <div class="spacer"><div class="row spread"><strong>${c.title}</strong><small class="faint" style="margin:0">${c.time}</small></div><div class="snippet">${c.snippet}</div>
+          ${c.attrib? `<div class="row" style="margin-top:5px;gap:5px"><span class="badge" data-tone="neutral">${ic('monitor',10)} OLIVE ${c.preset} \u00b7 ${c.attrib}</span></div>`:''}
+        </div>
+      </div>
+    </button>`).join('') : `<div class="empty"><div class="icon-lg">${ic('chat',20)}</div><h3>No conversations yet</h3><p>Start a new chat below \u2014 OLIVE will route it to an available device.</p></div>`}
+  </div>
+  <div class="section" style="padding-bottom:14px"><button class="btn primary" onclick="push('chat','thread',{id:'new'})">${ic('plus',16)} New chat</button></div>
+  `;
+}
+function screenChatThread(id){
+  const isNew = id==='new';
+  const convo = isNew? null : DATA.conversations.find(c=>c.id===id);
+  const preset = S.chatPreset || (convo?convo.preset:'NORMAL');
+  const avail = chatDeviceOptions(preset);
+  const chosen = avail.find(d=>d.id===S.chatDevice) || avail[0];
+  const modelUnavailable = avail.length===0;
+  const phase = S.chatPhase || 'idle';
+
+  const messages = isNew ? [] : [
+    {role:'user', text:'Can you summarize what changed in the C7 approval flow?'},
+    {role:'olive', text:'The approval sheet now shows the exact target and capability before any remote AI request runs \u2014 nothing executes on an implicit grant.', attrib:convo?convo.attrib:null, preset:convo?convo.preset:null, code:(convo&&convo.id==='c2')? DATA.studioWorkspaces.olivetest.code : null},
+  ];
+
+  return `
+  <div class="navbar">
+    <button class="nav-back" onclick="pop('chat')">${ic('chevronLeft',22)}Chat</button>
+    <h2>${isNew?'New chat':convo.title}</h2>
+    <button class="nav-action" onclick="alert('Design only')">${ic('more',18)}</button>
+  </div>
+  ${modelUnavailable? `<div style="padding:0 14px 8px"><div class="banner err">${ic('alert',16)}<div><strong>${preset} model unavailable</strong><p>No paired device is currently sharing OLIVE ${preset}. Pick a different preset or device below.</p></div></div></div>`:''}
+  <div class="screen-body" style="flex:1">
+    <div class="msg-list">
+      ${messages.length? messages.map(m=>`
+        ${m.role==='olive'&&m.attrib? `<div class="attrib">${ic('monitor',11)} OLIVE ${m.preset} \u00b7 ${m.attrib}</div>`:''}
+        <div class="msg ${m.role}">
+          ${m.role==='olive'?`<span class="avatar olive" style="width:26px;height:26px">${ic('chat',12)}</span>`:''}
+          <div class="bubble">${m.text}${m.code?`<div class="code-block"><div class="code-head"><span>pairing.py</span><button onclick="alert('Copied (design only)')">${ic('copy',12)}Copy</button></div><pre>${escapeHtml(m.code)}</pre></div>`:''}</div>
+        </div>
+      `).join('') : (phase==='idle'? `<div class="empty" style="padding-top:60px"><div class="icon-lg">${ic('chat',20)}</div><h3>Ask OLIVE anything</h3><p>Responses are generated by a paired device you choose below \u2014 nothing runs on this iPhone.</p></div>` : '')}
+      ${phase==='waiting-approval'? `
+        <div class="banner info" style="margin:0 0 8px"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div><div><strong>Waiting for approval</strong><p>${chosen?chosen.name:'The device'} must approve this Remote AI request before it can run \u2014 its permission for Remote AI is set to Ask.</p></div></div>
+        <div class="btn-row"><button class="btn ghost sm" onclick="cancelChatRequest()">Cancel</button><button class="btn ghost sm" onclick="approveChatRequest()">${ic('checkCircle',13)} Simulate approval on ${chosen?chosen.name:'device'}</button></div>
+      `:''}
+      ${phase==='thinking'? `
+        <div class="attrib">${ic('monitor',11)} OLIVE ${preset} \u00b7 ${chosen?chosen.name:'\u2014'}</div>
+        <div class="msg olive"><span class="avatar olive" style="width:26px;height:26px">${ic('chat',12)}</span><div class="bubble muted"><div class="spinner" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div>Thinking on ${chosen?chosen.name:'device'}\u2026</div></div>
+      `:''}
+      ${phase==='streaming'||phase==='done'? `
+        <div class="attrib">${ic('monitor',11)} OLIVE ${S.chatAnsweredPreset||preset} \u00b7 ${S.chatAnsweredBy||(chosen?chosen.name:'\u2014')}</div>
+        <div class="msg olive"><span class="avatar olive" style="width:26px;height:26px">${ic('chat',12)}</span><div class="bubble"><span id="streamText">${S.streamText}</span><span class="cursor-blink" id="streamCursor" ${phase==='done'?'hidden':''}></span></div></div>
+        ${phase==='done'? `<div class="faint" style="font-size:11px;margin:2px 0 0 40px">Answered by ${S.chatAnsweredBy}</div>`:''}
+      `:''}
+    </div>
+  </div>
+  <div class="chat-input-bar">
+    <button class="btn ghost sm" id="stopGenBtn" style="width:100%" ${phase==='streaming'?'':'hidden'} onclick="stopStreaming()">${ic('square',13)} Stop generating</button>
+    <div class="stack" style="gap:8px">
+      <div>
+        <div class="eyebrow" style="padding:0 0 4px 2px">Model</div>
+        <div class="segmented">
+          ${['FAST','NORMAL','MAX'].map(p=>`<button class="${p===preset?'selected':''}" onclick="setPreset('${p}')">${p}</button>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="padding:0 0 4px 2px">Run on</div>
+        <button class="model-picker" style="width:100%;justify-content:space-between" onclick="openOverlay('runOn',{preset:'${preset}'})">
+          <span class="row" style="gap:6px">${chosen? statusPill(chosen):''}${chosen?chosen.name:'Choose a device'}</span>
+          ${ic('chevronDown',13)}
+        </button>
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea class="field" rows="1" placeholder="Message OLIVE\u2026" id="chatInput" onfocus="chatKeyboardOpen(true)" onblur="chatKeyboardOpen(false)"></textarea>
+      <button class="send-btn" ${(modelUnavailable||(phase!=='idle'&&phase!=='done'))?'disabled':''} onclick="sendChat()">${ic('send',15)}</button>
+    </div>
+  </div>
+  `;
+}
+function setPreset(p){ S.chatPreset=p; S.chatDevice=null; S.chatPhase='idle'; render(); }
+function pickRunOnDevice(devId){ S.chatDevice=devId; closeOverlay(); render(); }
+function chatKeyboardOpen(open){
+  const bar = document.querySelector('.chat-input-bar');
+  if (bar) bar.style.paddingBottom = open? '2px' : '8px';
+}
+function sendChat(){
+  const phase = S.chatPhase || 'idle';
+  if (phase!=='idle' && phase!=='done') return;
+  const preset = S.chatPreset || 'NORMAL';
+  const avail = chatDeviceOptions(preset);
+  const chosen = avail.find(d=>d.id===S.chatDevice) || avail[0];
+  if (!chosen) return;
+  S.chatChosenId = chosen.id;
+  if (chosen.caps.ai==='ask'){
+    S.chatPhase = 'waiting-approval';
+    render();
+  } else {
+    beginThinking(chosen, preset);
+  }
+}
+function cancelChatRequest(){ S.chatPhase='idle'; render(); }
+function approveChatRequest(){
+  const preset = S.chatPreset || 'NORMAL';
+  const chosen = byId(S.chatChosenId);
+  if (!chosen) { S.chatPhase='idle'; render(); return; }
+  beginThinking(chosen, preset);
+}
+function beginThinking(chosen, preset){
+  S.chatPhase = 'thinking';
+  render();
+  clearTimeout(window.__olthink);
+  window.__olthink = setTimeout(()=>{
+    if (S.chatPhase==='thinking') startStreamingResponse(chosen, preset);
+  }, 900);
+}
+function startStreamingResponse(chosen, preset){
+  S.chatPhase = 'streaming';
+  S.chatAnsweredBy = chosen.name;
+  S.chatAnsweredPreset = preset;
+  S.streamText = '';
+  render();
+  const full = 'Sure \u2014 here\u2019s a quick summary based on the paired device\u2019s context.';
+  let i=0;
+  clearInterval(window.__olstream);
+  window.__olstream = setInterval(()=>{
+    i+=3; S.streamText = full.slice(0,i);
+    const done = i>=full.length;
+    // Patch the streaming bubble directly instead of a full render() each tick,
+    // so scroll position, input focus and the tab bar don't reset every 40ms.
+    const t = document.getElementById('streamText');
+    if (t && !done){
+      t.textContent = S.streamText;
+    } else {
+      if (done) S.chatPhase='done';
+      render();
+    }
+    if (done) clearInterval(window.__olstream);
+  },40);
+}
+function stopStreaming(){ clearInterval(window.__olstream); clearTimeout(window.__olthink); S.chatPhase='done'; render(); }
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* ============================================================ SCREEN: TODAY / TASKS / CALENDAR / REMINDERS ============================================================ */
+function swipeRow(innerHtml, actions){
+  if (!actions || !actions.length) return innerHtml;
+  return `<div class="swipe-row">
+    <div class="swipe-actions">${actions.map(a=>`<button class="${a.cls}" onclick="${a.onclick}">${a.label}</button>`).join('')}</div>
+    <div class="swipe-content" data-open="0">${innerHtml}</div>
+  </div>`;
+}
+function completeTask(id){ const t=DATA.tasks.find(x=>x.id===id); if(t) t.done=true; render(); }
+function snoozeReminder(id){ const r=DATA.reminders.find(x=>x.id===id); if(r){ r.state='snoozed'; r.when='Snoozed until tomorrow'; } render(); }
+function dismissReminder(id){ const r=DATA.reminders.find(x=>x.id===id); if(r){ r.state='done'; r.when='Dismissed'; } render(); }
+function screenToday(){
+  const items = SIM.noTasksToday? [] : [
+    {time:'9:00', kind:'event', id:'e3', title:'Coast trip', sub:'All day'},
+    {time:'11:30', kind:'event', id:'e1', title:'Dentist appointment'},
+    {time:'2:00', kind:'task', id:'t1', title:'Review OLIVE Connect C9 design'},
+    {time:'4:30', kind:'task', id:'t3', title:'Reply to Diego re: build flakiness'},
+    {time:'6:00', kind:'reminder', id:'r1', title:'Water the olive tree'},
+    {time:'Fri', kind:'reminder', id:'r3', title:'Check Inbox storage usage', sub:'Snoozed'},
+    {time:'9:00 PM', kind:'event', id:'e2', title:'Studio PC maintenance window'},
+  ].filter(it=>{
+    if (it.kind==='task'){ const t=DATA.tasks.find(x=>x.id===it.id); return t && !t.done; }
+    if (it.kind==='reminder'){ const r=DATA.reminders.find(x=>x.id===it.id); return r && r.state!=='done'; }
+    return true;
+  });
+  const overdue = DATA.tasks.filter(t=>t.overdue);
+  return `
+  <div class="nav-title-big"><h1>Today</h1><div class="muted" style="font-size:12.5px;margin-top:2px">${todayStr()}</div></div>
+  <div class="section" style="padding-bottom:0">
+    <div class="row" style="gap:8px">
+      <button class="btn ghost sm" onclick="push('today','tasks')">${ic('flag',13)} Tasks</button>
+      <button class="btn ghost sm" onclick="push('today','calendar')">${ic('today',13)} Calendar</button>
+      <button class="btn ghost sm" onclick="push('today','reminders')">${ic('bell',13)} Reminders</button>
+    </div>
+  </div>
+  ${overdue.length? `<div class="section"><div class="banner warn">${ic('alert',15)}<div><strong>${overdue.length} overdue</strong><p>${overdue[0].title}</p></div></div></div>`:''}
+  <div class="timeline">
+    ${items.length? items.map((it,idx)=>{
+      const rowHtml = `<div class="tl-item" style="padding-bottom:${idx<items.length-1?16:2}px">
+        <div class="tl-time">${it.time}</div>
+        <div class="tl-rail"><div class="tl-dot"></div>${idx<items.length-1?'<div class="tl-line"></div>':''}</div>
+        <div class="tl-body"><strong>${it.title}</strong><small>${it.sub? it.sub+' \u00b7 ':''}${it.kind==='task'?'Task':it.kind==='event'?'Calendar':'Reminder'}</small></div>
+      </div>`;
+      let actions = [];
+      if (it.kind==='task') actions = [{label:'Complete',cls:'a-complete',onclick:`completeTask('${it.id}')`}];
+      if (it.kind==='reminder') actions = [{label:'Snooze',cls:'a-snooze',onclick:`snoozeReminder('${it.id}')`},{label:'Dismiss',cls:'a-dismiss',onclick:`dismissReminder('${it.id}')`}];
+      return swipeRow(rowHtml, actions);
+    }).join('') : `<div class="empty"><div class="icon-lg">${ic('today',20)}</div><h3>Nothing scheduled today</h3><p>Tasks, events and reminders will show up here as they\u2019re added.</p></div>`}
+  </div>
+  <p class="faint" style="font-size:11px;padding:2px 18px 0">Swipe a task or reminder for quick actions.</p>
+  <div style="height:14px"></div>
+  `;
+}
+function screenTasks(){
+  const overdue = DATA.tasks.filter(t=>t.overdue&&!t.done);
+  const today = DATA.tasks.filter(t=>!t.overdue&&!t.done&&t.due.startsWith('Today'));
+  const upcoming = DATA.tasks.filter(t=>!t.overdue&&!t.done&&!t.due.startsWith('Today'));
+  const done = DATA.tasks.filter(t=>t.done);
+  const group=(title,arr,tone)=> arr.length? `<div class="section-title"><h3>${title}</h3></div><div class="section" style="padding-top:0"><div class="card">${arr.map(t=>taskRow(t,tone)).join('')}</div></div>`:'';
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('today')">${ic('chevronLeft',22)}Today</button><h2>Tasks</h2><button class="nav-action" onclick="alert('Design only')">${ic('plus',19)}</button></div>
+  ${group('Overdue',overdue,'error')}
+  ${group('Due today',today,'accent')}
+  ${group('Upcoming',upcoming)}
+  ${group('Completed',done)}
+  <div style="height:14px"></div>
+  `;
+}
+function taskRow(t,tone){
+  return `<div class="card-row" onclick="openOverlay('task',{id:'${t.id}'})">
+    <span class="icon-btn" style="background:var(--elevated);color:${t.done?'var(--success)':'var(--faint)'}">${ic(t.done?'checkCircle':'flag',15)}</span>
+    <div class="spacer"><strong style="${t.done?'text-decoration:line-through;color:var(--faint)':''}">${t.title}</strong><small>${t.due}${t.project?' \u00b7 '+t.project:''}</small>${t.linked?`<small style="color:var(--accent)">${t.linked}</small>`:''}</div>
+    ${ic('chevronRight',15)}
+  </div>`;
+}
+function screenCalendar(){
+  const days=['S','M','T','W','T','F','S'];
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('today')">${ic('chevronLeft',22)}Today</button><h2>Calendar</h2><button class="nav-action" onclick="alert('Design only')">${ic('plus',19)}</button></div>
+  <div class="section" style="padding-bottom:0">
+    <div class="row spread" style="padding:0 2px 10px"><strong style="font-size:15px">September 2026</strong><div class="row" style="gap:2px"><button class="icon-btn">${ic('chevronLeft',15)}</button><button class="icon-btn">${ic('chevronRight',15)}</button></div></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:10.5px;color:var(--faint);margin-bottom:4px">${days.map(d=>`<div>${d}</div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+      ${Array.from({length:35},(_,i)=>{const day=i-1; const isToday=day===20; const has=[3,11,20,20,27].includes(day);
+        return `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;position:relative;${isToday?'background:var(--accent);color:var(--on-accent);font-weight:700':'color:'+(day<1||day>30?'var(--faint)':'var(--text)')}">${day<1?day+30:day>30?day-30:day}${has&&!isToday?'<span style="position:absolute;bottom:3px;width:3px;height:3px;border-radius:50%;background:var(--accent)"></span>':''}</div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="section-title"><h3>Sunday, Sep 20</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    ${DATA.events.map(e=>`<div class="card-row" onclick="openOverlay('event',{id:'${e.id}'})"><span class="icon-btn" style="background:var(--elevated)">${ic('today',15)}</span><div class="spacer"><strong>${e.title}</strong><small>${e.time}</small></div>${ic('chevronRight',15)}</div>`).join('')}
+  </div></div>
+  <div style="height:14px"></div>
+  `;
+}
+function screenReminders(){
+  const groups=[['Due','due'],['Upcoming','upcoming'],['Snoozed','snoozed'],['Completed','done']];
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('today')">${ic('chevronLeft',22)}Today</button><h2>Reminders</h2><button class="nav-action" onclick="alert('Design only')">${ic('plus',19)}</button></div>
+  ${groups.map(([label,key])=>{
+    const arr = DATA.reminders.filter(r=>r.state===key);
+    if (!arr.length) return '';
+    const swipable = key==='due'||key==='snoozed';
+    return `<div class="section-title"><h3>${label}</h3></div><div class="section" style="padding-top:0"><div class="card">${arr.map((r,i)=>{
+      const rowHtml = `<div class="card-row"${i<arr.length-1?' style="border-bottom:1px solid var(--line)"':''} onclick="openOverlay('reminder',{id:'${r.id}'})">
+        <span class="icon-btn" style="background:var(--elevated);color:${key==='due'?'var(--warning)':'var(--muted)'}">${ic('bell',15)}</span>
+        <div class="spacer"><strong>${r.title}</strong><small>${r.when}</small></div>${ic('chevronRight',15)}
+      </div>`;
+      return swipable? swipeRow(rowHtml,[{label:'Snooze',cls:'a-snooze',onclick:`snoozeReminder('${r.id}')`},{label:'Dismiss',cls:'a-dismiss',onclick:`dismissReminder('${r.id}')`}]) : rowHtml;
+    }).join('')}</div></div>`;
+  }).join('')}
+  <p class="faint" style="font-size:11px;padding:2px 18px 0">Swipe a reminder for quick actions.</p>
+  <div style="height:14px"></div>
+  `;
+}
+
+/* ============================================================ SCREEN: DEVICES ============================================================ */
+function screenDeviceList(){
+  const paired = pairedDevices(), waiting = waitingDevices(), revoked = revokedDevices();
+  const nearby = SIM.noNearby? [] : DATA.nearby;
+  return `
+  <div class="navbar left"><h2 style="padding-left:6px">Devices</h2><span class="spacer"></span><button class="nav-action" onclick="jump('settings','root')" aria-label="Settings">${ic('gear',18)}</button><button class="nav-action" onclick="push('devices','pair-start')">${ic('plus',19)}</button></div>
+  <div class="section" style="padding-top:2px"><div class="card"><div class="card-row" onclick="openOverlay('thisDevice')"><span class="dev-icon">${ic('phone',18)}</span><div class="spacer"><strong>${DATA.identity.name}</strong><small>This device \u00b7 mobile client</small></div><span class="pill" data-tone="online"><span class="dot"></span>This iPhone</span></div></div></div>
+
+  ${waiting.length? `<div class="section-title"><h3>Needs approval</h3></div><div class="section" style="padding-top:0"><div class="card">${waiting.map(d=>`
+    <div class="card-row" onclick="openOverlay('approval',{kind:'pair',device:'${d.name}',deviceId:'${d.id}'})"><span class="dev-icon">${devIcon(d)}</span><div class="spacer"><strong>${d.name}</strong><small>${d.paired}</small></div>${statusPill(d)}</div>`).join('')}</div></div>`:''}
+
+  <div class="section-title"><h3>Paired devices</h3></div>
+  <div class="section" style="padding-top:0">
+    ${paired.length? `<div class="card">${paired.map(d=>`
+      <div class="card-row" onclick="push('devices','detail',{id:'${d.id}'})">
+        <span class="dev-icon">${devIcon(d)}</span>
+        <div class="spacer"><strong>${d.name}</strong><small>${statusText(d)}</small></div>
+        ${statusPill(d)}${ic('chevronRight',15)}
+      </div>`).join('')}</div>` : `<div class="card"><div class="empty" style="padding:26px"><div class="icon-lg">${ic('devices',20)}</div><h3>No paired devices</h3><p>Remote AI, sync, files and Remote Studio all need a paired OLIVE desktop.</p><button class="btn primary sm" onclick="push('devices','pair-start')">Pair a device</button></div></div>`}
+  </div>
+
+  <div class="section-title"><h3>Nearby</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    ${nearby.length? nearby.map(d=>`<div class="card-row" onclick="push('devices','pair-start',{name:'${d.name}'})"><span class="dev-icon">${devIcon(d)}</span><div class="spacer"><strong>${d.name}</strong><small>${d.platform} \u00b7 not paired</small></div><button class="btn ghost sm" onclick="event.stopPropagation();push('devices','pair-start')">Pair</button></div>`).join('')
+    : `<div class="empty" style="padding:22px"><div class="icon-lg">${ic('radio',18)}</div><h3>No nearby devices</h3><p>Discovery is opt-in and only looks on your local network.</p></div>`}
+  </div></div>
+
+  ${revoked.length? `<div class="section-title"><h3>Revoked</h3></div><div class="section" style="padding-top:0;padding-bottom:16px"><div class="card">${revoked.map(d=>`
+    <div class="card-row" style="opacity:.6" onclick="push('devices','detail',{id:'${d.id}'})"><span class="dev-icon">${devIcon(d)}</span><div class="spacer"><strong>${d.name}</strong><small>${d.paired}</small></div>${statusPill(d)}</div>`).join('')}</div></div>` : '<div style="height:14px"></div>'}
+  `;
+}
+const CAP_META = [
+  ['ai','Remote AI','chat'],
+  ['tasksSync','Tasks & Calendar Sync','today'],
+  ['chatContinuity','Chat continuity','refresh'],
+  ['receiveFiles','Receive Files','download'],
+  ['sendFiles','Send Files','share'],
+  ['studio','Remote Studio','terminal'],
+];
+function screenDeviceDetail(id){
+  const d = DATA.devices.find(x=>x.id===id);
+  const live = byId(id) || d;
+  const isRevoked = live.status==='revoked';
+  const workspaces = (live.caps.studio==='allow' ? (live.workspaces||[]) : []).map(w=>DATA.studioWorkspaces[w]);
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Devices</button><h2>${d.name}</h2><span style="width:34px"></span></div>
+  <div class="section" style="padding-top:2px">
+    <div class="card card-pad row"><span class="dev-icon" style="width:46px;height:46px">${devIcon(d)}</span><div class="spacer"><strong style="font-size:15px">${d.name}</strong><small>${d.platform}</small></div>${statusPill(live)}</div>
+  </div>
+  ${isRevoked? `<div class="section"><div class="banner">${ic('shieldOff',16)}<div><strong>Access revoked</strong><p>${d.paired}. This device can no longer reach Remote AI, sync, files or Remote Studio.</p></div></div></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn ghost">${ic('trash',14)} Remove from history</button></div>`
+  : `
+  <div class="section-title"><h3>Identity</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    <div class="card-row"><span class="perm-name">Trust</span><span class="badge" data-tone="success">${ic('shieldCheck',11)} Trusted paired device</span></div>
+    <div class="card-row"><span class="perm-name">Connection</span><small class="muted">${live.status==='offline'? (live.lastSeen||'Offline') : live.status==='busy'? (live.busyNote||'Busy') : 'Connected locally'}</small></div>
+    <div class="card-row"><span class="perm-name">Paired since</span><small class="muted">${d.paired}</small></div>
+  </div></div>
+
+  <div class="section-title"><h3>Capabilities & permissions</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    ${CAP_META.map(([cap,label,icon])=>permRow(cap,label,icon,live.caps[cap],id)).join('')}
+  </div></div>
+  ${live.status==='offline'? `<div class="section"><div class="banner">${ic('wifiOff',15)}<div><strong>Offline</strong><p>${live.lastSeen}. Permissions still apply once it reconnects.</p></div></div></div>`:''}
+  ${live.caps.ai!=='off'&&live.aiPresets? `<div class="section-title"><h3>Remote AI</h3></div><div class="section" style="padding-top:0"><div class="card card-pad"><div class="row" style="flex-wrap:wrap;gap:6px">${live.aiPresets.map(p=>`<span class="badge">${p}</span>`).join('')}</div><small class="muted" style="display:block;margin-top:6px">${live.aiModel} · ${live.caps.ai==='ask'?'asks before each request':'allowed'}</small></div></div>`:''}
+  ${workspaces.length? `<div class="section-title"><h3>Shared Remote Studio workspaces</h3></div><div class="section" style="padding-top:0"><div class="card">${workspaces.map(w=>`
+    <div class="card-row" onclick="push('devices','studio-workspace',{id:'${w.id}'})"><span class="dev-icon">${ic('folder',17)}</span><div class="spacer"><strong>${w.name}</strong><small>${live.status==='offline'?'Offline — unavailable right now':'Companion review, edit, build/test/run'}</small></div>${ic('chevronRight',15)}</div>`).join('')}</div></div>`
+  : live.caps.studio==='allow'? `<div class="section"><div class="banner">${ic('info',15)}<p style="font-size:12px">Remote Studio is on, but this device isn’t sharing a workspace yet.</p></div></div>` : ''}
+  <div class="section" style="padding-bottom:16px"><button class="btn danger" onclick="openOverlay('revoke',{id:'${id}',name:'${d.name}'})">${ic('shieldOff',14)} Revoke access</button></div>
+  `}
+  `;
+}
+function permRow(cap,label,icon,val,devId){
+  return `<div class="perm-row"><span class="icon-btn">${ic(icon,15)}</span><span class="perm-name">${label}</span>
+  <div class="segmented" style="width:150px" data-cap="${cap}" data-dev="${devId}">
+    ${['off','ask','allow'].map(v=>`<button class="${val===v?'selected':''}" onclick="setPerm('${devId}','${cap}','${v}')">${permLabel(v)}</button>`).join('')}
+  </div></div>`;
+}
+function setPerm(devId,cap,val){ const d=DATA.devices.find(x=>x.id===devId); d.caps[cap]=val; render(); }
+
+/* ---- pairing flow ---- */
+function screenPairStart(){
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Devices</button><h2>Pair a device</h2><span style="width:34px"></span></div>
+  <div class="section" style="padding-top:6px">
+    <p class="muted" style="padding:0 2px 12px;font-size:12.5px;line-height:1.55">Pairing creates a mutually-trusted identity between this iPhone and an OLIVE desktop on your network. Every permission starts <strong style="color:var(--text)">Off</strong> until you turn it on.</p>
+    <div class="card">
+      <button class="card-row" style="width:100%" onclick="push('devices','pair-qr')"><span class="icon-btn" style="background:var(--accent-soft);color:var(--accent)">${ic('qr',17)}</span><div class="spacer"><strong>Scan QR from desktop</strong><small>Open OLIVE Desktop \u2192 Devices \u2192 Add device</small></div>${ic('chevronRight',15)}</button>
+      <button class="card-row" style="width:100%" onclick="push('devices','pair-code')"><span class="icon-btn" style="background:var(--elevated)">${ic('lock',17)}</span><div class="spacer"><strong>Enter code manually</strong><small>If the camera isn\u2019t available</small></div>${ic('chevronRight',15)}</button>
+    </div>
+  </div>
+  `;
+}
+function screenPairQr(){
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Pair</button><h2>Scan QR</h2><span style="width:34px"></span></div>
+  <div class="qr-frame"><div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div><span class="faint" style="font-size:12px">Camera preview</span></div>
+  <p class="muted" style="text-align:center;font-size:12.5px;padding:0 30px">Point your camera at the QR code shown on the OLIVE desktop pairing screen. This code expires in 2 minutes.</p>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="push('devices','pair-connecting')">Simulate scan</button><div style="height:8px"></div><button class="btn ghost" onclick="pop('devices')">Enter code instead</button></div>
+  `;
+}
+function screenPairCode(){
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Pair</button><h2>Enter code</h2><span style="width:34px"></span></div>
+  <div class="section">
+    <p class="muted" style="font-size:12.5px;padding:0 2px 10px">Type the 6-character code shown on the desktop\u2019s pairing screen.</p>
+    <input class="field mono" style="text-align:center;font-family:var(--mono);font-size:18px;letter-spacing:.3em" placeholder="\u2013 \u2013 \u2013 \u2013 \u2013 \u2013" maxlength="6">
+  </div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="push('devices','pair-connecting')">Continue</button></div>
+  `;
+}
+function screenPairConnecting(){
+  if (!S._pairTimerArmed){
+    S._pairTimerArmed = true;
+    setTimeout(()=>{ S._pairTimerArmed=false; if(stackTop("devices").s==='pair-connecting'){ push('devices','pair-confirm'); } },1100);
+  }
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pair</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:80px"><div class="spinner"></div><h3 style="margin-top:8px">Connecting securely\u2026</h3><p>Setting up a mutually-authenticated channel with Diego\u2019s Studio PC.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn ghost" onclick="pop('devices')">Cancel</button></div>
+  `;
+}
+function screenPairConfirm(){
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Pair</button><h2>Confirm identity</h2><span style="width:34px"></span></div>
+  <p class="muted" style="text-align:center;font-size:12.5px;padding:8px 24px 0">Make sure these words match what\u2019s shown on Diego\u2019s Studio PC.</p>
+  <div class="fingerprint-words">
+    <span class="fp-word">amber</span><span class="fp-word">quiet</span><span class="fp-word">river</span><span class="fp-word">aspen</span>
+  </div>
+  <div class="section" style="padding-top:4px"><div class="banner info">${ic('fingerprint',16)}<div><strong>Why this matters</strong><p>Matching words confirm you\u2019re pairing with the device in front of you, not an impostor on the network.</p></div></div></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="push('devices','pair-waiting')">They match \u2014 confirm</button><div style="height:8px"></div><button class="btn ghost danger" onclick="push('devices','pair-mismatch')">They don\u2019t match</button></div>
+  `;
+}
+function screenPairWaiting(){
+  if (!S._pairTimerArmed){
+    S._pairTimerArmed = true;
+    setTimeout(()=>{ S._pairTimerArmed=false; if(stackTop("devices").s==='pair-waiting'){ push('devices','pair-success'); } },1400);
+  }
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pairing</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:80px"><div class="spinner"></div><h3 style="margin-top:8px">Waiting for Diego\u2019s Studio PC</h3><p>Confirm the matching words on the desktop to finish pairing.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn ghost" onclick="push('devices','pair-cancelled')">Cancel</button></div>
+  `;
+}
+function screenPairSuccess(){
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2></h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:70px"><div class="icon-lg" style="border-color:var(--success);color:var(--success)">${ic('checkCircle',24)}</div><h3>Paired with Diego\u2019s Studio PC</h3><p>Paired successfully. Permissions are <strong style="color:var(--text)">Off</strong> until you choose otherwise \u2014 Remote AI, Files, Sync and Remote Studio don\u2019t turn on by themselves.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="jump('devices','detail',{id:'studio'})">Set permissions now</button><div style="height:8px"></div><button class="btn ghost" onclick="jump('devices','list')">Done</button></div>
+  `;
+}
+function screenPairMismatch(){
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pairing</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:70px"><div class="icon-lg" style="border-color:var(--error);color:var(--error)">${ic('x',22)}</div><h3>The words didn\u2019t match</h3><p>Nothing was trusted. This can happen if you\u2019re pairing with the wrong device, or another device answered on the network. Try again from the desktop.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="jump('devices','pair-start')">Try again</button></div>
+  `;
+}
+function screenPairExpired(){
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pairing</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:70px"><div class="icon-lg">${ic('clock',22)}</div><h3>This code expired</h3><p>QR codes and manual codes are only valid for 2 minutes for safety. Get a new one from the desktop.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="jump('devices','pair-start')">Get a new code</button></div>
+  `;
+}
+function screenPairCancelled(){
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pairing</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:70px"><div class="icon-lg">${ic('x',22)}</div><h3>Pairing cancelled</h3><p>Nothing was trusted or shared. You can start over any time.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="jump('devices','pair-start')">Start over</button><div style="height:8px"></div><button class="btn ghost" onclick="jump('devices','list')">Back to Devices</button></div>
+  `;
+}
+function screenPairConnectionLost(){
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pairing</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:70px"><div class="icon-lg" style="border-color:var(--error);color:var(--error)">${ic('wifiOff',22)}</div><h3>Connection lost while pairing</h3><p>The local connection to Diego\u2019s Studio PC dropped before pairing finished. Nothing was trusted.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="jump('devices','pair-start')">Retry</button></div>
+  `;
+}
+function screenPairDenied(){
+  return `
+  <div class="navbar"><span style="width:80px"></span><h2>Pairing</h2><span style="width:34px"></span></div>
+  <div class="empty" style="padding-top:70px"><div class="icon-lg">${ic('shieldOff',22)}</div><h3>Pairing declined</h3><p>Diego\u2019s Studio PC declined this pairing request. If this wasn\u2019t you, no action is needed \u2014 nothing was trusted.</p></div>
+  <div class="section" style="padding-bottom:16px"><button class="btn primary" onclick="jump('devices','pair-start')">Try again</button></div>
+  `;
+}
+
+/* ---- remote studio (mobile companion) ---- */
+function screenRemoteWorkspaces(){
+  const groups = pairedDevices().filter(d=>d.caps.studio==='allow'&&d.workspaces&&d.workspaces.length)
+    .map(d=>({device:d, workspaces:d.workspaces.map(w=>DATA.studioWorkspaces[w])}));
+  return `
+  <div class="navbar left"><h2 style="padding-left:6px">Remote Studio</h2><span class="spacer"></span></div>
+  <div class="section" style="padding-top:2px">
+  ${groups.length? groups.map(g=>`
+    <div class="section-title" style="padding:0 0 8px"><h3>${g.device.name}</h3><span class="spacer"></span>${statusPill(g.device)}</div>
+    <div class="card" style="margin-bottom:14px">${g.workspaces.map(w=>`
+      <div class="card-row" style="${g.device.status==='offline'?'opacity:.55':''}" onclick="push('devices','studio-workspace',{id:'${w.id}'})"><span class="dev-icon">${ic('folder',17)}</span><div class="spacer"><strong>${w.name}</strong><small>${g.device.status==='offline'?'Offline \u2014 unavailable right now':(w.build?'Build \u00b7 Test \u00b7 Run':'Not a buildable project')}</small></div>${ic('chevronRight',15)}</div>`).join('')}</div>
+  `).join('') : `<div class="empty"><div class="icon-lg">${ic('terminal',20)}</div><h3>No shared workspaces</h3><p>Remote Studio needs a paired device that shares a workspace with this iPhone \u2014 there\u2019s no arbitrary filesystem browsing.</p></div>`}
+  </div>
+  <div style="height:14px"></div>
+  `;
+}
+function screenStudioWorkspace(wsId){
+  const ws = DATA.studioWorkspaces[wsId];
+  const device = byId(ws.device);
+  const unavailable = SIM.studioUnavailable || !device || device.caps.studio!=='allow' || device.status==='offline';
+  if (unavailable) return `
+    <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Back</button><h2>${ws.name}</h2><span style="width:34px"></span></div>
+    <div class="empty" style="padding-top:70px"><div class="icon-lg">${ic('terminal',20)}</div><h3>Remote Studio unavailable</h3><p>${device&&device.status==='offline'? device.name+' is offline right now.' : SIM.studioUnavailable? 'Remote Studio permission is off for every paired device.' : 'This workspace isn\u2019t currently shared.'}</p></div>
+  `;
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}Back</button><h2>${ws.name}</h2><span style="width:34px"></span></div>
+  <div class="section" style="padding-top:2px;padding-bottom:8px"><div class="banner info" style="align-items:center">${ic('shieldCheck',15)}<div><strong style="font-size:12px">Remote Studio \u00b7 Allow</strong><p style="font-size:11.5px">Shared by ${device.name} \u00b7 companion view, not a full IDE</p></div></div></div>
+  <div class="section-title"><h3>Workspace files</h3></div>
+  <div class="card" style="margin:0 14px 12px">
+    ${ws.files.map(f=>`<div class="file-tree-row depth${f.depth}" ${(f.type==='file'&&f.path===ws.mainFile)?`onclick="push('devices','studio-file',{id:'${wsId}'})"`:''} style="${(f.type==='file'&&f.path!==ws.mainFile)?'opacity:.5':''}">${ic(f.type==='dir'?'folder':'file',14)}<span>${f.path}</span></div>`).join('')}
+  </div>
+  <div class="studio-toolbar" style="border-top:1px solid var(--line);border-bottom:0">
+    <button class="btn ghost sm" ${!ws.build?'disabled':''} onclick="push('devices','studio-file',{id:'${wsId}'});runStudio('build','${wsId}')">${ic('hammer',13)} Build</button>
+    <button class="btn ghost sm" ${!ws.test?'disabled':''} onclick="push('devices','studio-file',{id:'${wsId}'});runStudio('test','${wsId}')">${ic('beaker',13)} Test</button>
+    <button class="btn ghost sm" ${!ws.run?'disabled':''} onclick="push('devices','studio-file',{id:'${wsId}'});runStudio('run','${wsId}')">${ic('play',13)} Run</button>
+  </div>
+  ${!ws.build? `<div class="section"><p class="faint" style="font-size:11px">This workspace isn\u2019t a buildable project \u2014 Build, Test and Run don\u2019t apply here.</p></div>`:''}
+  <div class="section-title"><h3>Session</h3></div>
+  <div class="section" style="padding-top:0;padding-bottom:16px"><div class="card card-pad row"><span class="pill" data-tone="online"><span class="dot"></span>Connected locally</span><span class="spacer"></span><small class="faint">Revision ${ws.revision}</small></div></div>
+  `;
+}
+function screenStudioFile(wsId){
+  const ws = DATA.studioWorkspaces[wsId];
+  const device = byId(ws.device);
+  if (S.studioOpenWs !== wsId){
+    S.studioOpenWs = wsId; S.studioDirty = false; S.studioEditing = false;
+    S.studioDraftText = ws.code; S.studioShowConflict = false;
+  }
+  const offline = device && device.status==='offline';
+  const running = S.studioRunning;
+  return `
+  <div class="navbar"><button class="nav-back" onclick="pop('devices')">${ic('chevronLeft',22)}${ws.name}</button><h2>${ws.mainFile}</h2><button class="nav-action" onclick="alert('Design only')">${ic('more',18)}</button></div>
+  <div class="section" style="padding:6px 14px 0"><div class="row" style="gap:6px;flex-wrap:wrap"><span class="badge" data-tone="neutral">Base ${ws.revision}</span>${S.studioDirty?'<span class="badge" data-tone="warning">Edited locally</span>':''}</div></div>
+  ${S.studioShowConflict? `
+  <div class="section" style="padding-top:8px"><div class="banner err">${ic('alert',15)}<div><strong>This file changed on ${device.name}.</strong><p style="font-size:12px">A newer revision was saved while you were editing. Saving now would silently overwrite it.</p></div></div>
+    <div class="btn-row" style="margin-top:8px"><button class="btn ghost sm" onclick="reloadStudioFile('${wsId}')">${ic('refresh',13)} Reload</button><button class="btn ghost sm" onclick="keepLocalDraft()">Keep local draft</button></div>
+  </div>` : (offline && S.studioDirty)? `
+  <div class="section" style="padding-top:8px"><div class="banner warn">${ic('wifiOff',15)}<div><strong>Unsaved local draft</strong><p style="font-size:12px">${device.name} is offline, so this edit only exists on this iPhone \u2014 it hasn\u2019t been saved remotely. Its revision will be checked again once ${device.name} reconnects.</p></div></div></div>
+  `:''}
+  <div class="editor-pane" style="margin:10px 14px 0">
+    ${S.studioEditing?
+      `<textarea class="field mono" style="width:100%;min-height:140px;border:0;border-radius:0;background:transparent;font-family:var(--mono);font-size:11.5px;line-height:1.6;padding:12px" oninput="onStudioEdit(this.value)">${escapeHtml(S.studioDraftText)}</textarea>`
+      : `<pre>${S.studioDraftText.split('\n').map((l,i)=>`<span class="ln">${i+1}</span>${escapeHtml(l)}`).join('\n')}</pre>`}
+  </div>
+  <div class="studio-toolbar">
+    ${S.studioEditing? `<button class="btn ghost sm" onclick="stopEditingStudioFile()">${ic('checkCircle',13)} Done editing</button>` : `<button class="btn ghost sm" onclick="startEditingStudioFile()">${ic('edit',13)} Edit</button>`}
+    <button class="btn ghost sm" ${(!S.studioDirty||offline)?'disabled':''} onclick="saveStudioFile('${wsId}')">${ic('checkCircle',13)} Save</button>
+    <button class="btn ghost sm" ${!ws.build?'disabled':''} onclick="runStudio('build','${wsId}')">${ic('hammer',13)} Build</button>
+    <button class="btn ghost sm" ${!ws.test?'disabled':''} onclick="runStudio('test','${wsId}')">${ic('beaker',13)} Test</button>
+    <button class="btn ghost sm" ${!ws.run?'disabled':''} onclick="runStudio('run','${wsId}')">${ic('play',13)} Run</button>
+  </div>
+  ${!ws.build? `<div class="section" style="padding-top:0"><p class="faint" style="font-size:11px">Build, Test and Run aren\u2019t available for this workspace \u2014 it isn\u2019t a buildable project.</p></div>`:''}
+  ${S.studioOutput.length? `
+  <div class="output-panel" id="studioOut">${S.studioOutput.map(l=>`<div class="${l.cls}">${l.t}</div>`).join('')}</div>
+  <div class="section" style="padding:10px 14px 16px">${running? `<button class="btn ghost sm" onclick="stopStudio()">${ic('square',13)} Stop</button>` : ''}</div>
+  ` : `<div style="height:16px"></div>`}
+  `;
+}
+function onStudioEdit(v){ S.studioDraftText=v; S.studioDirty=true; }
+function startEditingStudioFile(){ S.studioEditing=true; render(); }
+function stopEditingStudioFile(){ S.studioEditing=false; render(); }
+function saveStudioFile(wsId){
+  const ws = DATA.studioWorkspaces[wsId];
+  const device = byId(ws.device);
+  if (!S.studioDirty || (device && device.status==='offline')) return;
+  if (SIM.studioConflict){ S.studioShowConflict=true; render(); return; }
+  S.studioDirty=false; S.studioEditing=false; render();
+}
+function reloadStudioFile(wsId){
+  const ws = DATA.studioWorkspaces[wsId];
+  S.studioDraftText=ws.code; S.studioDirty=false; S.studioShowConflict=false; S.studioEditing=false; render();
+}
+function keepLocalDraft(){ S.studioShowConflict=false; render(); }
+function runStudio(kind, wsId){
+  const ws = DATA.studioWorkspaces[wsId];
+  if (!ws[kind]) return;
+  const device = byId(ws.device);
+  clearInterval(outputTimer);
+  S.studioOutput = [{t:`$ olive ${kind} \u00b7 running on ${device?device.name:'remote device'}`, cls:'l-muted'}];
+  S.studioRunning = true;
+  let lines;
+  if (kind==='test'){
+    const t = ws.test;
+    lines = [[`${t.passed} passed \u00b7 ${t.failed} failed \u00b7 ${t.skipped} skipped \u00b7 ${t.duration}`, t.failed>0?'l-err':''], ...t.lines];
+  } else {
+    lines = ws[kind];
+  }
+  let i=0;
+  outputTimer = setInterval(()=>{
+    if (i>=lines.length){ clearInterval(outputTimer); S.studioRunning=false; render(); return; }
+    S.studioOutput.push({t:lines[i][0], cls:lines[i][1]});
+    i++; render();
+  },550);
+  render();
+}
+function stopStudio(){ clearInterval(outputTimer); S.studioRunning=false; S.studioOutput.push({t:'Stopped by user',cls:'l-warn'}); render(); }
+
+/* ============================================================ SCREEN: FILES ============================================================ */
+function screenFiles(){
+  const pending = DATA.files.filter(f=>f.state==='pending');
+  const rest = DATA.files.filter(f=>f.state!=='pending');
+  const FILE_META = {
+    receiving:{icon:'download',tone:''}, verifying:{icon:'clock',tone:''},
+    verified:{icon:'checkCircle',tone:'success'}, interrupted:{icon:'alert',tone:'error'},
+    failed:{icon:'alert',tone:'error'}, declined:{icon:'x',tone:'neutral'},
+  };
+  return `
+  <div class="navbar left"><h2 style="padding-left:6px">Files</h2><span class="spacer"></span><button class="nav-action" onclick="alert('Design only')">${ic('search',18)}</button></div>
+  <div class="section" style="padding-top:2px">
+  ${pending.length? `<div class="section-title" style="padding:0 0 8px"><h3>Needs approval</h3></div><div class="card" style="margin-bottom:14px">${pending.map(f=>`
+    <div class="card-row" onclick="openOverlay('approval',{kind:'file',device:'${f.from}',deviceId:'${deviceIdByName(f.from)}',file:'${f.name}'})"><span class="file-icon">${ic('download',16)}</span><div class="spacer"><strong>${f.name}</strong><small>${f.from} \u00b7 ${f.size} \u00b7 Waiting for approval</small></div><span class="badge" data-tone="warning">Review</span></div>`).join('')}</div>`:''}
+
+  <div class="section-title" style="padding:0 0 8px"><h3>Inbox</h3></div>
+  <div class="card">
+    ${rest.length? rest.map(f=>{ const m=FILE_META[f.state]||{icon:'file',tone:'neutral'}; return `
+      <div class="card-row" onclick="openOverlay('file',{id:'${f.id}'})">
+        <span class="file-icon" style="${m.tone==='error'?'color:var(--error)':f.state==='receiving'?'color:var(--accent)':f.state==='declined'?'color:var(--faint)':''}">${ic(m.icon,16)}</span>
+        <div class="spacer">
+          <strong style="${f.state==='declined'?'color:var(--faint)':''}">${f.name}</strong>
+          <small>${f.from} \u00b7 ${f.size} \u00b7 ${f.time}</small>
+          ${f.state==='receiving'?`<div class="progress-track"><div class="progress-fill" style="width:${f.progress}%"></div></div>`:''}
+          ${f.state==='interrupted'?`<div class="progress-track"><div class="progress-fill err" style="width:${f.progress}%"></div></div>`:''}
+        </div>
+        ${f.state==='verified'?'<span class="badge" data-tone="success">Verified</span>':f.state==='interrupted'?'<span class="badge" data-tone="error">Interrupted</span>':f.state==='failed'?'<span class="badge" data-tone="error">Failed</span>':f.state==='declined'?'<span class="badge" data-tone="neutral">Declined</span>':f.state==='verifying'?'<span class="badge" data-tone="neutral">Verifying</span>':`<span class="badge">${f.progress}%</span>`}
+      </div>`;}).join('') : `<div class="empty" style="padding:30px"><div class="icon-lg">${ic('files',20)}</div><h3>Inbox is empty</h3><p>Files sent from paired devices will appear here for review before they\u2019re saved.</p></div>`}
+  </div>
+  </div>
+  <div style="height:14px"></div>
+  `;
+}
+
+/* ============================================================ SCREEN: SETTINGS ============================================================ */
+function screenSettings(){
+  return `
+  <div class="navbar"><span style="width:50px"></span><h2>Settings</h2><button class="nav-action" onclick="goTab('home')">Done</button></div>
+  <div class="section" style="padding-top:2px">
+    <div class="card"><div class="card-row" onclick="openOverlay('thisDevice')"><span class="avatar" style="background:var(--accent-soft);color:var(--accent)">${ic('phone',16)}</span><div class="spacer"><strong>${DATA.identity.name}</strong><small>Device identity \u00b7 ${DATA.identity.code}</small></div>${ic('chevronRight',15)}</div></div>
+  </div>
+
+  <div class="section-title"><h3>Connect</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    <div class="check-row"><div><strong>Connect</strong><small>${SIM.connectOn? 'Connected locally':'Off \u2014 Remote AI, sync and files are paused'}</small></div><div class="switch" data-on="${SIM.connectOn}" onclick="toggleConnect()"></div></div>
+    <div class="card-row" onclick="jump('devices','list')"><span class="perm-name">Paired devices</span><small class="muted">${pairedDevices().length}</small>${ic('chevronRight',15)}</div>
+    <div class="check-row"><div><strong>Discovery</strong><small>Off by default \u2014 look for nearby OLIVE desktops on this network</small></div><div class="switch" data-on="false"></div></div>
+  </div></div>
+
+  <div class="section-title"><h3>Notifications</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    ${['Trusted approvals','File transfers','Remote AI completion','Sync activity'].map((l,i)=>`<div class="check-row"><strong>${l}</strong><div class="switch" data-on="${i<2}"></div></div>`).join('')}
+  </div></div>
+
+  <div class="section-title"><h3>Appearance</h3></div>
+  <div class="section" style="padding-top:0"><div class="card card-pad">
+    <div class="segmented"><button class="selected">System</button><button>Light</button><button>Dark</button></div>
+  </div></div>
+
+  <div class="section-title"><h3>Privacy & security</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    <div class="card-row" onclick="alert('Design only')"><span class="perm-name">Activity & audit log</span>${ic('chevronRight',15)}</div>
+    <div class="card-row" onclick="jump('devices','list')"><span class="perm-name">Revoked devices</span><small class="muted">${revokedDevices().length}</small>${ic('chevronRight',15)}</div>
+  </div></div>
+  <div class="section" style="padding-top:0"><div class="banner info">${ic('shieldCheck',15)}<div><p style="font-size:11.5px">OLIVE Mobile doesn\u2019t use cloud AI. Remote AI and sync only happen through devices you\u2019ve explicitly paired.</p></div></div></div>
+
+  <div class="section-title"><h3>Sync</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    <div class="check-row"><div><strong>Tasks & Calendar Sync</strong><small>Keep Today’s tasks, events and reminders current across paired devices</small></div><div class="switch" data-on="true"></div></div>
+    <div class="check-row"><div><strong>Chat continuity</strong><small>Keep selected conversations in sync across paired devices</small></div><div class="switch" data-on="true"></div></div>
+  </div></div>
+
+  <div class="section-title"><h3>Storage</h3></div>
+  <div class="section" style="padding-top:0"><div class="card">
+    <div class="card-row" onclick="alert('Design only')"><span class="perm-name">Downloaded files</span><small class="muted">9.8 MB</small>${ic('chevronRight',15)}</div>
+    <div class="card-row" onclick="alert('Design only')"><span class="perm-name" style="color:var(--error)">Clear downloaded files</span></div>
+  </div></div>
+
+  <div class="section-title"><h3>About</h3></div>
+  <div class="section" style="padding-top:0;padding-bottom:20px"><div class="card">
+    <div class="card-row"><span class="perm-name">Version</span><small class="muted">OLIVE Mobile 0.1 (C9 design)</small></div>
+    <div class="card-row" onclick="alert('Design only')"><span class="perm-name">Help</span>${ic('chevronRight',15)}</div>
+  </div></div>
+  `;
+}
+function toggleConnect(){ SIM.connectOn=!SIM.connectOn; render(); }
+
+/* ============================================================ OVERLAYS ============================================================ */
+function overlayContent(o){
+  if (o.type==='revoke') return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>Revoke ${o.name}?</h2></div>
+    <div class="sheet-body stack">
+      <p class="muted" style="font-size:12.5px">This device will lose Remote AI, sync, file transfer and Remote Studio access immediately. You can pair it again later.</p>
+      <div class="btn-row"><button class="btn ghost" onclick="closeOverlay()">Cancel</button><button class="btn danger" onclick="doRevoke('${o.id}')">Revoke access</button></div>
+    </div>`;
+  if (o.type==='thisDevice') return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>This iPhone</h2></div>
+    <div class="sheet-body stack">
+      <div class="card card-pad row"><span class="dev-icon">${ic('phone',18)}</span><div><strong style="display:block">${DATA.identity.name}</strong><small class="muted">${DATA.identity.code}</small></div></div>
+      <p class="muted" style="font-size:12px">${DATA.identity.created}. This identity is used to pair with OLIVE desktops \u2014 it never leaves your paired devices.</p>
+      <button class="btn ghost" onclick="closeOverlay()">Close</button>
+    </div>`;
+  if (o.type==='task'){ const t=DATA.tasks.find(x=>x.id===o.id); return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>${t.title}</h2></div>
+    <div class="sheet-body stack">
+      <div class="row spread"><span class="muted small">Due</span><strong>${t.due}</strong></div>
+      ${t.project?`<div class="row spread"><span class="muted small">Project</span><span>${t.project}</span></div>`:''}
+      ${t.linked?`<div class="banner info">${ic('link',14)}<p style="font-size:12px">${t.linked}</p></div>`:''}
+      <div class="btn-row"><button class="btn ghost" onclick="closeOverlay()">Close</button><button class="btn primary">${t.done?'Mark not done':'Mark done'}</button></div>
+    </div>`; }
+  if (o.type==='event'){ const e=DATA.events.find(x=>x.id===o.id); return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>${e.title}</h2></div>
+    <div class="sheet-body stack"><div class="row spread"><span class="muted small">When</span><strong>${e.time}</strong></div><button class="btn ghost" onclick="closeOverlay()">Close</button></div>`; }
+  if (o.type==='reminder'){ const r=DATA.reminders.find(x=>x.id===o.id); return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>${r.title}</h2></div>
+    <div class="sheet-body stack">
+      <div class="row spread"><span class="muted small">When</span><strong>${r.when}</strong></div>
+      <div class="btn-row"><button class="btn ghost" onclick="closeOverlay()">Dismiss</button><button class="btn ghost">Snooze</button><button class="btn primary" onclick="closeOverlay()">Done</button></div>
+    </div>`; }
+  if (o.type==='file'){ const f=DATA.files.find(x=>x.id===o.id);
+    const stateMeta = {
+      receiving:{label:'Receiving',tone:'neutral'}, verifying:{label:'Verifying',tone:'neutral'},
+      verified:{label:'Verified',tone:'success'}, interrupted:{label:'Interrupted',tone:'error'},
+      failed:{label:'Failed',tone:'error'}, declined:{label:'Declined',tone:'neutral'},
+    };
+    const sm = stateMeta[f.state]||{label:f.state,tone:'neutral'};
+    return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>${f.name}</h2></div>
+    <div class="sheet-body stack">
+      <div class="row spread"><span class="muted small">From</span><span>${f.from}</span></div>
+      <div class="row spread"><span class="muted small">Size</span><span>${f.size}</span></div>
+      <div class="row spread"><span class="muted small">Status</span><span class="badge" data-tone="${sm.tone}">${sm.label}</span></div>
+      ${f.state==='verified'?`<div class="row spread"><span class="muted small">SHA-256</span><span class="mono" style="font-family:var(--mono);font-size:11.5px">${f.hash} \u00b7 checked</span></div>`:''}
+      ${f.state==='verifying'?`<p class="muted" style="font-size:12px">Checking SHA-256 against what ${f.from} sent\u2026</p>`:''}
+      ${f.state==='receiving'?`<div class="progress-track"><div class="progress-fill" style="width:${f.progress}%"></div></div>`:''}
+      ${f.state==='interrupted'?`<div class="banner err">${ic('alert',15)}<p style="font-size:12px">Connection to ${f.from} was lost at ${f.progress}%. Nothing unverified was kept.</p></div>`:''}
+      ${f.state==='failed'?`<div class="banner err">${ic('alert',15)}<p style="font-size:12px">The received file didn\u2019t match its expected SHA-256, so it was discarded.</p></div>`:''}
+      ${f.state==='declined'?`<div class="banner">${ic('info',15)}<p style="font-size:12px">This transfer was declined and never downloaded.</p></div>`:''}
+      <div class="btn-row">
+        ${f.state==='verified'?`<button class="btn ghost" onclick="alert('Design only: opens with the system viewer')">${ic('file',13)} Open</button><button class="btn primary" onclick="openOverlay('share',{id:'${f.id}'})">${ic('share',13)} Share / Save</button>`:''}
+        ${f.state==='interrupted'?`<button class="btn primary" onclick="closeOverlay()">${ic('refresh',13)} Retry</button>`:''}
+        ${f.state==='receiving'?`<button class="btn danger" onclick="closeOverlay()">Cancel transfer</button>`:''}
+        ${(f.state==='failed'||f.state==='declined')?`<button class="btn danger" onclick="closeOverlay()">${ic('trash',13)} Remove</button>`:''}
+        <button class="btn ghost" onclick="closeOverlay()">Close</button>
+      </div>
+    </div>`; }
+  if (o.type==='share'){ const f=DATA.files.find(x=>x.id===o.id); return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>${f?f.name:'Share'}</h2></div>
+    <div class="sheet-body stack">
+      <div class="card">
+        <button class="card-row" style="width:100%" onclick="closeOverlay()"><span class="icon-btn" style="background:var(--elevated)">${ic('download',15)}</span><span style="flex:1">Save to Files</span></button>
+        <button class="card-row" style="width:100%" onclick="closeOverlay()"><span class="icon-btn" style="background:var(--elevated)">${ic('share',15)}</span><span style="flex:1">Share\u2026</span></button>
+        <button class="card-row" style="width:100%" onclick="closeOverlay()"><span class="icon-btn" style="background:var(--elevated)">${ic('cloud',15)}</span><span style="flex:1">Open in OLIVE GO</span></button>
+      </div>
+      <p class="faint" style="font-size:11px">OLIVE Mobile doesn\u2019t expose received files to other apps until you choose one of these.</p>
+      <button class="btn ghost" onclick="closeOverlay()">Cancel</button>
+    </div>`; }
+  if (o.type==='approval'){
+    const kindMeta = {
+      pair: { title:'Confirm pairing', icon:'fingerprint', verb:'wants to pair as a trusted device.', capability:'Device pairing', target:'This iPhone' },
+      file: { title:'Incoming file', icon:'download', verb:'wants to send a file to this iPhone.', capability:'File transfer \u00b7 Receive Files', target:o.file||'a file' },
+      ai: { title:'Remote AI request', icon:'chat', verb:'wants to run OLIVE '+(o.preset||'MAX')+' for this conversation.', capability:'Remote AI \u00b7 '+(o.preset||'MAX'), target:'This conversation' },
+      studio: { title:'Remote Studio request', icon:'terminal', verb:'wants Remote Studio access.', capability:'Remote Studio', target:o.workspace||'a shared workspace' },
+      sync: { title:'Sync request', icon:'refresh', verb:'wants to sync records.', capability:'Tasks & Calendar Sync', target:o.target||'3 items' },
+    };
+    const meta = kindMeta[o.kind] || kindMeta.ai;
+    return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>${meta.title}</h2></div>
+    <div class="sheet-body stack">
+      <div class="banner info">${ic(meta.icon,16)}<div><strong>${o.device}</strong><p style="font-size:12px">${meta.verb}</p></div></div>
+      <div class="row spread"><span class="muted small">Capability</span><span>${meta.capability}</span></div>
+      <div class="row spread"><span class="muted small">Target</span><span>${meta.target}</span></div>
+      <div class="btn-row"><button class="btn danger" onclick="closeOverlay()">Deny</button><button class="btn primary" onclick="closeOverlay()">Allow once</button></div>
+      <button class="btn ghost sm" style="width:100%;color:var(--muted)" onclick="${o.deviceId?`goToPermissions('${o.deviceId}')`:'closeOverlay()'}">Manage this device\u2019s permissions instead \u2192</button>
+    </div>`;
+  }
+  if (o.type==='runOn'){
+    const preset = o.preset;
+    const avail = chatDeviceOptions(preset);
+    const others = devices().filter(d=>d.status!=='waiting'&&d.status!=='revoked'&&!avail.includes(d));
+    return `
+    <div class="sheet-grab"></div><div class="sheet-head"><h2>Run on</h2></div>
+    <div class="sheet-body stack">
+      ${avail.length? avail.map(d=>`<button class="card-row" style="width:100%;background:var(--elevated);border-radius:10px;margin-bottom:6px" onclick="pickRunOnDevice('${d.id}')"><span class="dev-icon">${devIcon(d)}</span><div class="spacer"><strong>${d.name}</strong><small>${d.caps.ai==='ask'?'Will ask before each request':statusText(d)}</small></div>${statusPill(d)}</button>`).join('') : `<p class="muted" style="font-size:12.5px">No paired device currently shares OLIVE ${preset}.</p>`}
+      ${others.length? `<div class="eyebrow" style="padding:10px 2px 6px">Not available for ${preset}</div>${others.map(d=>`<div class="card-row" style="opacity:.5"><span class="dev-icon">${devIcon(d)}</span><div class="spacer"><strong>${d.name}</strong><small>${d.caps.ai==='off'?'Remote AI Off':'Doesn\u2019t offer '+preset}</small></div></div>`).join('')}`:''}
+      <div class="card-row" style="opacity:.45"><span class="dev-icon">${ic('phone',18)}</span><div class="spacer"><strong>This iPhone</strong><small>Local AI unavailable</small></div></div>
+      <button class="btn ghost" onclick="closeOverlay()">Close</button>
+    </div>`;
+  }
+  return '';
+}
+function doRevoke(id){ const d=DATA.devices.find(x=>x.id===id); d.status='revoked'; closeOverlay(); jump('devices','list'); }
+function goToPermissions(id){ closeOverlay(); jump('devices','detail',{id}); }
+function deviceIdByName(name){ const d=DATA.devices.find(x=>x.name===name); return d?d.id:''; }
+
+/* ============================================================ RENDER ============================================================ */
+function screenFor(tab){
+  const t = stackTop(tab);
+  if (tab==='home') return screenHome();
+  if (tab==='chat') return t.s==='thread'? screenChatThread(t.id) : screenChatList();
+  if (tab==='today'){
+    if (t.s==='tasks') return screenTasks();
+    if (t.s==='calendar') return screenCalendar();
+    if (t.s==='reminders') return screenReminders();
+    return screenToday();
+  }
+  if (tab==='devices'){
+    if (t.s==='detail') return screenDeviceDetail(t.id);
+    if (t.s==='pair-start') return screenPairStart();
+    if (t.s==='pair-qr') return screenPairQr();
+    if (t.s==='pair-code') return screenPairCode();
+    if (t.s==='pair-connecting') return screenPairConnecting();
+    if (t.s==='pair-confirm') return screenPairConfirm();
+    if (t.s==='pair-waiting') return screenPairWaiting();
+    if (t.s==='pair-success') return screenPairSuccess();
+    if (t.s==='pair-mismatch') return screenPairMismatch();
+    if (t.s==='pair-expired') return screenPairExpired();
+    if (t.s==='pair-cancelled') return screenPairCancelled();
+    if (t.s==='pair-connection-lost') return screenPairConnectionLost();
+    if (t.s==='pair-denied') return screenPairDenied();
+    if (t.s==='studio-workspaces') return screenRemoteWorkspaces();
+    if (t.s==='studio-workspace') return screenStudioWorkspace(t.id);
+    if (t.s==='studio-file') return screenStudioFile(t.id);
+    return screenDeviceList();
+  }
+  if (tab==='files') return screenFiles();
+  if (tab==='settings') return screenSettings();
+  return '';
+}
+const TABS = [
+  ['home','Home','home'],['chat','Chat','chat'],['today','Today','today'],
+  ['devices','Devices','devices'],['files','Files','files'],
+];
+function render(){
+  const el = document.getElementById('screen');
+  const showOverlay = S.overlayStack.length>0;
+  el.innerHTML = `
+    <div class="statusbar"><span>9:41</span><span class="sb-icons">${ic('wifi',13)}<span style="font-weight:700">100%</span></span></div>
+    <div class="screen-body">${screenFor(S.tab)}</div>
+    <div class="tabbar">
+      ${TABS.map(([key,label,icon])=>`<button class="${S.tab===key?'active':''}" onclick="goTab('${key}')">${ic(icon,21)}<span>${label}</span></button>`).join('')}
+    </div>
+    <div class="home-indicator"></div>
+    ${S.banner? `
+    <div class="notif-banner">
+      <span class="avatar olive" style="width:28px;height:28px">${ic('chat',13)}</span>
+      <div class="spacer"><strong style="font-size:12.5px;display:block">${S.banner.title}</strong><small class="muted" style="font-size:11.5px">${S.banner.body}</small></div>
+      <button class="icon-btn" style="width:22px;height:22px" onclick="dismissBanner(event)">${ic('x',12)}</button>
+    </div>`:''}
+    ${showOverlay? `<div class="sheet-backdrop" onclick="closeOverlay()"><div class="sheet" onclick="event.stopPropagation()">${overlayContent(S.overlayStack[S.overlayStack.length-1])}</div></div>` : ''}
+  `;
+  if (S.banner){
+    el.querySelector('.notif-banner').addEventListener('click',()=>{ S.overlayStack.push(S.banner.overlay); S.banner=null; render(); });
+  }
+  renderPanel();
+}
+function dismissBanner(ev){ ev.stopPropagation(); S.banner=null; render(); }
+
+/* ============================================================ CONTROL PANEL ============================================================ */
+const JUMPS = [
+  ['home','Home','home',null],
+  ['chat','Chat list','chat','list'],
+  ['chat','Chat thread','chat','thread',{id:'c2'}],
+  ['today','Today','today','root'],
+  ['today','Tasks','today','tasks'],
+  ['today','Calendar','today','calendar'],
+  ['today','Reminders','today','reminders'],
+  ['devices','Devices','devices','list'],
+  ['devices','Device detail','devices','detail',{id:'gaming'}],
+  ['devices','Pairing: start','devices','pair-start'],
+  ['devices','Pairing: mismatch','devices','pair-mismatch'],
+  ['devices','Pairing: expired','devices','pair-expired'],
+  ['devices','Pairing: cancelled','devices','pair-cancelled'],
+  ['devices','Pairing: connection lost','devices','pair-connection-lost'],
+  ['devices','Pairing: denied','devices','pair-denied'],
+  ['devices','Remote Studio','devices','studio-workspaces'],
+  ['devices','Studio: RaceDay file','devices','studio-file',{id:'raceday'}],
+  ['files','Files','files','list'],
+  ['settings','Settings','settings','root'],
+];
+function renderPanel(){
+  const el = document.getElementById('panel');
+  el.innerHTML = `
+    <div class="panel-card">
+      <h4>Jump to screen</h4>
+      <div class="jump-grid">
+        ${JUMPS.map((j,idx)=>`<button class="jump-btn ${S.tab===j[0]?'on':''}" onclick="jumpFromPanel(${idx})">${ic(j[0],14)} ${j[1]}</button>`).join('')}
+        <button class="jump-btn" onclick="simulateApproval()">${ic('bell',14)} Incoming request</button>
+      </div>
+    </div>
+    <div class="panel-card">
+      <h4>Simulate states</h4>
+      <div class="sim-list">
+        ${simRow('Connect on','connectOn')}
+        ${simRow('No paired devices','noDevices')}
+        ${simRow('No nearby devices','noNearby')}
+        ${simRow('No devices online','allOffline')}
+        ${simRow('No chat history','noChatHistory')}
+        ${simRow('Nothing due today','noTasksToday')}
+        ${simRow('Gaming PC offline','gamingOffline')}
+        ${simRow('Remote AI off on all devices','aiDisabled')}
+        ${simRow('All Remote AI devices busy','allBusy')}
+        ${simRow('Stale synced data banner','staleSync')}
+        ${simRow('Remote Studio unavailable','studioUnavailable')}
+        ${simRow('Remote file revision conflict','studioConflict')}
+      </div>
+      <div class="sim-note">These toggles drive the same screens live \u2014 offline, revoked, permission-off and empty states are real render states, not separate mockups. Diego\u2019s Studio PC\u2019s Remote AI defaults to Ask, so Chat already demonstrates that state without a toggle.</div>
+    </div>
+    <div class="panel-card">
+      <h4>Implementation handoff</h4>
+      <div class="notes">
+        <h4>Information architecture</h4>
+        <p>Five permanent tabs: Home, Chat, Today, Devices, Files. Settings is not a tab \u2014 it's reached via a gear icon on Home and on Devices, presented with a "Done" dismiss rather than a back chevron, since it's an occasional destination, not a daily one. Remote AI lives inside Chat (Model + Run on) rather than its own tab. Remote Studio and Pairing are drill-ins from Devices.</p>
+        <h4>Final bottom-tab structure</h4>
+        <ul><li>Home \u2014 dashboard</li><li>Chat \u2014 list + thread</li><li>Today \u2014 unified agenda, drills into Tasks / Calendar / Reminders</li><li>Devices \u2014 list, detail, pairing, Remote Studio</li><li>Files \u2014 OLIVE Inbox</li></ul>
+        <h4>Screen inventory</h4>
+        <p>Home; Chat list/thread; Today, Tasks, Calendar, Reminders; Devices list, device detail, Remote Studio workspaces/workspace/file; pairing (start, QR, code, connecting, confirm, waiting, success, mismatch, expired, cancelled, connection-lost, denied); Files list; Settings; sheets for task/event/reminder/file/share/approval/run-on/revoke/this-device.</p>
+        <h4>Reusable components</h4>
+        <p><code>.card</code> / <code>.card-row</code> lists, <code>.pill</code> status (online/busy/offline/waiting/revoked), <code>.badge</code> tags, <code>.segmented</code> control, <code>.switch</code> toggle, bottom <code>.sheet</code>, <code>.banner</code> (info/warn/err), <code>.timeline</code> agenda rows, <code>.swipe-row</code> quick actions, <code>.output-panel</code> bounded log.</p>
+        <h4>Typography</h4>
+        <p>iOS system font stack (no custom webfont). Large title 26px/700 for tab roots; nav title 16.5px/650; card titles 13.5px/600; supporting text 11.5\u201312.5px muted; eyebrows 10.5px/700 uppercase tracked.</p>
+        <h4>Spacing & radius</h4>
+        <p>14/9/20px radius scale (card / control / sheet). Section padding 14px sides, list rows 44px min height for touch targets, 8\u201310px stack gaps.</p>
+        <h4>Status colour semantics</h4>
+        <p>Success green = Online/Verified/Allow-passed. Warning amber = Busy/Ask-pending/interrupted-but-recoverable. Error red = Offline-that-blocks/Failed/Revoked action. Neutral grey = Off/Declined/inactive. Accent blue is interaction only, never status.</p>
+        <h4>Navigation patterns</h4>
+        <p>Per-tab back-stacks with <code>push()</code>/<code>pop()</code> for drill-downs; <code>jump()</code> resets a tab's stack for cross-tab entry points and for flows that shouldn't leave a re-enterable history (finishing or abandoning pairing).</p>
+        <h4>Sheet / modal patterns</h4>
+        <p>Bottom sheets for detail + approvals; approvals lead with Deny / Allow once, with "manage this device's permissions instead" visually de-emphasized below a divider rather than offering one-tap permanent Allow.</p>
+        <h4>Capability state presentation</h4>
+        <p>Every capability (Remote AI, Tasks & Calendar Sync, Chat continuity, Receive Files, Send Files, Remote Studio) is Off / Ask / Allow per device, shown as a 3-way segmented control on Device Detail \u2014 the single source of truth every other screen reads from.</p>
+        <h4>Responsive / safe-area behavior</h4>
+        <p>Phone frame scales via <code>min(390px, 100vw \u2212 32px)</code> with a locked aspect ratio; status bar/tab bar respect notch and home-indicator space; sheets are full-width bottom sheets, not centered dialogs; Chat's input bar tightens padding on keyboard focus.</p>
+        <h4>Deliberately unavailable in C9</h4>
+        <ul>
+          <li>No local model fallback \u2014 the iPhone never claims to run FAST/NORMAL/MAX itself; a disabled "This iPhone \u00b7 Local AI unavailable" row makes that explicit in the Run-on picker.</li>
+          <li>No remote terminal, PTY, debugger, LSP, package installation or unrestricted filesystem in Remote Studio \u2014 bounded file browser, lightweight edit, revision-checked save, Build/Test/Run only.</li>
+          <li>No "Allow always" on first contact \u2014 approvals default to Deny / Allow once; permanent grants happen in Devices.</li>
+          <li>No internet relay \u2014 everything here assumes the existing local pairing/transport from C1\u2013C8.</li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+function simRow(label,key){
+  return `<div class="sim-row"><span>${label}</span><div class="small-switch" data-on="${SIM[key]}" onclick="toggleSim('${key}')"></div></div>`;
+}
+function toggleSim(key){ SIM[key]=!SIM[key]; render(); }
+function jumpFromPanel(idx){
+  const j = JUMPS[idx];
+  jump(j[0], j[3]||null, j[4]||{});
+}
+function simulateApproval(){
+  S.banner = { title:'Gaming PC', body:'wants to send a file to this iPhone', overlay:{type:'approval',kind:'file',device:'Gaming PC',deviceId:'gaming',file:'road-notes.png'} };
+  render();
+}
+
+/* ============================================================ SWIPE ACTIONS ============================================================ */
+/* Delegated on document (not per-row) because render() replaces #screen's
+   innerHTML wholesale on every state change, which would otherwise drop
+   per-element listeners. */
+(function(){
+  let dragRow=null, startX=0, startY=0, dx=0, startOpen=0, dragging=false, decided=false;
+  function actionsWidth(row){ const a=row.querySelector('.swipe-actions'); return a? a.getBoundingClientRect().width : 0; }
+  document.addEventListener('pointerdown', e=>{
+    const row = e.target.closest && e.target.closest('.swipe-row');
+    if (!row || e.target.closest('.swipe-actions')) return;
+    dragRow = row; startX = e.clientX; startY = e.clientY; dx = 0; dragging=false; decided=false;
+    const c = row.querySelector('.swipe-content');
+    startOpen = parseFloat(c.dataset.open||'0');
+  });
+  document.addEventListener('pointermove', e=>{
+    if (!dragRow) return;
+    const moveX = e.clientX-startX, moveY = e.clientY-startY;
+    if (!decided){
+      if (Math.abs(moveX)<6 && Math.abs(moveY)<6) return;
+      decided = true;
+      dragging = Math.abs(moveX) > Math.abs(moveY);
+      if (!dragging){ dragRow=null; return; }
+    }
+    if (!dragging) return;
+    e.preventDefault();
+    const max = actionsWidth(dragRow);
+    dx = Math.max(-max, Math.min(0, startOpen+moveX));
+    dragRow.querySelector('.swipe-content').style.transform = `translateX(${dx}px)`;
+  });
+  function endDrag(){
+    if (!dragRow || !dragging){ dragRow=null; return; }
+    const c = dragRow.querySelector('.swipe-content');
+    const max = actionsWidth(dragRow);
+    const finalX = (max && Math.abs(dx) > max*0.4) ? -max : 0;
+    c.style.transform = `translateX(${finalX}px)`;
+    c.dataset.open = finalX;
+    dragRow=null; dragging=false;
+  }
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+})();
+
+render();
+</script>
