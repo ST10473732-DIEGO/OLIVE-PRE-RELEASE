@@ -2,6 +2,7 @@
 import json
 import uuid
 from .contracts import ConnectError
+from .storage_diagnostics import storage_operation
 
 
 class StudioStore:
@@ -24,6 +25,7 @@ class StudioStore:
                     db.execute('UPDATE studio_requests_v1 SET result=? WHERE peer=? AND request=?',
                         (json.dumps({'state': 'connection_lost', 'job_id': identity, 'error': 'request_indeterminate'}), peer, identity))
 
+    @storage_operation('studio_share_repository', 'read')
     def shares(self, db, peer):
         return [dict(workspace_id=r[0], local_id=r[1], root_hash=r[2], share_revision=r[3])
                 for r in db.execute('SELECT reference,workspace,root_hash,revision FROM studio_shares_v1 WHERE peer=?', (peer,))]
@@ -38,6 +40,7 @@ class StudioStore:
         db.execute('INSERT INTO studio_shares_v1 VALUES(?,?,?,?,1)', (peer, ref, workspace, root_hash))
         return next(s for s in self.shares(db, peer) if s['workspace_id'] == ref)
 
+    @storage_operation('studio_receipt_repository', 'read')
     def get(self, db, req):
         row = db.execute('SELECT fingerprint,result FROM studio_requests_v1 WHERE peer=? AND request=?',
                          (req.source_device_id, req.request_id)).fetchone()
@@ -47,17 +50,20 @@ class StudioStore:
             raise ConnectError('changed_duplicate')
         return json.loads(row[1]) if row[1] else {'state': 'request_indeterminate'}
 
+    @storage_operation('studio_receipt_repository', 'claim')
     def claim(self, db, req):
         if db.execute('SELECT count(*) FROM studio_requests_v1').fetchone()[0] >= 10000:
             raise ConnectError('ledger_full')
         db.execute('INSERT INTO studio_requests_v1 VALUES(?,?,?,?,?,NULL)',
                    (req.source_device_id, req.request_id, req.fingerprint(), req.workspace_id, req.operation))
 
+    @storage_operation('studio_receipt_repository', 'finish')
     def finish(self, db, req, result):
         # Only save revision or job identity/state; never code or process output.
         db.execute('UPDATE studio_requests_v1 SET result=? WHERE peer=? AND request=?',
                    (json.dumps(result), req.source_device_id, req.request_id))
 
+    @storage_operation('activity_repository', 'audit')
     def audit(self, db, req, result, now):
         db.execute('INSERT INTO studio_activity_v1(peer,workspace,operation,result,timestamp) VALUES(?,?,?,?,?)',
                    (req.source_device_id, req.workspace_id, req.operation, result, now))

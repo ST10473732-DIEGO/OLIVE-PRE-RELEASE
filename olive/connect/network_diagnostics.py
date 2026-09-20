@@ -2,10 +2,12 @@
 import sqlite3
 import threading
 import uuid
+from collections import deque
 
 from OpenSSL import SSL
 
 from .contracts import ConnectError
+from .storage_diagnostics import details
 
 
 class ChannelDiagnostics:
@@ -20,6 +22,11 @@ class ChannelDiagnostics:
         self.lock = threading.Lock()
         self.phase = 'created'
         self.terminal = None
+        self.storage_failures = deque(maxlen=4)
+
+    def storage_failed(self, error):
+        with self.lock:
+            self.storage_failures.append(details(error))
 
     @property
     def generation(self):
@@ -46,6 +53,8 @@ class ChannelDiagnostics:
                 code = error.args[0]
             self.terminal = dict(category=category if category in self.CATEGORIES else 'worker_exception',
                 phase=self.phase, error_kind=kind, error_code=code if type(code) is int and -1 <= code <= 65535 else None)
+            if isinstance(error, (sqlite3.Error, OSError)):
+                self.terminal['storage'] = details(error)
 
     def failed(self, error, *, peer_closed=False):
         if peer_closed:
@@ -67,4 +76,6 @@ class ChannelDiagnostics:
 
     def snapshot(self):
         with self.lock:
-            return dict(generation=self.generation, phase=self.phase, terminal=dict(self.terminal) if self.terminal else None)
+            from copy import deepcopy
+            return dict(generation=self.generation, phase=self.phase, terminal=deepcopy(self.terminal),
+                storage_failures=[dict(value) for value in self.storage_failures])

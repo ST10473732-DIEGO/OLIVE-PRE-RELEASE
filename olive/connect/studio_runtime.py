@@ -5,10 +5,21 @@ from pathlib import Path
 import re
 
 from .contracts import ConnectError, canonical
+from .storage_diagnostics import storage_operation
 from .studio_protocol import MAX_FILE, OUTPUT_BYTES, TREE_DEPTH, TREE_ENTRIES, relative_path
 from ..services.studio_service import StudioService
 from ..services.workspace_service import IGNORED
 from ..services.run_service import ExecutionPolicy
+
+
+class _CheckpointDiagnostics:
+    """Keep diagnostic provenance local to the remote adapter."""
+    def __init__(self, service):
+        self.service = service
+
+    @storage_operation('checkpoint', 'write')
+    def create(self, *args, **kwargs):
+        return self.service.create(*args, **kwargs)
 
 
 class StudioRuntime:
@@ -26,6 +37,7 @@ class StudioRuntime:
     def root_hash(workspace):
         return hashlib.sha256(workspace.root_path.encode()).hexdigest()
 
+    @storage_operation('permission_repository', 'read')
     def _local_permission(self, workspace, permission):
         from ..agent.permission_service import PermissionDecision
         if self.s.permissions.evaluate(permission, workspace.root_path).decision == PermissionDecision.DENY:
@@ -71,6 +83,7 @@ class StudioRuntime:
         return {'entries': result, 'truncated': len(values) > len(result) or any(
             v['directory'] and len(v['path'].split('/')) >= TREE_DEPTH for v in result)}
 
+    @storage_operation('workspace_file', 'read')
     def read(self, workspace, path):
         self._local_permission(workspace, "filesystem.read")
         self.path(workspace, path)
@@ -79,6 +92,7 @@ class StudioRuntime:
             raise ConnectError('unsupported_file')
         return {'path': path, 'text': state.text, 'revision': state.loaded_hash}
 
+    @storage_operation('workspace_file', 'write')
     def save(self, workspace, req):
         self._local_permission(workspace, "filesystem.write")
         a = req.arguments
@@ -89,7 +103,7 @@ class StudioRuntime:
             state = local.open_files.get(a['path'])
             if state and state.unsaved:
                 raise ConnectError('revision_conflict')
-            service = StudioService(workspace, self.s.checkpoints, write_lock=local.write_lock)
+            service = StudioService(workspace, _CheckpointDiagnostics(self.s.checkpoints), write_lock=local.write_lock)
             state = service.open_file(a['path'])
             if state.loaded_hash != a['expected_hash']:
                 raise ConnectError('revision_conflict')

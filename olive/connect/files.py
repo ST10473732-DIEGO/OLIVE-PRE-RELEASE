@@ -32,11 +32,14 @@ class FileTransferService:
         self.io_failures = deque(maxlen=32)  # Local/test only: category and errno, no paths.
         self.cleanup_pending = set()
         self.failed_pending = {}
+        self.invalidation_pending = {}
 
     def activate(self):
         with self.lock:
             self.stopping.clear()
             self.accepting = True
+            if self.invalidation_pending:
+                self._start()
 
     def _start(self):
         if self.service.closed or not self.accepting or self.stopping.is_set():
@@ -53,22 +56,26 @@ class FileTransferService:
                 self.io_failures.append(('receipt_failed', None))
 
     def _cleanup_pass(self):
-        with self.lock, self.service.repository.transaction() as db:
-            for tid, (peer, code, published) in tuple(self.failed_pending.items()):
-                self._failed_receipt(db, tid, peer, code, published)
-            # Keep queued failures until the transaction has committed.
-            settled = tuple(self.failed_pending)
-            for tid, suffix in tuple(self.cleanup_pending):
-                self._remove(tid, suffix)
-            now = time.monotonic()
-            for row in self.store.list(db):
-                if row['state'] in TERMINAL:
-                    continue
-                started, last = self.activity.get(row['transfer_id'], (now, now))
-                limit = 120 if row['state'] in {'offered', 'awaiting_approval'} else 30
-                if now - started > 600 or now - last > limit:
-                    self._finish(db, row, 'interrupted', 'transfer_timeout')
         with self.lock:
+            with self.service.repository.transaction(timeout=.25) as db:
+                invalidated = dict(self.invalidation_pending)
+                for peer, reason in invalidated.items():
+                    self._invalidate(db, peer, reason)
+                for tid, (peer, code, published) in tuple(self.failed_pending.items()):
+                    self._failed_receipt(db, tid, peer, code, published)
+                # Keep queued failures until the transaction has committed.
+                settled = tuple(self.failed_pending)
+                for tid, suffix in tuple(self.cleanup_pending):
+                    self._remove(tid, suffix)
+                now = time.monotonic()
+                for row in self.store.list(db):
+                    if row['state'] in TERMINAL:
+                        continue
+                    started, last = self.activity.get(row['transfer_id'], (now, now))
+                    limit = 120 if row['state'] in {'offered', 'awaiting_approval'} else 30
+                    if now - started > 600 or now - last > limit:
+                        self._finish(db, row, 'interrupted', 'transfer_timeout')
+            self.invalidation_pending.clear()
             for tid in settled:
                 self.failed_pending.pop(tid, None)
 
@@ -97,6 +104,8 @@ class FileTransferService:
             self.cleanup_pending.add((tid, suffix))
 
     def _authority(self, db, peer, public, capability):
+        if None in self.invalidation_pending or peer in self.invalidation_pending:
+            raise ConnectError('file_io_failed')
         record = self.service.repository.get(db, peer)
         if (self.service.closed or not self.accepting or self.stopping.is_set() or not record or record.get('trust_state') != 'paired'
                 or record.get('revoked_at') is not None or record.get('public_identity') != public):
@@ -137,6 +146,8 @@ class FileTransferService:
         published = False
         category = 'open_failed'
         try:
+            if None in self.invalidation_pending or peer in self.invalidation_pending:
+                raise ConnectError('file_io_failed')
             with self.lock, self.service.repository.transaction(timeout=.25) as db:
                 if request.source_device_id != peer or public['device_id'] != peer:
                     raise ConnectError('source_mismatch')
@@ -474,10 +485,30 @@ class FileTransferService:
         return {'cancelled': row['state'] == 'cancelled'}
 
     def invalidate(self, peer=None, reason='interrupted'):
-        with self.lock, self.service.repository.transaction() as db:
-            for row in self.store.list(db):
-                if peer is None or row['peer_id'] == peer:
-                    self._finish(db, row, 'interrupted', reason)
+        with self.lock:
+            try:
+                with self.service.repository.transaction(timeout=.25, component='file_receipt_repository') as db:
+                    self._invalidate(db, peer, reason)
+                if peer is None:
+                    self.invalidation_pending.clear()
+                else:
+                    self.invalidation_pending.pop(peer, None)
+            except sqlite3.Error:
+                # Transport authority is already gone. Do not strand its worker
+                # behind the receipt writer; fence file admission until settled.
+                self.io_failures.append(('receipt_failed', None))
+                if peer is None or len(self.invalidation_pending) >= 256:
+                    self.invalidation_pending.clear()
+                    self.invalidation_pending[None] = reason
+                elif None not in self.invalidation_pending:
+                    self.invalidation_pending[peer] = reason
+                if self.accepting and not self.stopping.is_set():
+                    self._start()
+
+    def _invalidate(self, db, peer, reason):
+        for row in self.store.list(db):
+            if peer is None or row['peer_id'] == peer:
+                self._finish(db, row, 'interrupted', reason)
 
     def export(self, transfer_id, path):
         with self.lock, self.service.repository.transaction() as db:

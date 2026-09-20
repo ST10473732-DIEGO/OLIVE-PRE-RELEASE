@@ -67,7 +67,7 @@ class DesktopDeviceService:
             raise ConnectError('service_closed')
         return self.identities.ensure()
 
-    def require_paired_identity(self, public, *, timeout=10):
+    def require_paired_identity(self, public, *, timeout=10, db=None):
         """Check a public binding, NOT proof of possession or action authorization.
 
         C3 authenticates the live transport before using this check, then rechecks
@@ -75,8 +75,8 @@ class DesktopDeviceService:
         """
         from .identity import fingerprint
         expected = fingerprint(public)
-        record = self.device(public['device_id'], timeout=timeout)
-        if record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
+        record = self.device(public['device_id'], timeout=timeout) if db is None else self.repository.get(db, public['device_id'])
+        if not record or record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
             raise ConnectError('device_not_paired')
         if record.get('identity_fingerprint') != expected:
             raise ConnectError('identity_mismatch')
@@ -88,7 +88,7 @@ class DesktopDeviceService:
     def device(self, device_id, *, timeout=10):
         identifier(device_id)
         # A short committed snapshot; dispatch rechecks authority under its
-        # writer transaction before claiming or executing any request.
+        # operation transaction before claiming or executing any request.
         with self.repository.transaction(timeout=timeout, read_only=True) as db:
             record = self.repository.get(db, device_id)
             if record is None:

@@ -9,6 +9,7 @@ import uuid
 from .contracts import (CAPABILITIES, SAFE_OPERATIONS, CapabilityMetadata, ConnectError,
                         TrustState, display_name, timestamp)
 from .models import validate_record
+from .storage_diagnostics import storage_operation
 
 
 class DeviceRepository:
@@ -29,17 +30,21 @@ class DeviceRepository:
             db.execute('PRAGMA user_version=2')
 
     @contextmanager
-    def transaction(self, *, timeout=10, read_only=False):
+    def transaction(self, *, timeout=10, read_only=False, component='device_repository'):
         # Separate connections support multiple repository instances and threads.
-        db = sqlite3.connect(self.path, timeout=timeout)
+        with storage_operation(component, 'connect'):
+            db = sqlite3.connect(self.path, timeout=timeout)
         try:
             if read_only:
                 # Snapshot lookups must not contend for the single writer slot.
                 # Enforce this mode so it cannot accidentally perform a write.
                 db.execute('PRAGMA query_only=ON')
-            db.execute('BEGIN' if read_only else 'BEGIN IMMEDIATE')
-            yield db
-            db.commit()
+            with storage_operation(component, 'begin_read' if read_only else 'begin_write'):
+                db.execute('BEGIN' if read_only else 'BEGIN IMMEDIATE')
+            with storage_operation(component, 'read' if read_only else 'write'):
+                yield db
+            with storage_operation(component, 'commit'):
+                db.commit()
         except BaseException:
             db.rollback()
             raise
@@ -47,6 +52,7 @@ class DeviceRepository:
             db.close()
 
     @staticmethod
+    @storage_operation('device_repository', 'read')
     def get(db, device_id):
         row = db.execute('SELECT record FROM devices WHERE device_id=?', (device_id,)).fetchone()
         return validate_record(json.loads(row[0])) if row else None

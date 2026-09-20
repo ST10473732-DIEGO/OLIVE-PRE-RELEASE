@@ -318,3 +318,7 @@ The Ubuntu EOF regression and genuine `disconnect_timeout` remain covered and
 passing locally. Hosted Ubuntu/Windows success is not claimed. No push, merge,
 tag, release, or C9 work was performed.
 Full discovery emitted the existing 26-uncollectable-object shutdown warning.
+
+The next hosted run captured SQLite contention during Studio dispatch. See the
+[C8 storage repair](OLIVE_CONNECT_C8_STORAGE_REPAIR.md) for the deterministic
+failure chain, bounded retirement repair, and exact-byte regression evidence.

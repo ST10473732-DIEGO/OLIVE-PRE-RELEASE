@@ -1,9 +1,30 @@
 """Event-driven transport diagnostics and exact-channel lifecycle test helpers."""
 import asyncio
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 import json
 import threading
 from unittest.mock import patch
+
+
+@asynccontextmanager
+async def held_activity_writer(test, service):
+    """Hold a real C4-style Activity write, with no timer-based synchronization."""
+    entered, release = threading.Event(), threading.Event()
+    def writer():
+        with service.repository.transaction(component='activity_repository') as db:
+            service.repository.audit(db, None, None, None, 0, 'request_denied')
+            entered.set()
+            if not release.wait(8):
+                raise AssertionError('activity writer was not released')
+    with ThreadPoolExecutor(1) as pool:
+        task = pool.submit(writer)
+        try:
+            test.assertTrue(await asyncio.to_thread(entered.wait, 3))
+            yield
+        finally:
+            release.set()
+            await asyncio.to_thread(task.result, 4)
 
 
 def note_failure(error, channel, requester, target):

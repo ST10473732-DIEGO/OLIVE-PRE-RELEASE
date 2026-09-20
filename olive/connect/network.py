@@ -1,6 +1,6 @@
 """Dedicated opt-in LAN transport. Bounded threads, queues and fresh TLS per socket."""
 from collections import deque
-from contextlib import nullcontext
+from contextlib import nullcontext, contextmanager
 from concurrent.futures import Future
 import errno
 import ipaddress
@@ -70,6 +70,22 @@ class Channel:
         self.last_latency_ms = None
         self.failure_category = None  # Transient diagnostics, never provider text.
         self.diagnostics = ChannelDiagnostics()
+        self.authority = threading.local()
+
+    @contextmanager
+    def authority_snapshot(self, db):
+        """Reuse the dispatcher's pinned identity snapshot for this thread only.
+
+        A second reader can deadlock behind a pending writer whose commit is
+        blocked by this very snapshot. Stop and certificate checks still run.
+        No connection or snapshot outlives the dispatch transaction.
+        """
+        previous = getattr(self.authority, 'db', None)
+        self.authority.db = db
+        try:
+            yield
+        finally:
+            self.authority.db = previous
 
     @property
     def generation(self):
@@ -85,7 +101,8 @@ class Channel:
         if self.stop.is_set() or self.owner.stopping.is_set():
             raise ConnectError('connection_closed')
         if self.public is not None:
-            self.owner.service.require_paired_identity(self.public, timeout=.25)
+            self.owner.service.require_paired_identity(self.public, timeout=.25,
+                db=getattr(self.authority, 'db', None))
             require_current(self.public)
 
     def io(self, action, deadline):

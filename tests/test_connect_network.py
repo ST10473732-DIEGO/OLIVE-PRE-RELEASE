@@ -509,6 +509,22 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(tls.snapshot()['terminal'], dict(category='tls_failure',
             phase='read', error_kind='tls_want_write', error_code=None))
         self.assertNotIn('private-tls-context', json.dumps(tls.snapshot()))
+        import errno
+        from olive.connect.storage_diagnostics import details, storage_operation
+        denied = PermissionError(errno.EACCES, 'private-checkpoint-path')
+        denied.winerror = 5
+        try:
+            with storage_operation('checkpoint', 'write'):
+                raise denied
+        except PermissionError:
+            value = details(denied)
+        self.assertEqual(value, dict(component='checkpoint', operation='write', namespace='win32',
+            exception_class='PermissionError', sqlite_errorcode=None, sqlite_errorname=None,
+            errno=errno.EACCES, winerror=5))
+        self.assertNotIn('private-checkpoint-path', json.dumps(value))
+        for _ in range(10):
+            diagnostics.storage_failed(denied)
+        self.assertEqual(len(diagnostics.snapshot()['storage_failures']), 4)
         channel = self.connect()
         self.na.disconnect(self.b.local_id)
         self.assertEqual(channel.debug_snapshot()['terminal']['category'], 'local_disconnect')
@@ -558,8 +574,12 @@ class NetworkTests(unittest.TestCase):
                     release.set()
                     self.assertTrue(failed.wait(3))
                     terminal = channel.debug_snapshot()['terminal']
+                    storage = terminal.pop('storage')
                     self.assertEqual(terminal, dict(category='storage_unavailable',
                         phase='authority', error_kind='storage', error_code=sqlite3.SQLITE_BUSY))
+                    self.assertEqual(storage, dict(component='device_repository', operation='read',
+                        namespace='sqlite', exception_class='sqlite3.OperationalError', sqlite_errorcode=5,
+                        sqlite_errorname='SQLITE_BUSY', errno=None, winerror=None))
                     self.assertTrue(channel.stop.is_set())
                     self.assertNotIn(str(self.a.repository.path), json.dumps(terminal))
                     db.rollback()
@@ -569,6 +589,52 @@ class NetworkTests(unittest.TestCase):
         self.assertFalse(channel.thread.is_alive())
         with self.assertRaisesRegex(ConnectError, 'connection_closed'):
             channel.check()
+
+    def test_dispatch_storage_failure_retires_while_activity_writer_is_held(self):
+        channel = self.connect(); self.allow()
+        remote = self.nb.channels[self.a.local_id]
+        with self.na.lock:
+            self.na.targets.pop(self.b.local_id, None)
+        # The exact same reserved writer that previously stranded C3 in
+        # files.invalidate()'s ten-second transaction remains held throughout.
+        with self.b.repository.transaction(component='activity_repository') as db, ThreadPoolExecutor(1) as pool:
+            self.b.repository.audit(db, None, None, None, 0, 'request_denied')
+            result = pool.submit(channel.request, canonical(request(self.a, self.b)))
+            remote.thread.join(3)
+            self.assertFalse(remote.thread.is_alive(), remote.debug_snapshot())
+            self.assertEqual(remote.sock.fileno(), -1)
+            terminal = remote.debug_snapshot()['terminal']
+            self.assertEqual(terminal['category'], 'storage_unavailable')
+            self.assertEqual(terminal['storage']['sqlite_errorname'], 'SQLITE_BUSY')
+            self.assertIn(self.a.local_id, self.b.files.invalidation_pending)
+            self.nb.close()
+            with self.assertRaisesRegex(ConnectError, 'connection_closed'):
+                result.result(3)
+        self.b.files._cleanup_pass()
+        self.assertFalse(self.b.files.invalidation_pending)
+
+    def test_pinned_authority_snapshot_avoids_nested_reader_and_is_thread_scoped(self):
+        from types import SimpleNamespace
+        from olive.connect.network import Channel
+        channel = Channel(self.na, SimpleNamespace(fileno=lambda: 42), self.b.local_id)
+        channel.public = self.a.device(self.b.local_id)['public_identity']
+        with closing(sqlite3.connect(self.a.repository.path, timeout=0)) as writer:
+            with self.a.repository.transaction(read_only=True) as reader:
+                self.a.repository.get(reader, self.b.local_id)  # Hold SHARED.
+                writer.execute('BEGIN IMMEDIATE')
+                self.a.repository.audit(writer, None, None, None, 0, 'request_denied')
+                with self.assertRaises(sqlite3.OperationalError) as busy:
+                    writer.commit()  # Retains PENDING until reader retires.
+                self.assertEqual(busy.exception.sqlite_errorcode, sqlite3.SQLITE_BUSY)
+                with channel.authority_snapshot(reader), ThreadPoolExecutor(1) as pool:
+                    channel.check()  # Existing pinned reader remains usable.
+                    with self.assertRaises(sqlite3.OperationalError):
+                        pool.submit(channel.check).result(3)  # No cross-thread reuse.
+                self.assertIsNone(channel.authority.db)
+            writer.commit()
+        self.a.revoke(self.b.local_id)
+        with self.assertRaisesRegex(ConnectError, 'device_not_paired'):
+            channel.check()  # No cached snapshot survives its transaction.
 
     def test_channel_close_snapshot_and_disable_join(self):
         from olive.connect.workspace import DevicesWorkspace

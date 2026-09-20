@@ -1,5 +1,6 @@
 """Guarded, peer/workspace-scoped C8 authority and bounded process ownership."""
 import asyncio
+import sqlite3
 from dataclasses import dataclass, field
 from threading import RLock, Event
 import time
@@ -129,7 +130,8 @@ class RemoteStudioService:
             share_revision=share['share_revision'], permissions={c: self._decision(record, c, share['workspace_id']).value for c in sorted(CAPABILITIES)})
 
     def _authority(self, db, req, channel):
-        channel.check()
+        with channel.authority_snapshot(db):
+            channel.check()
         if not self.enabled or self.service.closed:
             raise ConnectError('connection_lost')
         if req.source_device_id != channel.peer or req.target_device_id != self.service.local_id:
@@ -171,10 +173,13 @@ class RemoteStudioService:
 
     def receive(self, raw, channel, deliver):
         req = StudioRequest.decode(raw)
+        audit_state = None
         try:
             with self.lock:
                 # Commit claim BEFORE any write/process effect. Crashes fail closed.
-                with self.service.repository.transaction(timeout=.25) as db:
+                consequential = req.operation in ('save', 'build', 'test', 'run')
+                with self.service.repository.transaction(timeout=.25, read_only=not consequential,
+                        component='studio_receipt_repository' if consequential else 'studio_share_repository') as db:
                     record = self._authority(db, req, channel)
                     now = int(self.service.clock())
                     if req.timestamp > now + 5 or req.expires_at <= now:
@@ -203,40 +208,55 @@ class RemoteStudioService:
                             else:
                                 result = self.runtime.tree(workspace) if req.operation == 'tree' else self.runtime.read(workspace, req.arguments['path'])
                     authorized_revision = record['revision']
-                    # Read results transmit inside current-authority transaction.
-                    if result is not None:
-                        if req.operation != 'run_status':
-                            self.store.audit(db, req, 'completed', now)
-                        deliver(canonical(dict(protocol_version=PROTOCOL, request_id=req.request_id, result=result, error=None)))
-                        return
-                with self.service.repository.transaction(timeout=.25) as db:
-                    record = self._authority(db, req, channel)
-                    workspace, _ = self._scope(db, req, record)
-                    if record['revision'] != authorized_revision:
-                        raise ConnectError('permission_denied')
-                    if req.operation == 'save':
-                        result = self.runtime.save(workspace, req)
-                    else:
-                        active = [j for j in self.jobs.values() if not j.released.is_set()]
-                        if len(active) >= 2 or any(j.channel.peer == channel.peer for j in active) or self.runtime.busy(workspace):
-                            raise ConnectError('busy')
-                        for key, job in list(self.jobs.items()):
-                            if job.released.is_set() and time.monotonic() - job.last_poll > 30:
-                                self.runtime.retire(job.handle)
-                                self.jobs.pop(key)
-                        if len(self.jobs) >= 32:
-                            raise ConnectError('busy')
-                        job = Job(req, channel, binding, record['revision'])
-                        self.jobs[(channel.peer, req.request_id)] = job
-                        asyncio.run_coroutine_threadsafe(self._run(job), self.loop)
-                        result = {'state': 'starting', 'job_id': req.request_id}
-                    self.store.finish(db, req, result)
-                    self.store.audit(db, req, 'saved' if req.operation == 'save' else 'accepted', now)
+                audit_state = 'completed'
+                if result is None:
+                    with self.service.repository.transaction(timeout=.25, component='studio_receipt_repository') as db:
+                        record = self._authority(db, req, channel)
+                        workspace, _ = self._scope(db, req, record)
+                        if record['revision'] != authorized_revision:
+                            raise ConnectError('permission_denied')
+                        if req.operation == 'save':
+                            result = self.runtime.save(workspace, req)
+                        else:
+                            active = [j for j in self.jobs.values() if not j.released.is_set()]
+                            if len(active) >= 2 or any(j.channel.peer == channel.peer for j in active) or self.runtime.busy(workspace):
+                                raise ConnectError('busy')
+                            for key, job in list(self.jobs.items()):
+                                if job.released.is_set() and time.monotonic() - job.last_poll > 30:
+                                    self.runtime.retire(job.handle)
+                                    self.jobs.pop(key)
+                            if len(self.jobs) >= 32:
+                                raise ConnectError('busy')
+                            job = Job(req, channel, binding, record['revision'])
+                            self.jobs[(channel.peer, req.request_id)] = job
+                            asyncio.run_coroutine_threadsafe(self._run(job), self.loop)
+                            result = {'state': 'starting', 'job_id': req.request_id}
+                        self.store.finish(db, req, result)
+                        audit_state = 'saved' if req.operation == 'save' else 'accepted'
+                        self.store.audit(db, req, audit_state, now)
+                    # The effect receipt has committed before any success is sent.
+                    audit_state = None  # Already recorded atomically with the receipt.
                     if self.service.approvals:
                         self.service.approvals.discard(channel.peer, req.request_id)
                     self.pending.pop((channel.peer, req.request_id), None)
-                    deliver(canonical(dict(protocol_version=PROTOCOL, request_id=req.request_id, result=result, error=None)))
+                # Fresh read-only authority pins permission commits through the
+                # bounded transmission, without reserving SQLite's writer slot.
+                with self.service.repository.transaction(timeout=.25, read_only=True,
+                        component='studio_share_repository') as db:
+                    record = self._authority(db, req, channel)
+                    if record['revision'] != authorized_revision:
+                        raise ConnectError('permission_denied')
+                    if req.operation == 'workspaces':
+                        result = self._workspaces(db, req, channel, record)
+                    elif req.operation in ('run_status', 'run_cancel'):
+                        result = self._status(db, req, channel, record)
+                    else:
+                        self._scope(db, req, record)
+                    with channel.authority_snapshot(db):
+                        deliver(canonical(dict(protocol_version=PROTOCOL, request_id=req.request_id, result=result, error=None)))
         except Exception as error:
+            if isinstance(error, (sqlite3.Error, OSError)):
+                channel.diagnostics.storage_failed(error)
             code = str(error) if isinstance(error, ConnectError) else (
                 'revision_conflict' if isinstance(error, RuntimeError) and 'changed since' in str(error) else
                 'file_not_found' if isinstance(error, FileNotFoundError) else
@@ -248,9 +268,18 @@ class RemoteStudioService:
                 self.service.approvals.discard(channel.peer, req.request_id)
             # Attribute invalid claims to the authenticated source, never a claimed ID.
             from dataclasses import replace
-            with self.service.repository.transaction(timeout=.25) as db:
-                self.store.audit(db, replace(req, source_device_id=channel.peer), code, int(self.service.clock()))
+            req = replace(req, source_device_id=channel.peer)
+            audit_state = code
             deliver(canonical(dict(protocol_version=PROTOCOL, request_id=req.request_id, result=None, error=code)))
+        finally:
+            if audit_state is not None and req.operation != 'run_status':
+                # Reporting failure must not repeat the failing write and escape
+                # into C3. No source/output is sent when authorization failed.
+                try:
+                    with self.service.repository.transaction(timeout=.25, component='activity_repository') as db:
+                        self.store.audit(db, req, audit_state, int(self.service.clock()))
+                except (sqlite3.Error, OSError) as error:
+                    channel.diagnostics.storage_failed(error)
 
     def _workspaces(self, db, req, channel, record):
         if any(c['capability'] == 'studio.view' and c['policy_disabled']

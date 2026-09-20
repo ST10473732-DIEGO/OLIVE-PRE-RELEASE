@@ -90,6 +90,25 @@ class FileTests(unittest.TestCase):
         self.b.revoke(self.a.local_id)
         self.assertEqual(artifact.read_bytes(), self.data)
 
+    def test_deferred_invalidation_fences_replacement_until_receipt_commit(self):
+        self.allow()
+        offer = self.offer()
+        self.assertEqual(self.channel.file_request(offer.encode())['result']['state'], 'accepted')
+        remote = self.nb.channels[self.a.local_id]
+        with self.b.repository.transaction(component='activity_repository') as db:
+            self.b.repository.audit(db, None, None, None, 0, 'request_denied')
+            self.nb.disconnect(self.a.local_id)
+            self.assertFalse(remote.thread.is_alive())
+            self.assertEqual(remote.sock.fileno(), -1)
+            self.assertIn(self.a.local_id, self.b.files.invalidation_pending)
+            self.channel = self.na.connect(self.b.local_id, '127.0.0.1', self.nb.port)
+            self.assertEqual(self.channel.file_request(offer.encode())['error'], 'file_io_failed')
+            self.assertEqual(self.channel.file_request(self.offer().encode())['error'], 'file_io_failed')
+        self.b.files._cleanup_pass()
+        self.assertFalse(self.b.files.invalidation_pending)
+        self.assertEqual(self.send_request(offer, 'status')['result']['state'], 'interrupted')
+        self.assertEqual(self.channel.file_request(self.offer().encode())['result']['state'], 'accepted')
+
     def test_tamper_size_ordering_and_duplicate(self):
         self.allow()
         for mode in ('hash', 'early', 'offset', 'overshoot', 'duplicate'):

@@ -15,7 +15,7 @@ from olive.connect.studio_protocol import StudioRequest, request, MAX_FILE
 from tests.connect_studio_fixture import graph
 from tests.test_connect_network import pair
 from tests.test_connect_pairing import MemoryVault
-from tests.connect_channel_fixture import close_service, note_failure, replacement_while_old_cleanup_waits
+from tests.connect_channel_fixture import close_service, note_failure, replacement_while_old_cleanup_waits, held_activity_writer
 
 
 class StudioTests(unittest.IsolatedAsyncioTestCase):
@@ -290,6 +290,117 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
                 reread = (await self.send(self.make('read', {'path': 'main.py'})))['result']
                 self.assertEqual(reread['text'].encode('utf-8'), intended)
                 self.assertEqual(reread['revision'], saved['revision'])
+
+    async def test_read_during_activity_writer_preserves_exact_bytes_and_channel(self):
+        await self.permission('view', 'allow')
+        original = '# café\r\nprint("exact")\r\n'.encode('utf-8')
+        Path(self.workspace.root_path, 'main.py').write_bytes(original)
+        remote = self.b.network.channels[self.a.local_id]
+        async with held_activity_writer(self, self.b):
+            for _ in range(2):
+                result = await self.send(self.make('read', {'path': 'main.py'}))
+                self.assertIsNone(result['error'])
+                self.assertEqual(result['result']['text'].encode('utf-8'), original)
+                self.assertEqual(result['result']['revision'], hashlib.sha256(original).hexdigest())
+            # Processing the second request follows the first audit's failure.
+            failure = remote.debug_snapshot()['storage_failures'][-1]
+            self.assertEqual(failure, dict(component='activity_repository', operation='begin_write',
+                namespace='sqlite', exception_class='sqlite3.OperationalError', sqlite_errorcode=5,
+                sqlite_errorname='SQLITE_BUSY', errno=None, winerror=None))
+            self.assertFalse(remote.stop.is_set())
+            self.assertIsNone(remote.debug_snapshot()['terminal'])
+        self.assertIsNone((await self.send(self.make('tree')))['error'])
+
+    async def test_busy_save_claim_denies_effect_without_killing_channel(self):
+        await self.permission('view', 'allow'); await self.permission('edit', 'allow')
+        path = Path(self.workspace.root_path, 'main.py')
+        original = path.read_bytes()
+        raw = self.make('save', {'path': 'main.py', 'expected_hash': hashlib.sha256(original).hexdigest(), 'text': 'must not save'})
+        remote = self.b.network.channels[self.a.local_id]
+        async with held_activity_writer(self, self.b):
+            self.assertEqual((await self.send(raw))['error'], 'workspace_unavailable')
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual((await self.send(self.make('read', {'path': 'main.py'})))['result']['text'].encode(), original)
+            failures = remote.debug_snapshot()['storage_failures']
+            self.assertTrue(any(f['component'] == 'studio_receipt_repository' and f['sqlite_errorname'] == 'SQLITE_BUSY' for f in failures))
+            self.assertFalse(remote.stop.is_set())
+
+    async def test_permission_change_before_read_transmission_denies_source(self):
+        from contextlib import contextmanager
+        from unittest.mock import patch
+        await self.permission('view', 'allow')
+        read, changed = False, False
+        original_read = self.b.studio.runtime.read
+        transaction = self.b.repository.transaction
+        def observed_read(*args):
+            nonlocal read
+            read = True
+            return original_read(*args)
+        @contextmanager
+        def boundary(**kwargs):
+            nonlocal changed
+            with transaction(**kwargs) as db:
+                yield db
+            if read and not changed:
+                changed = True
+                self.b.set_permission(self.a.local_id, 'studio.view', 'deny', scope=self.share['workspace_id'])
+        with patch.object(self.b.repository, 'transaction', boundary), patch.object(self.b.studio.runtime, 'read', observed_read):
+            result = await self.send(self.make('read', {'path': 'main.py'}))
+        self.assertTrue(changed)
+        self.assertEqual(result['error'], 'permission_denied')
+        self.assertIsNone(result['result'])
+
+    async def test_checkpoint_error_has_distinct_namespace_and_does_not_save(self):
+        import errno
+        from unittest.mock import patch
+        await self.permission('edit', 'allow')
+        path = Path(self.workspace.root_path, 'main.py')
+        original = path.read_bytes()
+        denied = PermissionError(errno.EACCES, 'private-checkpoint-path')
+        denied.winerror = 5
+        raw = self.make('save', {'path': 'main.py', 'expected_hash': hashlib.sha256(original).hexdigest(), 'text': 'must not save'})
+        with patch.object(self.s.checkpoints, 'create', side_effect=denied):
+            self.assertEqual((await self.send(raw))['error'], 'unsupported_file')
+        self.assertEqual(path.read_bytes(), original)
+        failure = self.b.network.channels[self.a.local_id].debug_snapshot()['storage_failures'][-1]
+        self.assertEqual(failure['component'], 'checkpoint')
+        self.assertEqual(failure['namespace'], 'win32')
+        self.assertEqual(failure['winerror'], 5)
+        self.assertIsNone(failure['sqlite_errorcode'])
+        self.assertNotIn('private-checkpoint-path', json.dumps(failure))
+
+    async def test_save_receipt_commit_precedes_success_acknowledgement(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        from unittest.mock import patch
+        await self.permission('view', 'allow'); await self.permission('edit', 'allow')
+        path = Path(self.workspace.root_path, 'main.py')
+        raw = self.make('save', {'path': 'main.py', 'expected_hash': hashlib.sha256(path.read_bytes()).hexdigest(), 'text': 'saved\r\n'})
+        start, held, release = Event(), Event(), Event()
+        finish = self.b.studio.store.finish
+        def reader():
+            if not start.wait(3): raise AssertionError('effect receipt not reached')
+            with self.b.repository.transaction(read_only=True) as db:
+                self.b.repository.get(db, self.a.local_id)
+                held.set()
+                if not release.wait(4): raise AssertionError('receipt reader not released')
+        def effect_receipt(db, req, result):
+            finish(db, req, result)
+            start.set()
+            if not held.wait(3): raise AssertionError('receipt reader not ready')
+        with ThreadPoolExecutor(1) as pool, patch.object(self.b.studio.store, 'finish', effect_receipt):
+            reader_task = pool.submit(reader)
+            try:
+                result = await self.send(raw)
+                self.assertEqual(result['error'], 'workspace_unavailable')
+                failures = self.b.network.channels[self.a.local_id].debug_snapshot()['storage_failures']
+                self.assertTrue(any(f['component'] == 'studio_receipt_repository' and f['operation'] == 'commit'
+                    and f['sqlite_errorname'] == 'SQLITE_BUSY' for f in failures))
+            finally:
+                release.set(); start.set()
+                await asyncio.to_thread(reader_task.result, 4)
+        self.assertEqual(path.read_bytes(), b'saved\r\n')
+        self.assertEqual((await self.send(raw))['result'], {'state': 'request_indeterminate'})
 
     async def test_local_dirty_buffer_and_staging_race_cannot_be_overwritten(self):
         from unittest.mock import patch
