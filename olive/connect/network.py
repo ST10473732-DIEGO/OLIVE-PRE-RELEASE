@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives import serialization
 from .contracts import ConnectError, RequestEnvelope, canonical, _unique_object
 from .discovery import LocalDiscovery, interfaces
 from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
-                           require_current, tls_context)
+                           require_current, tls_context, FILE_REQUEST, FILE_RESPONSE)
 
 CONNECT_TIMEOUT = 3.0
 HANDSHAKE_TIMEOUT = 3.0
@@ -87,6 +87,32 @@ class Channel:
                 raise ConnectError('connection_closed')
             offset += sent
 
+    def file_request(self, raw):
+        from .file_protocol import FileRequest
+        request, _ = FileRequest.decode(raw)
+        if request.source_device_id != self.owner.service.local_id or request.target_device_id != self.peer:
+            raise ConnectError('source_mismatch')
+        self.check()
+        future = Future()
+        future.sync_protocol = 'olive-files/1'
+        with self.lock:
+            if len(self.pending) >= MAX_PENDING or request.request_id in self.pending:
+                raise ConnectError('backpressure')
+            self.pending[request.request_id] = future
+            try:
+                self.writes.put_nowait(frame(FILE_REQUEST, raw))
+            except queue.Full:
+                self.pending.pop(request.request_id)
+                raise ConnectError('backpressure') from None
+        try:
+            return future.result(timeout=REQUEST_TIMEOUT)
+        except TimeoutError:
+            # A file deadline is scoped to the transfer, not a shared channel close.
+            raise ConnectError('file_request_timeout') from None
+        finally:
+            with self.lock:
+                self.pending.pop(request.request_id, None)
+
     def sync_request(self, raw, *, admission=None):
         return self.request(raw, _sync=True, _admission=admission)
 
@@ -126,13 +152,28 @@ class Channel:
 
     def process(self, kind, payload):
         self.check()
-        if not self.owner.allow_message(self.peer):
+        allowed = (self.owner.allow_file_message(self.peer) if kind in (FILE_REQUEST, FILE_RESPONSE)
+                   else self.owner.allow_message(self.peer))
+        if not allowed:
             raise ConnectError('rate_limited')
         if kind == CLOSE:
             raise ConnectError('connection_closed')
         if kind == HELLO:
             raise ConnectError('unexpected_hello')
-        if kind == SYNC_REQUEST:
+        if kind == FILE_REQUEST:
+            response = self.owner.service.files.receive(payload, self.peer, self.public)
+            self.write(frame(FILE_RESPONSE, canonical(response)))
+        elif kind == FILE_RESPONSE:
+            from .file_protocol import response as decode_response
+            response = decode_response(payload)
+            with self.lock:
+                future = self.pending.get(response['request_id'])
+                if future is not None:
+                    if future.done() or getattr(future, 'sync_protocol', '') != 'olive-files/1':
+                        raise ConnectError('invalid_file_response')
+                    future.set_result(response)
+                # A late bounded acknowledgement after a file-only timeout is inert.
+        elif kind == SYNC_REQUEST:
             sync = self.owner.service.sync
             if sync is None:
                 raise ConnectError('sync_unavailable')
@@ -274,6 +315,7 @@ class LocalNetwork:
         self.workers = set()
         self.states = {}
         self.rates = {}
+        self.file_rates = {}
         self.targets = {}
         self.attempts = Budget(12, 60)
         self.audit_budget = Budget(30, 60)
@@ -422,14 +464,26 @@ class LocalNetwork:
                 self.rates[peer] = Budget(60, 60)
             return self.rates[peer].take()
 
+    def allow_file_message(self, peer):
+        with self.lock:
+            if peer not in self.file_rates:
+                if len(self.file_rates) >= 256:
+                    return False
+                self.file_rates[peer] = Budget(2400, 60)
+            return self.file_rates[peer].take()
+
     def finished(self, channel, reason):
+        affected = False
         with self.lock:
             peer = channel.peer or channel.expected
             if self.channels.get(peer) is channel:
+                affected = True
                 self.channels.pop(peer)
                 self.states[peer] = dict(state='offline', error=reason)
             elif peer and peer not in self.channels:
                 self.states[peer] = dict(state='failed', error=reason)
+        if affected:
+            self.service.files.invalidate(peer, 'connection_closed')
         try:
             self.audit(peer, 'connection_closed' if channel.peer else 'connection_failed')
         finally:
@@ -455,6 +509,7 @@ class LocalNetwork:
                     channel.close()
             self.channels.pop(peer, None)
             self.states[peer] = dict(state='offline', error='device_revoked' if revoked else None)
+        self.service.files.invalidate(peer, 'device_revoked' if revoked else 'connection_closed')
         if revoked:
             self.audit(peer, 'revoked_connection_closed')
 

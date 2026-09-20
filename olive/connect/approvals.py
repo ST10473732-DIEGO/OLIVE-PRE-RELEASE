@@ -11,7 +11,8 @@ from ..agent.confirmation_service import ConfirmationRequest
 from .contracts import ConnectError
 from .identity import fingerprint
 
-LABELS = {'connect.ping': 'Connect ping', 'device.status': 'Device status',
+LABELS = {'files.receive': 'Receive an untrusted file into OLIVE Inbox',
+          'files.send': 'Send this selected file to the paired device', 'connect.ping': 'Connect ping', 'device.status': 'Device status',
           'chat.metadata.read': 'Chat availability metadata',
           'sync.tasks': 'Tasks: send and receive up to 8 records in this exact exchange',
           'sync.calendar': 'Calendar: send and receive up to 8 records in this exact exchange',
@@ -50,13 +51,14 @@ class ConnectApprovals:
                 raise ConnectError('approval_capacity_reached')
             deadline = now + min(120, request.expires_at - self.service.clock())
             prompt = ConfirmationRequest(task_id=request.request_id, tool_name='connect.request',
-                summary=LABELS[request.capability], risk_level='medium' if request.capability.startswith('sync.') else 'low',
+                summary=LABELS[request.capability], risk_level='medium' if request.capability.startswith(('sync.', 'files.')) else 'low',
                 targets=[record['display_name']], allow_remember=False,
                 arguments=dict(source_device_id=record['device_id'],
                     public_fingerprint=binding[1], request_id=request.request_id,
                     capability=request.capability, operation=request.operation,
                     envelope_fingerprint=binding[0], revision=record['revision'],
-                    source_name=record['display_name'], target_name=target_name))
+                    source_name=record['display_name'], target_name=target_name,
+                    **({'file': dict(request.arguments)} if request.capability.startswith('files.') else {})))
             entry = dict(binding=binding, deadline=deadline, state='pending', future=None)
             self.entries[key] = entry
             entry['future'] = asyncio.run_coroutine_threadsafe(self._ask(key, entry, prompt), self.loop)
@@ -81,6 +83,14 @@ class ConnectApprovals:
             entry = self.entries.get((request.source_device_id, request.request_id))
             if entry and entry['state'] == 'approved':
                 entry['binding'] = (*entry['binding'][:2], record['revision'])
+
+    def discard(self, source, request_id):
+        """End one local prompt without invalidating unrelated peer requests."""
+        with self.lock:
+            entry = self.entries.pop((source, request_id), None)
+            if entry:
+                entry['state'] = 'invalid'
+                entry['future'].cancel()
 
     def invalidate(self, peer=None):
         with self.lock:

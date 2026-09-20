@@ -38,6 +38,8 @@ class DesktopDeviceService:
         self.pairing = PairingService(self, self.identities, monotonic=monotonic)
         from .pairing_transport import DesktopPairingTransport
         self.pairing_transport = DesktopPairingTransport(self)
+        from .files import FileTransferService
+        self.files = FileTransferService(self, profile)
 
     def attach_sync(self, personal):
         from ..sync.service import RecordSyncService
@@ -91,6 +93,10 @@ class DesktopDeviceService:
 
     def capabilities(self):
         values = self.this_device()['capabilities']
+        policies = {v['capability']: v['policy_disabled'] for v in values}
+        values = [v for v in values if v['capability'] not in {'files.receive', 'files.send'}] + [
+            dict(capability=c, supported=True, policy_disabled=policies.get(c, False))
+            for c in ('files.receive', 'files.send')]
         if self.sync is not None:
             from ..sync.records import CAPABILITIES
             existing = {v['capability']: v for v in values}
@@ -124,6 +130,7 @@ class DesktopDeviceService:
             record.update(permissions=rules, revision=record['revision'] + 1)
             self.repository.put(db, record)
             self.repository.audit(db, device_id, None, capability, int(self.clock()), 'permission_changed')
+        self.files.invalidate(device_id, 'permission_or_trust_changed')
         if self.approvals is not None:
             self.approvals.invalidate(device_id)
 
@@ -146,6 +153,7 @@ class DesktopDeviceService:
                               connection_state='offline', permissions=[], revision=record['revision'] + 1)
                 self.repository.put(db, record)
                 self.repository.audit(db, device_id, None, None, int(self.clock()), 'device_revoked')
+        self.files.invalidate(device_id, 'permission_or_trust_changed')
         if self.approvals is not None:
             self.approvals.invalidate(device_id)
         if self.network is not None:
@@ -266,11 +274,13 @@ class DesktopDeviceService:
             from .network import LocalNetwork
             network = LocalNetwork(self, address, port=port, discovery=discovery)
             self.network = network
+            self.files.activate()
             return network
 
     def disable_network(self):
         with self._network_lock:
             self.pairing_transport.close()
+            self.files.close()
             if self.sync is not None:
                 self.sync.close()
             if self.network is not None:
