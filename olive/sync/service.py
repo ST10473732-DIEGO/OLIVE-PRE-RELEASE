@@ -1,7 +1,6 @@
 """Manual bounded C3 sync sessions; no scheduler, tools or generic RPC."""
 from dataclasses import asdict
 from contextlib import contextmanager
-import json
 import threading
 import time
 import uuid
@@ -100,6 +99,9 @@ class RecordSyncService:
                     self.store.capture(db)
                     results = self.store.receive(db, peer, request.arguments['records'])
                     records, cursor, more = self.store.batch(db, request.capability, request.arguments['cursor'], peer)
+                    self.store.save_status(db, dict(state='batch_committed', sent=len(records),
+                        received=len(request.arguments['records']), conflicts=results.count('conflict'),
+                        last_sync=int(self.connect.clock()), peer=peer))
                 self.connect.repository.audit(authority, peer, request.request_id, request.capability,
                     int(self.connect.clock()), 'sync_batch_committed')
             self.store.flush()
@@ -120,11 +122,13 @@ class RecordSyncService:
 
     def status(self, peer=None):
         with self.lock:
-            if peer is None or self.state['peer'] == peer:
-                return dict(self.state)
-        with self.store.native.transaction() as db:
-            row = db.execute('SELECT status FROM sync_sessions_v1 WHERE peer=?', (peer,)).fetchone()
-        return json.loads(row[0]) if row else dict(state='idle', sent=0, received=0, conflicts=0, last_sync=None, peer=peer)
+            active = peer is None or (self.state['peer'] == peer and self.worker and self.worker.is_alive())
+            result = dict(self.state) if active else None
+        if result is None:
+            result = self.store.stored_status(peer) or dict(
+                state='idle', sent=0, received=0, conflicts=0, last_sync=None, peer=peer)
+        result['conflicts'] = self.store.conflict_count(result['peer']) if result['peer'] else 0
+        return result
 
     def start(self, device_id):
         identifier(device_id)
@@ -288,7 +292,7 @@ class RecordSyncService:
                 final = dict(self.state)
             try:
                 with self.store.native.transaction() as db:
-                    db.execute('INSERT OR REPLACE INTO sync_sessions_v1 VALUES(?,?)', (peer, canonical(final).decode()))
+                    self.store.save_status(db, final)
                 with s.repository.transaction() as db:
                     s.repository.audit(db, peer, None, None, int(s.clock()), 'sync_' + final['state'])
             except Exception:

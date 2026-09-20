@@ -156,6 +156,10 @@ class SyncNetworkTests(unittest.TestCase):
         self.assertEqual(self.sync()['state'], 'completed')
         incoming = self.b.sync.store.personal.get('task', task['id'])
         self.assertEqual(incoming['title'], 'Loopback')
+        received_status = self.b.sync.status(self.a.local_id)
+        self.assertEqual(received_status['state'], 'batch_committed')
+        self.assertEqual(received_status['received'], 1)
+        self.assertIsNotNone(received_status['last_sync'])
         p = self.b.sync.store.personal
         p.save('task', {**p.store.body(incoming), 'title': 'Edited on B'}, incoming['id'], incoming['revision'])
         self.assertEqual(self.sync()['state'], 'completed')

@@ -233,6 +233,19 @@ class SyncStore:
             results.append('conflict')
         return results
 
+    def save_status(self, db, status):
+        db.execute('INSERT OR REPLACE INTO sync_sessions_v1 VALUES(?,?)',
+                   (status['peer'], canonical(status).decode()))
+
+    def stored_status(self, peer):
+        with self.native.transaction() as db:
+            row = db.execute('SELECT status FROM sync_sessions_v1 WHERE peer=?', (peer,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def conflict_count(self, peer):
+        with self.native.transaction() as db:
+            return db.execute('SELECT COUNT(*) FROM sync_conflicts_v1 WHERE peer=?', (peer,)).fetchone()[0]
+
     def cursors(self, db, peer, capability):
         row = db.execute('SELECT sent,received FROM sync_cursors_v1 WHERE peer=? AND capability=?', (peer, capability)).fetchone()
         return tuple(row) if row else (0, 0)
