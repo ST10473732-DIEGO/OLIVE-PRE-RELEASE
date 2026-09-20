@@ -135,3 +135,48 @@ describe("Devices contracts and truthful presentation", () => {
     expect(html).toContain("saved permission stays Ask");
   });
 });
+
+describe("C5 local sync contracts", () => {
+  it("separates per-domain sync from actions and rejects remote resolution authority", () => {
+    for (const capability of [
+      "sync.tasks",
+      "sync.calendar",
+      "sync.reminders",
+      "sync.chat",
+    ])
+      for (const decision of ["deny", "ask", "allow"])
+        expect(
+          connectSchemas["connect.permission"].safeParse({
+            device_id: crypto.randomUUID(),
+            capability,
+            decision,
+          }).success,
+        ).toBe(true);
+    expect(
+      connectSchemas["connect.sync_now"].safeParse({
+        device_id: crypto.randomUUID(),
+        approved: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      connectSchemas["connect.sync_select"].safeParse({
+        device_id: crypto.randomUUID(),
+        conversation_id: crypto.randomUUID(),
+        selected: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      connectSchemas["connect.sync_resolve"].safeParse({
+        conflict_id: crypto.randomUUID(),
+        choice: "merge",
+      }).success,
+    ).toBe(false);
+    expect(
+      connectSchemas["connect.sync_resolve"].safeParse({
+        conflict_id: crypto.randomUUID(),
+        choice: "incoming",
+        source_device_id: crypto.randomUUID(),
+      }).success,
+    ).toBe(false);
+  });
+});

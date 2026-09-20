@@ -3,6 +3,12 @@ import asyncio
 from ..connect.workspace import DevicesWorkspace
 
 SPEC = {
+    'connect.sync_chats': ({'device_id': str}, {}),
+    'connect.sync_select': ({'device_id': str, 'conversation_id': str, 'selected': bool}, {}),
+    'connect.sync_now': ({'device_id': str}, {}),
+    'connect.sync_cancel': ({}, {}),
+    'connect.sync_conflicts': ({}, {}),
+    'connect.sync_resolve': ({'conflict_id': str, 'choice': str}, {}),
     'connect.snapshot': ({}, {}),
     'connect.enable': ({'address': str, 'discovery': bool}, {}),
     'connect.disable': ({}, {}),
@@ -38,8 +44,15 @@ def validate_arguments(method, args):
     if 'port' in args and not 1 <= args['port'] <= 65535:
         raise ValueError('Invalid Connect port')
     if method == 'connect.permission':
-        if args['capability'] not in SAFE_OPERATIONS or args['decision'] not in {'allow', 'ask', 'deny'}:
+        if args['capability'] not in (set(SAFE_OPERATIONS) | {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
             raise ValueError('Unsupported Connect permission')
+    if 'conversation_id' in args:
+        from ..sync.records import record_id
+        record_id(args['conversation_id'])
+    if method == 'connect.sync_resolve':
+        identifier(args['conflict_id'])
+        if args['choice'] not in ('local', 'incoming'):
+            raise ValueError('Invalid conflict choice')
     if 'compared_value' in args and not (1 <= len(args['compared_value']) <= 256 and args['compared_value'].isascii()):
         raise ValueError('Invalid comparison value')
 
@@ -49,7 +62,18 @@ async def call(host, method, args):
     if not hasattr(host, 'devices_workspace'):
         host.devices_workspace = DevicesWorkspace(service)
     workspace = host.devices_workspace
+    def resolve_sync(conflict_id, choice):
+        result = service.sync.store.resolve(conflict_id, choice)
+        service.sync.store.flush()
+        service.sync.changed()
+        return result
     routes = {
+        'connect.sync_chats': lambda device_id: service.sync.owned(lambda: service.sync.store.chat.selections(device_id)),
+        'connect.sync_select': lambda device_id, conversation_id, selected: service.sync.owned(lambda: service.sync.store.chat.select(device_id, conversation_id, selected)),
+        'connect.sync_now': service.sync.start if service.sync else None,
+        'connect.sync_cancel': service.sync.cancel if service.sync else None,
+        'connect.sync_conflicts': service.sync.store.conflicts if service.sync else None,
+        'connect.sync_resolve': lambda conflict_id, choice: service.sync.owned(lambda: resolve_sync(conflict_id, choice)),
         'connect.snapshot': workspace.snapshot,
         'connect.enable': workspace.enable,
         'connect.disable': workspace.disable,

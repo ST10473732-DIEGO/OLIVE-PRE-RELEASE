@@ -80,6 +80,13 @@ async def start(self, directory):
                             result=await rpc('complete',sid=sid)
                         elif action=='connect':
                             result=await rpc('connect',peer=service.local_id,port=service.network.port)
+                        elif action=='sync_setup':
+                            result=await rpc('sync_setup',peer=service.local_id)
+                        elif action=='sync_conflict':
+                            await rpc('sync_edit')
+                            personal=self.services.personal.records
+                            task=personal.search('task')['items'][0]
+                            result=personal.save('task',{**personal.store.body(task),'title':'This device changed task'},task['id'],task['revision'])
                         elif action=='peer_status':
                             result=await rpc('status',peer=service.local_id)
                         elif action=='stop_reconnect':

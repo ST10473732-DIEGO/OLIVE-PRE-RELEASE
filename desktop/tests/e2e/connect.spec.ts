@@ -198,6 +198,45 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       page.getByText("request approved · connect.ping"),
     ).toBeVisible();
     await shot("activity");
+    // C5 uses the ordinary UI, native repositories and this already-authenticated
+    // C3 channel. Fixture commands represent only local edits on each desktop.
+    await page.getByRole("button", { name: "Status", exact: true }).click();
+    const syncPanel = page.getByRole("region", { name: "Sync", exact: true });
+    const tasksSync = syncPanel.getByRole("group", {
+      name: "Tasks sync",
+      exact: true,
+    });
+    await expect(
+      tasksSync.getByRole("button", { name: "Off", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await control("sync_setup");
+    await tasksSync.getByRole("button", { name: "Allow", exact: true }).click();
+    await syncPanel
+      .getByRole("button", { name: "Sync now", exact: true })
+      .click();
+    await expect(syncPanel.getByRole("status")).toContainText("completed");
+    await expect(syncPanel.getByRole("status")).toContainText("1 received");
+    await control("sync_conflict");
+    await syncPanel
+      .getByRole("button", { name: "Sync now", exact: true })
+      .click();
+    await expect(syncPanel.getByRole("status")).toContainText("1 conflicts");
+    await syncPanel
+      .getByRole("button", { name: "Review conflicts", exact: true })
+      .click();
+    await expect(
+      syncPanel.getByText("This device changed task", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      syncPanel.getByText("Peer changed task", { exact: true }),
+    ).toBeVisible();
+    await syncPanel
+      .getByRole("button", { name: "Keep this device", exact: true })
+      .click();
+    await expect(
+      syncPanel.getByText("No conflicts require review."),
+    ).toBeVisible();
+    await shot("c5-sync-conflict-resolved");
     await control("nearby");
     await expect(
       page.getByRole("button", { name: /OLIVE device.*Discovered/ }),

@@ -12,6 +12,9 @@ from tests.test_connect_pairing import MemoryVault
 from tests.test_connect_network import request
 
 service = DesktopDeviceService(Path(sys.argv[1]), key_store=DeviceKeyStore(MemoryVault()))
+from olive.personal.service import PersonalService
+personal = PersonalService(Path(sys.argv[1]) / 'personal.sqlite3')
+service.attach_sync(personal)
 workspace = DevicesWorkspace(service)
 service.rename(service.local_id, 'Paired device')
 channel = None
@@ -50,6 +53,12 @@ try:
                 network = service.network or service.enable_network('127.0.0.1', discovery=False)
                 channel = network.connect(data['peer'], '127.0.0.1', data['port'])
                 value = dict(id=service.local_id,port=network.port)
+            elif command == 'sync_setup':
+                service.set_permission(data['peer'], 'sync.tasks', 'allow')
+                value = personal.save('task', {'title': 'C5 synthetic task'})
+            elif command == 'sync_edit':
+                task = personal.search('task')['items'][0]
+                value = personal.save('task', {**personal.store.body(task), 'title': 'Peer changed task'}, task['id'], task['revision'])
             elif command == 'status':
                 value = service.network.status(data['peer'])
             elif command == 'stop_reconnect':

@@ -11,6 +11,7 @@ export interface Capability {
   policy_disabled: boolean;
 }
 export interface Device {
+  sync?: DevicesState["sync"];
   device_id: string;
   display_name: string;
   platform: string;
@@ -36,6 +37,15 @@ export interface Device {
   };
 }
 export interface DevicesState {
+  sync?: {
+    state: string;
+    peer: string | null;
+    sent: number;
+    received: number;
+    conflicts: number;
+    last_sync: number | null;
+    error?: string;
+  };
   local: Device;
   devices: Device[];
   capabilities: Capability[];

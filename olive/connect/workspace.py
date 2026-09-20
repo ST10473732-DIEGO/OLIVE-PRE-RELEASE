@@ -41,6 +41,7 @@ class DevicesWorkspace:
             value = {k: v for k, v in record.items() if k != 'public_identity'}
             value['live'] = network.status(record['device_id']) if network else dict(
                 state='offline', error=None, encrypted=False, connection=None, latency_ms=None)
+            value['sync'] = s.sync.status(record['device_id']) if s.sync else None
             devices.append(value)
         return dict(local=local, devices=devices, capabilities=s.capabilities(),
             interfaces=candidates, interface_error=interface_error, protocol=PROTOCOL,
@@ -48,7 +49,7 @@ class DevicesWorkspace:
                 interface=asdict(network.interface) if network else None,
                 port=network.port if network else None, discovery=bool(network and network.discovery)),
             nearby=[{k: v for k, v in entry.items() if k != 'seen'} for entry in network.discovery.nearby()] if network and network.discovery else [],
-            activity=s.repository.activity()[-200:], pairing_recovery=recovery[-32:])
+            sync=s.sync.status() if s.sync else None, activity=s.repository.activity()[-200:], pairing_recovery=recovery[-32:])
 
     def enable(self, address, discovery):
         with self.lock:
@@ -70,7 +71,7 @@ class DevicesWorkspace:
 
     def permission(self, device_id, capability, decision):
         metadata = next((c for c in self.service.capabilities() if c['capability'] == capability), None)
-        if not metadata or not metadata['supported'] or metadata['policy_disabled'] or capability not in SAFE_OPERATIONS:
+        if not metadata or not metadata['supported'] or metadata['policy_disabled'] or capability not in (set(SAFE_OPERATIONS) | {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat'}):
             raise ConnectError('capability_unavailable')
         self.service.set_permission(device_id, capability, decision)
         return self.snapshot()

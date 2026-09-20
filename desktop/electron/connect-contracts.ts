@@ -7,6 +7,16 @@ const address = z
   .max(64)
   .regex(/^[0-9a-fA-F:.]+$/);
 export const connectSchemas = {
+  "connect.sync_now": z.object({ device_id: id }).strict(),
+  "connect.sync_cancel": empty,
+  "connect.sync_conflicts": empty,
+  "connect.sync_resolve": z
+    .object({ conflict_id: id, choice: z.enum(["local", "incoming"]) })
+    .strict(),
+  "connect.sync_chats": z.object({ device_id: id }).strict(),
+  "connect.sync_select": z
+    .object({ device_id: id, conversation_id: id, selected: z.boolean() })
+    .strict(),
   "connect.snapshot": empty,
   "connect.enable": z.object({ address, discovery: z.boolean() }).strict(),
   "connect.disable": empty,
@@ -29,6 +39,10 @@ export const connectSchemas = {
         "connect.ping",
         "device.status",
         "chat.metadata.read",
+        "sync.tasks",
+        "sync.calendar",
+        "sync.reminders",
+        "sync.chat",
       ]),
       decision: z.enum(["allow", "ask", "deny"]),
     })

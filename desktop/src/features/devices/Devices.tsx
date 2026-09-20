@@ -10,6 +10,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { call } from "../../services/api";
+import { SyncPanel } from "./SyncPanel";
 import { Pairing } from "./Pairing";
 import {
   deviceStatus,
@@ -646,6 +647,16 @@ export function Devices() {
                             )}
                           </div>
                         )}
+                        {tab === "status" &&
+                          data.sync &&
+                          device.trust_state === "paired" && (
+                            <SyncPanel
+                              key={device.device_id}
+                              device={device}
+                              data={data}
+                              refresh={refresh}
+                            />
+                          )}
                         {tab === "permissions" && (
                           <div className="devices-panel">
                             {device.trust_state === "revoked" && (
