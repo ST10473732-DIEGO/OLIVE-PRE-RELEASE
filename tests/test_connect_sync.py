@@ -214,6 +214,29 @@ class SyncChatTests(SyncFixture):
         with self.stores[1].native.transaction() as db:
             self.assertEqual(self.stores[1].batch(db, 'sync.chat', 0, self.ids[2])[0], [])
 
+    def test_incomplete_local_message_is_not_overwritten_by_incoming_revision(self):
+        from olive.models import Chat
+        from olive.sync.records import SyncRecord
+        chat = Chat(title='Shared'); message = chat.add_message('assistant', 'Original')
+        self.repos[0].save_all([chat]); self.stores[0].chat.select(self.ids[1], chat.id, True)
+        def push():
+            with self.stores[0].native.transaction() as db:
+                self.stores[0].capture(db)
+                records, _, _ = self.stores[0].batch(db, 'sync.chat', 0, self.ids[1])
+            result = self.receive(1, 0, [SyncRecord.parse(r) for r in records])
+            self.stores[1].flush()
+            return result
+        push()
+        local = self.repos[1].load_all()
+        local[chat.id].messages[0].content = 'Unsaved partial content'
+        local[chat.id].messages[0].completion_state = 'incomplete'
+        self.repos[1].save_all(local.values())
+        message.content = 'Edited source content'; self.repos[0].save_all([chat])
+        self.assertIn('conflict', push())
+        self.assertEqual(self.repos[1].load_all()[chat.id].messages[0].content, 'Unsaved partial content')
+        self.assertFalse(self.capture(1, message.id).deleted)
+        self.assertEqual(self.stores[1].conflicts()[0]['reason'], 'local_incomplete_message')
+
     def test_reminder_restart_suppresses_past_and_delivers_future_once(self):
         from datetime import datetime, timedelta, timezone
         from olive.personal.reminders import ReminderScheduler
@@ -315,6 +338,19 @@ class SyncProgressTests(SyncFixture):
             records, _, _ = store.batch(db, 'sync.chat', 0, self.ids[1])
             self.assertEqual({r['record_id'] for r in records}, {chat.id, message.id})
             self.assertTrue(all(r['deleted'] and r['payload'] == {} for r in records))
+
+    def test_incoming_target_outside_capture_window_cannot_overwrite_local_edit(self):
+        tasks = [self.personal[0].save('task', {'title': f'Task {i}'}) for i in range(257)]
+        target = tasks[-1]
+        with self.stores[0].native.transaction() as db:
+            self.stores[0].capture(db); self.stores[0].capture(db)
+            original = self.stores[0].current(db, target['id'])
+        self.receive(1, 0, [original])
+        for task in tasks:
+            self.personal[0].save('task', {**self.personal[0].store.body(task), 'title': 'Local edit'}, task['id'], task['revision'])
+        incoming = self.edit(1, target['id'], title='Remote edit')
+        self.assertEqual(self.receive(0, 1, [incoming]), ['conflict'])
+        self.assertEqual(self.personal[0].get('task', target['id'])['title'], 'Local edit')
 
     def test_conversation_delete_holds_concurrent_append(self):
         from olive.models import Chat

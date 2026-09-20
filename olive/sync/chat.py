@@ -79,7 +79,12 @@ class ChatAdapter:
             # Tombstones carry no content; the local message relationship is retained.
             row = db.execute('SELECT conversation FROM sync_chat_message_links_v1 WHERE id=?', (record.record_id,)).fetchone()
             conversation_id = row[0] if row else None
-        if not record.deleted and conversation_id not in self.chats():
+        chat = self.chats().get(conversation_id)
+        if not record.deleted and chat is None:
+            return False
+        if record.kind == 'message' and not record.deleted and not any(
+                m.id == record.record_id and m.role in ('user', 'assistant') and m.completion_state == 'complete'
+                for m in chat.messages):
             return False
         parent = self.store.current(db, conversation_id) if conversation_id else None
         if record.kind == 'message' and not record.deleted and parent and parent.deleted:
@@ -101,9 +106,9 @@ class ChatAdapter:
             if chat is None:
                 # Only the local deletion authors child tombstones. A received
                 # parent tombstone must not manufacture new child revisions.
-                if previous is None or previous.deleted:
-                    continue
                 scan = db.execute('SELECT fingerprint FROM sync_chat_scan_v1 WHERE conversation=?', (identity,)).fetchone()
+                if previous is None or (previous.deleted and (not scan or scan[0] != 'deleting')):
+                    continue
                 if scan and scan[0] == 'deleted':
                     continue
                 from .records import SyncRecord
@@ -117,7 +122,8 @@ class ChatAdapter:
                     current = SyncRecord.parse(value)
                     self.store.put(db, self.store.local_record('message', current.record_id, {}, True, current), 0)
                     budget -= 1
-                self.store.put(db, self.store.local_record('conversation', identity, {}, True, previous), 0)
+                if not previous.deleted:
+                    self.store.put(db, self.store.local_record('conversation', identity, {}, True, previous), 0)
                 db.execute("INSERT OR REPLACE INTO sync_chat_scan_v1 VALUES(?,-1,'deleted')", (identity,))
                 continue
             payload = dict(title=chat.title, project_id=chat.project_id, created_at=chat.created_at)
@@ -131,10 +137,9 @@ class ChatAdapter:
                 continue
             start = min(scan[0], len(chat.messages)) if scan and scan[1] == fingerprint else 0
             stop = min(len(chat.messages), start + budget)
-            eligible = [m for m in chat.messages if m.role in ('user', 'assistant') and m.completion_state == 'complete']
             previous_messages = [m for m in chat.messages[:start] if m.role in ('user', 'assistant') and m.completion_state == 'complete']
             predecessor = previous_messages[-1].id if previous_messages else None
-            existing = {m.id for m in eligible}
+            existing = {m.id for m in chat.messages}
             db.execute('INSERT OR REPLACE INTO sync_chat_scan_v1 VALUES(?,?,?)', (identity, stop if stop < len(chat.messages) else -1, fingerprint))
             for item in chat.messages[start:stop]:
                 if item.role not in ('user', 'assistant') or item.completion_state != 'complete':
@@ -155,6 +160,44 @@ class ChatAdapter:
                 current = self.store.current(db, row[0])
                 if row[0] not in existing and current and not current.deleted:
                     self.store.put(db, self.store.local_record('message', row[0], {}, True, current), 0)
+
+    def capture_targets(self, db, records):
+        targets = {record.record_id for record in records if record.kind in ('conversation', 'message')}
+        if not targets:
+            return
+        chats = self.chats()
+        found = set()
+        busy = self.busy()
+        for chat in chats.values():
+            if chat.id in busy:
+                continue  # stage() also refuses writes during active generation.
+            if chat.id in targets:
+                self.capture_one(db, 'conversation', chat.id,
+                    dict(title=chat.title, project_id=chat.project_id, created_at=chat.created_at))
+                found.add(chat.id)
+            predecessor = None
+            for item in chat.messages:
+                if item.id in targets:
+                    found.add(item.id)
+                if item.role not in ('user', 'assistant') or item.completion_state != 'complete':
+                    continue
+                if item.id in targets:
+                    current = self.store.current(db, item.id)
+                    after = current.payload['after'] if current and not current.deleted else predecessor
+                    self.capture_one(db, 'message', item.id, dict(conversation_id=chat.id, after=after,
+                        role=item.role, content=item.content, created_at=item.created_at))
+                    found.add(item.id)
+                predecessor = item.id
+        for identity in targets - found:
+            current = self.store.current(db, identity)
+            if not current or current.deleted:
+                continue
+            conversation_id = identity if current.kind == 'conversation' else current.payload['conversation_id']
+            if conversation_id in busy:
+                continue
+            self.store.put(db, self.store.local_record(current.kind, identity, {}, True, current), 0)
+            if current.kind == 'conversation':
+                db.execute("INSERT OR REPLACE INTO sync_chat_scan_v1 VALUES(?,-1,'deleting')", (identity,))
 
     def capture_one(self, db, kind, identity, payload):
         current = self.store.current(db, identity)
@@ -186,6 +229,8 @@ class ChatAdapter:
                 if chat.draft or chat.notes or chat.documents:
                     raise LookupError('local_conversation_content')
                 for item in chat.messages:
+                    if item.role not in ('user', 'assistant') or item.completion_state != 'complete':
+                        raise LookupError('local_conversation_content')
                     head = self.store.current(db, item.id)
                     if not head or not head.deleted:
                         raise LookupError('live_conversation_messages')
@@ -193,6 +238,10 @@ class ChatAdapter:
             project = record.payload['project_id']
             if project and project not in self.store.personal.projects():
                 raise LookupError('missing_project')
+        if record.kind == 'message' and conversation_id:
+            chat = self.chats().get(conversation_id)
+            if chat and any(m.id == identity and (m.role not in ('user', 'assistant') or m.completion_state != 'complete') for m in chat.messages):
+                raise LookupError('local_incomplete_message')
         if record.kind == 'message' and not record.deleted:
             conversation_record = self.store.current(db, conversation_id)
             if not conversation_record or conversation_record.kind != 'conversation' or conversation_record.deleted:

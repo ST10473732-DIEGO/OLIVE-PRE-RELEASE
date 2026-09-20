@@ -95,6 +95,18 @@ class SyncStore:
         # Read only changed native revisions; bounded work per exchange. The native
         # repository remains authoritative, including edits made while disconnected.
         rows = db.execute("SELECT r.* FROM records r LEFT JOIN sync_current_v1 s ON s.id=r.id LEFT JOIN sync_excluded_v1 e ON e.id=r.id WHERE (e.id IS NULL OR e.revision!=r.revision) AND r.kind IN ('task','calendar','event','reminder') AND (s.id IS NULL OR s.native_revision!=r.revision) ORDER BY r.updated_at,r.id LIMIT 256").fetchall()
+        self.capture_rows(db, rows)
+
+    def capture_targets(self, db, records):
+        if self.chat:
+            self.chat.capture_targets(db, records)
+        identities = [r.record_id for r in records if r.kind not in ('conversation', 'message')]
+        if identities:
+            placeholders = ','.join('?' for _ in identities)
+            rows = db.execute(f'SELECT r.* FROM records r LEFT JOIN sync_current_v1 s ON s.id=r.id WHERE r.id IN ({placeholders}) AND (s.id IS NULL OR s.native_revision!=r.revision)', identities).fetchall()
+            self.capture_rows(db, rows)
+
+    def capture_rows(self, db, rows):
         for row in rows:
             current = self.current(db, row['id'])
             payload = {} if row['deleted'] else json.loads(row['body'])
@@ -196,6 +208,9 @@ class SyncStore:
 
     def receive(self, db, peer, values):
         records = [SyncRecord.parse(value) for value in values]
+        # A bounded background inventory must never hide a dirty target from
+        # the exact batch about to be applied. Capture these IDs transactionally.
+        self.capture_targets(db, records)
         # Check every integrity receipt before changing native records. All writes
         # share the native transaction, including receipts and conflict staging.
         for record in records:
@@ -224,7 +239,9 @@ class SyncStore:
                 except (LookupError, ValueError) as error:
                     if isinstance(error, ConnectError):
                         raise
-                    reason = 'missing_dependency'
+                    safe_reasons = {'conversation_busy', 'conversation_not_shared', 'local_incomplete_message',
+                                    'local_conversation_content', 'live_conversation_messages', 'dependent_records'}
+                    reason = str(error) if str(error) in safe_reasons else 'missing_dependency'
                 else:
                     self.put(db, incoming, revision)
                     results.append('applied')
@@ -268,6 +285,7 @@ class SyncStore:
             if row is None:
                 raise ConnectError('unknown_conflict')
             incoming = SyncRecord.parse(json.loads(row['incoming']))
+            self.capture_targets(db, [incoming])
             current = self.current(db, row['record_id'])
             # A reviewed version cannot silently resolve over a subsequent edit.
             if (current.revision if current else None) != row['local_revision']:
