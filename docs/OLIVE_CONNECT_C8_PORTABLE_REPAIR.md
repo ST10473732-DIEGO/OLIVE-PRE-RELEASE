@@ -229,3 +229,92 @@ in `tests/test_connect_network.py`, and this document records the evidence.
 Full discovery emitted the same existing 26-uncollectable-object shutdown warning.
 This repair is not a claim of hosted Ubuntu success; a later authorized push
 must verify that result. No push, merge, tag, release or C9 work is included.
+
+## Windows unexpected close investigation after 7f27d41
+
+**Status: diagnosis remains incomplete; this change adds evidence collection and
+regressions, not a claimed Windows transport fix.** The supplied failures occur
+before inference/Studio dispatch. Their public `connection_closed` errors do not
+identify the original worker exception. Neither failure reproduced in 100 local
+runs each. The configured origin's accessible Connect Actions history contains
+C7 and earlier runs, but no C8 run for `7f27d41`; the failing run URL was requested.
+Native Windows validation remains outstanding. No speculative behavior change,
+timeout increase, retry, or suppression of a failure is included.
+
+### Established state and ownership facts
+
+* `Channel.check()` emits `connection_closed` when that channel's stop event or
+  its network's shutdown event is set. It does not consult EOF, descriptor values,
+  retirement history, or a peer-level retirement marker. The supplied traceback
+  cannot distinguish which stop event was set or what originally caused it.
+* A worker's exception/finally path sets its own stop event before removing
+  authority. The EOF additions in `7f27d41` run after a read has failed or returned
+  empty, and only satisfy that same channel's retirement. They do not themselves
+  initiate fresh-channel shutdown.
+* EOF and graceful-disconnect state belong to individual `Channel` instances.
+  Registration/removal use strong object references and `is` comparisons. There
+  is no retirement lookup keyed by `fileno()`, port, numeric `id()`, or peer alone.
+  Only the owning worker closes its socket descriptor, after its last TLS call.
+  No handle-reuse defect was found. Distinct channels with simulated equal OS
+  handles retain independent stop/EOF state and identity in a regression.
+* Delayed old target cleanup was forced while a replacement TLS channel admitted
+  inference and Studio Run requests. Releasing that cleanup did not remove the
+  replacement, stop its job, or share its EOF. This checks the suspected ordering;
+  it does not establish what occurred in the inaccessible Windows run.
+* Both fixtures create independent services, identities, and profiles. Teardown
+  already awaited service shutdown and network worker joins. Added assertions
+  require no owned workers, listener, reconnect thread, or open captured socket
+  after shutdown returns.
+* Audit failure is caught, emits the existing fixed warning, and does not close
+  the channel. A real-TLS regression forces audit failure then successfully pings.
+  Separately, an event-gated exclusive SQLite lock proves a failed authority read
+  closes the worker and is distinguishable in diagnostics. That is an injected
+  diagnostic test, **not proof of the reported Windows cause**. Authority checks
+  and their fail-closed behavior are unchanged.
+
+### Private diagnostics
+
+`olive/connect/network_diagnostics.py` assigns each channel an immutable UUID
+generation for observation, unrelated to OS handle reuse. It retains a first
+terminal category, phase, whitelisted error kind, and bounded numeric OS/SQLite
+error code. No exception messages, payloads, paths, credentials, or source/prompt
+text are retained. Channel snapshots include stop/EOF/local-intent/worker/socket
+flags. A network retains at most 16 retired snapshots, returns at most four for
+the requested peer, and caps its audit-failure counter at 65,535.
+
+`tests/connect_channel_fixture.py` attaches snapshots of the requested channel
+and both networks to raised C7/C8 test errors before teardown can obscure the
+state. Public errors, wire frames, Activity, and Devices status are unchanged.
+These diagnostics grant no authority and do not participate in connection
+selection or retirement synchronization. Existing exact-object synchronization
+remains authoritative; no generation-based synchronization replacement was
+needed or justified by the available evidence.
+
+### Local validation
+
+All Python checks use the project venv; Node and .NET use the already-installed
+repository toolchains. Repetitions are independent test executions, not retries.
+
+| Check | Result |
+| --- | --- |
+| Reported inference test | 100/100 passed |
+| Reported Studio disconnect test | 100/100 passed |
+| Consumed EOF after malformed protocol | 50/50 passed |
+| Consumed EOF after remote close | 50/50 passed |
+| Live disconnect / immediate reconnect | 50/50 passed |
+| Old worker / replacement isolation | 50/50 passed |
+| Concurrent repeated disconnect | 50/50 passed |
+| Genuinely stalled peer retirement timeout | 50/50 passed |
+| Network module | 47 passed: 43 NetworkTests, 2 WireTests, 2 DiscoveryTests |
+| C7/C8 focused suites | 57 passed |
+| Exact portable Connect workflow command | 232 passed |
+| Full Python discovery | 1,086 tests: 1,078 passed, 8 platform skips |
+| Frontend | 50 passed in 14 files |
+| Typecheck / lint / production build | Passed |
+| Repository Python compilation | All 655 sources passed |
+| Literal whole-tree compileall | Existing ignored PySide6 Jinja-template syntax error |
+
+The Ubuntu EOF regression and genuine `disconnect_timeout` remain covered and
+passing locally. Hosted Ubuntu/Windows success is not claimed. No push, merge,
+tag, release, or C9 work was performed.
+Full discovery emitted the existing 26-uncollectable-object shutdown warning.

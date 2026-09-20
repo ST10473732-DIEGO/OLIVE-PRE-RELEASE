@@ -16,6 +16,7 @@ from olive.connect.service import DesktopDeviceService
 from tests.test_connect_network import pair
 from tests.test_connect_pairing import MemoryVault
 from tests.connect_inference_fixture import model_graph
+from tests.connect_channel_fixture import close_service, note_failure, replacement_while_old_cleanup_waits
 
 
 class InferenceTests(unittest.IsolatedAsyncioTestCase):
@@ -39,7 +40,7 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         for s in (self.a, self.b, self.c):
             await s.inference.shutdown()
-            await asyncio.to_thread(s.close)
+            await close_service(self, s)
         self.temp.cleanup()
 
     def start_request(self, **changes):
@@ -50,7 +51,29 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         return self.client.make(self.b.local_id, 'start', arguments=args)
 
     async def send(self, req, channel=None):
-        return await asyncio.to_thread((channel or self.channel).inference_request, req.encode())
+        selected = channel or self.channel
+        try:
+            return await asyncio.to_thread(selected.inference_request, req.encode())
+        except ConnectError as error:
+            note_failure(error, selected, self.a if selected.owner.service is self.a else self.c, self.b)
+            raise
+
+    async def test_old_channel_cleanup_cannot_close_replacement_inference(self):
+        await self.policy('allow')
+        await self.send(self.client.make(self.b.local_id, 'status'))
+        self.eb.mode = 'delayed'
+        async with replacement_while_old_cleanup_waits(self, self.a, self.b, self.channel) as (fresh, old, release):
+            self.channel = fresh
+            req = self.start_request()
+            self.assertIsNone((await self.send(req))['error'])
+            release.set()
+            await asyncio.to_thread(old.thread.join, 4)
+            await asyncio.wait_for(self.eb.started.wait(), 3)
+            self.assertFalse(fresh.stop.is_set(), fresh.debug_snapshot())
+            self.eb.release.set()
+            self.assertEqual((await self.terminal(req))[0]['state'], 'completed')
+            self.assertIs(self.na.channels[self.b.local_id], fresh)
+            self.assertFalse(fresh.peer_closed)
 
     async def policy(self, value, peer=None):
         await asyncio.to_thread(self.b.set_permission, peer or self.a.local_id, 'models.remote', value)

@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives import serialization
 
 from .contracts import ConnectError, RequestEnvelope, canonical, _unique_object
 from .discovery import LocalDiscovery, interfaces
+from .network_diagnostics import ChannelDiagnostics
 from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
                            require_current, tls_context, FILE_REQUEST, FILE_RESPONSE,
                            INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE)
@@ -68,6 +69,17 @@ class Channel:
         self.thread = threading.Thread(target=self.run, name='olive-connect-channel', daemon=True)
         self.last_latency_ms = None
         self.failure_category = None  # Transient diagnostics, never provider text.
+        self.diagnostics = ChannelDiagnostics()
+
+    @property
+    def generation(self):
+        return self.diagnostics.generation
+
+    def debug_snapshot(self):
+        return dict(self.diagnostics.snapshot(), stopped=self.stop.is_set(), peer_closed=self.peer_closed,
+            locally_disconnected=self.locally_disconnected, graceful_disconnect=self.graceful_disconnect,
+            worker_alive=self.thread.is_alive(), socket_open=self.sock.fileno() != -1,
+            network_stopping=self.owner.stopping.is_set())
 
     def check(self):
         if self.stop.is_set() or self.owner.stopping.is_set():
@@ -206,7 +218,7 @@ class Channel:
                 self.last_latency_ms = (time.monotonic() - start) * 1000
             return response
         except TimeoutError:
-            self.close()
+            self.close('request_timeout')
             raise ConnectError('request_timeout') from None
         finally:
             with self.lock:
@@ -221,6 +233,7 @@ class Channel:
         if not allowed:
             raise ConnectError('rate_limited')
         if kind == CLOSE:
+            self.diagnostics.closed('peer_close')
             raise ConnectError('connection_closed')
         if kind == HELLO:
             raise ConnectError('unexpected_hello')
@@ -303,6 +316,7 @@ class Channel:
         try:
             self.check()
             if self.outbound:
+                self.diagnostics.at('connect')
                 self.sock.settimeout(CONNECT_TIMEOUT)
                 self.sock.bind((self.owner.interface.address, 0))
                 self.sock.connect(self.endpoint)
@@ -311,6 +325,7 @@ class Channel:
                     self.check()
                     self.owner.states[self.expected] = dict(state='authenticating', error=None)
                 self.owner.audit(self.expected, 'connection_started')
+            self.diagnostics.at('tls')
             ctx, peers = tls_context(self.owner.service, self.expected, local=self.owner.local_identity)
             self.sock.setblocking(False)
             self.tls = SSL.Connection(ctx, self.sock)
@@ -325,6 +340,7 @@ class Channel:
             # TLS 1.3 clients may finish locally before the server rejects their
             # certificate. An encrypted fixed hello proves both verifiers finished.
             hello = frame(HELLO)
+            self.diagnostics.at('hello')
             self.write(hello)
             received = bytearray()
             deadline = time.monotonic() + HANDSHAKE_TIMEOUT
@@ -342,15 +358,19 @@ class Channel:
             started = None
             last = time.monotonic()
             while True:
+                self.diagnostics.at('authority')
                 self.check()
                 try:
+                    self.diagnostics.at('write')
                     self.write(self.writes.get_nowait())
                 except queue.Empty:
                     pass
                 now = time.monotonic()
                 if now - last >= IDLE_TIMEOUT or (started is not None and now - started >= FRAME_TIMEOUT):
+                    self.diagnostics.closed('idle_timeout' if now - last >= IDLE_TIMEOUT else 'frame_timeout')
                     raise ConnectError('connection_timeout')
                 try:
+                    self.diagnostics.at('read')
                     data = self.tls.recv(16384)
                 except SSL.WantReadError:
                     select.select([self.sock], [], [], .05)
@@ -368,9 +388,11 @@ class Channel:
                         break
                     payload = bytes(buffer[HEADER.size:HEADER.size + size])
                     del buffer[:HEADER.size + size]
+                    self.diagnostics.at('dispatch')
                     self.process(kind, payload)
                     started = time.monotonic() if buffer else None
         except ConnectError as error:
+            self.diagnostics.failed(error, peer_closed=self.peer_closed)
             reason = str(error)
         except Exception as error:
             # OpenSSL can consume EOF before explicit disconnect sets its stop
@@ -380,12 +402,14 @@ class Channel:
                         error.args == (-1, 'Unexpected EOF') or
                         (error.args and error.args[0] in PEER_CLOSED_ERRNOS))):
                 self.peer_closed = True
+            self.diagnostics.failed(error, peer_closed=self.peer_closed)
             self.failure_category = type(error).__name__
             reason = 'tls_or_connection_failed'
         finally:
             # Revoke authority before publishing EOF. A peer waiting for EOF
             # may immediately establish a fresh authenticated channel.
             self.stop.set()
+            self.diagnostics.at('retirement')
             try:
                 if not self.ready.done():
                     self.ready.set_exception(ConnectError(reason))
@@ -397,10 +421,14 @@ class Channel:
                 if self.graceful_disconnect and not self.peer_closed:
                     self.peer_closed = self.drain_disconnect()
             finally:
-                self.close()
+                self.close(None)
                 self.sock.close()
                 with self.owner.lock:
                     self.owner.workers.discard(self)
+                    snapshot = self.debug_snapshot()
+                    snapshot.pop('worker_alive')  # Historical event, not a live thread observation.
+                    snapshot['retired'] = True
+                    self.owner.retired.append((self.peer or self.expected, snapshot))
 
     def drain_disconnect(self):
         """Worker-only half-close barrier; no TLS/application work after this.
@@ -430,7 +458,9 @@ class Channel:
             return error.errno in PEER_CLOSED_ERRNOS
         return False
 
-    def close(self):
+    def close(self, category='local_disconnect'):
+        if category is not None:
+            self.diagnostics.closed(category)
         self.stop.set()
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
@@ -458,6 +488,8 @@ class LocalNetwork:
         self.stopping = threading.Event()
         self.channels = {}
         self.workers = set()
+        self.retired = deque(maxlen=16)
+        self.audit_failures = 0
         self.states = {}
         self.rates = {}
         self.file_rates = {}
@@ -493,6 +525,8 @@ class LocalNetwork:
             with self.service.repository.transaction(timeout=.25) as db:
                 self.service.repository.audit(db, peer, None, None, int(self.service.clock()), event)
         except Exception:
+            with self.lock:
+                self.audit_failures = min(65535, self.audit_failures + 1)
             # Storage contention cannot strand socket workers or leak provider text.
             import logging
             logging.getLogger(__name__).warning('Connect audit unavailable')
@@ -603,7 +637,7 @@ class LocalNetwork:
             if existing is not None and not existing.stop.is_set():
                 if not preferred or existing.outbound == channel.outbound:
                     raise ConnectError('connection_collision')
-                existing.close()
+                existing.close('retirement_replaced')
             self.channels[channel.peer] = channel
             self.states[channel.peer] = dict(state='online', error=None)
         self.audit(channel.peer, 'connection_authenticated')
@@ -656,6 +690,13 @@ class LocalNetwork:
                          latency_ms=channel.last_latency_ms if channel else None)
             return state
 
+    def debug_snapshot(self, peer):
+        """Private test/developer data; absent from public status and wire frames."""
+        with self.lock:
+            return dict(audit_failures=self.audit_failures,
+                workers=[c.debug_snapshot() for c in self.workers if peer in (c.peer, c.expected)],
+                retired=[value for identity, value in self.retired if identity == peer][-4:])
+
     def allow_studio_message(self, peer):
         with self.lock:
             if peer not in self.studio_rates:
@@ -679,6 +720,7 @@ class LocalNetwork:
                 workers = [c for c in self.workers if peer in (c.peer, c.expected)]
                 for channel in workers:
                     channel.locally_disconnected = True
+                    channel.diagnostics.closed('device_revoked' if revoked else 'local_disconnect')
                     if wait and not revoked and channel.graceful_disconnect:
                         # Another caller already owns this exact retirement.
                         # Join it; do not turn our own SHUT_RD into a false EOF.
@@ -711,7 +753,7 @@ class LocalNetwork:
         with self.lock:
             workers = list(self.workers)
             for channel in workers:
-                channel.close()
+                channel.close('shutdown')
         if self.discovery:
             self.discovery.close()
         self.thread.join(timeout=4)

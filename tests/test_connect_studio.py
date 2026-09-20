@@ -15,6 +15,7 @@ from olive.connect.studio_protocol import StudioRequest, request, MAX_FILE
 from tests.connect_studio_fixture import graph
 from tests.test_connect_network import pair
 from tests.test_connect_pairing import MemoryVault
+from tests.connect_channel_fixture import close_service, note_failure, replacement_while_old_cleanup_waits
 
 
 class StudioTests(unittest.IsolatedAsyncioTestCase):
@@ -35,7 +36,7 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
         await self.b.studio.shutdown()
         await self.s.studio_tooling.shutdown()
         for s in (self.a, self.b, self.c):
-            await asyncio.to_thread(s.close)
+            await close_service(self, s)
         self.temp.cleanup()
 
     def make(self, op, args=None, **kwargs):
@@ -44,7 +45,43 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
             0 if op == 'workspaces' else self.share['share_revision'], args, **kwargs)
 
     async def send(self, raw, channel=None):
-        return await asyncio.to_thread((channel or self.channel).studio_request, raw)
+        selected = channel or self.channel
+        try:
+            return await asyncio.to_thread(selected.studio_request, raw)
+        except ConnectError as error:
+            note_failure(error, selected, self.a if selected.owner.service is self.a else self.c, self.b)
+            raise
+
+    async def test_old_channel_cleanup_cannot_close_replacement_studio(self):
+        from unittest.mock import patch
+        await self.permission('run', 'allow')
+        await self.send(self.make('workspaces'))
+        Path(self.workspace.root_path, 'main.py').write_text('import time\ntime.sleep(60)\n')
+        started = asyncio.Event()
+        start = self.b.studio.runtime.start
+
+        async def observed_start(*args, **kwargs):
+            result = await start(*args, **kwargs)
+            started.set()
+            return result
+
+        with patch.object(self.b.studio.runtime, 'start', observed_start):
+            async with replacement_while_old_cleanup_waits(self, self.a, self.b, self.channel) as (fresh, old, release):
+                self.channel = fresh
+                result = await self.send(self.make('run'))
+                self.assertIsNone(result['error'])
+                release.set()
+                await asyncio.to_thread(old.thread.join, 4)
+                await asyncio.wait_for(started.wait(), 3)
+                self.assertFalse(fresh.stop.is_set(), fresh.debug_snapshot())
+                self.assertIs(self.a.network.channels[self.b.local_id], fresh)
+                job_id = result['result']['job_id']
+                state = await self.send(self.make('run_status', {'job_id': job_id}))
+                self.assertEqual(state['result']['state'], 'running')
+                await self.send(self.make('run_cancel', {'job_id': job_id}))
+                job = self.b.studio.jobs[(self.a.local_id, job_id)]
+                self.assertTrue(await asyncio.to_thread(job.released.wait, 4))
+                self.assertFalse(fresh.peer_closed)
 
     async def permission(self, capability, decision):
         reference = self.share['workspace_id']

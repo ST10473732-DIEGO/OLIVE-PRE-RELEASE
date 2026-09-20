@@ -470,6 +470,106 @@ class NetworkTests(unittest.TestCase):
         self.assertFalse(replacement.peer_closed)
         self.assertTrue(replacement.request(canonical(request(self.a, self.b)))['result']['pong'])
 
+    def test_equal_socket_handles_do_not_share_channel_retirement(self):
+        from types import SimpleNamespace
+        from olive.connect.network import Channel
+        old_socket = SimpleNamespace(fileno=lambda: 42, shutdown=lambda _: None)
+        new_socket = SimpleNamespace(fileno=lambda: 42, shutdown=lambda _: None)
+        old = Channel(self.na, old_socket, self.b.local_id)
+        replacement = Channel(self.na, new_socket, self.b.local_id)
+        old.peer = replacement.peer = self.b.local_id
+        old.peer_closed = True
+        old.close()
+        with patch.dict(self.na.channels, {self.b.local_id: replacement}):
+            self.na.finished(old, 'connection_closed')
+            self.assertIs(self.na.channels[self.b.local_id], replacement)
+            self.assertFalse(replacement.stop.is_set())
+            self.assertFalse(replacement.peer_closed)
+            self.assertIsNone(replacement.debug_snapshot()['terminal'])
+            self.assertNotEqual(old.generation, replacement.generation)
+            with self.assertRaises(AttributeError):
+                replacement.generation = old.generation
+
+    def test_close_diagnostics_are_bounded_private_and_preserve_first_cause(self):
+        from OpenSSL import SSL
+        from olive.connect.network_diagnostics import ChannelDiagnostics
+        diagnostics = ChannelDiagnostics()
+        diagnostics.at('dispatch')
+        diagnostics.failed(ConnectError('private-request-content'))
+        diagnostics.closed('shutdown')
+        value = diagnostics.snapshot()
+        self.assertEqual(value['terminal'], dict(category='protocol_violation',
+            phase='dispatch', error_kind='connect', error_code=None))
+        self.assertNotIn('private-request-content', json.dumps(value))
+        value['terminal']['category'] = 'changed-copy'
+        self.assertEqual(diagnostics.snapshot()['terminal']['category'], 'protocol_violation')
+        tls = ChannelDiagnostics()
+        tls.at('read')
+        tls.failed(SSL.WantWriteError('private-tls-context'))
+        self.assertEqual(tls.snapshot()['terminal'], dict(category='tls_failure',
+            phase='read', error_kind='tls_want_write', error_code=None))
+        self.assertNotIn('private-tls-context', json.dumps(tls.snapshot()))
+        channel = self.connect()
+        self.na.disconnect(self.b.local_id)
+        self.assertEqual(channel.debug_snapshot()['terminal']['category'], 'local_disconnect')
+        snapshot = self.na.debug_snapshot(self.b.local_id)
+        self.assertTrue(snapshot['retired'][-1]['retired'])
+        self.assertEqual(snapshot['retired'][-1]['generation'], channel.generation)
+        self.assertEqual(self.na.retired.maxlen, 16)
+        self.assertNotIn('generation', json.dumps(self.na.status(self.b.local_id)))
+
+    def test_audit_failure_does_not_close_authenticated_channel(self):
+        channel = self.connect(); self.allow()
+        with patch.object(self.a.repository, 'audit', side_effect=OSError('private-storage-path')):
+            with self.assertLogs('olive.connect.network', level='WARNING') as logs:
+                self.na.audit(self.b.local_id, 'connection_authenticated')
+        self.assertEqual(logs.output, ['WARNING:olive.connect.network:Connect audit unavailable'])
+        self.assertGreaterEqual(self.na.debug_snapshot(self.b.local_id)['audit_failures'], 1)
+        self.assertTrue(channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        self.assertFalse(channel.stop.is_set())
+        self.assertIsNone(channel.debug_snapshot()['terminal'])
+
+    def test_diagnostics_identify_failed_authority_read_without_exposing_storage(self):
+        channel = self.connect()
+        with self.na.lock:
+            self.na.targets.pop(self.b.local_id, None)
+        entered, release, failed = (threading.Event() for _ in range(3))
+        require = self.a.require_paired_identity
+        finished = self.na.finished
+
+        def held_authority(*args, **kwargs):
+            if threading.current_thread() is channel.thread:
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('authority read was not released')
+            return require(*args, **kwargs)
+
+        def observed_finished(worker, reason):
+            if worker is channel:
+                failed.set()
+            finished(worker, reason)
+
+        with patch.object(self.a, 'require_paired_identity', held_authority), \
+             patch.object(self.na, 'finished', observed_finished):
+            try:
+                self.assertTrue(entered.wait(3))
+                with closing(sqlite3.connect(self.a.repository.path)) as db:
+                    db.execute('BEGIN EXCLUSIVE')
+                    release.set()
+                    self.assertTrue(failed.wait(3))
+                    terminal = channel.debug_snapshot()['terminal']
+                    self.assertEqual(terminal, dict(category='storage_unavailable',
+                        phase='authority', error_kind='storage', error_code=sqlite3.SQLITE_BUSY))
+                    self.assertTrue(channel.stop.is_set())
+                    self.assertNotIn(str(self.a.repository.path), json.dumps(terminal))
+                    db.rollback()
+            finally:
+                release.set()
+                channel.thread.join(4)
+        self.assertFalse(channel.thread.is_alive())
+        with self.assertRaisesRegex(ConnectError, 'connection_closed'):
+            channel.check()
+
     def test_channel_close_snapshot_and_disable_join(self):
         from olive.connect.workspace import DevicesWorkspace
         channel = self.connect(); self.allow()
