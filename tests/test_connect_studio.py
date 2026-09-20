@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -220,7 +221,38 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(self.b.repository, 'transaction', boundary), patch.object(self.b.studio.store, 'claim', claimed):
             result = await self.send(raw)
         self.assertEqual(result['error'], 'permission_denied')
-        self.assertEqual(Path(self.workspace.root_path, 'main.py').read_text(), read['text'])
+        original = read['text'].encode('utf-8')
+        self.assertEqual(Path(self.workspace.root_path, 'main.py').read_bytes(), original)
+        self.assertEqual(read['revision'], hashlib.sha256(original).hexdigest())
+
+    async def test_exact_lf_crlf_bytes_and_revisions_through_denied_and_valid_saves(self):
+        await self.permission('view', 'allow')
+        path = Path(self.workspace.root_path, 'main.py')
+        for newline in ('\n', '\r\n'):
+            with self.subTest(newline=repr(newline)):
+                original = f'# café{newline}print("original"){newline}'.encode('utf-8')
+                path.write_bytes(original)
+                read = (await self.send(self.make('read', {'path': 'main.py'})))['result']
+                self.assertEqual(read['text'].encode('utf-8'), original)
+                self.assertEqual(read['revision'], hashlib.sha256(original).hexdigest())
+                await self.permission('edit', 'ask')
+                text = f'# café edited{newline}print("saved"){newline}'
+                arguments = {'path': 'main.py', 'expected_hash': read['revision'], 'text': text}
+                denied = self.make('save', arguments)
+                self.assertEqual((await self.send(denied))['error'], 'confirmation_required')
+                await self.approve(False)
+                self.assertEqual((await self.send(denied))['error'], 'permission_denied')
+                self.assertEqual(path.read_bytes(), original)
+                unchanged = (await self.send(self.make('read', {'path': 'main.py'})))['result']
+                self.assertEqual(unchanged, read)
+                await self.permission('edit', 'allow')
+                saved = (await self.send(self.make('save', arguments)))['result']
+                intended = text.encode('utf-8')
+                self.assertEqual(path.read_bytes(), intended)
+                self.assertEqual(saved['revision'], hashlib.sha256(intended).hexdigest())
+                reread = (await self.send(self.make('read', {'path': 'main.py'})))['result']
+                self.assertEqual(reread['text'].encode('utf-8'), intended)
+                self.assertEqual(reread['revision'], saved['revision'])
 
     async def test_local_dirty_buffer_and_staging_race_cannot_be_overwritten(self):
         from unittest.mock import patch
