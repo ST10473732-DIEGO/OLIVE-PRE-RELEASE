@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 
 from ..agent.model_router import RoutingRequest
+from ..services.ollama_service import EmptyModelAnswer
 from .coordinates import capture_bounds
 
 
@@ -86,8 +87,15 @@ class DesktopVision:
                      "images": [base64.b64encode(image).decode("ascii")]}]
         async with asyncio.timeout(90):
             for budget in (1536, 3072):
-                response = await self.ollama.chat_measured(model.name, messages,
-                    options={"temperature": 0, "num_predict": budget, "num_ctx": 4096 if budget == 1536 else 8192}, format=SCHEMA, stream=True)
+                try:
+                    response = await self.ollama.chat_measured(model.name, messages,
+                        options={"temperature": 0, "num_predict": budget, "num_ctx": 4096 if budget == 1536 else 8192}, format=SCHEMA, stream=True)
+                except EmptyModelAnswer as error:
+                    if budget != 1536 or error.done_reason != 'length' or error.eval_count < budget:
+                        raise
+                    # The first answer exhausted its already-defined budget.
+                    # One existing bounded retry; no actions have been proposed.
+                    continue
                 if response["content"].strip() or response["eval_count"] < budget:
                     break
         try:

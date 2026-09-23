@@ -16,6 +16,14 @@ class GenerationOutputLimit(RuntimeError):
     """Provider ended at its requested token limit; visible text is incomplete."""
 
 
+class EmptyModelAnswer(RuntimeError):
+    """No visible answer; bounded provider metadata, never reasoning text."""
+    def __init__(self, eval_count=0, done_reason=''):
+        super().__init__('The model returned no answer content')
+        self.eval_count = eval_count if type(eval_count) is int and eval_count >= 0 else 0
+        self.done_reason = done_reason if isinstance(done_reason, str) and done_reason in {'stop', 'length'} else ''
+
+
 @dataclass(frozen=True, slots=True)
 class StreamBudgets:
     startup_seconds: float = 90
@@ -376,7 +384,7 @@ def _validate_answer(response, message):
     if not isinstance(content, str):
         raise ValueError("Malformed provider answer content")
     if not content.strip() and not _field(message, "tool_calls", []):
-        raise RuntimeError("The model returned no answer content")
+        raise EmptyModelAnswer(_field(response, 'eval_count', 0), _field(response, 'done_reason', ''))
     if _field(response, "done_reason", "") == "length":
         raise GenerationOutputLimit("The response reached the model output limit")
     if _field(response, "done", False) is not True:

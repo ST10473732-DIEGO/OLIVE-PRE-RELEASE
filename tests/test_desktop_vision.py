@@ -32,7 +32,12 @@ class DesktopVisionRetryTests(unittest.IsolatedAsyncioTestCase):
         router.route.return_value = SimpleNamespace(name="vision", supports_vision=True)
         value = {"target_found": False, "target_label": "", "visible_state": "No target", "confidence": 0, "coordinate_space": "capture_pixels",
                  "bounds": {"left": 0, "top": 0, "right": 0, "bottom": 0}}
-        ollama.chat_measured = AsyncMock(side_effect=[{"content": "", "eval_count": 1536},
+        from olive.services.ollama_service import _validate_answer, EmptyModelAnswer
+        try:
+            _validate_answer({'eval_count': 1536, 'done_reason': 'length', 'done': True}, {'content': ''})
+        except EmptyModelAnswer as error:
+            exhausted = error
+        ollama.chat_measured = AsyncMock(side_effect=[exhausted,
                                                       {"content": json.dumps(value), "eval_count": 80}])
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "fixture.png"
