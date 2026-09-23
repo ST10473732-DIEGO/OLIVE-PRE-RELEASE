@@ -1,8 +1,19 @@
 # OLIVE Design System V2
 
-**Status:** design proposal for the whole OLIVE desktop ecosystem. It is not
-implemented. It changes no backend contract, security model, IPC name,
-persistence format or architecture.
+**Status:** DESIGN APPROVED (2026-09-23) · IMPLEMENTED in the desktop app on
+`feature/olive-design-v2` (2026-09-23), except the items marked *not
+implemented* below. The implementation changed no backend contract, security
+model, IPC name, persistence format or architecture. Implementation details,
+deviations and regression evidence:
+[`../OLIVE_DESIGN_V2_IMPLEMENTATION.md`](../OLIVE_DESIGN_V2_IMPLEMENTATION.md).
+
+| Part | Design | Implementation |
+| --- | --- | --- |
+| Tokens, type, spacing, radii, components (§3–§11) | Approved | Implemented |
+| Title bar and navigation (§13, §15) | Approved | Implemented; window controls inside the title bar (C) not implemented — the OS frame is kept |
+| Home, Chat, Core, GO, Devices, Files, Tasks, Calendar, Reminders, Settings (§14) | Approved | Implemented; Settings › About (C) and Devices "last used" (C) not implemented |
+| Studio (see `OLIVE_STUDIO_V2.md`) | Approved | Implemented; C items not implemented |
+| Class D items | Approved as *not supported* | Not shown in the product |
 
 | Deliverable | File |
 | --- | --- |

@@ -1,7 +1,13 @@
 # OLIVE Studio V2 — design specification and implementation handoff
 
-**Status:** design proposal, not implemented. Nothing in this document changes
-backend contracts, the security model, IPC names or persistence.
+**Status:** DESIGN APPROVED (2026-09-23) · IMPLEMENTED on
+`feature/olive-design-v2` (2026-09-23) for every A and B item. Class C items
+(window controls in the title bar, model edit proposals routed into
+`EditPreview`, side-by-side diff against HEAD, search options) are not
+implemented; class D items are not shown. Nothing here changed backend
+contracts, the security model, IPC names or persistence. See
+[`../OLIVE_DESIGN_V2_IMPLEMENTATION.md`](../OLIVE_DESIGN_V2_IMPLEMENTATION.md)
+for the capability matrix, deviations and test evidence.
 **Interactive artifact:** [`olive-studio-v2-artifact.html`](olive-studio-v2-artifact.html)
 (open it next to this file; it loads `v2-assets/olive-v2.css` and the
 `v2-baseline/` captures).
