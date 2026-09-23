@@ -1,7 +1,7 @@
 """Finite authority derived only from the literal local user request.
 
-This deliberately recognizes bounded command forms, not model interpretations.
-Unrecognized requests require clarification/review, never a permissive fallback.
+Literal fast paths and validated semantic interpretations share one authority.
+Unresolved effects never receive a permissive fallback.
 Observations and action JSON cannot create or extend a grant.
 """
 from dataclasses import dataclass, replace
@@ -21,6 +21,44 @@ class TaskScope:
     destination: str = ''
     account: str = ''
     server: str = ''
+    path: str = ''
+
+
+def interpreted_scope(request, steps):
+    """Validate a semantic proposal against original local-user bytes.
+
+    A planner can recognize paraphrases, but cannot supply new text, applications,
+    recipients, side effects or approval fields. Observations never enter here.
+    """
+    if not isinstance(steps, list) or not 1 <= len(steps) <= 3:
+        raise ValueError('One bounded desktop effect is required')
+    app, effect, content = '', 'open', ''
+    for step in steps:
+        intent, entities = step.get('intent'), step.get('entities', {})
+        if step.get('references') or not isinstance(entities, dict):
+            raise ValueError('Resolve the explicit application and content first')
+        if intent in {'application.launch', 'application.activate'}:
+            if set(entities) != {'application'}:
+                raise ValueError('Unexpected application scope fields')
+        elif intent == 'application.search':
+            if set(entities) != {'application', 'query'} or effect != 'open':
+                raise ValueError('Unexpected or repeated search effect')
+            effect, content = 'search', entities['query']
+        elif intent == 'application.control':
+            if set(entities) != {'application', 'action', 'target'} or entities['action'] not in {'click', 'invoke'} or effect != 'open':
+                raise ValueError('This interpreted control needs a resolved ordinary click')
+            effect, content = 'click', entities['target']
+        else:
+            raise ValueError('This interpreted desktop effect is not implemented')
+        candidate = entities.get('application', '')
+        if not isinstance(candidate, str) or not candidate or candidate.casefold() not in request.casefold() or app and app.casefold() != candidate.casefold():
+            raise ValueError('The proposed application is outside the original request')
+        app = candidate
+    if not isinstance(content, str) or content and content not in request:
+        raise ValueError('The proposed text was not present in the original request')
+    if re.search(r'\b(?:without|do not|never|delete|purchase|pay|password|terminal|shell)\b|don[\'’]t', request, re.I):
+        raise ValueError('Additional constraints need resolution before input')
+    return TaskScope(app, effect, content)
 
 
 def direct_scope(request):
@@ -29,6 +67,24 @@ def direct_scope(request):
     text = request.strip()
     if text.casefold().startswith('please '):
         text = text[7:]
+    match = re.fullmatch(r'(Scroll (up|down)|(Next|Previous) tab|Read (?:the )?current page) in ([\w .+-]{1,80})', text, re.I)
+    if match:
+        _, scroll, tab, app = match.groups()
+        return TaskScope(app, 'scroll' if scroll else 'tab' if tab else 'read', (scroll or tab or '').lower())
+    match = re.fullmatch(r'(Copy|Move) (.+?) to (.+?) in ([\w .+-]{1,80})', text, re.I)
+    if match:
+        operation, source, destination, app = match.groups()
+        return TaskScope(app, operation.lower(), source.strip('\'"'), path=destination.strip('\'"'))
+    match = re.fullmatch(r'Write ([\'\"])(.*?)\1 in ([\w .+-]{1,80}) and save as (.+)', text, re.I | re.S)
+    if match:
+        _, content, app, path = match.groups()
+        if not content or '\x00' in content or '\n' in path:
+            raise ValueError('Provide literal text and one owned destination path')
+        return TaskScope(app, 'edit_save', content, path=path)
+    match = re.fullmatch(r'Click ([\w .+-]{1,80}) in ([\w .+-]{1,80})', text, re.I)
+    if match:
+        target, app = match.groups()
+        return TaskScope(app, 'click', target)
     match = re.fullmatch(r'Search for (.+) in ([\w .+-]{1,80})', text, re.I | re.S)
     if match:
         query, app = match.groups()
@@ -75,12 +131,12 @@ class TaskAuthority:
         self.grants = {}
         self.lock = threading.Lock()
 
-    def issue(self, request, message_id, policy, *, local_user=False):
+    def issue(self, request, message_id, policy, *, local_user=False, interpretation=None):
         if not local_user or not policy.get('enabled') or not policy.get('trusted_tasks'):
             raise PermissionError('Enable trusted local tasks in Settings first')
         if self.stopped.is_set():
             raise InterruptedError('Desktop control stopped')
-        scope = direct_scope(request)
+        scope = interpreted_scope(request, interpretation) if interpretation is not None else direct_scope(request)
         if scope.effect != 'open' and any(policy.get(key) != 'allow' for key in ('keyboard_policy', 'mouse_policy')):
             raise PermissionError('Trusted input requires keyboard and mouse Allow; stricter policies are preserved')
         with self.lock:
@@ -131,6 +187,12 @@ ACTION_FIELDS = {'action', 'target', 'value', 'revision', 'expected'}
 ACTIONS = {'focus', 'click', 'type', 'key', 'invoke', 'scroll', 'finish', 'handoff'}
 
 
+def same_control_label(left, right):
+    numbers = dict(zip('zero one two three four five six seven eight nine'.split(), '0123456789'))
+    normalized = lambda text: numbers.get(text.strip().casefold(), text.strip().casefold())
+    return normalized(left) == normalized(right)
+
+
 def scroll_amount(value):
     if not isinstance(value, str) or not re.fullmatch(r'-?[1-9][0-9]{0,2}', value):
         raise ValueError('Scroll requires an integer distance')
@@ -165,9 +227,16 @@ def validate_effect(grant, proposal, observation):
     if target is None or not target.get('enabled'):
         raise ValueError('Target missing or disabled')
     name = target['name'].strip().casefold()
-    if re.search(r'password|sign in|log in|captcha|sudo|install|purchase|buy|delete|remove|upload|attach|permission|grant|security', name):
+    if re.search(r'password|sign in|log in|captcha|sudo|install|purchase|buy|delete|remove|upload|attach|permission|grant|security|checkout|payment|erase|format disk|execute', name):
         raise PermissionError('This control requires human participation')
     scope = grant.scope
+    if scope.effect == 'click':
+        containers = [c for c in observation['controls'] if c.get('role') in {'dialog', 'heading', 'frame'}]
+        if any(re.search(r'password|sign in|log in|checkout|payment|firewall|security settings|authentication|overwrite|confirm deletion',
+                         c.get('name', ''), re.I) for c in containers):
+            raise PermissionError('This screen requires effect-specific human handling')
+        if name in {'ok', 'yes', 'confirm', 'approve', 'accept', 'allow', 'submit', 'run'}:
+            raise PermissionError('A generic click cannot authorize a consequential confirmation')
     if proposal['action'] == 'scroll':
         scroll_amount(proposal['value'])
     if proposal['action'] == 'invoke' and proposal['value'].casefold() not in {'click', 'press', 'activate', 'select', 'invoke'}:
@@ -205,7 +274,8 @@ def validate_effect(grant, proposal, observation):
             raise PermissionError('This task does not authorize submission')
     elif proposal['action'] in {'click', 'invoke'}:
         navigation = {'search', 'new tab', 'back', 'forward', 'menu', 'search messages', 'search channels'}
-        if name not in navigation | {scope.destination.casefold(), scope.server.casefold()}:
+        exact_click = scope.effect == 'click' and same_control_label(name, scope.content)
+        if not exact_click and name not in navigation | {scope.destination.casefold(), scope.server.casefold()}:
             raise PermissionError('The effect of this control is not established by the task')
     if proposal['action'] == 'key' and proposal['value'] not in {'Enter', 'Tab', 'Escape', 'Down', 'Up', 'Left', 'Right'}:
         raise PermissionError('Unsupported key')

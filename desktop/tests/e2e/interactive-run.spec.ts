@@ -65,7 +65,7 @@ for (const language of ["Python", "C#"]) test(`${language} ordinary Run connects
     expect(first.stdout.match(/Received: /g)).toHaveLength(3);
     await expect(page.evaluate((id) => window.olive.call("terminal.write", { session_id: id, data: "stale" }), first.terminal_session_id)).rejects.toThrow();
     for (let round = 0; round < 2; round++) {
-      for (const feature of ["Chat", "OLIVE GO", "Studio", "Mail", "Agent", "Desktop Control", "Chat", "OLIVE GO", "Studio"])
+      for (const feature of ["Chat", "OLIVE GO", "Studio", "Mail", "Agent", "Chat", "OLIVE GO", "Studio"])
         await openSpace(page, feature);
     }
     await expect(terminal).toContainText("Received: radar");

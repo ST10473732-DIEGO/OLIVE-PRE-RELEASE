@@ -4,7 +4,8 @@ import { useResource } from "../../services/useResource";
 import type { Value } from "./types";
 export function DesktopPolicies({ report }: { report: (e: unknown) => void }) {
   const resource = useResource(() =>
-    call<{ settings: Record<string, Value> }>("desktop.status", {}),
+    call<{ settings: Record<string, Value>; platform_capabilities?: Record<string, unknown> }>("desktop.status", {}),
+    ["desktop"],
   );
   const [draft, setDraft] = useState<Record<string, Value>>();
   const [notice, setNotice] = useState("");
@@ -14,8 +15,9 @@ export function DesktopPolicies({ report }: { report: (e: unknown) => void }) {
       <h2>Desktop Control policies</h2>
       <p>
         Focus guards and action permissions remain active. Linux cannot detect all
-        physical input; use emergency Stop before taking over. Bind and test the
-        global Stop shortcut shown by the runtime before Linux desktop input.
+        physical input; use Chat Stop before taking over. KDE access is provisioned
+        for this installation and can be revoked independently. A global shortcut
+        is optional.
       </p>
       {resource.error && <p role="alert">{resource.error}</p>}
       {values && (
@@ -91,6 +93,11 @@ export function DesktopPolicies({ report }: { report: (e: unknown) => void }) {
         </>
       )}
       <p role="status">{notice}</p>
+      {resource.data?.platform_capabilities && <details>
+        <summary>Capability diagnostics</summary>
+        <p>Read-only status. A new Chat task checks the current permission and starts its own input session.</p>
+        <pre>{JSON.stringify(resource.data.platform_capabilities, null, 2)}</pre>
+      </details>}
     </section>
   );
 }

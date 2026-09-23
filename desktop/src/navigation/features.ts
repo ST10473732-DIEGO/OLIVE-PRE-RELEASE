@@ -96,7 +96,8 @@ export const features: Feature[] = [
   },
   {
     id: "desktop",
-    label: "Desktop Control",
+    label: "Desktop tasks",
+    within: "chat",
     description: "Work with installed applications.",
     icon: Monitor,
     category: "Build",

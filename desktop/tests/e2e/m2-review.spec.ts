@@ -92,7 +92,7 @@ test("M2 actual cross-feature review recording and retained local Studio validat
     await shot("memory-fixture");
     await go("Settings");
     await shot("settings");
-    await go("Desktop Control");
+    await go("Chat");
     await shot("desktop-empty");
     await openSpace(page, "Studio");
     await page
@@ -124,7 +124,7 @@ test("M2 actual cross-feature review recording and retained local Studio validat
       BrowserWindow.getAllWindows()[0].setSize(1366, 768),
     );
     await shot("studio-1366-retained");
-    for (const name of ["Agent", "Research", "Projects", "Knowledge", "Memory", "Settings", "Desktop Control"]) {
+    for (const name of ["Agent", "Research", "Projects", "Knowledge", "Memory", "Settings"]) {
       await go(name);
       expect(await page.evaluate(() => document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
       await shot(`${name.toLowerCase().replaceAll(" ","-")}-1366`);

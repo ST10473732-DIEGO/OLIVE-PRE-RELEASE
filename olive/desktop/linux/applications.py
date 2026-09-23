@@ -25,8 +25,8 @@ class Application:
 
 class Applications:
     def __init__(self, roots=None):
-        # User/Flatpak wrappers need individual review; not treated as trusted by filename.
-        self.roots = tuple(roots or (Path('/usr/share/applications'), Path('/usr/local/share/applications')))
+        self.roots = tuple(roots or (Path('/usr/share/applications'), Path('/usr/local/share/applications'),
+                                    Path.home() / '.local/share/applications'))
         self.values = {}
         self.launches = []
 
@@ -38,7 +38,7 @@ class Applications:
             for path in sorted(root.glob('*.desktop'))[:1000]:
                 try:
                     stat = path.stat()
-                    if path.is_symlink() or stat.st_uid != 0 or stat.st_mode & 0o022 or stat.st_size > 65536:
+                    if path.is_symlink() or stat.st_uid not in {0, os.getuid()} or stat.st_mode & 0o022 or stat.st_size > 65536:
                         continue
                     data = path.read_bytes()
                     config = configparser.ConfigParser(interpolation=None, strict=True)
@@ -57,8 +57,12 @@ class Applications:
                     if executable.name in {'env', 'sh', 'bash', 'fish', 'zsh', 'python', 'python3', 'konsole', 'xterm'}:
                         continue
                     executable_stat = executable.stat()
-                    if not executable.is_file() or executable_stat.st_uid != 0 or executable_stat.st_mode & 0o022:
+                    if not executable.is_file() or executable_stat.st_uid not in {0, os.getuid()} or executable_stat.st_mode & 0o022:
                         continue
+                    if executable_stat.st_uid != 0:
+                        with executable.open('rb') as binary:
+                            if binary.read(4) != b'\x7fELF':
+                                continue  # User entries cannot introduce interpreter wrappers.
                     argv[0] = str(executable)
                     app = Application(path.name, entry['Name'], path, hashlib.sha256(data).hexdigest(), tuple(argv), executable)
                     result.setdefault(app.id, app)
@@ -97,7 +101,11 @@ class Applications:
         if existing:
             return existing
         # Preserve normal profile and existing windows. Never terminate a user app.
-        process = subprocess.Popen(app.argv, shell=False, stdin=subprocess.DEVNULL,
+        environment = dict(os.environ)
+        # Electron disables AT-SPI on some child processes. That implementation
+        # detail must not suppress accessibility in a user-requested GUI app.
+        environment.pop('NO_AT_BRIDGE', None)
+        process = subprocess.Popen(app.argv, shell=False, env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.launches = [p for p in self.launches if p.poll() is None]
         self.launches.append(process)

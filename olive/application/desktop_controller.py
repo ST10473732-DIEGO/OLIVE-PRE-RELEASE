@@ -202,6 +202,9 @@ class DesktopController:
                 "workflow_phases": list(self.universal.history)}
 
     def publish(self):
+        if self.linux and self.linux.chat_id and self.record:
+            self.s.publish('interaction_activity', {'chat_id': self.linux.chat_id,
+                'message': self.record.current_action if self.record.status == 'running' else self.record.verification})
         if self.record:
             self.repository.save(self.record)
         self.s.publish("desktop", self.status())

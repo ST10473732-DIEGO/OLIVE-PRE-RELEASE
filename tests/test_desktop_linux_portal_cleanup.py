@@ -32,6 +32,7 @@ class PortalCleanupTests(unittest.TestCase):
         self.portal.streams = []
         self.portal.close_path = Mock()
         self.portal.request = Mock()
+        self.portal.require_authorized = Mock()
         def create(interface):
             path = '/owned/' + interface
             self.portal.sessions.add(path)
@@ -73,3 +74,42 @@ class PortalCleanupTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.portal.start()
         self.portal.create.assert_not_called()
+
+    def test_named_grant_starts_without_any_physical_shortcut(self):
+        self.portal.request.side_effect = [{}, {}, {'devices': 3, 'streams': [(7, {'size': [1920, 1080], 'position': [0, 0], 'mapping_id': 'owned'})]}]
+        result = self.portal.start()
+        self.assertEqual(result['devices'], 3)
+        self.assertFalse(self.portal.stop_verified)
+        self.portal.require_authorized.assert_called_once_with()
+        self.assertEqual([call.args[1] for call in self.portal.request.call_args_list], ['SelectDevices', 'SelectSources', 'Start'])
+
+    def test_revoked_named_grant_blocks_even_if_anonymous_grant_exists(self):
+        self.portal.require_authorized.side_effect = PermissionError('Revoked')
+        with self.assertRaises(PermissionError):
+            self.portal.start()
+        self.portal.create.assert_not_called()
+
+    def test_live_permission_change_invalidates_session(self):
+        self.portal.app_id = 'local.dmdo.desktop'
+        self.portal.event = Mock()
+        parameters = Mock()
+        parameters.unpack.return_value = ('kde-authorized', 'remote-desktop', False, None, {'': ['yes']})
+        self.portal._permission_changed(None, None, None, None, None, parameters)
+        self.assertTrue(self.portal.stopped.is_set())
+        self.portal.event.assert_called_once_with('permission-revoked')
+
+    def test_portal_restart_cancels_old_task_and_registers_same_connection(self):
+        self.portal.app_id = 'local.dmdo.desktop'
+        self.portal.bus = Mock()
+        self.portal.event = Mock()
+        self.portal.remote = '/old/session'
+        self.portal.sessions.add(self.portal.remote)
+        params = Mock()
+        params.unpack.return_value = ('org.freedesktop.portal.Desktop', ':1.10', ':1.20')
+        self.portal._owner_changed(None, None, None, None, None, params)
+        self.assertTrue(self.portal.stopped.is_set())
+        self.assertIsNone(self.portal.remote)
+        self.assertEqual(self.portal.sessions, set())
+        self.portal.event.assert_called_once_with('portal-restarted')
+        call = self.portal.bus.call_sync.call_args.args
+        self.assertEqual(call[2:5], ('org.freedesktop.host.portal.Registry', 'Register', ('local.dmdo.desktop', {})))

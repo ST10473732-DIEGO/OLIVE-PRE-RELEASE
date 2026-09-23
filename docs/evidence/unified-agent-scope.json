@@ -1,0 +1,79 @@
+{
+  "baseline_head": "7b19f1d658bdada456f3725147b9c026cd7207af",
+  "recoverable_ref": "baseline/olive-unified-agent-7b19f1d",
+  "authority": "2026-09-23 owner unified-agent implementation request, sections 2, 6, 7, 20",
+  "former_frozen_changes": [
+    {
+      "path": "desktop/src/app/App.tsx",
+      "baseline_sha256": "3630b49a82e803203bb8df134338a9e31000cd4f7d0cdc6d316dec708f248ba2",
+      "current_sha256": "2bee2609061c1b2274dca72f9290d273ee04062dbe6f3118dc22e94871bff671",
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/ApplicationTools.tsx",
+      "baseline_sha256": "2168e3c5b17a86bd733ce8d2cd8d616280634b91c024ab9e2b95a471cdd8c701",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/BrowserTools.tsx",
+      "baseline_sha256": "a1aaa254117744448246f083d5a5a9b224f10c53215748caab93ff7171857fef",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/Desktop.tsx",
+      "baseline_sha256": "d723ab8ac6528db09404120541c7241e7cbdbdc81a2c3bdbea88e43639f89fd9",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/Inspector.tsx",
+      "baseline_sha256": "f943a7f1c0246bf648323d2e2814ec9df463e202f22ec0affad57baa01092ba9",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/LaunchTarget.tsx",
+      "baseline_sha256": "c4176c26bfb717de48e524a051e425ca18389a24216bb1a9ff6bd91fcbdef42b",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/VisualTools.tsx",
+      "baseline_sha256": "4d8cf14a82f13d558a7278ba7e711b77decb0bb3a2ccec234464bc62e93caa4d",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/desktop/types.ts",
+      "baseline_sha256": "49581728eae94510c591e4297cbf510d57ee62ccfe20f2ab4d514e81664b07cf",
+      "current_sha256": null,
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/features/settings/DesktopPolicies.tsx",
+      "baseline_sha256": "c91175cbd7c4c4ff354deff9730e7d6ffd7d27f9bb6ef387e6acf18fd50f9ed4",
+      "current_sha256": "82c8c13b8dd4094ea6c4c0e17ecc27ecb4321ef45b974097588c80ca1a655592",
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/src/navigation/features.ts",
+      "baseline_sha256": "044fb317d40f4be9c620acf59e2b326c342d8aaa79d0c16d757456413d3b8fd8",
+      "current_sha256": "601ba809ff14cb3a927dae6ca24525169e5b454adab15c2162741a7cc0df28d3",
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    },
+    {
+      "path": "desktop/electron/main/index.ts",
+      "baseline_sha256": "f0211ca2899a4c50164e675b04ee2970ae05580f8d28a5f625b095194c7e50c7",
+      "current_sha256": "f4e9dca29ffa67876b1b47ea91864c3872282cd6a16b0d2d4000322b7634a90d",
+      "authority": "Owner unified-agent request: Chat/task Stop integration, navigation removal, Settings diagnostics and deletion of replaced control workspace"
+    }
+  ],
+  "historical_manifests_unchanged": {
+    "backend-v3-frozen.json": "05d2cc808b88cec9a82f86dbc26d22d679aa127dda429ee55097baa5e3f1b340",
+    "backend-v3-frozen-exception.json": "c3d3199789b1ae887bd3d3a299746864642698ff7200c9c34e4e7cecf4aaa4a6",
+    "linux-desktop-frozen.json": "a01872510629677818919136bf1c9607881c73c439b2e58016104bd37ccf7142",
+    "linux-desktop-frozen-exceptions.json": "075c2a56db3161477c1d6d31d4697818e22af98aeac529f307cfd10ba406894a"
+  }
+}

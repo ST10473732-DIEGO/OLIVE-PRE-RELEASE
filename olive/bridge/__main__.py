@@ -22,6 +22,10 @@ def stop_from_frame(host, raw):
         return
     if request['method'] == 'desktop.stop':
         host.emergency_stop()
+    elif request['method'] == 'interaction.cancel' and host.services:
+        native = getattr(host.services.desktop, 'linux', None)
+        if native and native.owner is not None and native.owner is host.services.interaction.active.get(request['args']['chat_id']):
+            host.emergency_stop()
 
 
 async def serve():

@@ -67,22 +67,12 @@ test("controlled work fixtures exercise real Agent pause/cancel, desktop Stop an
       ),
     ).toBeVisible();
     await expect(page.locator(".core-transit-stage .core")).toHaveAttribute("data-state", "Working");
-    await go("Desktop Control");
-    await expect(
-      page.getByRole("heading", { name: "Fixture application" }),
-    ).toBeVisible();
-    await page.screenshot({
-      path: path.join(evidence, "desktop-populated-controlled-fixture.png"),
-    });
-    await page
-      .getByRole("button", { name: "Emergency stop desktop control" })
-      .click();
-    await expect(
-      page.getByText("Fixture wait cancelled. No input was generated.", {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(page.locator(".core-transit-stage .core")).toHaveAttribute("data-state", "Ready");
+    await go("Chat");
+    // The legacy active fixture remains cancellable from the shared activity UI.
+    await page.getByRole("button", { name: "OLIVE activity", exact: true }).click();
+    await page.getByRole("button", { name: "Stop desktop control", exact: true }).click();
+    await expect.poll(async () => (await page.evaluate(() => window.olive.call("desktop.status", {})) as {stopped:boolean}).stopped).toBe(true);
+    await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
     await go("Memory");
     await page.getByRole("button", { name: "Suggestions (2)" }).click();
     const cards = page.getByRole("dialog").locator(".record-card");

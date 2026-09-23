@@ -85,27 +85,17 @@ class NaturalLanguageOrchestrator:
         # Only literal local user input reaches native task authority. Remote targets
         # and Studio selection never acquire desktop scope through interpretation.
         native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
-        if native and not research_mode and not context.workspace_id and not self.selected_workspace and not getattr(self.s.chat, 'targets', {}).get(chat_id):
-            import re
-            if re.match(r'^(?:please\s+)?(?:open|launch|send|draft|search for)\b', text.strip(), re.I) and self.s.desktop.configuration().get('trusted_tasks'):
-                if chat_id in self.active:
-                    return self.reply(chat_id, text, 'Stop the current task before replacing its request.')
-                self.active[chat_id] = asyncio.current_task()
-                self.gates[chat_id] = asyncio.Event()
-                self.gates[chat_id].set()
-                chat = self.s.chats[chat_id]
-                message = chat.add_message('user', text)
-                self.s.save_chats()
-                try:
-                    result = await native.run(text, message.id)
-                    return self.reply(chat_id, text, result, append_user=False)
-                except (ValueError, PermissionError, InterruptedError) as error:
-                    return self.reply(chat_id, text, str(error), append_user=False)
-                except asyncio.CancelledError:
-                    return self.reply(chat_id, text, 'Stopped. Inspect any uncertain effect before requesting it again.', append_user=False)
-                finally:
-                    self.active.pop(chat_id, None)
-                    self.gates.pop(chat_id, None)
+        native_allowed = bool(native and not research_mode and not context.workspace_id and
+            not self.selected_workspace and not getattr(self.s.chat, 'targets', {}).get(chat_id) and
+            self.s.desktop.configuration().get('trusted_tasks'))
+        if native_allowed:
+            from ..desktop.task_authority import direct_scope
+            try:
+                direct_scope(text)
+            except ValueError:
+                pass  # Freeform interpretation below can still propose a bounded task.
+            else:
+                return await self._native_submit(text, chat_id)
         selection = (self.selected_workspace, self.selected_file)
         if self.selected_workspace and context.studio_selection != selection:
             workspace = self.s.workspace_repo.load_all().get(self.selected_workspace)
@@ -161,6 +151,9 @@ class NaturalLanguageOrchestrator:
                 len(steps) != 1 or steps[0]['intent'] != 'conversation.answer'):
             return self.reply(chat_id, text,
                 'Remote AI provides text answers only. Select This device to use actions, Research or local documents. No remote action was performed.')
+        if native_allowed and steps and all(step['intent'] in {
+                'application.launch', 'application.activate', 'application.search', 'application.control'} for step in steps):
+            return await self._native_submit(text, chat_id, steps)
         if len(steps) == 1 and steps[0]["intent"] in {"conversation.answer", "knowledge.query"}:
             document = {}
             if chat_id in self.active:
@@ -269,6 +262,31 @@ class NaturalLanguageOrchestrator:
             steps = deepcopy(context.last_steps)
         return await self._execute_steps(text, chat_id, steps)
 
+    async def _native_submit(self, text, chat_id, interpretation=None):
+        if chat_id in self.active or chat_id in self.s.chat.generations:
+            return self.reply(chat_id, text, 'Stop the current request before replacing it.')
+        self.active[chat_id] = asyncio.current_task()
+        self.gates[chat_id] = asyncio.Event()
+        self.gates[chat_id].set()
+        chat = self.s.chats[chat_id]
+        if not chat.messages:
+            chat.title = text[:48]
+        message = chat.add_message('user', text)
+        self.s.save_chats()
+        native = self.s.desktop.linux
+        native.chat_id = chat_id
+        try:
+            result = await native.run(text, message.id, interpretation=interpretation)
+            return self.reply(chat_id, text, result, append_user=False)
+        except (ValueError, PermissionError, InterruptedError) as error:
+            return self.reply(chat_id, text, str(error), append_user=False)
+        except asyncio.CancelledError:
+            return self.reply(chat_id, text, 'Stopped. Inspect any uncertain effect before requesting it again.', append_user=False)
+        finally:
+            native.chat_id = None
+            self.active.pop(chat_id, None)
+            self.gates.pop(chat_id, None)
+
     @actual_user_request
     async def research_question(self, question, chat_id, depth='Standard', project_id=None):
         """The explicit Research form selects a capability, never a permission.
@@ -329,6 +347,9 @@ class NaturalLanguageOrchestrator:
         return self.reply(chat_id, text, "\n\n".join(messages), append_user=False)
 
     def cancel(self, chat_id):
+        native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
+        if native and native.owner is not None and native.owner is self.active.get(chat_id):
+            native.stop()  # Signal and epoch first; never wait on inference/SQLite.
         for interpreting in list(self.interpreting.get(chat_id, ())):
             interpreting.cancel()
         task = self.active.get(chat_id)

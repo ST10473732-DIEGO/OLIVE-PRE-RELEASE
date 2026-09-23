@@ -39,15 +39,21 @@ def encode_sample(sample):
 
 
 class Capture:
-    def __init__(self, fd, node):
+    def __init__(self, fd, node, size=(1920, 1080)):
         Gst.init(None)
         self.fd = fd
         self.pipeline = None
         try:
+            width, height = size
+            if not 1 <= width <= 16384 or not 1 <= height <= 16384:
+                raise ValueError('Invalid source dimensions')
+            scaled_height = round(1280 * height / width)
+            if not 1 <= scaled_height <= 4096:
+                raise ValueError('Capture aspect ratio exceeds the frame budget')
             self.pipeline = Gst.parse_launch(
-                f'pipewiresrc fd={fd} path={int(node)} do-timestamp=true ! '
+                f'pipewiresrc name=source fd={fd} path={int(node)} do-timestamp=true ! '
                 'videorate drop-only=true ! video/x-raw,framerate=2/1 ! videoconvert ! videoscale ! '
-                'video/x-raw,format=RGBA,width=1280,pixel-aspect-ratio=1/1 ! '
+                f'video/x-raw,format=RGBA,width=1280,height={scaled_height},pixel-aspect-ratio=1/1 ! '
                 'appsink name=frame max-buffers=1 drop=true sync=false')
             self.sink = self.pipeline.get_by_name('frame')
             if not isinstance(self.sink, GstApp.AppSink):
@@ -72,8 +78,11 @@ class Capture:
             raise ValueError('Capture timestamp is stale or missing')
         self.last_pts = buffer.pts
         data, width, height = encode_sample(sample)
+        source = self.pipeline.get_by_name('source').get_static_pad('src').get_current_caps().get_structure(0)
         return {'png': base64.b64encode(data).decode('ascii'), 'width': width,
-                'height': height, 'pts': buffer.pts, 'captured_at': time.monotonic()}
+                'height': height, 'original_width': source.get_value('width'),
+                'original_height': source.get_value('height'), 'crop_origin': [0, 0],
+                'pts': buffer.pts, 'captured_at': time.monotonic()}
 
     def close(self):
         try:

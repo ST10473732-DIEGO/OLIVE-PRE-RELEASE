@@ -15,6 +15,26 @@ class Accessibility:
         self.targets = {}
         self.revision = ''
         self.application = None
+        self.window_geometry = None
+        self.offset = (0, 0)
+
+    def mapped_bounds(self, rect):
+        return [rect.x + self.offset[0], rect.y + self.offset[1], rect.width, rect.height]
+
+    def bind_geometry(self, pid, geometry):
+        self.window_geometry = geometry
+        self.offset = (0, 0)
+        app = self.resolve(pid)
+        frames = [app.get_child_at_index(i) for i in range(min(app.get_child_count(), 80))]
+        frames = [w for w in frames if w and w.get_role() in (Atspi.Role.FRAME, Atspi.Role.WINDOW, Atspi.Role.DIALOG)
+                  and w.get_state_set().contains(Atspi.StateType.ACTIVE)]
+        if len(frames) != 1:
+            return
+        rect = frames[0].get_component_iface().get_extents(Atspi.CoordType.SCREEN)
+        # Native Wayland Qt reports client-local coordinates for SCREEN. Bind
+        # only when the independently observed KWin client dimensions agree.
+        if rect.x == rect.y == 0 and [rect.width, rect.height] == geometry[2:]:
+            self.offset = tuple(geometry[:2])
 
     def applications(self):
         desktop = Atspi.get_desktop(0)
@@ -81,7 +101,7 @@ class Accessibility:
                                 continue
                             component = node.get_component_iface()
                             rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
-                            if rect and contains(region, [rect.x, rect.y, rect.width, rect.height]):
+                            if rect and contains(region, self.mapped_bounds(rect)):
                                 windows.append(node)
                     if len(windows) > 1:
                         raise ValueError('NEEDS_USER_CLARIFICATION: multiple windows of the requested app are visible')
@@ -92,8 +112,10 @@ class Accessibility:
                             return {'pid': pid, 'active': True}
                         if not attempted:
                             attempted = True
-                            if not node.get_component_iface().grab_focus():
-                                raise PermissionError('Application refused focus; no input was sent')
+                            # KWin activation precedes this accessibility event.
+                            # Some Qt top-levels cannot grab focus themselves;
+                            # wait for their real active-state event instead.
+                            node.get_component_iface().grab_focus()
                             changed[0] = True
                             continue
                 GLib.MainContext.default().iteration(True)
@@ -132,7 +154,7 @@ class Accessibility:
                 key = str(visited)
                 component = node.get_component_iface()
                 rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
-                bounds = [rect.x, rect.y, rect.width, rect.height] if rect else None
+                bounds = self.mapped_bounds(rect) if rect else None
                 if depth > 0 and not contains(region, bounds):
                     continue  # Do not read text outside the human-approved source.
                 if role in (Atspi.Role.FRAME, Atspi.Role.DIALOG, Atspi.Role.WINDOW):
@@ -143,7 +165,12 @@ class Accessibility:
                     value = ''
                     text = node.get_text_iface()
                     if text:
-                        value = text.get_text(0, min(text.get_character_count(), 2000))
+                        # Accessible.get_text is a deprecated interface getter;
+                        # call the Text interface explicitly to avoid GI's name clash.
+                        value = Atspi.Text.get_text(text, 0, min(text.get_character_count(), 2000))
+                    elif role == Atspi.Role.COMBO_BOX and states.contains(Atspi.StateType.EDITABLE):
+                        value = node.get_name()[:2000]
+                    labels = self.labels(node)
                     actions = node.get_action_iface()
                     action_names = [actions.get_action_name(i) for i in range(min(actions.get_n_actions(), 8))] if actions else []
                     document = node.get_document_iface()
@@ -157,7 +184,7 @@ class Accessibility:
                         'enabled': states.contains(Atspi.StateType.ENABLED),
                         'selected': states.contains(Atspi.StateType.SELECTED),
                         'focused': states.contains(Atspi.StateType.FOCUSED),
-                        'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names})
+                        'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names, 'labels': labels})
                     self.targets[key] = node
                 if depth < 16:
                     for index in range(min(node.get_child_count(), 80)):
@@ -181,7 +208,7 @@ class Accessibility:
             raise PermissionError('Target is unavailable or secret')
         component = node.get_component_iface()
         rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
-        if rect is None or [rect.x, rect.y, rect.width, rect.height] != bounds:
+        if rect is None or self.mapped_bounds(rect) != bounds:
             raise ValueError('Target geometry changed; observe again')
         if not contains(region, bounds):
             raise PermissionError('Target left the approved display')
@@ -201,3 +228,9 @@ class Accessibility:
     def clear(self):
         self.targets.clear()
         self.revision, self.application = '', None
+
+    @staticmethod
+    def labels(node):
+        return [relation.get_target(i).get_name()[:100] for relation in (node.get_relation_set() or ())
+                if relation.get_relation_type() == Atspi.RelationType.LABELLED_BY
+                for i in range(min(relation.get_n_targets(), 4))]

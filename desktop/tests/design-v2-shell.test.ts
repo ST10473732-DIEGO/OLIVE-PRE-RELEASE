@@ -109,8 +109,9 @@ describe("shell navigation", () => {
     expect(html).toMatch(/aria-current="page"[^>]*aria-label="Tasks"|aria-label="Tasks"[^>]*aria-current="page"/);
     expect(html).toContain('aria-description="2 need attention"');
     expect(html).toContain("Collapse navigation");
-    // Studio, Desktop Control and every existing space stay reachable.
-    for (const label of ["Chat", "OLIVE GO", "Agent", "Studio", "Desktop Control", "Projects", "Knowledge", "Memory", "Mail", "Calendar", "Tasks", "Reminders", "Devices", "Connections", "Settings"])
+    // Desktop tasks use Chat; unrelated workspaces stay reachable.
+    expect(html).not.toContain('aria-label="Desktop Control"');
+    for (const label of ["Chat", "OLIVE GO", "Agent", "Studio", "Projects", "Knowledge", "Memory", "Mail", "Calendar", "Tasks", "Reminders", "Devices", "Connections", "Settings"])
       expect(html).toContain(`aria-label="${label}"`);
     // Find anything lives in the title bar only, so there is exactly one.
     expect(html).not.toContain("Find anything");

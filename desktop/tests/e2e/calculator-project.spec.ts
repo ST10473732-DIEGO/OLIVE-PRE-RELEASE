@@ -166,7 +166,7 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
       const view = webContents.getAllWebContents().find(view => view.getURL().startsWith('http://127.0.0.1:'));
       return view && !view.isLoading() ? view.executeJavaScript('document.body.innerText') : '';
     })).toContain("OLIVE baseline browser fixture");
-    for (const feature of ["Studio", "Mail", "Tasks", "Agent", "Desktop Control", "Chat"])
+    for (const feature of ["Studio", "Mail", "Tasks", "Agent", "Chat"])
       await openSpace(page, feature);
     expect(rejected).toBe(0);
     await expect(page.getByRole("textbox", { name: "Message OLIVE", exact: true })).toBeVisible();

@@ -7,6 +7,8 @@ import {
   session,
   shell,
   globalShortcut,
+  Tray,
+  Menu,
 } from "electron";
 import { z } from "zod";
 import path from "node:path";
@@ -37,6 +39,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let window: BrowserWindow;
 let backend: Backend;
+let controlTray: Tray | undefined;
 let quitting = false;
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -316,6 +319,16 @@ else {
     globalShortcut.register("CommandOrControl+Alt+Escape", () =>
       backend.stopControl(),
     );
+    if (process.platform === "linux") {
+      controlTray = new Tray(app.isPackaged
+        ? path.join(process.resourcesPath, iconName())
+        : path.join(root, "assets/branding", iconName()));
+      controlTray.setToolTip("OLIVE");
+      controlTray.setContextMenu(Menu.buildFromTemplate([
+        {label: "Open OLIVE", click: () => {window.show(); window.focus();}},
+        {label: "Stop desktop task", click: () => backend.stopControl()},
+      ]));
+    }
     await window.loadURL("dmdo://app/index.html");
   });
   app.on("window-all-closed", () => app.quit());
@@ -328,6 +341,7 @@ else {
     event.preventDefault();
     quitting = true;
     globalShortcut.unregisterAll();
+    controlTray?.destroy();
     void backend.close().finally(() => app.quit());
   });
 }

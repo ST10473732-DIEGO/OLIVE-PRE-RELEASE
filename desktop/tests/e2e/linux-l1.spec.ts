@@ -31,7 +31,7 @@ for (const display of ["auto", "wayland"]) test(`Linux ${display}: launcher, por
     expect(security).toMatchObject({ sandbox: true, contextIsolation: true, nodeIntegration: false });
     expect(security.args).not.toContain("--no-sandbox");
     await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();
-    for (const name of ["Chat", "Projects", "Knowledge", "Memory", "Tasks", "Calendar", "Reminders", "Agent", "Mail", "Settings", "Studio", "OLIVE GO", "Desktop Control"]) {
+    for (const name of ["Chat", "Projects", "Knowledge", "Memory", "Tasks", "Calendar", "Reminders", "Agent", "Mail", "Settings", "Studio", "OLIVE GO"]) {
       await openSpace(page, name);
       if (name === "Chat") await expect(page.getByRole("textbox", { name: "Message OLIVE", exact: true })).toBeVisible();
       else if (name === "Studio") await expect(page.getByRole("heading", { name: "Your next idea starts here.", exact: true })).toBeVisible();
@@ -45,7 +45,7 @@ for (const display of ["auto", "wayland"]) test(`Linux ${display}: launcher, por
     expect(desktop.platform_capabilities.capture_input_session).toBe(false);
     expect(desktop.platform_capabilities.global_stop_tested).toBe(false);
     // API availability depends on the host; it never constitutes session consent.
-    if(!desktop.available) await expect(page.getByText(/Linux .*Desktop Control is not yet available/)).toBeVisible();
+    await expect(page.getByRole("button", {name:"Desktop Control",exact:true})).toHaveCount(0);
     await page.getByRole("button", { name: "OLIVE activity", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Activity", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");

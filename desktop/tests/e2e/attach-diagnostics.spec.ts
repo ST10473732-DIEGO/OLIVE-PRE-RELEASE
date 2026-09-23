@@ -10,8 +10,8 @@ test("real attach rejection retains request ID and safe stage without reaching a
     const page = await app.firstWindow();
     await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();
     await page.getByRole("button", { name: "Find anything", exact: true }).click();
-    await page.getByRole("button", { name: "Open Desktop Control", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Desktop Control", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Open Chat", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Message OLIVE", exact: true })).toBeVisible();
     const result = await page.evaluate(async () => {
       let receive!: (value:unknown)=>void;
       const detail = new Promise<unknown>(resolve=>{receive=resolve;});
@@ -31,8 +31,6 @@ test("real attach rejection retains request ID and safe stage without reaching a
     const detail = result.detail as { error_id: string; request_id: string; stage: string };
     expect(detail.request_id).toMatch(/^[a-f0-9-]{36}$/);
     expect(result.message).toContain(detail.error_id);
-    await page.getByText("Attachment error details", { exact: true }).click();
-    await expect(page.locator("details").filter({ hasText: "Attachment error details" })).toContainText(detail.request_id);
     expect(await readdir(path.join(profile, "developer-diagnostics"))).toEqual([`${detail.error_id}.${process.platform==='win32'?'dpapi':'json'}`]);
     const state = await page.evaluate(() => window.olive.call("desktop.status", {}));
     expect(state).toMatchObject({ session: null, observation: {}, settings: { enabled: false, keyboard_policy: "deny", mouse_policy: "deny" } });

@@ -4,19 +4,33 @@ No new authority, coordinates, model call or app-specific path. Every suggestion
 still crosses the shared broker and a fresh native observation before execution.
 Missing or ambiguous semantics fall back to the bounded planner/handoff.
 """
-from .task_authority import is_composer, is_search_control
+from .task_authority import is_composer, is_search_control, same_control_label
 
 
 def next_step(scope, observation, submitted):
     if submitted:
         return None  # Verification, never a second submission, owns this phase.
     controls = [c for c in observation['controls'] if c.get('enabled')]
+    if scope.effect == 'click':
+        candidates = [c for c in controls if same_control_label(c.get('name', ''), scope.content)]
+        if len(candidates) != 1:
+            return None
+        return dict(action='click', target=candidates[0]['id'], value='', revision=observation['revision'],
+                    expected='Observe the requested control after the click')
     if scope.effect == 'search':
         candidates = [c for c in controls if is_search_control(c)]
     elif scope.effect in {'send', 'draft'}:
         context = {'account': scope.account, 'destination': scope.destination, 'server': scope.server}
         if observation.get('destination') != context:
-            return None
+            # Navigate one semantic target at a time, re-observing full context.
+            if scope.server and not any(c['name'] == scope.server and c.get('selected') for c in controls):
+                matches = [c for c in controls if c['name'] == scope.server]
+            else:
+                matches = [c for c in controls if c['name'] == scope.destination and c.get('role') != 'heading']
+            if len(matches) != 1:
+                return None
+            return dict(action='click', target=matches[0]['id'], value='', revision=observation['revision'],
+                        expected='Verify the complete destination context')
         candidates = [c for c in controls if is_composer(c)]
     else:
         return None

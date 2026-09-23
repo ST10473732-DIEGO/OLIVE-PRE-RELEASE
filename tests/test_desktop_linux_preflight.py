@@ -15,7 +15,7 @@ class PreflightTests(unittest.IsolatedAsyncioTestCase):
             result = await inspect(self.client, self.apps)
         self.client.call.assert_awaited_once_with('probe', timeout=12)
         self.client.close.assert_awaited_once_with()
-        self.assertEqual(result['status'], 'BLOCKED_REQUIRES_LOCAL_HUMAN')
+        self.assertEqual(result['status'], 'DEPENDENCIES_READY')
         self.assertFalse(result['consent_requested'])
         self.assertFalse(result['live_input_attempted'])
 

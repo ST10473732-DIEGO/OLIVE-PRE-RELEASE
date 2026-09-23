@@ -25,7 +25,7 @@ test('Linux L3 reminder closes before due, reopens, fires once through Plasma, a
     await expect.poll(()=>app.evaluate(()=> (globalThis as typeof globalThis & {l3Notices:unknown[]}).l3Notices),{timeout:30000}).toEqual([{title:'OLIVE — Reminders',body:'1 reminders are ready in your activity centre.'}]);
     const history=await page.evaluate(()=>window.olive.call('reminders.history',{})) as {items:unknown[]};expect(history.items).toHaveLength(1);
     const claims=await readFile(path.join(profile,'native-notification-claims.json'),'utf8');
-    for(const space of ['Mail','Studio','Agent','Desktop Control','Settings','Chat'])await openSpace(page,space);
+    for(const space of ['Mail','Studio','Agent','Settings','Chat'])await openSpace(page,space);
     const capabilities=await page.evaluate(()=>window.olive.call('desktop.status',{})) as {settings:{enabled:boolean;trusted_tasks:boolean};platform_capabilities:{session:string;capture_input_session:boolean;global_stop_tested:boolean}};
     expect(capabilities.settings.enabled).toBe(false);expect(capabilities.settings.trusted_tasks).toBe(false);
     expect(capabilities.platform_capabilities.capture_input_session).toBe(false);

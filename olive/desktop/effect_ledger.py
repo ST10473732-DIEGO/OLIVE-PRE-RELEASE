@@ -28,8 +28,10 @@ class EffectLedger:
 
     @staticmethod
     def digest(scope):
-        return hashlib.sha256(json.dumps([scope.application, scope.effect, scope.content,
-            scope.destination, scope.account, scope.server], ensure_ascii=True).encode()).hexdigest()
+        fields = [scope.application, scope.effect, scope.content, scope.destination, scope.account, scope.server]
+        if getattr(scope, 'path', ''):
+            fields.append(scope.path)  # Existing message/search receipt digests stay unchanged.
+        return hashlib.sha256(json.dumps(fields, ensure_ascii=True).encode()).hexdigest()
 
     def reserve(self, grant):
         # The commit finishes before input starts; failed storage means no effect.

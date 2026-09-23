@@ -200,9 +200,6 @@ class Host:
             self.emergency_stop()
             return s.desktop.stop()
         if method == 'desktop.status':
-            native = getattr(s.desktop, 'linux', None)
-            if native:
-                await native.probe()
             from .desktop_routes import status
             return status(s)
         if method.startswith('desktop.') and method not in {'desktop.pause','desktop.reset','desktop.launches','desktop.consequence_fields','desktop.configure'}:

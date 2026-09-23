@@ -1,10 +1,8 @@
 """Application-side portal sessions. Imported only by the native GI helper.
 
-There is no persistent grant, backend-interface call or Notify/EIS mixing.
+Persistent grants are provisioned separately, never by this runtime.
 Every request subscribes before calling, validates its path and closes on timeout.
 """
-import json
-from pathlib import Path
 import time
 import uuid
 
@@ -12,6 +10,7 @@ import gi
 
 gi.require_version('Gio', '2.0')
 from gi.repository import Gio, GLib
+from olive.desktop.linux.permissions import application_id, require_authorized, STORE, STORE_PATH, TABLE, ENTRY
 
 BUS = 'org.freedesktop.portal.Desktop'
 PATH = '/org/freedesktop/portal/desktop'
@@ -20,12 +19,16 @@ PREFIX = 'org.freedesktop.portal.'
 
 class Portal:
     def __init__(self, stopped, event):
-        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        identity = json.loads((Path(__file__).resolve().parents[2] / 'identity.json').read_text())
+        self.bus = Gio.DBusConnection.new_for_address_sync(
+            Gio.dbus_address_get_for_bus_sync(Gio.BusType.SESSION, None),
+            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+            None, None)
+        self.app_id = application_id()
         # Register before any portal API so KDE shows OLIVE, not the parent terminal.
         self.bus.call_sync(BUS, PATH, 'org.freedesktop.host.portal.Registry', 'Register',
-            GLib.Variant('(sa{sv})', (identity['app_id'], {})), None,
+            GLib.Variant('(sa{sv})', (self.app_id, {})), None,
             Gio.DBusCallFlags.NONE, 3000, None)
+        self.registered = True
         self.stopped, self.event = stopped, event
         self.sessions = set()
         self.requests = set()
@@ -33,13 +36,55 @@ class Portal:
         self.shortcut = None
         self.remote = None
         self.streams = []
+        self.all_streams = []
         self.stop_verified = False
+        self.subscriptions.append(self.bus.signal_subscribe(
+            'org.freedesktop.DBus', 'org.freedesktop.DBus', 'NameOwnerChanged',
+            '/org/freedesktop/DBus', BUS, Gio.DBusSignalFlags.NONE, self._owner_changed))
+        self.subscriptions.append(self.bus.signal_subscribe(
+            STORE, STORE, 'Changed', STORE_PATH, None, Gio.DBusSignalFlags.NONE, self._permission_changed))
         self.subscriptions.append(self.bus.signal_subscribe(
             BUS, PREFIX + 'Session', 'Closed', None, None, Gio.DBusSignalFlags.NONE,
             self._closed))
         self.subscriptions.append(self.bus.signal_subscribe(
             BUS, PREFIX + 'GlobalShortcuts', 'Activated', PATH, None,
             Gio.DBusSignalFlags.NONE, self._activated))
+
+    def _owner_changed(self, connection, sender, path, interface, signal, parameters):
+        _, old, new = parameters.unpack()
+        if old:
+            self.registered = False
+            self.stopped.set()
+            self.remote = self.shortcut = None
+            self.sessions.clear()
+            self.streams = []
+            self.event('portal-restarted')
+        if new:
+            # A new portal owner has a new Registry. Old tasks remain cancelled.
+            try:
+                self.bus.call_sync(BUS, PATH, 'org.freedesktop.host.portal.Registry', 'Register',
+                    GLib.Variant('(sa{sv})', (self.app_id, {})), None,
+                    Gio.DBusCallFlags.NONE, 3000, None)
+                self.registered = True
+            except GLib.Error:
+                self.event('identity-unavailable')
+
+    def _permission_changed(self, connection, sender, path, interface, signal, parameters):
+        table, entry, deleted, _, permissions = parameters.unpack()
+        if table == TABLE and entry == ENTRY and (deleted or permissions.get(self.app_id) != ['yes']):
+            self.stopped.set()
+            self.event('permission-revoked')
+
+    def require_authorized(self):
+        if not self.registered:
+            raise PermissionError('The portal caller identity is unavailable')
+        require_authorized(self.bus, self.app_id)
+
+    def diagnostic(self):
+        from olive.desktop.linux.permissions import lookup
+        return {'app_id': self.app_id, 'peer': self.bus.get_unique_name(),
+                'registered_on_portal_connection': self.registered, 'permission': lookup(self.bus, self.app_id),
+                'remote_session': bool(self.remote), 'streams': self.streams}
 
     def _closed(self, connection, sender, path, interface, signal, parameters):
         if path in self.sessions:
@@ -146,22 +191,29 @@ class Portal:
     def start(self):
         if self.remote:
             raise ValueError('A control session already exists')
-        if not self.stop_verified:
-            raise PermissionError('Test the global emergency shortcut before starting control')
+        self.require_authorized()
         if self.stopped.is_set():
-            raise InterruptedError('Reset Stop explicitly before a new control session')
+            raise InterruptedError('The cancelled session cannot be reused')
         self.remote = self.create('RemoteDesktop')
         try:
             self.request('RemoteDesktop', 'SelectDevices', '(oa{sv})',
                 (self.remote, {'types': GLib.Variant('u', 3), 'persist_mode': GLib.Variant('u', 0)}))
             self.request('ScreenCast', 'SelectSources', '(oa{sv})',
-                (self.remote, {'types': GLib.Variant('u', 1), 'multiple': GLib.Variant('b', False),
+                (self.remote, {'types': GLib.Variant('u', 1), 'multiple': GLib.Variant('b', True),
                                'cursor_mode': GLib.Variant('u', 1)}))
             result = self.request('RemoteDesktop', 'Start', '(osa{sv})', (self.remote, '', {}))
             self.streams = result.get('streams', [])
+            self.all_streams = self.streams
+            # KDE returns an unmapped workspace mosaic for multiple monitors
+            # when multiple=False. Ask for individually mapped outputs instead.
+            if len(self.streams) > 1:
+                output = self.bus.call_sync('org.kde.KWin', '/KWin', 'org.kde.KWin',
+                    'activeOutputName', None, GLib.VariantType.new('(s)'),
+                    Gio.DBusCallFlags.NONE, 3000, None).unpack()[0]
+                self.streams = [s for s in self.streams if s[1].get('mapping_id') == output]
             if result.get('devices', 0) & 3 != 3 or len(self.streams) != 1:
                 raise PermissionError('One approved display and keyboard/pointer are required')
-            return result
+            return {**result, 'streams': self.streams}
         except BaseException:
             self.close_control()
             raise
@@ -191,3 +243,4 @@ class Portal:
         for subscription in self.subscriptions:
             self.bus.signal_unsubscribe(subscription)
         self.subscriptions.clear()
+        self.bus.close_sync(None)

@@ -97,7 +97,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     await expect(sheet).toContainText('Generation: Needs setup');
     await sheet.getByRole('button',{name:'Close',exact:true}).click();
     await chat('What is 8 + 1? Reply with the number only.');
-    for(let cycle=0;cycle<2;cycle++)for(const space of ['Mail','Agent','Tasks','Calendar','Reminders','Desktop Control','Settings','OLIVE GO','Studio','Chat'])await openSpace(page,space);
+    for(let cycle=0;cycle<2;cycle++)for(const space of ['Mail','Agent','Tasks','Calendar','Reminders','Settings','OLIVE GO','Studio','Chat'])await openSpace(page,space);
     expect(await app.evaluate(({webContents})=>webContents.getAllWebContents().length)).toBeLessThanOrEqual(2);
     if(process.platform==='linux'){
       const probe=spawnSync(path.resolve('../.venv/bin/python'),['-c','import psutil,json,sys; p=psutil.Process(int(sys.argv[1])); print(json.dumps([dict(pid=c.pid,created=c.create_time()) for c in [p,*p.children(recursive=True)]]))',String(app.process().pid)],{encoding:'utf8'});

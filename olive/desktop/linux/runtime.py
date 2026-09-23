@@ -38,6 +38,12 @@ class LinuxRuntime:
         self.bound_stop = False
         self.shortcut_trigger = ''
         self.last_observation = None
+        self.last_session_evidence = None
+        self.chat_id = None
+        self.gui = None
+        self.effect_attempted = False
+        self.permission_session = None
+        self.reconnect_required = False
         self.probe_lock = asyncio.Lock()
 
     async def probe(self):
@@ -51,6 +57,8 @@ class LinuxRuntime:
                 await self.native.close()
 
     def event(self, event):
+        if event in {'portal-restarted', 'identity-unavailable', 'helper-exited'}:
+            self.reconnect_required = True
         self.authority.cancel()
         self.session = None
         if event in {'shortcut-revoked', 'helper-exited'}:
@@ -71,52 +79,58 @@ class LinuxRuntime:
     def available(self):
         caps = self.capabilities or {}
         return all(caps.get(name, {}).get('version', 0) >= version for name, version in
-                   [('RemoteDesktop', 2), ('ScreenCast', 4), ('GlobalShortcuts', 1)])
+                   [('RemoteDesktop', 2), ('ScreenCast', 4)])
 
     def status(self):
         return {'portal_interfaces': self.capabilities or {}, 'probe_error': self.probe_error,
+                'input_stopped': self.desktop.stop_event.is_set(),
+                'helper_cleanup_completed': self.owner is None and self.session is None and not self.native.pending,
+                'last_session_evidence': self.last_session_evidence,
                 'capture_input_session': bool(self.session), 'global_stop_tested': self.native.verified_stop,
                 'shortcut_trigger': self.shortcut_trigger,
-                'visual_grounding': 'Not accepted: no screenshot-grounded action route is enabled',
-                'screen_capture': 'Portal adapter present; requires a human-approved source and verified global Stop',
-                'accessibility': 'App-scoped AT-SPI adapter; live task acceptance pending',
+                'visual_grounding': 'GUI-Owl with independent literal-target checks; unrestricted visual tasks not accepted',
+                'screen_capture': 'Combined RemoteDesktop/PipeWire; requires the owner-provisioned named KDE grant',
+                'accessibility': 'App-scoped AT-SPI with compositor geometry checks',
                 'remote_input': 'Local portal EIS adapter only; no network desktop control',
                 'window_enumeration': 'Scoped application PID only; no global KWin window enumeration',
-                'application_control': 'Bounded local task route; live acceptance pending',
+                'application_control': 'Local Chat tasks with bounded input leases',
                 'physical_takeover_detection': 'Unavailable: no global physical-input monitor; focus changes stop targeted input',
-                'scope': 'One human-selected monitor; app-scoped AT-SPI; finite local task',
-                'input_backend': 'libei; no Notify mixing', 'retention': 'Transient frames only'}
+                'scope': 'One portal monitor; app-scoped AT-SPI; finite local task',
+                'input_backend': 'libei; no Notify mixing', 'retention': 'Transient frames only',
+                'reason': self.probe_error or 'Native capabilities are checked when an explicit local task starts'}
 
     async def prepare(self):
         d = self.desktop
         settings = d.configuration()
-        if not settings['screen_observation'] or settings['emergency_shortcut'] != 'Ctrl+Alt+Escape':
-            raise PermissionError('Enable screen observation and the emergency shortcut before desktop work')
+        if not settings['screen_observation']:
+            raise PermissionError('Screen observation is disabled')
         if not settings['uia']:
             raise PermissionError('Enable scoped accessibility observation; visual-only input is not accepted')
         await self.probe()
         if not self.available():
             raise PermissionError(self.probe_error or 'Required portal interfaces are unavailable')
         await self.native.call('reset')
-        if not self.bound_stop:
-            d.record.current_action = 'Bind emergency Stop; handle the compositor dialog yourself'
-            d.publish()
-            binding = await self.native.call('bind_stop', timeout=95)
-            self.shortcut_trigger = binding.get('trigger', '')
-            self.bound_stop = True
-        if not self.shortcut_trigger:
-            raise PermissionError('KDE registered the Stop action without assigning a key. Configure a free global shortcut yourself before any input.')
-        if not self.native.verified_stop:
-            raise PermissionError('Press the compositor-bound emergency shortcut (' + self.shortcut_trigger + ') with another app focused. Then use Reset Stop and submit a new task. No capture or input has started.')
-        await self.native.call('reset')
-        self.session = await self.native.call('start', timeout=95)
+        d.record.current_action = 'Starting local desktop task'
+        d.publish()
+        self.session = await self.native.call('start', timeout=15)
+        self.last_session_evidence = self.session
 
-    async def run(self, request, message_id):
+    async def run(self, request, message_id, interpretation=None):
         d = self.desktop
         if self.owner or d.busy():
             raise ValueError('A desktop task is already active')
-        grant = self.authority.issue(request, message_id, d.configuration(), local_user=True)
+        # Only a NEW explicit request can clear transient cancellation. Persistent
+        # policy and the named KDE grant are checked again, never recreated.
+        self.authority.cancel()
+        if self.reconnect_required or self.native.process and self.native.process.poll() is not None:
+            await self.native.close()
+            self.probe_error = ''
+            self.capabilities = None
+            self.reconnect_required = False
+        d.stop_event.clear()
+        grant = self.authority.issue(request, message_id, d.configuration(), local_user=True, interpretation=interpretation)
         self.owner = asyncio.current_task()
+        self.effect_attempted = False
         d.record = DesktopControlSession('Local user-directed ' + grant.scope.effect, id=grant.id)
         d.record.status = 'running'
         effect_attempted = False
@@ -130,6 +144,7 @@ class LinuxRuntime:
             from ..application_sessions import ApplicationSession
             from ..application_discovery import identity
             permissions_session = ApplicationSession(identity(app.name, 'executable', str(app.executable)), grant.id)
+            self.permission_session = permissions_session
             d.gateway.require_not_denied(permissions_session, 'system.open_application')
             d.gateway.require_not_denied(permissions_session, 'desktop.inspect_application')
             d.gateway.require_not_denied(permissions_session, 'desktop.control_application')
@@ -142,7 +157,43 @@ class LinuxRuntime:
             if not processes:
                 processes = await self.apps.wait_for_processes(app, d.stop_event)
             await self.activate_app(app, processes)
-            observation = await self.observe_app(app, processes)
+            if grant.scope.effect in {'read', 'scroll', 'tab'}:
+                for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
+                    d.gateway.require_not_denied(permissions_session, permission)
+                from .browser_navigation import navigate
+                return await navigate(self, grant, app, processes)
+            if grant.scope.effect in {'copy', 'move'}:
+                for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
+                    d.gateway.require_not_denied(permissions_session, permission)
+                d.gateway.require_not_denied(permissions_session, 'filesystem.read', grant.scope.content)
+                d.gateway.require_not_denied(permissions_session, 'filesystem.write', grant.scope.path)
+                if grant.scope.effect == 'move':
+                    d.gateway.require_not_denied(permissions_session, 'filesystem.write', grant.scope.content)
+                from .file_task import transfer
+                return await transfer(self, grant, app, processes)
+            if grant.scope.effect == 'edit_save':
+                for permission in ('desktop.keyboard_input', 'desktop.mouse_input', 'filesystem.write'):
+                    d.gateway.require_not_denied(permissions_session, permission, grant.scope.path if permission == 'filesystem.write' else None)
+                from .editor_task import save_note
+                return await save_note(self, grant, app, processes)
+            if grant.scope.effect == 'search' and hasattr(app, 'entry'):
+                import configparser
+                config = configparser.ConfigParser(interpolation=None)
+                config.read(app.entry)
+                if 'WebBrowser' in config['Desktop Entry'].get('Categories', '').split(';'):
+                    for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
+                        d.gateway.require_not_denied(permissions_session, permission)
+                    from .browser_search import search
+                    return await search(self, grant, app, processes)
+            try:
+                observation = await self.observe_app(app, processes)
+            except (ValueError, LookupError):
+                if grant.scope.effect != 'click':
+                    raise
+                for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
+                    d.gateway.require_not_denied(permissions_session, permission)
+                from .visual_task import click
+                return await click(self, grant, processes[0][0])
             grant = self.authority.bind_account(grant, observation, d.configuration())
             observation['destination'] = messaging_destination(grant.scope, observation)
             if grant.scope.effect == 'open':
@@ -169,9 +220,14 @@ class LinuxRuntime:
                 states[fingerprint] = states.get(fingerprint, 0) + 1
                 if states[fingerprint] > 3:
                     raise ValueError('No observable progress; human handoff required')
-                d.record.current_action = f'Observe and plan step {index + 1}/24'
+                d.record.current_action = 'Verifying' if submitted else 'Finding the next control'
                 d.publish()
                 proposal = next_step(grant.scope, observation, submitted)
+                if proposal is None and grant.scope.effect == 'click':
+                    for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
+                        d.gateway.require_not_denied(permissions_session, permission)
+                    from .visual_task import click
+                    return await click(self, grant, processes[0][0])
                 if proposal is None:
                     model = model or d.s.model_router.route(RoutingRequest('reasoning'))
                     if not model:
@@ -218,7 +274,8 @@ class LinuxRuntime:
                     await asyncio.to_thread(ledger.reserve, grant)
                     self.authority.check(grant, d.configuration())
                     effect_attempted, submitted = True, True
-                d.record.current_action = proposal['action']
+                d.record.current_action = ('Sending' if submitting and grant.scope.effect == 'send' else
+                    'Entering the requested text' if proposal['action'] == 'type' else 'Navigating the application')
                 d.publish()
                 self.authority.check(grant, d.configuration())
                 await self.native.call(proposal['action'], {'revision': observation['revision'],
@@ -226,13 +283,19 @@ class LinuxRuntime:
                 observation = await self.observe_app(app, processes)
                 observation['destination'] = messaging_destination(grant.scope, observation)
                 d.record.history.append({'operation': proposal['action'], 'status': 'dispatched; re-observed'})
+                if grant.scope.effect == 'click':
+                    if observation['controls'] == fresh['controls']:
+                        raise ValueError('Click dispatched once; no visible change verified')
+                    d.record.status = 'completed'
+                    d.record.verification = 'Clicked the uniquely named control in the requested application and observed changed controls.'
+                    return d.record.verification
             raise TimeoutError('Desktop action budget exhausted')
         except asyncio.CancelledError:
-            d.record.status = 'outcome-unknown' if effect_attempted else 'cancelled'
+            d.record.status = 'outcome-unknown' if effect_attempted or self.effect_attempted else 'cancelled'
             d.record.verification = 'Stopped. No effect was replayed; inspect any uncertain submission.'
             raise
         except Exception as error:
-            d.record.status = 'outcome-unknown' if effect_attempted else 'needs-human'
+            d.record.status = 'outcome-unknown' if effect_attempted or self.effect_attempted else 'needs-human'
             d.record.verification = str(error)
             return str(error)
         finally:
@@ -247,6 +310,24 @@ class LinuxRuntime:
             self.session = None
             self.owner = None
             d.publish()
+
+    def check_task(self, grant):
+        d = self.desktop
+        self.authority.check(grant, d.configuration())
+        d.gateway.require_not_denied(self.permission_session, 'desktop.control_application')
+        for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
+            d.gateway.require_not_denied(self.permission_session, permission)
+        if grant.scope.path:
+            d.gateway.require_not_denied(self.permission_session, 'filesystem.write', grant.scope.path)
+            if grant.scope.effect == 'move':
+                d.gateway.require_not_denied(self.permission_session, 'filesystem.write', grant.scope.content)
+
+    async def reserve_effect(self, grant):
+        ledger = await asyncio.to_thread(EffectLedger, self.desktop.s.data_dir / 'desktop_effects.sqlite')
+        await asyncio.to_thread(ledger.reserve, grant)
+        self.check_task(grant)
+        self.effect_attempted = True
+        return ledger
 
     @staticmethod
     def verified_result(grant, observation, submitted, previous_delivery_count):
@@ -297,10 +378,14 @@ class LinuxRuntime:
         process = psutil.Process(pid)
         if process.create_time() != created or process.exe() != str(app.executable):
             raise PermissionError('Application process lifetime changed before focus')
-        await self.native.call('activate', {'pid': pid}, timeout=7)
+        activation = await self.native.call('activate', {'pid': pid}, timeout=10)
+        if self.desktop.record:
+            self.desktop.record.window = activation
 
     async def close(self):
         self.stop()
+        if self.gui:
+            await self.gui.close()
         await self.native.close()
         self.bound_stop = False
         self.shortcut_trigger = ''

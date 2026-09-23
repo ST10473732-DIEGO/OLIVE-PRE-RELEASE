@@ -27,13 +27,13 @@ def dependencies(python='/usr/bin/python3'):
 
 def classify(deps, interfaces):
     missing = [name for name, value in deps.items() if not value['available']]
-    required = {'RemoteDesktop': 2, 'ScreenCast': 4, 'GlobalShortcuts': 1}
+    required = {'RemoteDesktop': 2, 'ScreenCast': 4}
     missing += [name for name, minimum in required.items() if interfaces.get(name, {}).get('version', 0) < minimum]
-    return {'status': 'BLOCKED_SETUP' if missing else 'BLOCKED_REQUIRES_LOCAL_HUMAN',
+    return {'status': 'BLOCKED_SETUP' if missing else 'DEPENDENCIES_READY',
             'missing': sorted(missing),
             'reason': 'Required native dependency/interface is unavailable' if missing else
-                'A human must bind and physically test the runtime-assigned global Stop shortcut, then consent to a capture/input source',
-            'resume': './run_olive.sh → Settings → Desktop Control → enable the intended local policies → Desktop Control → Open Kate',
+                'Dependencies are available; the named KDE grant and actual task session are checked separately',
+            'resume': './run_olive.sh → Chat',
             'whole_milestone_rerun_required': False}
 
 

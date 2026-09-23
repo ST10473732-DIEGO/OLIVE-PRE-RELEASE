@@ -12,32 +12,22 @@ test("target-only launch UI keeps disabled/deny state and Stop cancels real laun
   try {
     const page = await app.firstWindow();
     await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();
-    const openDesktop = async () => {
-      await page.getByRole("button", { name: "Find anything", exact: true }).click();
-      await page.getByRole("button", { name: "Open Desktop Control", exact: true }).click();
-    };
-    await openDesktop();
-    if (!(await page.getByRole("combobox", { name: "Local launch type" }).isVisible()))
-      await page.getByText("Developer Details", { exact: true }).click();
-    await expect(page.getByRole("button", { name: "Choose and review launch" })).toBeDisabled();
-    await expect(page.getByRole("region", { name: "Target-only launch" })).toContainText("Keyboard policy: deny");
+    const state = await page.evaluate(() => window.olive.call("desktop.status", {}));
+    expect(state).toMatchObject({settings:{enabled:false,keyboard_policy:"deny",mouse_policy:"deny"}});
     const rejected = await page.evaluate(async () => {
       try { await window.olive.call("desktop.launch_local" as never, { path: "untrusted.py", kind: "python" } as never); return false; }
       catch { return true; }
     });
     expect(rejected).toBe(true);
-    // Isolated fixture UI enablement; keyboard and mouse DENY are not changed.
-    await page.getByRole("button", { name: "Control permissions", exact: true }).click();
-    await page.getByRole("navigation", { name: "Settings categories" }).getByRole("button", { name: "Desktop Control", exact: true }).click();
-    await page.getByRole("checkbox", { name: "enabled", exact: true }).check();
-    await page.getByRole("button", { name: "Save desktop policies", exact: true }).click();
-    await expect(page.getByText("Desktop policies saved.", { exact: true })).toBeVisible();
-    await openDesktop();
-    if (!(await page.getByRole("combobox", { name: "Local launch type" }).isVisible()))
-      await page.getByText("Developer Details", { exact: true }).click();
-    await page.getByRole("combobox", { name: "Local launch type" }).selectOption("python");
-    await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, script);
-    await page.getByRole("button", { name: "Choose and review launch" }).click();
+    // Backend launch authority remains distinct from ordinary GUI input.
+    await page.evaluate(() => window.olive.call("desktop.configure", {settings:{enabled:true}}));
+    await app.evaluate(({dialog}, selected) => {
+      dialog.showOpenDialog = async () => ({canceled:false,filePaths:[selected]});
+    }, script);
+    const pending = page.evaluate(async () => {
+      try { return await window.olive.fileAction({action:"desktop-launch",kind:"python"}); }
+      catch(error) { return String(error); }
+    });
     await expect(page.getByRole("heading", { name: "Your approval is needed" })).toBeVisible();
     await expect(page.getByRole("dialog")).toContainText("Run this selected local script");
     expect((await page.getByRole("dialog").innerText()).toLowerCase()).toContain(script.toLowerCase());
@@ -50,6 +40,7 @@ test("target-only launch UI keeps disabled/deny state and Stop cancels real laun
     await page.evaluate(() => window.olive.stopControl());
     await expect(page.getByRole("heading", { name: "Your approval is needed" })).toBeHidden();
     const status = await page.evaluate(() => window.olive.call("desktop.status", {})) as { stopped: boolean; settings: { keyboard_policy: string; mouse_policy: string } };
+    await pending;
     expect(status.stopped).toBe(true);
     expect(status.settings.keyboard_policy).toBe("deny");
     expect(status.settings.mouse_policy).toBe("deny");

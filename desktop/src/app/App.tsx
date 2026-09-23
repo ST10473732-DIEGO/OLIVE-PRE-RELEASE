@@ -57,7 +57,6 @@ const ProjectsPage = lazy(() => import("../features/Projects"));
 const KnowledgePage = lazy(() => import("../features/Knowledge"));
 const AgentPage = lazy(() => import("../features/Agent"));
 const ResearchPage = lazy(() => import("../features/research/Research"));
-const DesktopPage = lazy(() => import("../features/desktop/Desktop"));
 const CalendarPage = lazy(() => import("../features/personal/Calendar"));
 const TasksPage = lazy(() => import("../features/personal/Tasks"));
 const RemindersPage = lazy(() => import("../features/personal/Reminders"));
@@ -369,6 +368,7 @@ export default function App() {
     setNavOverlay(false);
   }, []);
   const navigate = (id: string) => {
+    if (id === "desktop") id = "chat";
     setPalette(false);
     setNavOverlay(false);
     if (id === "connections") {
@@ -641,23 +641,6 @@ export default function App() {
                   </Suspense>
                 </div>
               )}
-              {mounted("desktop") && chat && (
-                <div className="route-host" hidden={route !== "desktop"}>
-                  <Suspense
-                    fallback={
-                      <div className="loading">Opening Desktop Control…</div>
-                    }
-                  >
-                    <DesktopPage
-                      chat={chat}
-                      submit={submit}
-                      busy={busy}
-                      report={report}
-                      settings={() => navigate("settings")}
-                    />
-                  </Suspense>
-                </div>
-              )}
               {mounted("research") && chat && (
                 <div className="route-host" hidden={route !== "research"}>
                   <Suspense
@@ -847,7 +830,7 @@ export default function App() {
                   Stop desktop control
                 </button>
                 <span className="activity-shortcut small muted">
-                  Emergency shortcut <kbd className="kbd">Ctrl+Alt+Escape</kbd>
+                  Chat Stop interrupts the current task
                 </span>
               </div>
             </section>

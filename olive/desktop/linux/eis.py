@@ -5,6 +5,8 @@ input. Each call emits a frame; release pairs are attempted before disconnect.
 """
 import ctypes as C
 import os
+import select
+import time
 
 
 class EIS:
@@ -46,6 +48,8 @@ class EIS:
         self.context = self.lib.ei_new_sender(None)
         self.devices, self.ready, self.held = set(), set(), set()
         self.sequence = 0
+        self.keyboard_group = 0
+        self.keyboard_modifiers = 0
         self.lib.ei_configure_name(self.context, b'OLIVE local user-directed control')
         # Transfer a duplicate to libei; retain no portal FD in this caller.
         try:
@@ -71,6 +75,14 @@ class EIS:
                     self.sequence += 1
                     self.lib.ei_device_start_emulating(device, self.sequence)
                     self.ready.add(device)
+                elif kind == 9:  # EI_EVENT_KEYBOARD_MODIFIERS
+                    for suffix in ('mods_depressed', 'mods_latched', 'mods_locked', 'group'):
+                        fn = getattr(self.lib, 'ei_event_keyboard_get_xkb_' + suffix)
+                        fn.restype, fn.argtypes = C.c_uint32, [C.c_void_p]
+                    self.keyboard_group = self.lib.ei_event_keyboard_get_xkb_group(event)
+                    self.keyboard_modifiers = (self.lib.ei_event_keyboard_get_xkb_mods_depressed(event) |
+                        self.lib.ei_event_keyboard_get_xkb_mods_latched(event) |
+                        self.lib.ei_event_keyboard_get_xkb_mods_locked(event))
                 elif kind in (2, 4, 6, 7):
                     # Never auto-resume after pause or topology change.
                     self.ready.discard(device)
@@ -80,12 +92,19 @@ class EIS:
                 self.lib.ei_event_unref(event)
 
     def device(self, capability):
-        self.pump()
-        if self.stopped.is_set():
-            raise InterruptedError('Input stopped or paused')
-        matches = [d for d in self.ready if self.lib.ei_device_has_capability(d, capability)]
+        deadline = time.monotonic() + 2
+        while True:
+            self.pump()
+            if self.stopped.is_set():
+                raise InterruptedError('Input stopped or paused')
+            matches = [d for d in self.ready if self.lib.ei_device_has_capability(d, capability)]
+            if matches or time.monotonic() >= deadline:
+                break
+            # Complete the EIS connect/seat/device/resume handshake before input.
+            # Waiting only on GLib's periodic pump starves inside native calls.
+            select.select([self.fd], [], [], min(.05, max(0, deadline-time.monotonic())))
         if len(matches) != 1:
-            raise PermissionError('No unique resumed EIS device for this input')
+            raise PermissionError(f'EIS capability {capability}: {len(matches)} matching devices; {len(self.ready)} resumed devices')
         return matches[0]
 
     def frame(self, device):
@@ -134,9 +153,55 @@ class EIS:
         if not isinstance(value, str) or not 1 <= len(value) <= 4000 or '\x00' in value:
             raise ValueError('Invalid literal input')
         # Native Unicode text only when advertised; no guessed keymap or clipboard.
-        device = self.device(64)
-        self.lib.ei_device_text_utf8(device, value.encode('utf-8'))
-        self.frame(device)
+        self.pump()
+        if any(self.lib.ei_device_has_capability(d, 64) for d in self.ready):
+            device = self.device(64)
+            self.lib.ei_device_text_utf8(device, value.encode('utf-8'))
+            self.frame(device)
+            return
+        from .keymap import strokes
+        device = self.device(4)
+        if self.keyboard_modifiers:
+            raise PermissionError('Release keyboard modifiers before literal input')
+        sequence = strokes(self, device, value)
+        for code, shift in sequence:
+            if self.stopped.is_set():
+                raise InterruptedError('Literal input stopped')
+            self.chord_codes([42, code] if shift else [code])
+            # Bound event bursts for native completion/edit controls. Waiting on
+            # Stop, rather than sleeping blindly, keeps cancellation immediate.
+            if self.stopped.wait(.008):
+                raise InterruptedError('Literal input stopped')
+
+    def chord_codes(self, codes):
+        device = self.device(4)
+        held = []
+        try:
+            for code in codes:
+                if self.stopped.is_set():
+                    raise InterruptedError('Input stopped')
+                held.append(code)
+                self.held.add((device, 'key', code))
+                self.lib.ei_device_keyboard_key(device, code, True)
+                self.frame(device)
+        finally:
+            for code in reversed(held):
+                self.lib.ei_device_keyboard_key(device, code, False)
+                self.frame(device)
+                self.held.discard((device, 'key', code))
+
+    def browser_key(self, action):
+        # Typed semantic operations; no caller-supplied arbitrary chords.
+        codes = {'new_tab': [29, 20], 'address': [29, 38], 'submit': [28]}
+        if action not in codes:
+            raise ValueError('Unknown browser key operation')
+        self.chord_codes(codes[action])
+
+    def editor_key(self, action):
+        codes = {'new_document': [29, 49], 'save_as': [29, 42, 31]}
+        if action not in codes:
+            raise ValueError('Unknown editor key operation')
+        self.chord_codes(codes[action])
 
     def scroll(self, dy):
         if type(dy) not in (int, float) or not -600 <= dy <= 600:

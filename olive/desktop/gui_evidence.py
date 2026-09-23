@@ -35,7 +35,17 @@ def delivery_rows(scope, observation):
     rows = [c for c in controls if c['role'] == 'list item' and c['name'] == 'Outgoing message']
     verified = []
     for row in rows:
-        children = [c for c in controls if c.get('parent') == row['id']]
+        parents = {c['id']: c.get('parent') for c in controls}
+        def belongs(control):
+            parent = control.get('parent')
+            for _ in range(8):
+                if parent == row['id']:
+                    return True
+                parent = parents.get(parent)
+                if not parent:
+                    break
+            return False
+        children = [c for c in controls if belongs(c)]
         content = [c for c in children if c['role'] in {'label', 'text'} and
                    (c['name'] == scope.content or c.get('value') == scope.content)]
         status = [c for c in children if c['role'] in {'label', 'status bar'} and c['name'] in {'Sent', 'Delivered'}]

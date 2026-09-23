@@ -19,6 +19,12 @@ class ModelResidencyService:
         self.error = ""
         self.waiting = 0
         self.external_guard = None
+        self.providers = {}
+
+    def register_provider(self, model, start, stop):
+        if model in self.providers:
+            raise ValueError('Model provider already registered')
+        self.providers[model] = (start, stop)
 
     def policy(self):
         return validated_policy(self.settings())
@@ -42,7 +48,10 @@ class ModelResidencyService:
             if self.current and self.current != model:
                 # Only unload the model this runtime last used; do not evict unrelated clients' work.
                 try:
-                    await self.ollama.unload_model(self.current)
+                    if self.current in self.providers:
+                        await self.providers[self.current][1]()
+                    else:
+                        await self.ollama.unload_model(self.current)
                 except Exception as error:
                     # A missing model is already absent, not a failed eviction.
                     if getattr(error, "status_code", None) != 404:
@@ -50,6 +59,8 @@ class ModelResidencyService:
                 self.switches += 1
                 self.current = None
             self.error = ""
+            if model in self.providers:
+                await self.providers[model][0]()
             self.active = model
             self.current = model
             self.recent[model] = time.time()
