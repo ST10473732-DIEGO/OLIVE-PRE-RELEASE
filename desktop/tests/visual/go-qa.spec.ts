@@ -70,7 +70,8 @@ test('OLIVE GO visual QA', async()=>{
     await measure('fresh new tab 1440');
     // Fresh profile: one Add tile + four dashed placeholders, no recent, no invented sites.
     await expect(page.locator('.go-favs .box.add')).toHaveCount(1);
-    await expect(page.locator('.go-favs .box.empty')).toHaveCount(4);
+    await expect(page.locator('.go-favs .box.empty')).toHaveCount(0);
+    await expect(page.locator('.go-favs-empty')).toBeVisible();
     await expect(page.locator('.go-recent')).toHaveCount(0);
     expect((await state()).bookmarks).toEqual([]);
 
@@ -94,7 +95,7 @@ test('OLIVE GO visual QA', async()=>{
     await measure('populated new tab 1440');
     await expect(page.locator('.go-recent .go-row')).toHaveCount(3);
     await expect(page.locator('.go-favs .box.add')).toHaveCount(1);
-    await expect(page.locator('.go-favs .box.empty')).toHaveCount(3);
+    await expect(page.locator('.go-favs .box.empty')).toHaveCount(0);
     const tabs=page.getByRole('tab');
     await tabs.first().click({button:'right'});
     await page.getByRole('menuitem',{name:'Pin',exact:true}).click();
