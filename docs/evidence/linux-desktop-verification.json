@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-23",
+  "milestone_status": "partial_implementation_live_acceptance_blocked",
+  "baseline_head": "2df73b31ca11374978363a8f9d9c34ab052a74a4",
+  "implementation_head": "ebd7d2000b7fa78248df0e2726b67d948780515a",
+  "branch": "feature/olive-desktop-control-linux-v1",
+  "design_freeze": {
+    "baseline_head": "2df73b31ca11374978363a8f9d9c34ab052a74a4",
+    "files": 225,
+    "added": [],
+    "deleted": [],
+    "changed": [],
+    "approved_changes": [
+      "desktop/src/features/Studio.tsx",
+      "desktop/src/features/go/Go.tsx",
+      "desktop/src/features/settings/DesktopPolicies.tsx"
+    ]
+  },
+  "verification": {
+    "python": {
+      "run": 1154,
+      "passed": 1146,
+      "skipped": 8,
+      "failed": 0,
+      "seconds": 135.31,
+      "uncollectable_shutdown_warning": false
+    },
+    "connect": {
+      "run": 240,
+      "passed": 240,
+      "skipped": 0,
+      "failed": 0,
+      "seconds": 89.597,
+      "final_standalone_rerun": "passed"
+    },
+    "frontend": {
+      "passed": 96,
+      "files": 18
+    },
+    "electron": {
+      "run": 71,
+      "passed": 55,
+      "skipped": 16,
+      "failed": 0,
+      "duration_reported": "7.7m",
+      "live_opt_in_tests_not_run": true
+    },
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "source_compilation": {
+      "passed": 688
+    },
+    "literal_compileall": {
+      "status": "third_party_template_error",
+      "repository_source_failure": false,
+      "source": "ignored PySide6 Android Jinja __init__.tmpl.py"
+    }
+  },
+  "live_gate": {
+    "user_session_approval": true,
+    "shortcut_consent_dialog_shown": true,
+    "global_stop_activation_received": false,
+    "portal_capture_input_exercised": false,
+    "real_application_tasks_completed": 0,
+    "real_messages_sent": 0,
+    "last_consent_result": "denied_or_cancelled",
+    "no_saved_olive_shortcut_found": true
+  },
+  "vision_grounding": {
+    "model": "qwen3-vl:8b",
+    "digest": "901cae73216286ea8c5aba8b46d307ff7188f737285ec500c795a12f05225d28",
+    "before_correct": 1,
+    "after_correct": 2,
+    "samples_per_run": 6,
+    "accepted_for_visual_input": false
+  },
+  "data": {
+    "user_profile_migrations": 0,
+    "model_promotions": 0,
+    "downloads": 0,
+    "package_installs": 0,
+    "per_user_desktop_entry_added": true,
+    "private_content_committed": false
+  },
+  "hosted_validation": "not_run_no_push",
+  "native_windows_acceptance": "pending"
+}

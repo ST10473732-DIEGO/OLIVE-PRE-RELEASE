@@ -18,3 +18,20 @@ download, runtime and hardware gates outstanding; SDXL remains available.
 No Mobile/C10, cloud inference, Laya or redesign. See
 [the implementation/acceptance report](OLIVE_BACKEND_V3_IMPLEMENTATION.md) for
 measured results, unresolved host/design issues and rollback.
+
+## 2026-09-23 — Linux desktop foundation and backend closeout, acceptance pending
+
+Started from V3 `2df73b31ca11374978363a8f9d9c34ab052a74a4` on a separate branch.
+Added finite local-task authority, consent-gated portal/PipeWire/EIS/AT-SPI adapters,
+private helper lifecycle and immediate Stop handling. Applied only the separately
+approved Studio state, GO timing and safety-copy exceptions; all 225 frozen paths
+remain accounted for. Repaired Linux diagnostic/reviewed-launch boundaries and
+owned Qt fixture disposal. Final regression: Python 1,154 tests/8 skips, Connect
+240 passes, frontend 96 passes, Electron 55 passes/16 skips/0 failures.
+
+Real installed vision trials failed the grounding gate despite repairing the
+existing bounded retry contract (correct target center/label 1/6 to 2/6, with
+higher latency). No public model mapping changed. Human global Stop activation
+and portal input acceptance did not complete; no real GUI task or Discord message
+was reported successful. Broad desktop workflows and remaining acceptance are
+explicitly incomplete. See [the scoped closeout](OLIVE_DESKTOP_BACKEND_CLOSEOUT.md).
