@@ -26,8 +26,11 @@ test('Linux L3 reminder closes before due, reopens, fires once through Plasma, a
     const history=await page.evaluate(()=>window.olive.call('reminders.history',{})) as {items:unknown[]};expect(history.items).toHaveLength(1);
     const claims=await readFile(path.join(profile,'native-notification-claims.json'),'utf8');
     for(const space of ['Mail','Studio','Agent','Desktop Control','Settings','Chat'])await openSpace(page,space);
-    const capabilities=await page.evaluate(()=>window.olive.call('desktop.status',{})) as {available:boolean;platform_capabilities:{session:string}};
-    expect(capabilities.available).toBe(false);expect(capabilities.platform_capabilities.session).toBe('wayland');
+    const capabilities=await page.evaluate(()=>window.olive.call('desktop.status',{})) as {settings:{enabled:boolean;trusted_tasks:boolean};platform_capabilities:{session:string;capture_input_session:boolean;global_stop_tested:boolean}};
+    expect(capabilities.settings.enabled).toBe(false);expect(capabilities.settings.trusted_tasks).toBe(false);
+    expect(capabilities.platform_capabilities.capture_input_session).toBe(false);
+    expect(capabilities.platform_capabilities.global_stop_tested).toBe(false);
+    expect(capabilities.platform_capabilities.session).toBe('wayland');
     await app.close();app=await launch();page=await app.firstWindow();await page.getByRole('button',{name:'Enter OLIVE',exact:true}).click();
     await expect.poll(async()=>((await page.evaluate(()=>window.olive.call('reminders.history',{}))) as {items:unknown[]}).items.length).toBe(1);
     await page.waitForTimeout(6000);

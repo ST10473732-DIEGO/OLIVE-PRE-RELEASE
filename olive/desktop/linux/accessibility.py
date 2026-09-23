@@ -1,0 +1,132 @@
+"""Bounded, application-scoped AT-SPI observations; no global text harvesting."""
+import time
+import uuid
+
+import gi
+
+gi.require_version('Atspi', '2.0')
+from gi.repository import Atspi
+from .geometry import contains
+
+
+class Accessibility:
+    def __init__(self):
+        Atspi.set_timeout(500, 1000)
+        self.targets = {}
+        self.revision = ''
+        self.application = None
+
+    def applications(self):
+        desktop = Atspi.get_desktop(0)
+        result = []
+        for index in range(min(desktop.get_child_count(), 100)):
+            app = desktop.get_child_at_index(index)
+            if app is not None:
+                result.append({'pid': app.get_process_id(), 'name': app.get_name()[:200]})
+        return result
+
+    def resolve(self, pid):
+        desktop = Atspi.get_desktop(0)
+        matches = [desktop.get_child_at_index(i) for i in range(min(desktop.get_child_count(), 100))]
+        matches = [app for app in matches if app and app.get_process_id() == pid]
+        if len(matches) != 1:
+            raise LookupError('Requested application is not uniquely accessible')
+        return matches[0]
+
+    def observe(self, pid, region):
+        app = self.resolve(pid)
+        self.targets, self.revision = {}, uuid.uuid4().hex
+        self.application = pid
+        deadline = time.monotonic() + 3
+        controls, windows, documents = [], [], []
+        text_budget = 12000
+        queue = [(app, 0, '', '', False)]
+        visited = 0
+        while queue and visited < 300 and time.monotonic() < deadline and text_budget > 0:
+            node, depth, window, parent, in_document = queue.pop(0)
+            visited += 1
+            try:
+                states = node.get_state_set()
+                role = node.get_role()
+                in_document = in_document or role in (Atspi.Role.DOCUMENT_WEB, Atspi.Role.DOCUMENT_FRAME)
+                if states.contains(Atspi.StateType.DEFUNCT):
+                    continue
+                if role == Atspi.Role.PASSWORD_TEXT:
+                    continue  # Neither name, value nor descendants enter an observation.
+                visible = states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE)
+                if depth > 0 and not visible:
+                    continue
+                if depth == 1 and not states.contains(Atspi.StateType.ACTIVE):
+                    continue
+                key = str(visited)
+                component = node.get_component_iface()
+                rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
+                bounds = [rect.x, rect.y, rect.width, rect.height] if rect else None
+                if depth > 0 and not contains(region, bounds):
+                    continue  # Do not read text outside the human-approved source.
+                if role in (Atspi.Role.FRAME, Atspi.Role.DIALOG, Atspi.Role.WINDOW):
+                    window = key
+                    windows.append({'id': key, 'name': node.get_name()[:200], 'bounds': bounds,
+                                    'active': states.contains(Atspi.StateType.ACTIVE)})
+                if visible and window:
+                    value = ''
+                    text = node.get_text_iface()
+                    if text:
+                        value = text.get_text(0, min(text.get_character_count(), 2000))
+                    actions = node.get_action_iface()
+                    action_names = [actions.get_action_name(i) for i in range(min(actions.get_n_actions(), 8))] if actions else []
+                    document = node.get_document_iface()
+                    if document:
+                        uri = document.get_document_attribute_value('DocURL') or ''
+                        if uri:
+                            documents.append({'uri': uri[:2000], 'name': node.get_name()[:300]})
+                    text_budget -= len(value) + len(node.get_name()[:300])
+                    controls.append({'id': key, 'window': window, 'parent': parent, 'name': node.get_name()[:300],
+                        'role': node.get_role_name(), 'in_document': in_document, 'value': value, 'bounds': bounds,
+                        'enabled': states.contains(Atspi.StateType.ENABLED),
+                        'selected': states.contains(Atspi.StateType.SELECTED),
+                        'focused': states.contains(Atspi.StateType.FOCUSED),
+                        'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names})
+                    self.targets[key] = node
+                if depth < 16:
+                    for index in range(min(node.get_child_count(), 80)):
+                        child = node.get_child_at_index(index)
+                        if child:
+                            queue.append((child, depth + 1, window, key, in_document))
+            except Exception:
+                continue  # Incomplete accessibility is evidence of a gap, never a target.
+        return {'pid': pid, 'revision': self.revision, 'windows': windows, 'controls': controls,
+                'documents': documents, 'incomplete': bool(queue), 'untrusted_content': True}
+
+    def check(self, revision, target, bounds, region, require_focus=False):
+        if revision != self.revision or target not in self.targets:
+            raise ValueError('Stale observation or unknown target')
+        node = self.targets[target]
+        states = node.get_state_set()
+        if node.get_process_id() != self.application or not all(states.contains(s) for s in
+                (Atspi.StateType.SHOWING, Atspi.StateType.VISIBLE, Atspi.StateType.ENABLED)):
+            raise ValueError('Target disappeared or is not enabled')
+        if states.contains(Atspi.StateType.DEFUNCT) or node.get_role() == Atspi.Role.PASSWORD_TEXT:
+            raise PermissionError('Target is unavailable or secret')
+        component = node.get_component_iface()
+        rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
+        if rect is None or [rect.x, rect.y, rect.width, rect.height] != bounds:
+            raise ValueError('Target geometry changed; observe again')
+        if not contains(region, bounds):
+            raise PermissionError('Target left the approved display')
+        parent = node
+        active = False
+        for _ in range(20):
+            if not parent:
+                break
+            if parent.get_role() in (Atspi.Role.FRAME, Atspi.Role.DIALOG, Atspi.Role.WINDOW):
+                active = parent.get_state_set().contains(Atspi.StateType.ACTIVE)
+                break
+            parent = parent.get_parent()
+        if not active or (require_focus and not states.contains(Atspi.StateType.FOCUSED)):
+            raise PermissionError('Target window/control lost focus; human handoff required')
+        return node
+
+    def clear(self):
+        self.targets.clear()
+        self.revision, self.application = '', None

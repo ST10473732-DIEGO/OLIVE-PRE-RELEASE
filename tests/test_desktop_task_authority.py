@@ -4,7 +4,7 @@ import tempfile
 import threading
 import unittest
 
-from olive.desktop.task_authority import TaskAuthority, direct_scope, decode_action, validate_effect
+from olive.desktop.task_authority import TaskAuthority, direct_scope, decode_action, validate_effect, scroll_amount
 from olive.desktop.effect_ledger import EffectLedger
 
 POLICY = dict(enabled=True, trusted_tasks=True, keyboard_policy='allow', mouse_policy='allow')
@@ -30,11 +30,23 @@ class TaskAuthorityTests(unittest.TestCase):
         self.assertEqual(direct_scope("Send 'Don\'t worry.\nSee you!' to Alex in Messenger using account Work").content, "Don't worry.\nSee you!")
         self.assertEqual(direct_scope('Open Kate').effect, 'open')
 
+    def test_scroll_is_strict_and_bounded(self):
+        self.assertEqual(scroll_amount('-300'), -300)
+        for value in ('NaN', '601', '-601', '1.5', '300; send', '0', 300):
+            with self.assertRaises(ValueError):
+                scroll_amount(value)
+
     def test_page_or_model_cannot_issue(self):
         for policy, local in [(POLICY, False), ({**POLICY, 'trusted_tasks': False}, True)]:
             with self.assertRaises(PermissionError):
                 self.authority.issue('Open Firefox', 'fake', policy, local_user=local)
         for text in ['How do I send a message?', "Don't open Firefox", 'Send something nice to Alex']:
+            with self.assertRaises(ValueError):
+                direct_scope(text)
+
+    def test_trailing_constraints_are_not_silently_absorbed_into_fields(self):
+        for text in ["Open Firefox and search for cats but don't download anything",
+                     "Send 'hello' to Alex in Messenger using account Work, but do not send yet"]:
             with self.assertRaises(ValueError):
                 direct_scope(text)
 
@@ -45,6 +57,15 @@ class TaskAuthorityTests(unittest.TestCase):
             revision='fresh', expected='delivery'), self.observation(grant))
         self.assertTrue(submit)
         self.assertEqual(target['id'], 'send')
+
+    def test_focus_is_not_submission_and_advertised_destructive_action_is_rejected(self):
+        grant = self.grant()
+        _, submit = validate_effect(grant, dict(action='focus', target='send', value='',
+            revision='fresh', expected=''), self.observation(grant))
+        self.assertFalse(submit)
+        with self.assertRaises(PermissionError):
+            validate_effect(grant, dict(action='invoke', target='send', value='delete',
+                revision='fresh', expected=''), self.observation(grant))
 
     def test_draft_never_submits(self):
         grant = self.grant("Draft 'hello' to Alex in Messenger using account Work")

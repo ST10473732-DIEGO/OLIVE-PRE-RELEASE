@@ -14,6 +14,16 @@ from ..runtime.profile_lock import ProfileLock
 from ..runtime.request_diagnostics import RequestDiagnostic, current
 
 
+def stop_from_frame(host, raw):
+    """Only validated Stop on the existing private pipe bypasses async dispatch."""
+    try:
+        request = decode(raw)
+    except (ValueError, TypeError):
+        return
+    if request['method'] == 'desktop.stop':
+        host.emergency_stop()
+
+
 async def serve():
     directory = os.environ.get('OLIVE_DATA_DIR')
     if not directory or not Path(directory).is_absolute():
@@ -49,6 +59,7 @@ async def serve():
                 raw = sys.stdin.buffer.readline(MAX_FRAME + 1)
                 if not raw or len(raw) > MAX_FRAME:
                     break
+                stop_from_frame(host, raw)
                 future = asyncio.run_coroutine_threadsafe(incoming.put(raw), loop)
                 future.result(timeout=10)
         except Exception:

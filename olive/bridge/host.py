@@ -34,7 +34,8 @@ class Host:
         desktop = self.services.desktop if self.services else None
         agent_active = bool(agent and agent.active)
         agent_paused = agent_active and agent.pause_state == 'paused'
-        desktop_active = bool(desktop and (desktop.operation or desktop.universal.owner))
+        native = getattr(desktop, 'linux', None)
+        desktop_active = bool(desktop and (desktop.operation or desktop.universal.owner or native and native.owner))
         methods = [value['method'] for value in self.activities.values()]
         unrelated = [m for m in methods if m not in {'interaction.submit', 'interaction.launch', 'agent.resume'}]
         state = ('Approval required' if self.pending else 'Researching' if any(m in {'interaction.research', 'research.resume', 'research.learn_urls'} for m in methods)
@@ -110,6 +111,13 @@ class Host:
     def emergency_stop(self):
         if self.services:
             self.services.desktop.stop_event.set()
+            native = getattr(self.services.desktop, 'linux', None)
+            if native:
+                native.authority.cancel()
+                native.native.request_stop()  # OS signal; no database/asyncio wait.
+                loop = native.native.loop
+                if loop and not loop.is_closed():
+                    loop.call_soon_threadsafe(native.stop)
 
     async def handle(self, request):
         validate(request)
@@ -192,9 +200,16 @@ class Host:
             self.emergency_stop()
             return s.desktop.stop()
         if method == 'desktop.status':
+            native = getattr(s.desktop, 'linux', None)
+            if native:
+                await native.probe()
             from .desktop_routes import status
             return status(s)
-        if method.startswith('desktop.') and method not in {'desktop.pause','desktop.reset','desktop.launches','desktop.consequence_fields'}:
+        if method.startswith('desktop.') and method not in {'desktop.pause','desktop.reset','desktop.launches','desktop.consequence_fields','desktop.configure'}:
+            # Cancellation and deliberately disabled policy win on every platform,
+            # including a route whose native provider is not yet available.
+            s.desktop.gateway.check()
+        if method.startswith('desktop.') and method not in {'desktop.pause','desktop.reset','desktop.launches','desktop.consequence_fields','desktop.configure','desktop.launch_local'}:
             from ..platform_support import require_windows
             require_windows('Desktop Control')
         if method == 'desktop.configure':

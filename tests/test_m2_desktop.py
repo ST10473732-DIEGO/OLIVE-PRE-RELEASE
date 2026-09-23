@@ -48,6 +48,7 @@ class DesktopBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.s.desktop.stop_event.is_set())
 
     async def test_manual_fields_reach_existing_controller_unchanged(self):
+        self.s.desktop.configure({'enabled': True})
         self.s.desktop.perform = AsyncMock(return_value={'verified':False,'state':'fixture'})
         args = {'action':'invoke','target':{'runtime_id':[1,2]},'arguments':{},'expected':{'name':'Fixture complete'}}
         with patch('olive.platform_support.require_windows'):

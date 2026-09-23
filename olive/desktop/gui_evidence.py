@@ -18,9 +18,9 @@ def messaging_destination(scope, observation):
     return None
 
 
-def delivery(scope, observation):
+def delivery_rows(scope, observation):
     if messaging_destination(scope, observation) is None:
-        return False
+        return []
     controls = observation['controls']
     # Require a single outgoing row, exact text and a non-pending delivery status
     # within that same semantic container. Local composer echo is insufficient.
@@ -33,7 +33,12 @@ def delivery(scope, observation):
         status = [c for c in children if c['role'] in {'label', 'status bar'} and c['name'] in {'Sent', 'Delivered'}]
         if len(content) == 1 and len(status) == 1:
             verified.append(row['id'])
-    return len(verified) == 1
+    return verified
+
+
+def delivery(scope, observation, previous_count=0):
+    # A matching historical message is not proof of this task's submission.
+    return len(delivery_rows(scope, observation)) == previous_count + 1
 
 
 def search_result(scope, observation):

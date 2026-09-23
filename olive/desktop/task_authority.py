@@ -30,16 +30,22 @@ def direct_scope(request):
     match = re.fullmatch(r'(?:Open|Launch) ([\w .+-]{1,80}?)(?: and search for (.+))?', text, re.I | re.S)
     if match:
         app, query = match.groups()
+        if query and re.search(r'\b(?:then|but|without|do not|never)\b|don[\'’]t', query, re.I):
+            raise ValueError('The search text includes a possible task constraint; clarify the exact query before input')
         return TaskScope(app.strip(), 'search' if query else 'open', query or '')
     match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to (.{1,100}?) in (.{1,80}?) using account (.{1,100})', text, re.I | re.S)
     if match:
         verb, quote, content, destination, app, account = match.groups()
         if not content:
             raise ValueError('The requested message is empty')
+        if re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', account, re.I):
+            raise ValueError('Clarify the account and additional constraints before messaging')
         return TaskScope(app, verb.lower(), content, destination, account)
     match = re.fullmatch(r'Open (.{1,80}?), go to (.{1,100}?), open (.{1,100}?), (send|draft) ([\'\"])(.*?)\5 using account (.{1,100})', text, re.I | re.S)
     if match:
         app, server, channel, verb, quote, content, account = match.groups()
+        if not content or re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', account, re.I):
+            raise ValueError('Clarify the exact message, account and additional constraints')
         return TaskScope(app, verb.lower(), content, channel, account, server)
     raise ValueError('Specify the application and bounded effect. For messaging, provide exact text, destination and account; no message was sent.')
 
@@ -101,6 +107,15 @@ ACTION_FIELDS = {'action', 'target', 'value', 'revision', 'expected'}
 ACTIONS = {'focus', 'click', 'type', 'key', 'invoke', 'scroll', 'finish', 'handoff'}
 
 
+def scroll_amount(value):
+    if not isinstance(value, str) or not re.fullmatch(r'-?[1-9][0-9]{0,2}', value):
+        raise ValueError('Scroll requires an integer distance')
+    amount = int(value)
+    if not -600 <= amount <= 600:
+        raise ValueError('Scroll distance exceeds the step budget')
+    return amount
+
+
 def decode_action(raw):
     def pairs(items):
         result = {}
@@ -129,13 +144,17 @@ def validate_effect(grant, proposal, observation):
     if re.search(r'password|sign in|log in|captcha|sudo|install|purchase|buy|delete|remove|upload|attach|permission|grant|security', name):
         raise PermissionError('This control requires human participation')
     scope = grant.scope
+    if proposal['action'] == 'scroll':
+        scroll_amount(proposal['value'])
+    if proposal['action'] == 'invoke' and proposal['value'].casefold() not in {'click', 'press', 'activate', 'select', 'invoke'}:
+        raise PermissionError('Unsupported accessible action effect')
     if proposal['action'] == 'type':
         allowed = {scope.content, scope.destination, scope.server}
         if proposal['value'] not in allowed or not proposal['value'] or target.get('value'):
             raise PermissionError('Text is outside the request or would replace a draft')
         if not target.get('editable'):
             raise PermissionError('Target is not an editable control')
-    submitting = name in {'send', 'send message'} or proposal['action'] == 'key' and proposal['value'] == 'Enter'
+    submitting = (proposal['action'] in {'click', 'invoke'} and name in {'send', 'send message'}) or proposal['action'] == 'key' and proposal['value'] == 'Enter'
     if submitting:
         if scope.effect == 'search':
             if 'search' not in name and 'address' not in name:

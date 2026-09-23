@@ -30,6 +30,7 @@ class GuiEvidenceTests(unittest.TestCase):
         self.assertFalse(delivery(self.scope, {'controls': controls}))
         controls[-1]['name'] = 'Delivered'
         self.assertTrue(delivery(self.scope, {'controls': controls}))
+        self.assertFalse(delivery(self.scope, {'controls': controls}, previous_count=1))
         controls[-1]['parent'] = 'other-row'
         self.assertFalse(delivery(self.scope, {'controls': controls}))
 

@@ -81,10 +81,19 @@ class LinuxBridgeBoundaryTests(unittest.IsolatedAsyncioTestCase):
             try:
                 with patch('sys.platform', 'linux'), patch('secretstorage.dbus_init', side_effect=OSError('unavailable')):
                     host.services.desktop.perform = AsyncMock()
+                    with self.assertRaises(PermissionError):
+                        await host.execute('desktop.perform', {})
+                    host.services.desktop.perform.assert_not_awaited()
+                    # Native Linux support is capability-probed. Portable CI must
+                    # not depend on whichever portal happens to run on its host.
+                    native = host.services.desktop.linux
+                    native.capabilities = {}
+                    with patch.object(native, 'probe', AsyncMock()):
+                        self.assertFalse((await host.execute('desktop.status', {}))['available'])
+                    host.services.desktop.configure({'enabled': True})
                     with self.assertRaises(PlatformUnavailable):
                         await host.execute('desktop.perform', {})
                     host.services.desktop.perform.assert_not_awaited()
-                    self.assertFalse((await host.execute('desktop.status', {}))['available'])
                     connection = host.services.mail.connections.save({'name': 'Synthetic', 'smtp': {'host': '127.0.0.1', 'port': 465, 'tls': 'tls'}})
                     args = {'record_id': connection['id'], 'revision': connection['revision'], 'secret': 'synthetic-only'}
                     with self.assertRaises(PlatformUnavailable) as raised:

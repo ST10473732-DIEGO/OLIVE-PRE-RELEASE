@@ -39,7 +39,13 @@ for (const display of ["auto", "wayland"]) test(`Linux ${display}: launcher, por
       else await expect(page.getByRole("heading", { name, exact: true }).first()).toBeVisible();
       await expect(page.getByRole("alert")).toHaveCount(0);
     }
-    await expect(page.getByText(/Linux .*Desktop Control is not yet available/)).toBeVisible();
+    const desktop=await page.evaluate(()=>window.olive.call('desktop.status',{})) as {available:boolean;settings:{enabled:boolean;trusted_tasks:boolean};platform_capabilities:{capture_input_session:boolean;global_stop_tested:boolean}};
+    expect(desktop.settings.enabled).toBe(false);
+    expect(desktop.settings.trusted_tasks).toBe(false);
+    expect(desktop.platform_capabilities.capture_input_session).toBe(false);
+    expect(desktop.platform_capabilities.global_stop_tested).toBe(false);
+    // API availability depends on the host; it never constitutes session consent.
+    if(!desktop.available) await expect(page.getByText(/Linux .*Desktop Control is not yet available/)).toBeVisible();
     await page.getByRole("button", { name: "OLIVE activity", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Activity", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");

@@ -53,12 +53,18 @@ class DesktopController:
         self.visual = VisualInput(self)
         from ..desktop.clipboard import ClipboardController
         self.clipboard = ClipboardController(self)
+        import sys
+        self.linux = None
+        if sys.platform == 'linux':
+            from ..desktop.linux.runtime import LinuxRuntime
+            self.linux = LinuxRuntime(self)
 
     async def clipboard_action(self, action, text=""):
         return await self._track(self.clipboard.run, action, text)
 
     def busy(self):
-        owner = self.universal.owner
+        native = getattr(self, 'linux', None)
+        owner = self.universal.owner or (native.owner if native else None)
         current = asyncio.current_task()
         return (self.operation is not None and self.operation is not current) or (owner is not None and owner is not current)
 
@@ -163,6 +169,10 @@ class DesktopController:
         return validate(self.s.settings.get("desktop_control"))
 
     def configure(self, settings):
+        if self.linux:
+            self.linux.authority.cancel()
+            if self.linux.owner or self.linux.session:
+                self.linux.stop()
         self.s.settings["desktop_control"] = validate(settings)
         if not self.s.settings["desktop_control"]["enabled"]:
             self.stop()
@@ -177,16 +187,18 @@ class DesktopController:
 
     def status(self):
         import sys
-        available = sys.platform == 'win32'
+        available = sys.platform == 'win32' or bool(self.linux and self.linux.available())
         from ..desktop.linux_capabilities import capabilities
         linux = capabilities() if sys.platform == 'linux' else {}
+        if self.linux:
+            linux.update(self.linux.status())
         return {"available": available,
                 "unavailable_reason": '' if available else linux.get('reason', 'Desktop Control is unavailable on this platform.'),
                 "platform_capabilities": linux,
                 "settings": self.configuration(), "stopped": self.stop_event.is_set(),
                 "session": self.record.to_dict() if self.record else None,
                 "observation": self.observation, "capabilities": capability_map(self.observation),
-                "provider": self.provider.name if available else "linux_unavailable", "active": self.operation is not None or self.universal.owner is not None,
+                "provider": "Linux portal / AT-SPI" if self.linux and available else self.provider.name if available else "linux_unavailable", "active": self.operation is not None or self.universal.owner is not None or bool(self.linux and self.linux.owner),
                 "workflow_phases": list(self.universal.history)}
 
     def publish(self):
@@ -431,6 +443,8 @@ class DesktopController:
 
     def stop(self):
         self.stop_event.set()
+        if getattr(self, 'linux', None):
+            self.linux.stop()
         if self.universal.owner:
             self.universal.owner.cancel()
         if self.operation:
@@ -439,7 +453,7 @@ class DesktopController:
         return self.status()
 
     def reset(self):
-        if self.operation or self.universal.owner:
+        if self.operation or self.universal.owner or (self.linux and self.linux.owner):
             raise ValueError("Wait for the active operation to stop")
         self.stop_event.clear()
         self.gateway.last_verified_window = None
@@ -449,13 +463,16 @@ class DesktopController:
 
     async def shutdown(self):
         current = asyncio.current_task()
-        pending = {task for task in (self.operation, self.universal.owner)
+        native = getattr(self, 'linux', None)
+        pending = {task for task in (self.operation, self.universal.owner, native.owner if native else None)
                    if task is not None and task is not current and not task.done()}
         self.stop()
         if pending:
             # Let operation finally blocks persist their paused state before
             # closing browser/helper resources or the shared repositories.
             await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=10)
+        if self.linux:
+            await self.linux.close()
         await self.browser.shutdown()
         await self.provider.close()
         self.media.provider.close()

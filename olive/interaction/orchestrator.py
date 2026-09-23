@@ -82,6 +82,30 @@ class NaturalLanguageOrchestrator:
             raise ValueError("Unknown research mode")
         chat_id = chat_id or self.s.current_chat_id
         context = self.context(chat_id)
+        # Only literal local user input reaches native task authority. Remote targets
+        # and Studio selection never acquire desktop scope through interpretation.
+        native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
+        if native and not research_mode and not context.workspace_id and not self.selected_workspace and not getattr(self.s.chat, 'targets', {}).get(chat_id):
+            import re
+            if re.match(r'^(?:open|launch|send|draft)\b', text.strip(), re.I) and self.s.desktop.configuration().get('trusted_tasks'):
+                if chat_id in self.active:
+                    return self.reply(chat_id, text, 'Stop the current task before replacing its request.')
+                self.active[chat_id] = asyncio.current_task()
+                self.gates[chat_id] = asyncio.Event()
+                self.gates[chat_id].set()
+                chat = self.s.chats[chat_id]
+                message = chat.add_message('user', text)
+                self.s.save_chats()
+                try:
+                    result = await native.run(text, message.id)
+                    return self.reply(chat_id, text, result, append_user=False)
+                except (ValueError, PermissionError, InterruptedError) as error:
+                    return self.reply(chat_id, text, str(error), append_user=False)
+                except asyncio.CancelledError:
+                    return self.reply(chat_id, text, 'Stopped. Inspect any uncertain effect before requesting it again.', append_user=False)
+                finally:
+                    self.active.pop(chat_id, None)
+                    self.gates.pop(chat_id, None)
         selection = (self.selected_workspace, self.selected_file)
         if self.selected_workspace and context.studio_selection != selection:
             workspace = self.s.workspace_repo.load_all().get(self.selected_workspace)
@@ -197,6 +221,13 @@ class NaturalLanguageOrchestrator:
                     context.clarification = None
                     return self.reply(chat_id, text, "The pending draft has been cancelled.")
                 return self.reply(chat_id, text, "There isn't an active task in this conversation.")
+            native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
+            if native and native.owner is task:
+                # Input grants cannot survive a pause or resume automatically.
+                # Stop bypasses inference and persistence before returning a reply.
+                native.stop()
+                task.cancel()
+                return self.reply(chat_id, text, "Desktop control stopped. Submit a new bounded request to continue.")
             if control == "task.cancel":
                 task.cancel()
                 context.pending = None

@@ -1,0 +1,100 @@
+"""Verified distribution desktop entries; argv-only launch, no shell expansion."""
+import configparser
+from dataclasses import dataclass
+import hashlib
+import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+
+from ..application_discovery import AmbiguousApplication, normalized
+
+
+@dataclass(frozen=True)
+class Application:
+    id: str
+    name: str
+    entry: Path
+    digest: str
+    argv: tuple[str, ...]
+    executable: Path
+
+
+class Applications:
+    def __init__(self, roots=None):
+        # User/Flatpak wrappers need individual review; not treated as trusted by filename.
+        self.roots = tuple(roots or (Path('/usr/share/applications'), Path('/usr/local/share/applications')))
+        self.values = {}
+        self.launches = []
+
+    def discover(self):
+        result = {}
+        for root in self.roots:
+            if not root.is_dir():
+                continue
+            for path in sorted(root.glob('*.desktop'))[:1000]:
+                try:
+                    stat = path.stat()
+                    if path.is_symlink() or stat.st_uid != 0 or stat.st_mode & 0o022 or stat.st_size > 65536:
+                        continue
+                    data = path.read_bytes()
+                    config = configparser.ConfigParser(interpolation=None, strict=True)
+                    config.read_string(data.decode('utf-8'))
+                    entry = config['Desktop Entry']
+                    if entry.get('Type') != 'Application' or any(entry.get(k, 'false').lower() == 'true' for k in ('Hidden', 'NoDisplay', 'Terminal')):
+                        continue
+                    argv = shlex.split(entry['Exec'])
+                    if any('%' in arg and arg not in ('%u', '%U', '%f', '%F') for arg in argv):
+                        continue
+                    argv = [arg for arg in argv if arg not in ('%u', '%U', '%f', '%F')]
+                    if not argv:
+                        continue
+                    executable = Path(shutil.which(argv[0]) or '').resolve()
+                    # No env/shell/interpreter command wrappers or terminal shortcut.
+                    if executable.name in {'env', 'sh', 'bash', 'fish', 'zsh', 'python', 'python3', 'konsole', 'xterm'}:
+                        continue
+                    executable_stat = executable.stat()
+                    if not executable.is_file() or executable_stat.st_uid != 0 or executable_stat.st_mode & 0o022:
+                        continue
+                    argv[0] = str(executable)
+                    app = Application(path.name, entry['Name'], path, hashlib.sha256(data).hexdigest(), tuple(argv), executable)
+                    result.setdefault(app.id, app)
+                except (OSError, KeyError, ValueError, configparser.Error):
+                    continue
+        self.values = result
+        return list(result.values())
+
+    def resolve(self, requested):
+        wanted = normalized(requested)
+        matches = [app for app in self.values.values() if wanted in
+                   {normalized(app.name), normalized(app.executable.name), normalized(app.id.removesuffix('.desktop'))}]
+        if not matches:
+            matches = [app for app in self.values.values() if wanted in normalized(app.name)]
+        if len(matches) > 1:
+            raise AmbiguousApplication([{'id': a.id, 'name': a.name} for a in matches])
+        if not matches:
+            raise LookupError('No reviewed installed application matches this name')
+        return matches[0]
+
+    def processes(self, app):
+        import psutil
+        result = []
+        for process in psutil.process_iter(['pid', 'exe', 'uids', 'create_time']):
+            info = process.info
+            if info['exe'] and info['uids'] and info['uids'].real == os.getuid() and Path(info['exe']).resolve() == app.executable:
+                result.append((info['pid'], info['create_time']))
+        return result
+
+    def launch(self, app):
+        if self.values.get(app.id) is not app or hashlib.sha256(app.entry.read_bytes()).hexdigest() != app.digest:
+            raise PermissionError('Application entry changed; review again')
+        existing = self.processes(app)
+        if existing:
+            return existing
+        # Preserve normal profile and existing windows. Never terminate a user app.
+        process = subprocess.Popen(app.argv, shell=False, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.launches = [p for p in self.launches if p.poll() is None]
+        self.launches.append(process)
+        return self.processes(app)
