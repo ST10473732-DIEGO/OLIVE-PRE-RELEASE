@@ -1,5 +1,10 @@
 # Linux Desktop Control acceptance
 
+See [the unattended continuation](OLIVE_DESKTOP_UNATTENDED_RUN.md) and
+`evidence/linux-desktop-unattended.json` for subsequent fixes and fresh full-run
+results. The results below describe the earlier checkpoint, not an aggregate
+combined with newer focused tests.
+
 2026-09-23. **Milestone incomplete; live control is not accepted.** Implementation,
 portable regression and real local-model measurements are separate evidence.
 No renderer change beyond the three individually approved exceptions.

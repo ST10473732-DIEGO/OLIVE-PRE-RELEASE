@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-23",
+  "status": "partial_implementation_live_acceptance_blocked",
+  "start_head": "a84b035536f4cb2bf980398a3cd2f7005ecd5fdc",
+  "baseline_head": "2df73b31ca11374978363a8f9d9c34ab052a74a4",
+  "implementation_head": "0a07c9cb0b0f59d1b08076beba2ca835bc21db1a",
+  "branch": "feature/olive-desktop-control-linux-v1",
+  "commits": [
+    {
+      "commit": "c608f29",
+      "purpose": "portal failure cleanup and native capture encoding"
+    },
+    {
+      "commit": "df46d6c",
+      "purpose": "bounded semantic steps, authority, replanning and app readiness"
+    },
+    {
+      "commit": "cb71fa0",
+      "purpose": "unattended no-consent preflight"
+    },
+    {
+      "commit": "f6fbb4a",
+      "purpose": "PTY descriptor ownership and SDK fixture discovery"
+    },
+    {
+      "commit": "0abec94",
+      "purpose": "shared concurrent outbound Connect handshake"
+    },
+    {
+      "commit": "0a07c9c",
+      "purpose": "resolve missing apps and policy denies before consent"
+    }
+  ],
+  "freeze": {
+    "baseline_head": "2df73b31ca11374978363a8f9d9c34ab052a74a4",
+    "files": 225,
+    "added": [],
+    "deleted": [],
+    "changed": [],
+    "approved_changes": [
+      "desktop/src/features/Studio.tsx",
+      "desktop/src/features/go/Go.tsx",
+      "desktop/src/features/settings/DesktopPolicies.tsx"
+    ]
+  },
+  "preflight": {
+    "applications": {
+      "Discord": "installed_reviewed_entry",
+      "Dolphin": "installed_reviewed_entry",
+      "Firefox": "installed_reviewed_entry",
+      "Kate": "installed_reviewed_entry"
+    },
+    "capture_attempted": false,
+    "consent_requested": false,
+    "dependencies": {
+      "Atspi": {
+        "api": "2.0",
+        "available": true
+      },
+      "Gio": {
+        "api": "2.0",
+        "available": true
+      },
+      "Gst": {
+        "api": "1.0",
+        "available": true
+      },
+      "GstApp": {
+        "api": "1.0",
+        "available": true
+      },
+      "GstVideo": {
+        "api": "1.0",
+        "available": true
+      },
+      "appsink": {
+        "available": true
+      },
+      "gstreamer": {
+        "available": true,
+        "version": "GStreamer 1.28.7"
+      },
+      "libei": {
+        "abi": "libei.so.1",
+        "available": true
+      },
+      "pillow_png": {
+        "available": true,
+        "version": "12.3.0"
+      },
+      "pipewiresrc": {
+        "available": true
+      },
+      "pygobject": {
+        "available": true,
+        "version": "3.56.3"
+      },
+      "videoconvert": {
+        "available": true
+      },
+      "videorate": {
+        "available": true
+      },
+      "videoscale": {
+        "available": true
+      }
+    },
+    "global_stop_verified_by_this_check": false,
+    "live_input_attempted": false,
+    "missing": [],
+    "owned_helper_closed": true,
+    "policy_changed": false,
+    "portal_interfaces": {
+      "GlobalShortcuts": {
+        "version": 2
+      },
+      "RemoteDesktop": {
+        "version": 2
+      },
+      "ScreenCast": {
+        "version": 5
+      }
+    },
+    "probe_error": "",
+    "reason": "A human must bind and physically test the runtime-assigned global Stop shortcut, then consent to a capture/input source",
+    "resume": "./run_olive.sh \u2192 Settings \u2192 Desktop Control \u2192 enable the intended local policies \u2192 Desktop Control \u2192 Open Kate",
+    "schema_version": 1,
+    "session_type": "wayland",
+    "status": "BLOCKED_REQUIRES_LOCAL_HUMAN",
+    "whole_milestone_rerun_required": false
+  },
+  "synthetic_capture": {
+    "schema_version": 1,
+    "synthetic_only": true,
+    "capture_or_input_attempted": false,
+    "failed_constructor_descriptor_closed": true,
+    "passed": 4,
+    "cases": [
+      {
+        "size": [
+          640,
+          360
+        ],
+        "exact_center_rgba": true,
+        "seconds": 0.0117
+      },
+      {
+        "size": [
+          641,
+          359
+        ],
+        "exact_center_rgba": true,
+        "seconds": 0.003
+      },
+      {
+        "size": [
+          1280,
+          720
+        ],
+        "exact_center_rgba": true,
+        "seconds": 0.0101
+      },
+      {
+        "size": [
+          7,
+          3
+        ],
+        "exact_center_rgba": true,
+        "padded_stride_and_offset": true
+      }
+    ]
+  },
+  "verification": {
+    "python": {
+      "run": 1184,
+      "passed": 1176,
+      "skipped": 8,
+      "failed": 0,
+      "seconds": 137.979,
+      "uncollectable_warning": false
+    },
+    "connect": {
+      "run": 241,
+      "passed": 241,
+      "skipped": 0,
+      "failed": 0,
+      "seconds": 89.409
+    },
+    "frontend": {
+      "passed": 96,
+      "files": 18
+    },
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "source_compilation": {
+      "passed": 699
+    },
+    "literal_compileall": {
+      "status": "third_party_template_error",
+      "repository_source_failure": false,
+      "source": "ignored PySide6 Android Jinja __init__.tmpl.py"
+    },
+    "electron": {
+      "run": 71,
+      "passed": 55,
+      "skipped": 16,
+      "failed": 0,
+      "duration_reported": "7.8m",
+      "source_checkpoint": "0a07c9cb0b0f59d1b08076beba2ca835bc21db1a",
+      "live_opt_in_tests_not_run": true
+    },
+    "connect_receipt_fence_diagnostic_trials": {
+      "before_run": 12,
+      "before_failures": 1,
+      "after_run": 12,
+      "after_failures": 0
+    },
+    "retained_failed_full_python_runs": [
+      {
+        "run": 1180,
+        "errors": 3,
+        "reason": "SDK fixture shell PATH mismatch"
+      },
+      {
+        "run": 1180,
+        "errors": 2,
+        "reason": "Connect duplicate handshake and PTY double close"
+      }
+    ]
+  },
+  "unattended_effects": {
+    "consent_dialogs_opened": 0,
+    "live_input_events": 0,
+    "real_messages_sent": 0,
+    "model_jobs": 0,
+    "package_installs": 0,
+    "profile_migrations": 0,
+    "frozen_paths_modified": 0
+  },
+  "blocked_requires_local_human": [
+    "physical global Stop verification",
+    "portal source/device consent"
+  ],
+  "not_complete": [
+    "real native capture/input and Stop timing",
+    "real Firefox/Kate/Dolphin/messaging GUI workflows",
+    "general freeform and file/editor/settings workflows",
+    "visual-only action grounding",
+    "physical takeover detection"
+  ],
+  "hosted_validation": "not_run_no_push",
+  "native_windows_validation": "not_run"
+}

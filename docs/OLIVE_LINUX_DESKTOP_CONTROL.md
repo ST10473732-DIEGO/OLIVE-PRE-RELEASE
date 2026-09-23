@@ -1,6 +1,12 @@
 # Linux Desktop Control implementation ledger
 
 2026-09-23. **Partial implementation; live Desktop Control is not accepted.**
+The [unattended continuation](OLIVE_DESKTOP_UNATTENDED_RUN.md) records subsequent
+capture/consent cleanup, app readiness, semantic task steps and lifecycle repairs.
+Its current setup command is `.venv/bin/python scripts/check_linux_desktop_setup.py`;
+it opens no consent or input session. The details below describe the preceding
+checkpoint unless superseded by that continuation.
+
 Branch: `feature/olive-desktop-control-linux-v1`.
 BASELINE_HEAD: `2df73b31ca11374978363a8f9d9c34ab052a74a4`.
 Historical DESIGN_BASE: `50003790c42aff620d63d664dff89c0338347cab`.

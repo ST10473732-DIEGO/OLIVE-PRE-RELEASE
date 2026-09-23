@@ -35,3 +35,21 @@ higher latency). No public model mapping changed. Human global Stop activation
 and portal input acceptance did not complete; no real GUI task or Discord message
 was reported successful. Broad desktop workflows and remaining acceptance are
 explicitly incomplete. See [the scoped closeout](OLIVE_DESKTOP_BACKEND_CLOSEOUT.md).
+
+### 2026-09-23 — Unattended Linux Desktop Control continuation
+
+Continued from `a84b035` without opening KDE consent or enabling live input.
+Reproduced and repaired failed portal-session cleanup, missing PNG capture support
+using installed GStreamer/Pillow, typed AppSink access and capture descriptor
+ownership. Added a no-consent preflight, bounded app readiness/focus and stale-target
+replanning, semantic direct-task steps and one-time narrowing of an omitted account.
+App/policy checks now precede compositor consent. No new renderer exception or
+model promotion was made.
+
+Full regression exposed and repaired a real PTY double-close race, concurrent
+Connect handshakes to the same peer, and a .NET fixture PATH mismatch. Final Python
+ran 1,184 tests with 8 skips and no failures; exact Connect passed 241 tests.
+The fresh Electron aggregate, source freeze and native synthetic capture results
+are recorded in [the unattended report](OLIVE_DESKTOP_UNATTENDED_RUN.md) and its
+content-free evidence manifest. Human global Stop/source consent and broad real
+GUI workflows remain incomplete; no real message or screenshot action was claimed.

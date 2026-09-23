@@ -1,5 +1,10 @@
 # Linux desktop/backend closeout
 
+For the subsequent unattended implementation, newly reproduced PTY/Connect fixes,
+current verification totals and minimum human resume procedure, see
+[the unattended run report](OLIVE_DESKTOP_UNATTENDED_RUN.md). The checkpoint and
+measurements below remain historical evidence.
+
 2026-09-23. **Partial implementation, not full desktop-operator acceptance.**
 The independent backend/V2 repairs are implemented and regression-tested. Human
 Stop verification and native task acceptance did not complete; the measured
