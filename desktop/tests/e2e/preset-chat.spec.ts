@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { openSpace } from "./shell";
 
-test("LIVE LOCAL FAST NORMAL MAX answer through Chat without executing code", async () => {
+test("LIVE LOCAL FAST NORMAL MAX DEEP FAST handoff without executing code", async () => {
   test.skip(process.env.OLIVE_LIVE_AI !== "1", "Requires installed local Ollama models");
   test.setTimeout(660000);
   const profile = await mkdtemp(path.join(tmpdir(), "olive-preset-chat-"));
@@ -22,6 +22,8 @@ test("LIVE LOCAL FAST NORMAL MAX answer through Chat without executing code", as
       ["fast", "qwen3:8b", "What is recursion? Answer in two short sentences."],
       ["normal", "gpt-oss:20b", "Explain Btrfs in two short sentences."],
       ["max", "qwen3-coder:30b", "Give me Python code for a function that adds two numbers. Show the code here."],
+      ["deep", "gpt-oss:20b", "Explain why a document answer needs evidence in two short sentences. No document is attached; do not invent a citation."],
+      ["fast", "qwen3:8b", "Explain what a Python return statement does in two short sentences."],
     ]) {
       await expect.poll(async () => (await snapshot()).presets.find(p => p.id === preset)?.available, {timeout: 30000}).toBe(true);
       await page.getByRole("combobox", {name: "OLIVE preset"}).selectOption(preset);
@@ -39,6 +41,8 @@ test("LIVE LOCAL FAST NORMAL MAX answer through Chat without executing code", as
       expect(state.chat.messages.at(-1)?.completion_state).toBe('complete');
       console.log({ preset, model, elapsed_ms: Date.now() - started, completion: 'complete' });
       expect(state.workspaces).toEqual([]); expect(state.runs).toEqual([]);
+      const resident = await (await fetch("http://127.0.0.1:11434/api/ps")).json() as { models: {name: string}[] };
+      expect(resident.models.map(item => item.name)).toEqual([model]);
       if (preset === "max") await expect(page.locator('.message-assistant').last().locator('pre').first()).toBeVisible();
     }
   } finally { await app.close(); }

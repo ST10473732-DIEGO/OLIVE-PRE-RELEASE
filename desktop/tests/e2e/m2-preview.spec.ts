@@ -4,7 +4,6 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { openSpace, showPanel } from "./shell";
-import { captureMail } from "./m4-capture";
 test("Local preview is bound to a real run and has no application bridge", async () => {
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-preview-"));
@@ -90,7 +89,12 @@ server.serve_forever()
     expect(observed.external).toBe(true);
     const evidence = path.join(root, "artifacts/ui-review/M2");
     await mkdir(evidence, { recursive: true });
-    await captureMail(page, app, path.join(evidence, "studio-isolated-live-local-preview.png"));
+    // Capture the owned compositor, including the preview child view. Do not
+    // wait for every application animation to finish (some may be paused).
+    const capture = await app.evaluate(async ({ BrowserWindow }) =>
+      (await BrowserWindow.getAllWindows()[0].capturePage()).toPNG().toString("base64"),
+    );
+    await writeFile(path.join(evidence, "studio-isolated-live-local-preview.png"), Buffer.from(capture, "base64"));
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Close", exact: true })

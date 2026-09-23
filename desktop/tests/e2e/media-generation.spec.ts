@@ -5,7 +5,6 @@ import path from 'node:path';
 import {execFile,spawnSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {openSpace} from './shell';
-import {captureMail} from './m4-capture';
 
 type Artifact={id:string;path:string;sha256:string;provenance:{engine:string;version:string;prompt_id:string}};
 type Media={artifacts:Artifact[];jobs:{id:string;state:string;error:string;artifact:Artifact|null}[]};
@@ -18,6 +17,10 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     ? {executablePath:path.resolve('../run_olive.sh'),chromiumSandbox:true,args:['--ozone-platform=wayland'],env:{...process.env,OLIVE_DATA_DIR:profile},timeout:60000}
     : {args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile}});
   const timings:Record<string,number>={};
+  const capture=async(file:string)=>{
+    const png=await app.evaluate(async({BrowserWindow})=>(await BrowserWindow.getAllWindows()[0].capturePage()).toPNG().toString('base64'));
+    await writeFile(file,Buffer.from(png,'base64'));
+  };
   let owned='[]';
   const engine=async(route:string)=>{const r=await fetch('http://127.0.0.1:8188'+route);expect(r.ok).toBe(true);return r.json();};
   try{
@@ -57,7 +60,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     expect((await (await fetch('http://127.0.0.1:11434/api/ps')).json()).models).toHaveLength(0);
     const released=await engine('/system_stats');expect(released.devices[0].torch_vram_total).toBeLessThanOrEqual(256*1024*1024);
     await sheet.getByRole('button',{name:'Inspect artifact',exact:true}).first().click();await expect(sheet.getByAltText('Selected media artifact')).toBeVisible();
-    await captureMail(page,app,path.join(evidence,'generation-ui.png'));
+    await capture(path.join(evidence,'generation-ui.png'));
     await sheet.getByRole('button',{name:'Close',exact:true}).click();
     await chat('What is 7 + 2? Reply with the number only.');
     await page.getByLabel('OLIVE preset').selectOption('reimagine');await page.getByRole('button',{name:'Open media tools',exact:true}).click();
@@ -66,7 +69,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     const edited=await render('edited');expect(edited.sha256).not.toBe(generated.sha256);expect(await readFile(generated.path)).toEqual(original);
     await sheet.getByRole('button',{name:'Inspect artifact',exact:true}).first().click();
     await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1000,700));
-    await captureMail(page,app,path.join(evidence,'edit-small-ui.png'));
+    await capture(path.join(evidence,'edit-small-ui.png'));
     await sheet.getByLabel('Media operation').selectOption('generate');
     await sheet.getByLabel('Media prompt').fill('A red ceramic bowl on a wooden table');
     const before=(await status()).jobs.map(j=>j.id),cancelStart=Date.now();
@@ -77,6 +80,10 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
     timings.cancellation=Date.now()-cancelStart;
     const cancelled=(await status()).jobs.find(x=>!before.includes(x.id))!;expect(cancelled.artifact).toBeNull();
     expect((await engine('/queue')).queue_running).toHaveLength(0);
+    await sheet.getByLabel('Media prompt').fill('A small green ceramic bowl on a plain white table');
+    const restarted=await render('restarted-after-cancel');
+    expect(restarted.id).not.toBe(generated.id);
+    expect(await readFile(generated.path)).toEqual(original);
     await sheet.getByRole('button',{name:'Close',exact:true}).click();
     await chat('What is 6 + 3? Reply with the number only.');
     expect((await (await fetch('http://127.0.0.1:11434/api/ps')).json()).models.length).toBeGreaterThan(0);
@@ -96,7 +103,7 @@ test('LIVE LOCAL SDXL generation, image edit, cancellation and Ollama GPU handof
       const probe=spawnSync(path.resolve('../.venv/bin/python'),['-c','import psutil,json,sys; p=psutil.Process(int(sys.argv[1])); print(json.dumps([dict(pid=c.pid,created=c.create_time()) for c in [p,*p.children(recursive=True)]]))',String(app.process().pid)],{encoding:'utf8'});
       expect(probe.status).toBe(0);owned=JSON.stringify([...new Map([...JSON.parse(owned),...JSON.parse(probe.stdout)].map(item=>[item.pid+':'+item.created,item])).values()]);
     }
-    await writeFile(path.join(evidence,'acceptance.json'),JSON.stringify({profile,timings,generated,edited,cancelled,released,after,owned:JSON.parse(owned)},null,2));
+    await writeFile(path.join(evidence,'acceptance.json'),JSON.stringify({profile,timings,generated,edited,restarted,cancelled,released,after,owned:JSON.parse(owned)},null,2));
   }finally{await app.close();}
   if(process.platform==='linux')await expect.poll(()=>spawnSync(path.resolve('../.venv/bin/python'),['-c','import psutil,json,sys; alive=[]\nfor x in json.loads(sys.argv[1]):\n try:\n  p=psutil.Process(x["pid"])\n  if p.create_time()==x["created"] and p.status()!=psutil.STATUS_ZOMBIE:alive.append(x["pid"])\n except psutil.NoSuchProcess:pass\nprint(json.dumps(alive))',owned],{encoding:'utf8'}).stdout.trim(),{timeout:15000}).toBe('[]');
 });
