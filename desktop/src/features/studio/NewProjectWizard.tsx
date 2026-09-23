@@ -61,7 +61,7 @@ export function NewProjectWizard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState("");
-  const [result, setResult] = useState<{ destination: string; steps: { command: string[]; exit_code: number; output: string }[] } | null>(null);
+  const [result, setResult] = useState<{ workspace: Workspace; destination: string; steps: { command: string[]; exit_code: number; output: string }[] } | null>(null);
 
   const load = (refresh: boolean) => {
     setLoading(true);
@@ -128,13 +128,13 @@ export function NewProjectWizard({
       },
     )
       .then((value) => {
-        setResult({ destination: value.destination, steps: value.steps });
-        onCreated(value.workspace);
+        setResult(value);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "The project could not be created."))
       .finally(() => setBusy(false));
   };
   const close = () => {
+    if (result) onCreated(result.workspace);
     onOpenChange(false);
     setResult(null);
   };

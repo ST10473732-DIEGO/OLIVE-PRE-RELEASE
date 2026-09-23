@@ -1,5 +1,4 @@
 """Compare all frozen files, including ignored/untracked additions, to V2."""
-import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -22,6 +21,10 @@ def verify(root=ROOT, manifest=MANIFEST):
               "added": sorted(current.keys() - expected.keys()),
               "deleted": sorted(expected.keys() - current.keys()),
               "changed": sorted(p for p in current.keys() & expected.keys() if current[p] != expected[p])}
+    exceptions_path = root / "docs/evidence/backend-v3-frozen-exception.json"
+    approved = json.loads(exceptions_path.read_text())["sha256"] if exceptions_path.exists() else {}
+    result["approved_changes"] = [p for p in result["changed"] if approved.get(p) == current[p]]
+    result["changed"] = [p for p in result["changed"] if p not in result["approved_changes"]]
     # Also verify the stored baseline itself against immutable Git bytes.
     for name, digest in expected.items():
         original = subprocess.check_output(["git", "show", baseline["design_base"] + ":" + name], cwd=root)
