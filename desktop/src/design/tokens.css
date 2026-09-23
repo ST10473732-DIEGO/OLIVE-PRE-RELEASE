@@ -321,6 +321,14 @@ button:disabled {
   border-color: var(--border-subtle);
   cursor: not-allowed;
 }
+/* Becoming unavailable is a state change, not an interaction, so it switches
+   instantly. Content of a closed <details> is not rendered either: Chromium
+   never settles a transition started there, which leaves anything waiting on
+   the page's animations (screenshots, tests) waiting forever. */
+button:disabled,
+details:not([open]) button {
+  transition: none;
+}
 .primary {
   background: var(--accent-blue-fill);
   color: var(--text-on-fill);

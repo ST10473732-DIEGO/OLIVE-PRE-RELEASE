@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -182,5 +183,14 @@ describe("truthful status summaries", () => {
     expect(corePaletteMode("Thinking")).toBe("compute");
     expect(corePaletteMode("Working")).toBe("compute");
     expect(corePaletteMode("Approval required")).toBe("attention");
+  });
+});
+
+describe("motion primitives", () => {
+  it("never transitions a button that becomes unavailable or is not rendered", () => {
+    // Chromium never settles a transition started inside a closed <details>;
+    // the Mail composer disables its overflow actions there during review.
+    const css = readFileSync(new URL("../src/design/tokens.css", import.meta.url), "utf8");
+    expect(css).toMatch(/button:disabled,\s*details:not\(\[open\]\) button \{\s*transition: none;/);
   });
 });
