@@ -63,3 +63,62 @@ class AnswerStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failure.exception.status_code, 404)
         self.assertEqual([token async for token in service.chat_stream('fixture', [])], ['Recovered answer'])
         self.assertEqual(calls, ['fixture', 'missing-fixture', 'fixture'])
+
+class MeasuredAnswerTests(unittest.IsolatedAsyncioTestCase):
+    async def run_parts(self, parts):
+        async def stream():
+            for part in parts:
+                yield part
+        service = OllamaService()
+        service.client = SimpleNamespace(chat=AsyncMock(return_value=stream()))
+        return await service.chat_measured('fixture', [], stream=True)
+
+    async def test_measured_responses_reject_empty_truncated_and_incomplete(self):
+        for parts in ([], [{'message': {'thinking': 'secret'}, 'done': True}],
+                      [{'message': {'content': 'partial'}}],
+                      [{'message': {'content': 'partial'}, 'done': True, 'done_reason': 'length'}]):
+            with self.subTest(parts=parts), self.assertRaises(RuntimeError):
+                await self.run_parts(parts)
+
+    async def test_measured_reasoning_is_never_returned(self):
+        answer = await self.run_parts([{'message': {'thinking': 'private trace'}},
+                                      {'message': {'content': 'café'}},
+                                      {'message': {'content': ' ✓'}, 'done': True}])
+        self.assertEqual(answer['content'], 'café ✓')
+        self.assertNotIn('private trace', str(answer))
+        self.assertIsNotNone(answer['first_token_ms'])
+        self.assertIsNotNone(answer['reasoning_stream_ms'])
+
+    async def test_nonstream_failure_is_not_success(self):
+        service = OllamaService()
+        service.client = SimpleNamespace(chat=AsyncMock(return_value={'done': False, 'message': {'content': 'partial'}}))
+        with self.assertRaises(RuntimeError):
+            await service.chat_once('fixture', [])
+
+    def test_known_thinking_controls_are_strict(self):
+        service = OllamaService()
+        service._artifact_cache['fixture'] = {'thinking_values': ('low', 'high')}
+        with self.assertRaises(ValueError):
+            service._thinking('fixture', False)
+        self.assertEqual(service._thinking('fixture', 'low'), {'think': 'low'})
+
+    async def test_stream_cleanup_holds_residency_until_provider_closes(self):
+        import asyncio
+        from olive.services.model_residency_service import ModelResidencyService
+        closing, release = asyncio.Event(), asyncio.Event()
+        class Stream:
+            def __aiter__(self): return self
+            async def __anext__(self): raise StopAsyncIteration
+            async def aclose(self):
+                closing.set()
+                await release.wait()
+        service = OllamaService()
+        service.client = SimpleNamespace(chat=AsyncMock(return_value=Stream()))
+        service.residency = ModelResidencyService(service)
+        task = asyncio.create_task(service.chat_measured('fixture', [], stream=True))
+        await closing.wait()
+        self.assertTrue(service.residency.lock.locked())
+        self.assertEqual(service.residency.active, 'fixture')
+        release.set()
+        with self.assertRaises(RuntimeError): await task
+        self.assertFalse(service.residency.lock.locked())

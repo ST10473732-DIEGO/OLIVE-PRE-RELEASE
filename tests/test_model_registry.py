@@ -48,3 +48,24 @@ class ModelRegistryTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ArtifactMetadataTests(unittest.IsolatedAsyncioTestCase):
+    async def test_changed_digest_invalidates_metadata_and_transient_show_recovers(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from olive.services.ollama_service import OllamaService
+        service = OllamaService()
+        service._digests['fixture'] = 'old'
+        service._capability_cache['fixture'] = ('vision',)
+        service._context_length_cache['fixture'] = 128000
+        service.client = SimpleNamespace(
+            list=AsyncMock(return_value={'models':[{'model':'fixture','digest':'new'}]}),
+            show=AsyncMock(side_effect=[OSError('offline'), {'capabilities':['completion'], 'model_info':{'test.context_length':4096},'template':'template','thinking':{'values':[False]}}]))
+        await service.list_models()
+        self.assertNotIn('fixture',service._capability_cache)
+        self.assertNotIn('fixture',service._context_length_cache)
+        await service.model_capabilities('fixture')
+        self.assertNotIn('fixture',service._capability_cache)
+        self.assertEqual(await service.model_capabilities('fixture'),('completion',))
+        self.assertEqual(await service.context_length('fixture'),4096)
+        self.assertEqual(service.artifact_metadata('fixture')['thinking_values'],(False,))

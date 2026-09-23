@@ -14,6 +14,12 @@ class ModelCapability:
     role: str
     family: str | None = None
     size: int = 0
+    digest: str = ""
+    quantization: str | None = None
+    backend: str = "ollama"
+    template_sha256: str = ""
+    thinking_values: tuple[bool | str, ...] = ()
+    thinking_metadata_verified: bool = False
 
     @property
     def supports_vision(self) -> bool:
@@ -44,6 +50,9 @@ class ModelCapabilityRegistry:
                 role=_infer_role(info, capabilities),
                 family=info.family,
                 size=info.size or 0,
+                digest=info.digest,
+                quantization=info.quantization,
+                **(self.ollama.artifact_metadata(info.name) if hasattr(self.ollama, "artifact_metadata") else {}),
             )
             self.models[model.name] = model
             result.append(model)

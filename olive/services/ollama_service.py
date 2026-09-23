@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 import time
+import hashlib
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
 
@@ -39,9 +40,11 @@ class ModelInfo:
 class OllamaService:
     def __init__(self, host: str = OLLAMA_HOST):
         self.host = host
-        self.client = ollama.AsyncClient(host=host)
+        self.client = ollama.AsyncClient(host=host, trust_env=False)
         self._capability_cache: dict[str, tuple[str, ...]] = {}
         self._context_length_cache: dict[str, int] = {}
+        self._artifact_cache: dict[str, dict] = {}
+        self._digests: dict[str, str] = {}
         self.residency = None
         self.metrics = None
 
@@ -93,6 +96,12 @@ class OllamaService:
             name = getattr(model, "model", None) or (model.get("model") if isinstance(model, dict) else None)
             if not name:
                 continue
+            digest = str(_field(model, "digest", ""))
+            if name in self._digests and self._digests[name] != digest:
+                self._capability_cache.pop(name, None)
+                self._context_length_cache.pop(name, None)
+                self._artifact_cache.pop(name, None)
+            self._digests[name] = digest
             size = getattr(model, "size", None) if not isinstance(model, dict) else model.get("size")
             details = getattr(model, "details", None) if not isinstance(model, dict) else model.get("details")
             family = parameter_size = quantization = None
@@ -134,12 +143,35 @@ class OllamaService:
             context_length = _context_length_from_metadata(model_info or {})
             if context_length:
                 self._context_length_cache[model] = context_length
+            thinking = _field(response, "thinking", {}) or {}
+            values = _field(thinking, "values", [])
+            self._artifact_cache[model] = {
+                "template_sha256": hashlib.sha256(str(_field(response, "template", "") or "").encode()).hexdigest(),
+                "thinking_values": tuple(v for v in values if type(v) in (bool, str)) if isinstance(values, list) else (),
+                "thinking_metadata_verified": bool(values),
+            }
         except Exception:
             # Some remote/cloud model metadata can be incomplete. Name hints are the safe fallback.
             if any(h in model.lower() for h in VISION_NAME_HINTS):
                 capabilities = ("vision",)
+            # Do not permanently cache a transient /show failure.
+            return capabilities
         self._capability_cache[model] = capabilities
         return capabilities
+
+    def artifact_metadata(self, model: str) -> dict:
+        return dict(self._artifact_cache.get(model, {}))
+
+    def _thinking(self, model, value):
+        """Reject known unsupported controls instead of silently using a default.
+
+        Older runtimes omit thinking metadata; retain existing adapter behavior
+        there and explicitly record that controls are unverified.
+        """
+        values = self._artifact_cache.get(model, {}).get("thinking_values", ())
+        if value is not None and values and not any(type(value) is type(v) and value == v for v in values):
+            raise ValueError("The installed model does not support the requested thinking control")
+        return {"think": value} if value is not None else {}
 
     async def context_length(self, model: str) -> int:
         if model not in self._context_length_cache:
@@ -160,6 +192,7 @@ class OllamaService:
         await self.client.pull(model)
         self._capability_cache.pop(model, None)
         self._context_length_cache.pop(model, None)
+        self._artifact_cache.pop(model, None)
 
     async def chat_stream(
         self,
@@ -177,7 +210,7 @@ class OllamaService:
             try:
                 stream = await self.client.chat(model=model, messages=messages, stream=True,
                     options=await self._options(model, options), tools=tools or [], keep_alive=keep_alive,
-                    **({"think": think} if think is not None else {}))
+                    **self._thinking(model, think))
                 try:
                     async for part in stream:
                         completed = completed or _field(part, "done", False) is True
@@ -185,7 +218,8 @@ class OllamaService:
                         content = _field(_field(part, "message", {}), "content", "") or ""
                         if content:
                             has_content = has_content or bool(content.strip())
-                            first = first or time.perf_counter()
+                            if content.strip():
+                                first = first or time.perf_counter()
                             yield content
                     if not has_content:
                         raise RuntimeError("The model returned no answer content. Retry the request or select another installed model.")
@@ -223,9 +257,9 @@ class OllamaService:
                     kwargs["format"] = format
                 if tools is not None:
                     kwargs["tools"] = tools
-                if think is not None:
-                    kwargs["think"] = think
+                kwargs.update(self._thinking(model, think))
                 first = None
+                first_thinking = last_thinking = None
                 thinking_characters = 0
                 if stream:
                     parts = await self.client.chat(**kwargs, stream=True)
@@ -235,9 +269,14 @@ class OllamaService:
                             response = part
                             message = _field(part, "message", {})
                             text = _field(message, "content", "") or ""
-                            thinking_characters += len(_field(message, "thinking", "") or "")
+                            reasoning = _field(message, "thinking", "") or ""
+                            thinking_characters += len(reasoning)
+                            if reasoning:
+                                first_thinking = first_thinking or time.perf_counter()
+                                last_thinking = time.perf_counter()
                             if text:
-                                first = first or time.perf_counter()
+                                if text.strip():
+                                    first = first or time.perf_counter()
                                 content.append(text)
                             calls.extend(_field(message, "tool_calls", []) or [])
                     finally:
@@ -248,11 +287,13 @@ class OllamaService:
                     response = await self.client.chat(**kwargs)
                     message = _field(response, "message", {})
                     thinking_characters = len(_field(message, "thinking", "") or "")
+                _validate_answer(response, message)
                 success = True
                 return {"content": _field(message, "content", "") or "",
                         "thinking_characters": thinking_characters,
                         "done_reason": _field(response, "done_reason", ""),
                         "first_token_ms": (first - started) * 1000 if first else None,
+                        "reasoning_stream_ms": (last_thinking - first_thinking) * 1000 if first_thinking else None,
                         "tool_calls": [item.model_dump() if hasattr(item, "model_dump") else item
                                        for item in (_field(message, "tool_calls", []) or [])],
                         "duration_ms": (time.perf_counter() - started) * 1000,
@@ -283,6 +324,18 @@ class OllamaService:
 
 def _field(value, name, default=None):
     return value.get(name, default) if isinstance(value, dict) else getattr(value, name, default)
+
+
+def _validate_answer(response, message):
+    content = _field(message, "content", "") or ""
+    if not isinstance(content, str):
+        raise ValueError("Malformed provider answer content")
+    if not content.strip() and not _field(message, "tool_calls", []):
+        raise RuntimeError("The model returned no answer content")
+    if _field(response, "done_reason", "") == "length":
+        raise GenerationOutputLimit("The response reached the model output limit")
+    if _field(response, "done", False) is not True:
+        raise RuntimeError("The model stopped before completing its response")
 
 
 def choose_default_chat_model(models: list[ModelInfo]) -> str:
