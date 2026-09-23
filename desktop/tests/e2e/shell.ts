@@ -67,7 +67,7 @@ export async function switchWorkspace(page: Page, title: string) {
  *  Studio V2 panel tabs live in the panel; when the panel is closed, the
  *  palette's "View: Show …" command opens it first. */
 export async function showPanel(page: Page, name: "Problems" | "Output" | "Terminal" | "Debug console") {
-  const tab = page.getByRole("tab", { name: new RegExp(`^${name}`) });
+  const tab = page.getByRole("tablist", { name: "Panel", exact: true }).getByRole("tab", { name: new RegExp(`^${name}`) });
   if (!(await tab.isVisible().catch(() => false))) {
     await page.getByRole("button", { name: "Find anything", exact: true }).click();
     await page.getByRole("textbox", { name: "Search commands" }).fill(`>View: Show ${name}`);

@@ -203,7 +203,7 @@ test("clarity acceptance journey: navigation, two independent projects, run, ter
     const showTerminal = () => showPanel(page, "Terminal");
     await showTerminal();
     await page.getByRole("button", { name: "New terminal", exact: true }).click();
-    await page.getByRole("button", { name: "Open PowerShell", exact: true }).click();
+    await page.getByRole("button", { name: process.platform === "win32" ? "Open PowerShell" : "Open Bash", exact: true }).click();
     await expect(terminalTabs()).toHaveCount(2, { timeout: 60000 });
     await shot("I-terminal-in-b");
     await switchTo("ProjectA");

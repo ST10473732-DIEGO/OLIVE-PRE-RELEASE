@@ -1,6 +1,7 @@
 """Compare all frozen files, including ignored/untracked additions, to V2."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -14,7 +15,9 @@ def verify(root=ROOT, manifest=MANIFEST):
     for name in baseline["roots"]:
         path = root / name
         for file in (path.rglob("*") if path.is_dir() else [path]):
-            if file.is_file():
+            if file.is_symlink():
+                current[file.relative_to(root).as_posix()] = "symlink:" + hashlib.sha256(os.readlink(file).encode()).hexdigest()
+            elif file.is_file():
                 current[file.relative_to(root).as_posix()] = hashlib.sha256(file.read_bytes()).hexdigest()
     expected = baseline["sha256"]
     result = {"design_base": baseline["design_base"], "files": len(current),

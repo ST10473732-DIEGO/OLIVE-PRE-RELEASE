@@ -118,7 +118,7 @@ test("Projects open actual linked contexts and Developer Mode changes only prese
       .getByRole("button", { name: "Appearance", exact: true })
       .click();
     await page
-      .getByRole("checkbox", { name: "Developer Mode", exact: true })
+      .getByRole("switch", { name: "Developer Mode", exact: true })
       .check();
     await expect(
       nav.getByRole("button", { name: "Diagnostics", exact: true }),
