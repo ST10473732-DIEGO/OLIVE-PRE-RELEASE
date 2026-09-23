@@ -594,8 +594,11 @@ export default function App() {
                   openChat={openChat}
                   openStudio={openStudio}
                   report={report}
-                  approvals={approvals.length}
+                  approvals={approvals}
                   runtimeState={runtimeState}
+                  chat={chat}
+                  setChat={setChat}
+                  connect={connectState}
                 />
               )}
               {route === "chat" && snapshot && chat && (

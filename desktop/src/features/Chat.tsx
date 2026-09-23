@@ -21,6 +21,8 @@ import {
   ListChecks,
   Globe,
   Paperclip as Clip,
+  Info,
+  AlertTriangle,
 } from "lucide-react";
 import { call, type Chat as ChatRecord, type Snapshot } from "../services/api";
 import { Markdown } from "../components/Markdown";
@@ -32,7 +34,7 @@ import { Details } from "../components/WorkspacePage";
 import {NativeProposals} from './personal/Proposals';
 import { ResearchEvidence } from "./chat/ResearchEvidence";
 import { MediaTools } from './chat/MediaTools';
-import { RemoteTarget, RemoteAttribution } from './chat/RemoteTarget';
+import { RemoteTarget, RemoteAttribution, messageAttribution } from './chat/RemoteTarget';
 
 const HISTORY_KEY = "olive.chat.history";
 // The conversation rail is docked open on a wide window and remembered;
@@ -157,6 +159,9 @@ export function Chat({
       .catch(report);
   const preset = snapshot.presets?.find((p) => p.id === chat.preset);
   const attachedCount = (chat.documents?.length || 0) + (chat.images?.length || 0);
+  // Matches the runtime rule: images go only to DEEP or a vision-capable model.
+  const visionBlocked =
+    (chat.images?.length || 0) > 0 && chat.preset !== "deep" && Boolean(preset) && !preset?.capabilities?.includes("vision");
   return (
     <div className="chat-layout ws" data-history={historyOpen}>
       {historyOpen && (
@@ -290,40 +295,6 @@ export function Chat({
             </div>
           </div>
           <div className="row chat-tools">
-            <div className="chat-tool-group" role="group" aria-label="Model and mode">
-              <label className="chat-tool">
-                <Globe size={14} aria-hidden="true" />
-                <select aria-label="Research mode" value={researchMode} disabled={busy} onChange={e => setResearchMode(e.target.value as "" | "Quick" | "Deep")}>
-                  <option value="">Chat</option><option value="Quick">Search web</option><option value="Deep">Research thoroughly</option>
-                </select>
-              </label>
-              <label className="chat-tool">
-                <Sparkles size={14} aria-hidden="true" />
-                <select
-                  aria-label="OLIVE preset"
-                  title={preset?.description || "Previous provider selection is preserved; inspect it in Advanced Settings"}
-                  value={chat.preset || ""}
-                  disabled={busy}
-                  onChange={(e) =>
-                    void call<ChatRecord>("chat.preset", {
-                      chat_id: chat.id,
-                      preset: e.target.value as "fast" | "normal" | "max" | "deep" | "reimagine",
-                    })
-                      .then(setChat)
-                      .catch(report)
-                  }
-                >
-                  {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
-                  {snapshot.presets?.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}{chat.run_on ? (["deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <span className="chat-tool-divider" aria-hidden="true" />
-            <RemoteTarget chat={chat} busy={busy} changed={setChat} report={report}/>
             <button
               className="quiet"
               disabled={busy}
@@ -371,8 +342,47 @@ export function Chat({
             </details>
           </div>
         </header>
-        {chat.run_on && <div className="chat-banner"><p>Remote AI shares up to 24 visible messages with the selected paired device. Text only; no attachments, tools or private context. Failures require an explicit retry or a change to This device.</p></div>}
-        {chat.preset==='reimagine'&&<div className="chat-banner"><p>REIMAGINE uses media tools. Raster edits are local; generation needs a configured engine.</p><button onClick={()=>setMediaOpen(true)}>Open media tools</button></div>}
+        {chat.run_on && (
+          <div className="notice chat-notice" data-tone="ai" role="note">
+            <Info size={14} aria-hidden="true" />
+            <span className="grow">Remote AI shares up to 24 visible messages with the selected paired device. Text only; no attachments, tools or private context. Failures require an explicit retry or a change to This device.</span>
+          </div>
+        )}
+        {chat.preset === "reimagine" && (
+          <div className="notice chat-notice" role="note">
+            <Info size={14} aria-hidden="true" />
+            <span className="grow">REIMAGINE uses media tools. Raster edits are local; generation needs a configured engine.</span>
+            <button className="compact" onClick={() => setMediaOpen(true)}>Open media tools</button>
+          </div>
+        )}
+        {visionBlocked && preset && (
+          <div className="notice chat-notice" data-tone="warning" role="status">
+            <AlertTriangle size={14} aria-hidden="true" />
+            <span className="grow">{preset.name} can&apos;t see images. OLIVE will not send the picture to it; sending is refused until you switch to a vision-capable preset or remove the image.</span>
+            <button
+              className="compact"
+              disabled={busy}
+              onClick={() =>
+                void call<ChatRecord>("chat.preset", { chat_id: chat.id, preset: "deep" })
+                  .then(setChat)
+                  .catch(report)
+              }
+            >
+              Use OLIVE DEEP
+            </button>
+            <button
+              className="compact quiet"
+              disabled={busy}
+              onClick={() =>
+                void Promise.all((chat.images || []).map((_, index, all) => call<ChatRecord>("chat.remove_image", { chat_id: chat.id, index: all.length - 1 - index })))
+                  .then((values) => { const last = values.at(-1); if (last) setChat(last); })
+                  .catch(report)
+              }
+            >
+              Remove image
+            </button>
+          </div>
+        )}
         <MediaTools open={mediaOpen} close={setMediaOpen}/>
         <div className="messages">
           {!chat.messages.length && (
@@ -381,7 +391,7 @@ export function Chat({
               <h1>A place to think out loud.</h1>
               <p className="muted">
                 Ask a question, explore an idea, or tell OLIVE what you want to
-                do. Choose where text inference runs using Run on.
+                do. Choose the preset and where it runs below the message box.
               </p>
               <div className="chat-starters" aria-label="Starting points">
                 {STARTERS.map((starter) => (
@@ -407,13 +417,18 @@ export function Chat({
           )}
           {chat.messages.map((m, index) => (
             <article className={`message message-${m.role}`} key={m.id}>
-              <div className="message-label">
-                {m.role === "user" ? "You" : "OLIVE"}
-              </div>
+              {m.role === "user" ? (
+                <div className="message-label sr-only">You</div>
+              ) : (
+                <div className="message-label message-attribution">
+                  <span className="olive-mark" aria-hidden="true" />
+                  <b>OLIVE</b>
+                  {messageAttribution(m.provider) && <span className="attribution-meta">{messageAttribution(m.provider)}</span>}
+                </div>
+              )}
               <div className="message-body">
                 <Markdown text={m.content} />
-                <RemoteAttribution provider={m.provider}/>
-                {m.completion_state === "incomplete" && <p className="small" role="status">Incomplete response — generation stopped or failed. The partial text is retained.</p>}
+                {m.completion_state === "incomplete" && <p className="message-partial" role="status"><span className="ws-pill" data-tone="warning">Stopped · partial answer kept</span> Generation stopped or failed. The partial text is retained; nothing was retried.</p>}
                 {m.completion_state === "unverified" && <p className="small">Saved alternate response — completion status was not recorded.</p>}
               </div>
               {m.sources?.length > 0 && (
@@ -503,11 +518,13 @@ export function Chat({
           ))}
           {chat.partial && (
             <article className="message message-assistant">
-              <div className="message-label message-writing">
-                OLIVE · writing
+              <div className="message-label message-attribution message-writing">
+                <span className="olive-mark" aria-hidden="true" />
+                <span>OLIVE · writing</span>
               </div>
               <div className="message-body">
                 <Markdown text={chat.partial} />
+                <span className="stream-caret" aria-hidden="true" />
               </div>
             </article>
           )}
@@ -595,17 +612,47 @@ export function Chat({
                 >
                   <Paperclip size={16} aria-hidden="true" />
                 </button>
-                {researchMode && (
-                  <span className="ws-pill" data-tone="accent">
-                    <Globe size={11} aria-hidden="true" />
-                    {researchMode === "Deep" ? "Research thoroughly" : "Search web"}
-                  </span>
-                )}
+                <div className="chat-tool-group" role="group" aria-label="Model and mode">
+                  <label className="chat-tool">
+                    <Globe size={14} aria-hidden="true" />
+                    <select aria-label="Research mode" value={researchMode} disabled={busy} onChange={e => setResearchMode(e.target.value as "" | "Quick" | "Deep")}>
+                      <option value="">Chat</option><option value="Quick">Search web</option><option value="Deep">Research thoroughly</option>
+                    </select>
+                  </label>
+                  <label className="chat-tool">
+                    <Sparkles size={14} aria-hidden="true" />
+                    <select
+                      aria-label="OLIVE preset"
+                      title={preset?.description || "Previous provider selection is preserved; inspect it in Advanced Settings"}
+                      value={chat.preset || ""}
+                      disabled={busy}
+                      onChange={(e) =>
+                        void call<ChatRecord>("chat.preset", {
+                          chat_id: chat.id,
+                          preset: e.target.value as "fast" | "normal" | "max" | "deep" | "reimagine",
+                        })
+                          .then(setChat)
+                          .catch(report)
+                      }
+                    >
+                      {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
+                      {snapshot.presets?.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}{chat.run_on ? (["deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <span className="chat-tool-divider" aria-hidden="true" />
+                <RemoteTarget chat={chat} busy={busy} changed={setChat} report={report}/>
               </div>
               <span className="composer-hint">
                 {busy
                   ? chat.remote_provider ? `Thinking on ${chat.remote_provider.device_name}…` : "OLIVE is working…"
-                  : `Enter to send · Shift+Enter for a new line · ${chat.run_on ? "paired device" : "local model"}`}
+                  : chat.run_on
+                    ? "DEEP and REIMAGINE are unavailable on paired devices"
+                    : "Enter to send · Shift+Enter for a new line"}
               </span>
               <button
                 className="send"
@@ -613,7 +660,7 @@ export function Chat({
                 disabled={!busy && !draft.trim()}
                 onClick={busy ? cancel : send}
               >
-                {busy ? <Square size={16} /> : <ArrowUp size={20} />}
+                {busy ? <Square size={14} aria-hidden="true" /> : <ArrowUp size={16} aria-hidden="true" />}
               </button>
             </div>
           </div>

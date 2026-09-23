@@ -112,7 +112,7 @@ export function modelStatus(snapshot: Snapshot | null, runOnName = ""): StatusSu
 
 export interface ConnectSnapshotLike {
   network?: { state?: string };
-  devices?: { device_id?: string; display_name?: string; trust_state?: string; live?: { state?: string } | null }[];
+  devices?: { device_id?: string; display_name?: string; device_class?: string; trust_state?: string; live?: { state?: string } | null }[];
 }
 /** Title-bar Connect status from the real Connect snapshot. Paired is not the
  *  same as online, and neither implies any permission. */

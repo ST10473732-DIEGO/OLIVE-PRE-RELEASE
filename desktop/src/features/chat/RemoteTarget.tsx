@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { MonitorSmartphone } from "lucide-react";
 import { call, type Chat } from "../../services/api";
 
 export interface ModelTarget {
@@ -45,7 +46,8 @@ export function RemoteTarget({ chat, busy, changed, report }: {
     void poll();
     return () => { stopped = true; clearTimeout(timer); };
   }, []);
-  return <label className="chat-preset">Run on
+  return <label className="chat-tool chat-run-on" title="Where text inference runs">
+    <MonitorSmartphone size={14} aria-hidden="true" />
     <select aria-label="Run on" value={chat.run_on || ""} disabled={busy}
       onChange={(event) => void call<Chat>("chat.run_on", { chat_id: chat.id, device_id: event.target.value }).then(changed).catch(report)}>
       <option value="">This device</option>
@@ -61,4 +63,15 @@ export function RemoteAttribution({ provider, complete = true }: {
 }) {
   if (provider?.runtime !== "OLIVE Connect") return null;
   return <p className="small" role="status">{complete ? "Answered by" : "Thinking on"} {provider.device_name} · OLIVE {provider.preset?.toUpperCase()}</p>;
+}
+
+/** The attribution line for a finished OLIVE turn, from what the runtime
+ *  recorded for that message. Remote answers always name their device; local
+ *  answers say "This device". Nothing is shown that was not recorded. */
+export function messageAttribution(provider?: Chat["remote_provider"] & { model?: string }): string {
+  if (!provider || !provider.runtime) return "";
+  const preset = provider.preset ? `OLIVE ${provider.preset.toUpperCase()}` : "";
+  if (provider.runtime === "OLIVE Connect")
+    return `Answered by ${provider.device_name || "a paired device"}${preset ? ` · ${preset}` : ""}`;
+  return [preset || provider.model || "", "This device"].filter(Boolean).join(" · ");
 }

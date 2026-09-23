@@ -632,9 +632,6 @@ p[role="status"]:not(:empty) {
   .project-layout {
     grid-template-columns: 1fr;
   }
-  .home {
-    padding: 20px 20px 32px;
-  }
 }
 @media (max-width: 800px) {
   /* Narrow: history overlays the conversation with a dismissable scrim. */
@@ -712,15 +709,6 @@ p[role="status"]:not(:empty) {
   .messages {
     padding: 14px 16px;
   }
-  .home {
-    padding: 20px 18px 32px;
-  }
-  .app-grid {
-    grid-template-columns: 1fr;
-  }
-  .app-search {
-    width: 100%;
-  }
   .section-heading {
     flex-wrap: wrap;
   }
@@ -757,9 +745,6 @@ p[role="status"]:not(:empty) {
   .empty-chat {
     min-height: 150px;
   }
-  .home-frame {
-    gap: 16px;
-  }
 }
 /* On a short screen (a 768px-tall laptop) the whole feature list should still
    fit without scrolling: tighten the rows rather than hide any of them. */
@@ -781,13 +766,6 @@ p[role="status"]:not(:empty) {
   }
 }
 @media (max-height: 820px) and (min-width: 1000px) {
-  .home {
-    padding-top: 16px;
-    padding-bottom: 24px;
-  }
-  .home-frame {
-    gap: 18px;
-  }
   .chat-composer {
     padding-top: 8px;
     padding-bottom: 12px;

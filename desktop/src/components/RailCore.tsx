@@ -25,7 +25,12 @@ export function RailCore({ state }: { state: string }) {
     // The anchor lives in the navigation pane or the narrow bar; observe
     // whichever container it actually has rather than assuming a <nav>.
     const container = node.closest("nav, header") || node.parentElement;
-    if (container) observer.observe(container);
+    if (container) {
+      observer.observe(container);
+      // In the title bar the anchor moves when a sibling's text changes width
+      // (for example the model status), without the bar itself resizing.
+      for (const child of Array.from(container.children)) observer.observe(child);
+    }
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {

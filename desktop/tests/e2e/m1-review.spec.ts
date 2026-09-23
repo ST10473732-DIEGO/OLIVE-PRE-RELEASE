@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { record } from "./recording";
-import { goHome, openFromHome, openSpace } from "./shell";
+import { goHome, mainNav, openFromHome, openSpace } from "./shell";
 
 test("M1 corrected layout, retained output, real approval cancellation and process Stop", async () => {
   const root = path.resolve("..");
@@ -98,8 +98,9 @@ test("M1 corrected layout, retained output, real approval cancellation and proce
       normal.outer,
     );
     await goHome(page);
-    // Every shipped feature is a labelled tile in the Home launcher.
-    await expect(page.locator(".app-tile").filter({ hasText: "Contacts" })).toHaveCount(0);
+    // Home V2 has no launcher grid; every shipped space is a navigation row
+    // and a palette entry, and unshipped ones (Contacts) are neither.
+    await expect(mainNav(page).getByRole("button", { name: "Contacts", exact: true })).toHaveCount(0);
     await shot("03-home-launcher");
     await openSpace(page, "Studio");
     await nav("Fixture · local Python project").click();

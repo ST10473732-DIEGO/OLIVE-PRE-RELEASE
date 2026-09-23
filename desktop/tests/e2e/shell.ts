@@ -35,10 +35,12 @@ export async function goHome(page: Page) {
   await expect(page.locator("main.home")).toBeVisible();
 }
 
-/** The Home launcher tile for a feature (an alternative route to navigation). */
+/** Open a space from Home by the command centre instead of navigation (Home
+ *  V2 has no launcher grid; the palette is the alternative route). */
 export async function openFromHome(page: Page, name: string) {
   await goHome(page);
-  await page.locator(".app-tile").filter({ hasText: name }).first().click();
+  await page.getByRole("button", { name: "Find anything", exact: true }).click();
+  await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
 }
 
 export async function toggleTheme(page: Page) {
