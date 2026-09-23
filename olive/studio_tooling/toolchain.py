@@ -18,7 +18,59 @@ PINNED = {
 
 
 def dotnet_executable() -> str | None:
-    return shutil.which("dotnet")
+    configured = os.environ.get("DOTNET_ROOT")
+    if configured:
+        return _executable(Path(configured) / _binary("dotnet"))
+    return shutil.which("dotnet") or _executable(REPOSITORY / ".toolchains" / "dotnet" / _binary("dotnet"))
+
+
+def _binary(name: str) -> str:
+    return name + (".exe" if sys.platform == "win32" else "")
+
+
+def _executable(path: Path) -> str | None:
+    return str(path) if path.is_file() and os.access(path, os.X_OK) else None
+
+
+def java_executable(name: str = "java") -> str | None:
+    """Resolve a complete JDK, keeping explicit JAVA_HOME authoritative."""
+    if name not in {"java", "javac", "jar"}:
+        raise ValueError("Unsupported JDK executable")
+    configured = os.environ.get("JAVA_HOME")
+    if configured:
+        directory = Path(configured) / "bin"
+    else:
+        compiler = shutil.which("javac")
+        directory = Path(compiler).resolve().parent if compiler else REPOSITORY / ".toolchains" / "jdk" / "bin"
+    if not all(_executable(directory / _binary(tool)) for tool in ("java", "javac")):
+        return None
+    return _executable(directory / _binary(name))
+
+
+def developer_environment(environment: dict[str, str]) -> dict[str, str]:
+    """Add only discovered tool locations to an already filtered environment.
+
+    Never mutates the process environment or searches untrusted workspace bins.
+    The same resolution is used by discovery, approved runs and language servers.
+    """
+    result = dict(environment)
+    directories = []
+    dotnet = dotnet_executable()
+    if dotnet:
+        root = str(Path(dotnet).resolve().parent)
+        result["DOTNET_ROOT"] = root
+        directories.append(str(Path(dotnet).parent))
+    java = java_executable()
+    if java:
+        result["JAVA_HOME"] = str(Path(java).parent.parent)
+        directories.append(str(Path(java).parent))
+    if directories:
+        result["PATH"] = os.pathsep.join([*directories, result.get("PATH", os.defpath)])
+    return result
+
+
+def clear_probe_cache() -> None:
+    _MODULE_CACHE.clear()
 
 
 def python_executable(root: str | Path | None = None) -> str:
@@ -53,7 +105,7 @@ async def dotnet_info() -> dict:
     executable = dotnet_executable()
     if not executable:
         return {"available": False, "sdks": [], "runtimes": []}
-    env = dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1")
+    env = developer_environment(dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1"))
 
     async def run(*arguments):
         process = await asyncio.create_subprocess_exec(
@@ -63,13 +115,14 @@ async def dotnet_info() -> dict:
             out, _ = await asyncio.wait_for(process.communicate(), timeout=30)
         except asyncio.TimeoutError:
             process.kill()
+            await process.wait()
             return ""
-        return out.decode("utf-8", "replace")
+        return out.decode("utf-8", "replace") if process.returncode == 0 else ""
 
     sdks = [line.split(" [")[0].strip() for line in (await run("--list-sdks")).splitlines() if line.strip()]
     runtimes = [line.split(" [")[0].strip() for line in (await run("--list-runtimes")).splitlines() if line.strip()]
     version = (await run("--version")).strip()
-    return {"available": True, "executable": executable, "version": version, "sdks": sdks, "runtimes": runtimes}
+    return {"available": bool(sdks and version), "executable": executable, "version": version, "sdks": sdks, "runtimes": runtimes}
 
 
 def inventory(root: str | Path | None = None) -> dict:

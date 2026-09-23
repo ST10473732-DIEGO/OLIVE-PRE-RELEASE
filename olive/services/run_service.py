@@ -134,6 +134,9 @@ class RunService:
         provider=self.providers.select("approved" if policy.trust_level=="ordinary" else policy.trust_level)
         limits=SandboxLimits(network_enabled=policy.allow_network)
         environment = policy.environment(extra_environment)
+        if provider.name == "native":
+            from ..studio_tooling.toolchain import developer_environment
+            environment = developer_environment(environment)
         if Path(session.command[0]).name.casefold() in {'dotnet', 'dotnet.exe'}:
             environment = self.dotnet_environment(workspace.root_path, environment)
         if configured_environment:

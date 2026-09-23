@@ -12,7 +12,7 @@ fi
 if [[ -x "$root/.toolchains/node/bin/node" ]]; then
   export PATH="$root/.toolchains/node/bin:$PATH"
 fi
-if [[ -x "$root/.toolchains/dotnet/dotnet" ]]; then
+if [[ -z "${DOTNET_ROOT:-}" && -x "$root/.toolchains/dotnet/dotnet" ]]; then
   export DOTNET_ROOT="$root/.toolchains/dotnet"
   export PATH="$DOTNET_ROOT:$PATH"
 fi
@@ -38,6 +38,11 @@ if [[ ! -f .venv/olive-linux-requirements.sha256 ]] || [[ "$(cat .venv/olive-lin
   printf '%s\n' "$fingerprint" > .venv/olive-linux-requirements.sha256
 fi
 export OLIVE_PYTHON="${OLIVE_PYTHON:-${DMDO_PYTHON:-$root/.venv/bin/python}}"
+# Share SDK/JDK resolution with Studio even when launched outside a login shell.
+mapfile -t olive_tools < <(.venv/bin/python -c 'import os; from olive.studio_tooling.toolchain import developer_environment; e=developer_environment(dict(os.environ)); print(e.get("PATH", "")); print(e.get("DOTNET_ROOT", "")); print(e.get("JAVA_HOME", ""))')
+export PATH="${olive_tools[0]}"
+if [[ -n "${olive_tools[1]}" ]]; then export DOTNET_ROOT="${olive_tools[1]}"; fi
+if [[ -n "${olive_tools[2]}" ]]; then export JAVA_HOME="${olive_tools[2]}"; fi
 # The shared resolver preserves configured/legacy profiles and rejects conflicts.
 export OLIVE_DATA_DIR
 OLIVE_DATA_DIR="$(.venv/bin/python -c 'from olive.identity import resolve_profile; print(resolve_profile())')"

@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 
-from .toolchain import dotnet_executable, dotnet_info, python_executable
+from .toolchain import dotnet_executable, dotnet_info, python_executable, java_executable, developer_environment
 
 # How long a discovery result stays fresh. Probing spawns processes, so the
 # wizard reads the cache and only re-probes when asked.
@@ -127,6 +127,7 @@ def _run(command: list[str], timeout: float = 25) -> tuple[int, str]:
     """
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env=developer_environment(dict(os.environ)),
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, ValueError):
         return 1, ""
@@ -205,7 +206,7 @@ def _discover_blocking(root: str | None) -> dict:
             lambda: _dotnet_template_names(dotnet_executable()) if dotnet_executable() else set())
         python_probe = pool.submit(_python_interpreters, root)
         node_probe = pool.submit(shutil.which, "node")
-        javac_probe = pool.submit(shutil.which, "javac")
+        javac_probe = pool.submit(java_executable, "javac")
         deadline = time.monotonic() + PROBE_SECONDS
 
         def answer(probe, fallback):
@@ -223,14 +224,14 @@ def _discover_blocking(root: str | None) -> dict:
         templates = [
             {"id": key, "label": label, "description": description, "network": key in {'xunit','mstest','nunit'}}
             for key, (label, description) in DOTNET_TEMPLATES.items()
-            if (not names or key in names) and (key!='winforms' or sys.platform=='win32' and 'winforms' in names)
+            if key in names and (key!='winforms' or sys.platform=='win32')
         ]
         code, out = _run([executable, "--version"], timeout=20)
         version = out.strip() if code == 0 else ""
         languages.append({
             "id": "csharp", "label": "C#", "runtime": ".NET SDK",
-            "availability": READY if templates else TEMPLATE_UNAVAILABLE,
-            "detail": f".NET SDK {version}" if version else ".NET SDK detected",
+            "availability": READY if templates and version else TEMPLATE_UNAVAILABLE,
+            "detail": f".NET SDK {version}" if version else ".NET SDK probe failed; inspect the installation and global.json, then refresh.",
             "templates": templates,
             "solution": True,
             "options": {"frameworks": []},
@@ -279,10 +280,10 @@ def _discover_blocking(root: str | None) -> dict:
     java_version = ""
     if javac:
         code, out = _run([javac, "-version"], timeout=20)
-        java_version = out.strip()
+        java_version = out.strip() if code == 0 else ""
     languages.append({
         "id": "java", "label": "Java", "runtime": "JDK",
-        "availability": READY if javac else TOOLCHAIN_MISSING,
+        "availability": READY if javac and java_version else TOOLCHAIN_MISSING,
         "detail": (java_version or "JDK detected") if javac
                   else "A JDK (javac) was not found. Install one, then refresh.",
         "templates": [{"id": key, "label": item["label"], "description": item["description"], "network": False}

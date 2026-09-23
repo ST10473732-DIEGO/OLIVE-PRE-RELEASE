@@ -115,7 +115,8 @@ class StudioToolingController:
         return outcome.get("data") or {}
 
     def _environment(self, workspace, dotnet_context: bool = False) -> dict[str, str]:
-        environment = ExecutionPolicy(workspace.trust_level).environment()
+        from .toolchain import developer_environment
+        environment = developer_environment(ExecutionPolicy(workspace.trust_level).environment())
         if dotnet_context:
             environment = RunService.dotnet_environment(workspace.root_path, environment)
         return environment
@@ -155,6 +156,10 @@ class StudioToolingController:
     # ---- project languages, templates and creation ----------------------
     async def toolchains(self, workspace_id: str = "", refresh: bool = False) -> dict:
         """What this machine can really create, cached between wizard renders."""
+        if refresh:
+            from .toolchain import clear_probe_cache
+            clear_probe_cache()
+            self._dotnet_info_cache = None
         root = ""
         if workspace_id:
             try:
