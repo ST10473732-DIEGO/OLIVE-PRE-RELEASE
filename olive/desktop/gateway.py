@@ -39,6 +39,8 @@ class DesktopGateway:
     def __init__(self, provider, registry, permissions, confirmations, audit, stop, settings):
         self.provider, self.registry, self.permissions = provider, registry, permissions
         self.confirmations, self.audit, self.stop, self.settings = confirmations, audit, stop, settings
+        from .task_authority import TaskAuthority
+        self.trusted_tasks = TaskAuthority(stop)
         self.permits = {}
         self.last_verified_window = None
         self.ui_owner = lambda pid: pid == os.getpid()

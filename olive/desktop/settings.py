@@ -1,6 +1,6 @@
 """Validated conservative desktop configuration."""
 
-DEFAULTS = {"enabled": False, "screen_observation": False, "vision_fallback": False,
+DEFAULTS = {"enabled": False, "trusted_tasks": False, "screen_observation": False, "vision_fallback": False,
             "uia": True, "keyboard_policy": "deny", "mouse_policy": "deny",
             "screenshot_retention": 10, "unknown_app_policy": "ask",
             "emergency_shortcut": "Ctrl+Alt+Escape", "user_takeover": "pause"}
@@ -12,7 +12,7 @@ def validate(value=None):
     if not isinstance(value, dict) or set(value) - set(DEFAULTS):
         raise ValueError("Unknown desktop setting")
     result = {**DEFAULTS, **value}
-    for key in ("enabled", "screen_observation", "vision_fallback", "uia"):
+    for key in ("enabled", "trusted_tasks", "screen_observation", "vision_fallback", "uia"):
         if type(result[key]) is not bool:
             raise ValueError("Desktop switches must be boolean")
     for key in ("keyboard_policy", "mouse_policy", "unknown_app_policy"):
