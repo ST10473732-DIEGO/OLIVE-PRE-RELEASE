@@ -25,7 +25,7 @@
       ],
       "quantization": "Q4_K_M",
       "licence": "Apache-2.0",
-      "status": "approval_required",
+      "status": "approved_downloaded_digest_verified",
       "backend": "Ollama CUDA/CPU; allocation unmeasured",
       "config_digest": "sha256:de9fed2251b37295b763727a59ca35cf5cfe5c7379bc3e2104b2ce3c145aa887",
       "architecture": "qwen35"
@@ -53,7 +53,7 @@
       ],
       "quantization": "Q4_K_M",
       "licence": "Apache-2.0",
-      "status": "approval_required",
+      "status": "approved_downloaded_digest_verified",
       "backend": "Ollama CUDA/CPU; allocation unmeasured",
       "config_digest": "sha256:be595b49fe22012bd1f5605ec14c7ffa58331783a88a4fd8c22e5fc8ec42cf9f",
       "architecture": "qwen35"
@@ -89,7 +89,7 @@
       ],
       "quantization": "Q4_K_M",
       "licence": "Apache-2.0",
-      "status": "approval_required",
+      "status": "approved_downloaded_digest_verified",
       "backend": "Ollama CUDA/CPU; allocation unmeasured",
       "config_digest": "sha256:492b2922d38e553cabc2d319345644ed482874fbf5e5c9e4495cbf8e17b0cf5f",
       "architecture": "qwen35"
@@ -104,7 +104,7 @@
     "licence": "GPL-2.0 with Classpath Exception",
     "destination": ".toolchains/jdk",
     "estimated_extra_disk_bytes": 650000000,
-    "status": "approval_required"
+    "status": "approved_installed_checksum_verified"
   },
   "image": {
     "repository": "Comfy-Org/Qwen-Image-2.1",
@@ -131,5 +131,60 @@
     ]
   },
   "estimated_extra_disk_bytes": 28376330600,
-  "policy": "No downloads until explicit approval; image excluded until licence review and native runtime support verified; no full precision copies."
+  "policy": "No downloads until explicit approval; image excluded until licence review and native runtime support verified; no full precision copies.",
+  "challenger": {
+    "tag": "gemma4:12b",
+    "manifest_sha256": "4eb23ef187e2c5462566d6a1d3bbbc2f1346d0b4327cbb66d58fffbcc9b2b05c",
+    "bytes": 7556508396,
+    "config": {
+      "model_format": "gguf",
+      "model_family": "gemma4",
+      "model_families": [
+        "gemma4"
+      ],
+      "model_type": "11.9B",
+      "file_type": "Q4_K_M",
+      "renderer": "gemma4",
+      "parser": "gemma4",
+      "requires": "0.30.5",
+      "architecture": "amd64",
+      "os": "linux",
+      "rootfs": {
+        "type": "layers",
+        "diff_ids": [
+          "sha256:1278394b693672ac2799eadc9a83fd98259a6a88a40acfb1dcaa6c6fc895a606",
+          "sha256:675ad6e68101ca9413ec806855c452362f0213f2dfc5800996b086fdb8119842",
+          "sha256:0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+          "sha256:56380ca2ab89f1f68c283f4d50863c0bcab52ae3f1b9a88e4ab5617b176f71a3"
+        ]
+      }
+    },
+    "layers": [
+      {
+        "mediaType": "application/vnd.ollama.image.model",
+        "digest": "sha256:1278394b693672ac2799eadc9a83fd98259a6a88a40acfb1dcaa6c6fc895a606",
+        "size": 7381382048
+      },
+      {
+        "mediaType": "application/vnd.ollama.image.projector",
+        "digest": "sha256:675ad6e68101ca9413ec806855c452362f0213f2dfc5800996b086fdb8119842",
+        "size": 175115584,
+        "from": "mmproj-gemma-4-12B-it-bf16.gguf"
+      },
+      {
+        "mediaType": "application/vnd.ollama.image.license",
+        "digest": "sha256:0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+        "size": 10174
+      },
+      {
+        "mediaType": "application/vnd.ollama.image.params",
+        "digest": "sha256:56380ca2ab89f1f68c283f4d50863c0bcab52ae3f1b9a88e4ab5617b176f71a3",
+        "size": 42
+      }
+    ],
+    "licence": "Apache-2.0",
+    "status": "approved_downloaded_digest_verified",
+    "reason": "Primary 4B/9B fail fixed quality/latency gates; compare one general/vision challenger",
+    "estimated_extra_disk_bytes": 7556508396
+  }
 }
