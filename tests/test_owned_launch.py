@@ -146,6 +146,9 @@ class OwnedBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_launch_denial_never_starts_a_process(self):
         self.d.configure({'enabled':True})
         selected=Path(self.directory.name)/'fixture.exe';selected.write_bytes(b'not executable')
+        if sys.platform != 'win32':
+            selected.write_bytes(b'\x7fELFsynthetic non-runnable fixture')
+            selected.chmod(0o700)
         with patch('olive.desktop.launch_targets.subprocess.Popen',side_effect=AssertionError('Denied launch')):
             with self.assertRaises(PermissionError):await self.d.launch_local(str(selected),'executable')
         self.assertEqual(self.d.launch_targets.snapshot(),[])
@@ -153,6 +156,9 @@ class OwnedBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_launch_file_change_invalidates_review(self):
         self.d.configure({'enabled':True})
         selected=Path(self.directory.name)/'fixture.exe';selected.write_bytes(b'before review')
+        if sys.platform != 'win32':
+            selected.write_bytes(b'\x7fELFsynthetic before review')
+            selected.chmod(0o700)
         async def changed(*args,**kwargs):selected.write_bytes(b'changed after review')
         self.d.gateway.approval=AsyncMock(side_effect=changed)
         with patch('olive.desktop.launch_targets.subprocess.Popen',side_effect=AssertionError('Stale launch')):

@@ -7,7 +7,7 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from PySide6.QtCore import QObject, Signal, QThread, Qt
+from PySide6.QtCore import QObject, Signal, QThread, Qt, QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtTest import QTest
 
@@ -66,6 +66,9 @@ class QtWindowTests(unittest.TestCase):
         if self.manager.main:
             self.manager.main.close()
             self.manager.main.deleteLater()
+        self.manager.deleteLater()
+        self.bridge.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
 
     def test_home_registry_and_lazy_singleton_windows(self):

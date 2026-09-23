@@ -62,3 +62,30 @@ class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('locals', str(payload))
             # An existing evidence file is never overwritten or a logging failure raised.
             self.assertFalse(diagnostic.failure(ValueError('later'), directory)['diagnostic_saved'])
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX private metadata storage')
+    async def test_linux_opt_in_is_private_content_free_and_never_overwrites(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, OLIVE_ATTACH_DIAGNOSTICS='1'):
+            diagnostic = RequestDiagnostic('id', 'desktop.attach_launch')
+            safe = diagnostic.failure(ValueError('private exception and path'), directory)
+            self.assertTrue(safe['diagnostic_saved'])
+            file = Path(directory) / 'developer-diagnostics' / (diagnostic.error_id + '.json')
+            original = file.read_bytes()
+            self.assertEqual(file.stat().st_mode & 0o777, 0o600)
+            self.assertNotIn(b'private exception', original)
+            self.assertNotIn('exception', json.loads(original))
+            self.assertFalse(diagnostic.failure(ValueError('later'), directory)['diagnostic_saved'])
+            self.assertEqual(file.read_bytes(), original)
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX private metadata storage')
+    async def test_linux_rejects_symlink_or_shared_diagnostic_directory(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as target, patch.dict(os.environ, OLIVE_ATTACH_DIAGNOSTICS='1'):
+            folder = Path(directory) / 'developer-diagnostics'
+            folder.symlink_to(target, target_is_directory=True)
+            diagnostic = RequestDiagnostic('id', 'desktop.attach_launch')
+            self.assertFalse(diagnostic.failure(ValueError(), directory)['diagnostic_saved'])
+            self.assertEqual(list(Path(target).iterdir()), [])
+            folder.unlink()
+            folder.mkdir(mode=0o755)
+            folder.chmod(0o755)
+            self.assertFalse(diagnostic.failure(ValueError(), directory)['diagnostic_saved'])

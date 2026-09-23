@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 from olive.ui_qt.feature_registry import default_registry
 from olive.ui_qt.window_manager import WindowManager
@@ -38,7 +38,14 @@ class ExperienceCoreTests(unittest.TestCase):
         self.bridge = Bridge()
         self.manager = WindowManager(self.bridge, default_registry(), Path(self.temp.name)/"ui.json", presentation="midnight")
         self.c = self.manager.experience
-        self.addCleanup(self.c.clock.stop)
+
+    def tearDown(self):
+        # These fixtures own their complete QObject tree; stopping a timer alone
+        # leaves signal callbacks and child models alive across subsequent suites.
+        self.c.clock.stop()
+        self.manager.deleteLater()
+        self.bridge.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
     def test_duplicate_request_is_blocked_until_stream_finishes(self):
         self.c.submit("Explain this idea")

@@ -7,6 +7,7 @@ import {openSpace} from "./shell";
 import {captureMail} from "./m4-capture";
 
 test("real WinForms calculator through drag design, C# events, reopen, native run and conflict", async () => {
+  test.skip(process.platform!=='win32','Native Windows Forms execution/designer requires Windows; retained native Windows journey');
   test.setTimeout(240000);
   const profile = await mkdtemp(path.join(tmpdir(), "olive-designer-"));
   const projects = path.join(profile, "projects"); await mkdir(projects);
@@ -121,4 +122,20 @@ public partial class MainForm
     expect(await readFile(generated, "utf8")).toBe(original + "// external fixture divergence\n");
     expect(await readFile(eventPath, "utf8")).toBe(savedEventCode);
   } finally {await app.close();}
+});
+
+test('Linux does not advertise native Windows Forms creation',async()=>{
+  test.skip(process.platform!=='linux','Linux platform truthfulness');
+  const profile=await mkdtemp(path.join(tmpdir(),'olive-winforms-unavailable-'));
+  const app=await electron.launch({args:[path.resolve('.')],env:{...process.env,OLIVE_DATA_DIR:profile,OLIVE_OLLAMA_HOST:'http://127.0.0.1:1'}});
+  try{
+    const page=await app.firstWindow();
+    await page.getByRole('button',{name:'Enter OLIVE',exact:true}).click();
+    await openSpace(page,'Studio');
+    await page.getByRole('button',{name:'New project',exact:true}).first().click();
+    await expect(page.locator('.language-card[data-language="csharp"]')).toBeEnabled({timeout:90000});
+    await page.locator('.language-card[data-language="csharp"]').click();
+    await expect(page.getByRole('radio',{name:/Windows Forms visual application/})).toHaveCount(0);
+    await expect(page.getByRole('radio',{name:/Console application/})).toBeVisible();
+  }finally{await app.close();}
 });

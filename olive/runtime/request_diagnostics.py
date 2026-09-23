@@ -60,6 +60,30 @@ class RequestDiagnostic:
                 safe['diagnostic_saved'] = True
             except Exception:
                 pass  # Logging failure must not replace the first operation error.
+        elif os.environ.get('OLIVE_ATTACH_DIAGNOSTICS') == '1' and os.name == 'posix':
+            try:
+                # Linux has no DPAPI equivalent here. Persist only the same
+                # content-free metadata already returned to the local UI.
+                # Never downgrade Windows exception payloads to plaintext.
+                folder = Path(directory) / 'developer-diagnostics'
+                folder.mkdir(mode=0o700, exist_ok=True)
+                directory_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                try:
+                    info = os.fstat(directory_fd)
+                    if info.st_uid != os.getuid() or info.st_mode & 0o077:
+                        raise OSError('Diagnostic directory must be private')
+                    if len(os.listdir(directory_fd)) >= 32:
+                        raise OSError('Diagnostic limit reached')
+                    descriptor = os.open(self.error_id + '.json',
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600, dir_fd=directory_fd)
+                    with os.fdopen(descriptor, 'w') as output:
+                        json.dump(dict(**safe, timestamp=time.time()), output)
+                    safe['diagnostic_saved'] = True
+                finally:
+                    os.close(directory_fd)
+            except Exception:
+                pass  # Optional diagnostics never replace the operation error.
         return safe
 
 

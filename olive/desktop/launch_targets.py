@@ -1,6 +1,7 @@
 """Reviewed local launches attached via backend-owned ephemeral references."""
 import asyncio
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -34,13 +35,22 @@ class LaunchTargets:
         d = self.desktop
         d.gateway.check()
         selected = Path(path).resolve(strict=True)
-        if kind not in {'executable','python'} or selected.suffix.casefold() != ('.exe' if kind == 'executable' else '.py'):
+        if kind not in {'executable','python'} or (kind == 'python' and selected.suffix.casefold() != '.py'):
             raise ValueError('Unsupported selected launch file')
-        executable = selected if kind == 'executable' else Path(sys.executable).with_name('pythonw.exe')
+        if kind == 'executable':
+            if os.name == 'nt' and selected.suffix.casefold() != '.exe':
+                raise ValueError('Choose a Windows executable')
+            if os.name != 'nt':
+                with selected.open('rb') as source:
+                    if source.read(4) != b'\x7fELF' or not os.access(selected, os.X_OK):
+                        raise ValueError('Choose an executable native ELF file; scripts use the reviewed Python route')
+        executable = selected if kind == 'executable' else (
+            Path(sys.executable).with_name('pythonw.exe') if os.name == 'nt' else Path(sys.executable))
         allowed = [canonical(executable)]
         if kind == 'python':
             # Backend-known interpreter identity, not an arbitrary descendant.
-            allowed.append(canonical(Path(getattr(sys,'_base_executable',sys.executable)).with_name('pythonw.exe')))
+            base = Path(getattr(sys,'_base_executable',sys.executable))
+            allowed.append(canonical(base.with_name('pythonw.exe') if os.name == 'nt' else base))
         argv = (str(executable),) if kind == 'executable' else (str(executable),str(selected))
         app = identity(selected.name, 'executable', str(selected))
         return await self.launch(app, argv, tuple(allowed), script=kind == 'python')
