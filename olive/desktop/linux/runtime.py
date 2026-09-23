@@ -120,10 +120,9 @@ class LinuxRuntime:
         d.record = DesktopControlSession('Local user-directed ' + grant.scope.effect, id=grant.id)
         d.record.status = 'running'
         effect_attempted = False
+        preparation_started = False
         try:
             d.publish()  # Required history admission before any launch/input.
-            await self.prepare()
-            self.authority.check(grant, d.configuration())
             await asyncio.to_thread(self.apps.discover)
             app = self.apps.resolve(grant.scope.application)
             d.record.application = app.name
@@ -134,6 +133,11 @@ class LinuxRuntime:
             d.gateway.require_not_denied(permissions_session, 'system.open_application')
             d.gateway.require_not_denied(permissions_session, 'desktop.inspect_application')
             d.gateway.require_not_denied(permissions_session, 'desktop.control_application')
+            # Resolve missing/ambiguous apps and deliberate policy denies before
+            # involving a human in any compositor dialog. No app is launched yet.
+            preparation_started = True
+            await self.prepare()
+            self.authority.check(grant, d.configuration())
             processes = await asyncio.to_thread(self.apps.launch, app)
             if not processes:
                 processes = await self.apps.wait_for_processes(app, d.stop_event)
@@ -233,12 +237,13 @@ class LinuxRuntime:
             return str(error)
         finally:
             self.authority.finish(grant)
-            try:
-                await self.native.call('end', timeout=4)
-            except (Exception, asyncio.CancelledError):
-                self.native.request_stop()
-                await self.native.close()
-                self.bound_stop = False
+            if preparation_started:
+                try:
+                    await self.native.call('end', timeout=4)
+                except (Exception, asyncio.CancelledError):
+                    self.native.request_stop()
+                    await self.native.close()
+                    self.bound_stop = False
             self.session = None
             self.owner = None
             d.publish()

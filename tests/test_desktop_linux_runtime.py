@@ -209,3 +209,10 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.actions, [])
         self.assertEqual(self.value, 'An unrelated unfinished message')
         self.assertFalse(self.sent)
+
+    async def test_missing_application_does_not_open_a_consent_prompt(self):
+        self.runtime.apps.resolve.side_effect = LookupError('Requested app is not installed')
+        await self.runtime.run('Open MissingApp', 'owned-message')
+        self.runtime.prepare.assert_not_awaited()
+        self.runtime.apps.launch.assert_not_called()
+        self.assertEqual(self.desktop.record.status, 'needs-human')
