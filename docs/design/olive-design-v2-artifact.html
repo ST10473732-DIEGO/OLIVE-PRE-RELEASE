@@ -1,0 +1,790 @@
+<title>OLIVE Design System V2</title>
+<meta name="description" content="Audit of the current OLIVE desktop UI, the V2 design system (tokens, type, spacing, components, motion), and interactive V2 designs for every desktop workspace.">
+<link rel="stylesheet" href="v2-assets/olive-v2.css">
+<style>
+.frame{position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid var(--pg-line-strong);background:#05070a;box-shadow:var(--pg-shadow)}
+.frame .scaler{position:absolute;top:0;left:0;transform-origin:0 0}
+.ctlbar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.ctlbar .grp{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.ctlbar .grp>span{font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-faint);margin-right:4px}
+.ctlbar button{font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--pg-line-strong);background:var(--pg-surface);color:var(--pg-muted);cursor:pointer}
+.ctlbar button[aria-pressed="true"]{color:var(--pg-text);border-color:var(--pg-accent);background:var(--pg-accent-soft)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.gallery figure{margin:0;display:flex;flex-direction:column;gap:6px}
+.gallery figcaption{font-size:12px;color:var(--pg-muted)}
+.spec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:900px){.spec{grid-template-columns:1fr}}
+.demo{padding:16px;display:flex;flex-direction:column;gap:14px;border-radius:10px;border:1px solid var(--pg-line-strong);background:var(--bg-base)}
+.demo .rowx{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.demo .lab{font-size:11px;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;font-weight:650;width:100%}
+.typespec div{display:flex;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid var(--border-subtle);color:var(--text-primary)}
+.typespec div:last-child{border-bottom:0}
+.typespec code{font-size:11px;color:var(--text-muted);width:190px;flex-shrink:0;font-family:var(--code)}
+.spacebar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.spacebar div{display:flex;flex-direction:column;align-items:center;gap:4px;font:11px var(--code);color:var(--text-muted)}
+.spacebar i{display:block;background:var(--accent-blue);opacity:.7;border-radius:2px}
+.radii{display:flex;gap:12px;flex-wrap:wrap}
+.radii div{width:92px;height:56px;border:1px solid var(--border-strong);background:var(--bg-elevated);display:flex;align-items:flex-end;justify-content:center;padding:4px;font:11px var(--code);color:var(--text-muted)}
+.core-demo{display:flex;gap:28px;flex-wrap:wrap;align-items:center}
+.core-demo figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)}
+.core-demo .core{transform:rotate(-14deg) scale(3.2);margin:22px}
+/* desktop app mock */
+.app{display:grid;grid-template-rows:34px minmax(0,1fr);background:var(--bg-base);overflow:hidden;position:relative;font-size:13px;line-height:1.4}
+.app-body{display:flex;min-height:0}
+.ws{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-panel);overflow:hidden;position:relative}
+.ws-head{height:52px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--border-subtle);background:var(--bg-panel)}
+.ws-head h3{font:600 17px/1.2 var(--ui-display);letter-spacing:-.01em;margin:0;color:var(--text-primary)}
+.ws-head .sub{font-size:12px;color:var(--text-muted)}
+.ws-head .grow{flex:1}
+.sect-t{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;color:var(--text-secondary);letter-spacing:.01em;margin:0 0 6px}
+.sect-t .badge{margin-left:2px}
+.sect-t .more{margin-left:auto;font-weight:500;color:var(--accent-blue);font-size:12px}
+.lrow{display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 10px;border-radius:var(--r-md);color:var(--text-primary);font-size:13px;width:100%;text-align:left}
+.lrow:hover{background:var(--bg-hover)}
+.lrow.sel{background:var(--bg-selected)}
+.lrow .meta{color:var(--text-muted);font-size:12px;white-space:nowrap}
+.lrow .end{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.lrow .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .t small{display:block;color:var(--text-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.hair{height:1px;background:var(--border-subtle);margin:14px 0}
+.chk{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border-strong);flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:transparent}
+.chk.on{background:var(--accent-blue-fill);border-color:transparent;color:#fff}
+.lrow.done .t{color:var(--text-muted);text-decoration:line-through}
+.rail{width:232px;flex-shrink:0;border-right:1px solid var(--border-subtle);padding:12px 8px;display:flex;flex-direction:column;gap:1px;overflow:auto;background:var(--bg-panel)}
+.rail .rh{font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:12px 8px 4px}
+.rail .lrow{min-height:30px;padding:4px 8px}
+.side{width:340px;flex-shrink:0;border-left:1px solid var(--border-subtle);background:var(--bg-panel);overflow:auto;padding:18px 18px}
+.field.big{height:auto;padding:10px 12px;border-radius:var(--r-xl);flex-direction:column;align-items:stretch;gap:8px}
+.field.big textarea{resize:none;height:44px;font:13.5px/1.5 var(--ui)}
+.field.big .cf{display:flex;align-items:center;gap:6px}
+.send{width:28px;height:28px;border-radius:var(--r-md);background:var(--accent-blue-fill);color:#fff;display:inline-flex;align-items:center;justify-content:center;margin-left:auto}
+.send.off{background:var(--bg-elevated);color:var(--text-disabled)}
+.notice{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r-md);font-size:12.5px;background:var(--bg-surface);border:1px solid var(--border-default);color:var(--text-secondary)}
+.notice.warn{box-shadow:inset 2px 0 0 var(--status-warning)}.notice.err{box-shadow:inset 2px 0 0 var(--status-error)}.notice.info{box-shadow:inset 2px 0 0 var(--accent-blue)}.notice.ok{box-shadow:inset 2px 0 0 var(--status-success)}
+.notice .grow{flex:1}
+.chat-rail{width:264px;flex-shrink:0;border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;background:var(--bg-panel)}
+.chat-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-surface)}
+.thread{flex:1;min-height:0;overflow:hidden;padding:22px 0}
+.col{width:min(760px,calc(100% - 64px));margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.m-user{align-self:flex-end;max-width:80%;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-xl);padding:9px 13px;font-size:14px;line-height:1.55}
+.m-olive{display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.62;color:var(--text-primary)}
+.m-olive .attr{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+.m-olive .attr b{color:var(--text-primary);font-weight:650;font-size:12.5px}
+.m-olive .attr .acts{margin-left:auto;display:flex;gap:2px}
+.m-olive h4{font-size:15px;font-weight:650;margin:4px 0 0}
+.m-olive p{margin:0}
+.m-olive ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:3px}
+.m-olive code{font-family:var(--code);font-size:12.5px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:4px;padding:0 4px}
+.codeblk{border:1px solid var(--border-default);border-radius:var(--r-lg);overflow:hidden;background:var(--bg-base)}
+.codeblk .ch{display:flex;align-items:center;gap:8px;height:30px;padding:0 6px 0 12px;border-bottom:1px solid var(--border-subtle);font-size:11.5px;color:var(--text-muted)}
+.codeblk .ch .grow{flex:1}
+.codeblk pre{margin:0;padding:10px 14px;font:12.5px/20px var(--code);color:var(--syn-text);white-space:pre;overflow:hidden}
+.toolres{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border-default);border-radius:var(--r-lg);background:var(--bg-panel);font-size:12.5px}
+.toolres .grow{flex:1}
+.composer{padding:10px 0 16px}
+.composer .field.big{background:var(--bg-panel)}
+.caret{display:inline-block;width:8px;height:15px;background:var(--accent-cyan);vertical-align:-2px;animation:olv-caret 1s steps(1) infinite;margin-left:2px}
+.go-tabs{height:36px;display:flex;align-items:flex-end;gap:2px;padding:0 8px;background:var(--bg-base)}
+.go-tab{height:30px;display:flex;align-items:center;gap:8px;padding:0 8px 0 10px;border-radius:var(--r-lg) var(--r-lg) 0 0;font-size:12.5px;color:var(--text-secondary);width:210px;position:relative;cursor:pointer}
+.go-tab:hover{background:var(--bg-hover)}
+.go-tab.on{background:var(--bg-panel);color:var(--text-primary)}
+.go-tab .fav{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+.go-tab .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.go-bar{height:40px;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--bg-panel);border-bottom:1px solid var(--border-subtle)}
+.addr{flex:1;display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:var(--r-lg);background:var(--bg-base);border:1px solid var(--border-default);font-size:13px;color:var(--text-primary);margin:0 6px}
+.addr .host{color:var(--text-primary)}.addr .path{color:var(--text-muted)}
+.addr.private{box-shadow:inset 0 0 0 1px rgba(200,162,240,.35)}
+.page{flex:1;min-height:0;background:#f6f7f9;color:#1b2430;overflow:hidden;position:relative}
+.dev-rail{width:280px;flex-shrink:0;border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;background:var(--bg-panel)}
+.dev-main{flex:1;min-width:0;overflow:auto;background:var(--bg-surface);padding:22px 32px}
+.caps{border:1px solid var(--border-default);border-radius:var(--r-lg);overflow:hidden;background:var(--bg-panel)}
+.cap{display:grid;grid-template-columns:28px minmax(0,1fr) auto 90px;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--border-subtle)}
+.cap:first-child{border-top:0}
+.cap .d b{display:block;font-size:13px;font-weight:600;color:var(--text-primary)}
+.cap .d span{font-size:12px;color:var(--text-muted)}
+.cap .lu{font-size:11.5px;color:var(--text-muted);text-align:right}
+.cap.sub{padding-left:54px;background:var(--bg-surface)}
+.cal-grid{display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr));flex:1;min-height:0;overflow:hidden;position:relative}
+.cal-h{font-size:11.5px;color:var(--text-muted);padding:6px 8px;border-bottom:1px solid var(--border-default);border-left:1px solid var(--border-subtle);display:flex;gap:6px;align-items:baseline}
+.cal-h b{font-size:16px;color:var(--text-primary);font-weight:600}
+.cal-h.today b{background:var(--accent-blue-fill);color:#fff;border-radius:6px;padding:0 5px}
+.cal-t{font-size:11px;color:var(--text-muted);text-align:right;padding-right:6px;transform:translateY(-7px)}
+.cal-c{border-left:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);position:relative}
+.ev{position:absolute;left:3px;right:3px;border-radius:4px;padding:3px 6px;font-size:11.5px;line-height:1.3;overflow:hidden;border-left:3px solid;color:var(--text-primary)}
+.ev small{display:block;color:var(--text-secondary);font-size:11px}
+.ev.p{background:rgba(124,196,255,.16);border-color:#7cc4ff}.ev.w{background:rgba(92,200,180,.16);border-color:#5cc8b4}.ev.i{background:rgba(226,213,154,.14);border-color:#e2d59a}
+.nowline{position:absolute;left:56px;right:0;height:0;border-top:2px solid #e5534b;z-index:3}
+.nowline::before{content:"";position:absolute;left:-5px;top:-6px;width:10px;height:10px;border-radius:50%;background:#e5534b}
+.mini-month{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:11px;text-align:center;color:var(--text-secondary)}
+.mini-month span{height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+.mini-month .h{color:var(--text-muted);font-weight:600}
+.mini-month .o{color:var(--text-disabled)}
+.mini-month .t{background:var(--accent-blue-fill);color:#fff;font-weight:700}
+.mini-month .wk{background:var(--bg-selected)}
+.xfer{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 150px 160px 200px;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--border-subtle);font-size:12.5px}
+.xfer.h{font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);border-top:0;padding-block:7px;background:var(--bg-base)}
+.xfer .fn b{display:block;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xfer .fn span{color:var(--text-muted);font-size:11.5px}
+.bar{height:4px;border-radius:2px;background:var(--bg-raised);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--status-computing)}
+.set-nav{width:240px;flex-shrink:0;border-right:1px solid var(--border-subtle);padding:12px 8px;overflow:auto;background:var(--bg-panel)}
+.set-main{flex:1;min-width:0;overflow:auto;background:var(--bg-surface);padding:24px 40px 80px}
+.set-main .inner{max-width:760px;display:flex;flex-direction:column;gap:22px}
+.set-sec h4{font-size:13px;font-weight:650;margin:0 0 8px;color:var(--text-primary)}
+.set-rows{border:1px solid var(--border-default);border-radius:var(--r-lg);background:var(--bg-panel)}
+.srow{display:flex;align-items:center;gap:20px;padding:11px 14px;border-top:1px solid var(--border-subtle)}
+.srow:first-child{border-top:0}
+.srow .l{flex:1;min-width:0}
+.srow .l b{display:block;font-size:13px;font-weight:550;color:var(--text-primary)}
+.srow .l span{display:block;font-size:12px;color:var(--text-muted);margin-top:1px}
+.sw{width:30px;height:17px;border-radius:9px;background:var(--bg-raised);border:1px solid var(--border-strong);position:relative;flex-shrink:0;cursor:pointer}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:var(--text-secondary);transition:transform var(--dur-fast) var(--ease)}
+.sw.on{background:var(--accent-blue-fill);border-color:transparent}
+.sw.on::after{transform:translateX(13px);background:#fff}
+.savebar{position:absolute;left:280px;right:0;bottom:0;display:flex;align-items:center;gap:10px;padding:10px 40px;background:var(--bg-raised);border-top:1px solid var(--border-strong);font-size:12.5px}
+.empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:28px 4px;max-width:420px}
+.empty h5{font-size:14px;font-weight:600;margin:0;color:var(--text-primary)}
+.empty p{margin:0;font-size:12.5px;color:var(--text-muted);line-height:1.5}
+.skel{color:var(--text-muted);font-size:12.5px;display:flex;align-items:center;gap:8px;padding:8px 10px}
+.tbl2{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl2 th{text-align:left;font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);padding:7px 12px;border-bottom:1px solid var(--border-default)}
+.tbl2 td{padding:9px 12px;border-bottom:1px solid var(--border-subtle);color:var(--text-primary)}
+.tbl2 td small{color:var(--text-muted)}
+.os{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:1000px){.os{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.os{grid-template-columns:1fr}}
+.os .pg-card{padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--pg-muted)}
+.os .pg-card b{color:var(--pg-text)}
+</style>
+
+<div class="pg">
+  <header class="pg-head">
+    <div class="olive-mark" aria-hidden="true"></div>
+    <div>
+      <h1>OLIVE Design System V2</h1>
+      <div class="sub">Audit of today's desktop UI, the V2 system, and a proposed design for every workspace. Studio has <a id="studioLink" href="olive-studio-v2-artifact.html">its own artifact</a>.</div>
+    </div>
+    <span class="tag">Design V2 · Proposal</span>
+  </header>
+
+  <nav class="pg-nav" aria-label="Sections">
+    <a href="#audit">Audit</a><a href="#system">System</a><a href="#components">Components</a><a href="#screens">Workspaces</a><a href="#compare">Current vs proposed</a><a href="#core">Core</a><a href="#mobile">Mobile C9</a><a href="#a11y">Accessibility</a><a href="#os">OS scale</a><a href="#classes">Implementation</a>
+    <span class="sep"></span>
+    <button id="clsToggle" aria-pressed="false">A/B/C/D classes</button>
+    <button id="pthemeToggle" aria-pressed="false" title="Show the product in its native light theme">Product: light theme</button>
+  </nav>
+
+  <!-- ============================ AUDIT ============================ -->
+  <section class="pg-sec" id="audit">
+    <header>
+      <span class="eyebrow">1 · Audit</span>
+      <h2>What exists today: keep, refine or replace</h2>
+      <p class="lede">From the running app on this branch (isolated temporary profile, synthetic fixture), the approved GO, Connect C4 and Mobile C9 designs, and the source in <code>desktop/src</code>. Newer does not mean better. Where the current design is stronger, it stays.</p>
+    </header>
+    <div class="gallery" id="shotGallery"></div>
+    <div class="tbl-wrap"><table class="tbl" id="auditTbl"></table></div>
+  </section>
+
+  <!-- ============================ SYSTEM ============================ -->
+  <section class="pg-sec" id="system">
+    <header>
+      <span class="eyebrow">2 · Design System V2</span>
+      <h2>Tokens</h2>
+      <p class="lede">V2 keeps the "quiet instrument" values that already work, gives them semantic names, adds one panel layer and a computing accent, and fixes the one contrast failure (muted text on raised surfaces measured 3.71:1; V2 muted measures ≥ 4.69:1 on every surface). Every existing variable in <code>tokens.css</code> maps to a V2 name (see the handoff document §4).</p>
+    </header>
+    <h3>Colour · dark (default)</h3>
+    <div class="swatches" id="swDark"></div>
+    <h3>Colour · semantic status</h3>
+    <div class="swatches" id="swStatus"></div>
+    <div class="pg-card pg-note">
+      <strong>Colour rules</strong>
+      <ul>
+        <li><b>Blue is interaction:</b> links, focus, selection, primary buttons (<code>#2f74d0</code> fill with white text, 4.64:1). The light <code>#7cc4ff</code> stays for text-level accents and focus rings.</li>
+        <li><b>Cyan is computation:</b> OLIVE actively thinking, streaming, running a job, or context that will be sent to a model. Never decoration, never a button fill.</li>
+        <li><b>Olive green is identity:</b> the mark, the active-space indicator in navigation, the OLIVE author mark in Chat, and trusted/paired identity. <b>Success green (<code>#7fd8a8</code>) is outcomes</b>: verified, passed, online. The two tokens are separate and never swap.</li>
+        <li><b>Amber means your decision is needed</b> (Ask, pending approval) or something recoverable. Red is terminal or blocking. Grey is off, offline or declined.</li>
+        <li><b>Status is never colour alone:</b> every state carries an icon or a word (WCAG 1.4.1).</li>
+      </ul>
+    </div>
+    <div class="spec">
+      <div>
+        <h3 style="margin-bottom:8px">Typography</h3>
+        <div class="demo p typespec" id="typeSpec"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div><h3 style="margin-bottom:8px">Spacing (4 px base)</h3><div class="demo p"><div class="spacebar" id="spaceSpec"></div><p style="margin:0;font-size:12px;color:var(--text-muted)">Studio uses 2–8 internally; workspaces 8–24; page gutters 24–32. Dense rows: 22 (Studio tree), 30 (navigation), 34 (lists).</p></div></div>
+        <div><h3 style="margin-bottom:8px">Radii</h3><div class="demo p"><div class="radii" id="radiusSpec"></div><p style="margin:0;font-size:12px;color:var(--text-muted)">Desktop controls use 4–6. Menus, popovers and tooltips use 8. Dialogs and the Chat composer use 12. Full-round is reserved for status pills and avatars. The 16/20 "feature" radii are retired.</p></div></div>
+        <div><h3 style="margin-bottom:8px">Borders and elevation</h3><div class="demo p" style="gap:8px;font-size:12.5px;color:var(--text-secondary)"><span>Structure comes from 1 px hairlines: <code style="color:var(--text-primary)">border.subtle</code> between regions, <code style="color:var(--text-primary)">border.default</code> around controls, <code style="color:var(--text-primary)">border.strong</code> on overlays.</span><span>Shadows only on things that float above the page: menus, popovers, the palette, dialogs and toasts. Panels and list rows never have a shadow.</span><span>Surface ladder, from back to front: base → panel → surface → elevated → raised.</span></div></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div>
+        <h3 style="margin-bottom:8px">Iconography</h3>
+        <div class="demo p" id="iconSpec"></div>
+      </div>
+      <div>
+        <h3 style="margin-bottom:8px">Motion</h3>
+        <div class="tbl-wrap"><table class="tbl" id="motionTbl"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ COMPONENTS ============================ -->
+  <section class="pg-sec" id="components">
+    <header>
+      <span class="eyebrow">3 · Components</span>
+      <h2>Controls at desktop density</h2>
+      <p class="lede">Default control height is 28 px, compact is 24 px, and 32 px is for the one primary action on a page. Heights drop from 34–36 px today. At 100% scale this is still above the WCAG 2.2 24 px target minimum.</p>
+    </header>
+    <div class="demo p" id="compDemo"></div>
+  </section>
+
+  <!-- ============================ SCREENS ============================ -->
+  <section class="pg-sec" id="screens">
+    <header>
+      <span class="eyebrow">4 · Workspaces</span>
+      <h2>Desktop shell and every workspace, with their states</h2>
+      <p class="lede">Logical window 1440×900 unless changed. Content is example data, not the user's records. Turn on A/B/C/D classes to see which elements the backend already supports.</p>
+    </header>
+    <div class="ctlbar">
+      <div class="grp" id="scrNav"><span>Workspace</span></div>
+      <div class="grp" id="stNav"><span>State</span></div>
+      <div class="grp" id="szNav"><span>Window</span><button data-size="1920">1920</button><button data-size="1440" aria-pressed="true">1440</button><button data-size="1366">1366</button></div>
+    </div>
+    <div class="frame" id="deskFrame"><div class="scaler"></div></div>
+    <div class="pg-grid c2">
+      <div class="pg-card pg-note" id="scrNotes"></div>
+      <div class="pg-card pg-note" id="scrCls"></div>
+    </div>
+  </section>
+
+  <!-- ============================ COMPARE ============================ -->
+  <section class="pg-sec" id="compare">
+    <header>
+      <span class="eyebrow">5 · Current vs proposed</span>
+      <h2>Why each change is an improvement, not just a difference</h2>
+    </header>
+    <div id="cmpList" style="display:flex;flex-direction:column;gap:26px"></div>
+  </section>
+
+  <!-- ============================ CORE ============================ -->
+  <section class="pg-sec" id="core">
+    <header>
+      <span class="eyebrow">6 · OLIVE Core</span>
+      <h2>The Core shows activity. It is not a logo or a decoration.</h2>
+      <p class="lede">Today's Core is a dot-matrix olive in the icon's green and pimento red. It rotates at Welcome and sits in the navigation brand slot. V2 keeps the renderer and the Welcome moment, and moves the compact Core into the title bar as a live activity indicator: olive dots at rest, cyan compute lighting only while OLIVE is really working, amber while it waits for you. The cyan state is new (class B: a renderer palette parameter). The app icon stays the solid green olive.</p>
+    </header>
+    <div class="demo p core-demo">
+      <figure><span class="core" data-state="idle"></span>Rest · idle</figure>
+      <figure><span class="core" data-state="working"></span>Working · real job running</figure>
+      <figure><span class="core" data-state="attention"></span>Waiting for you · approval</figure>
+      <figure><span class="mark lg" style="transform:rotate(-14deg) scale(1.9);margin:18px"></span>App icon / identity (not the Core)</figure>
+    </div>
+    <div class="tbl-wrap"><table class="tbl" id="coreTbl"></table></div>
+  </section>
+
+  <!-- ============================ MOBILE ============================ -->
+  <section class="pg-sec" id="mobile">
+    <header>
+      <span class="eyebrow">7 · OLIVE Mobile C9</span>
+      <h2>Audit of the approved C9 design against V2</h2>
+      <p class="lede">C9 already uses the same colour values, the same Off/Ask/Allow semantics and the same truthful model/device wording. V2 recommends no structural change. Mobile keeps touch radii (14/20) and 44 pt targets by design. The rows below are the only token-level adjustments worth making, and each is optional.</p>
+    </header>
+    <div class="tbl-wrap"><table class="tbl" id="mobileTbl"></table></div>
+  </section>
+
+  <!-- ============================ A11Y ============================ -->
+  <section class="pg-sec" id="a11y">
+    <header>
+      <span class="eyebrow">8 · Accessibility</span>
+      <h2>Findings and V2 rules</h2>
+    </header>
+    <div class="tbl-wrap"><table class="tbl" id="a11yTbl"></table></div>
+  </section>
+
+  <!-- ============================ OS ============================ -->
+  <section class="pg-sec" id="os">
+    <header>
+      <span class="eyebrow">9 · Toward OLIVE Desktop and OS</span>
+      <h2>Every V2 surface already has an OS-scale counterpart</h2>
+      <p class="lede">This is not an OS design. It checks that nothing in V2 would have to be thrown away if OLIVE became the desktop environment.</p>
+    </header>
+    <div class="os" id="osGrid"></div>
+  </section>
+
+  <!-- ============================ CLASSES ============================ -->
+  <section class="pg-sec" id="classes">
+    <header>
+      <span class="eyebrow">10 · Implementation reality</span>
+      <h2>A/B/C/D for every proposed desktop element</h2>
+    </header>
+    <div class="legend">
+      <span><i class="cls A">A</i> Visual only; backend already supports it</span>
+      <span><i class="cls B">B</i> Frontend behaviour on existing APIs</span>
+      <span><i class="cls C">C</i> Small backend/IPC integration</span>
+      <span><i class="cls D">D</i> Future / not supported</span>
+    </div>
+    <div class="tbl-wrap"><table class="tbl" id="classTbl"></table></div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script>
+(function(){
+"use strict";
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const I=(n,c="")=>`<span class="ic ${c}" aria-hidden="true"><i data-lucide="${n}"></i></span>`;
+const C=c=>c?` data-cls="${c}"`:"";
+const K=(...k)=>k.map(x=>`<span class="kbd">${esc(x)}</span>`).join("");
+function icons(root){ try{ if(window.lucide) window.lucide.createIcons({attrs:{"stroke-width":1.75},root}); }catch(e){} }
+const tbl=(id,head,rows)=>{document.getElementById(id).innerHTML=`<thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>`;};
+const V=v=>`<span class="verdict ${v.toLowerCase()}">${v}</span>`;
+const CL=c=>c.split("/").map(x=>`<span class="cls ${x.trim()}">${x.trim()}</span>`).join(" ");
+
+/* ------------------------------ audit ------------------------------ */
+const SHOTS=[["00-welcome","Welcome · dot-matrix Core"],["01-home","Home · app grid"],["02-chat","Chat"],["16-go","OLIVE GO · new tab"],["17-devices","Devices · This device"],["18-tasks","Tasks · empty"],["19-calendar","Calendar · month"],["20-reminders","Reminders · empty"],["21-settings","Settings · Appearance"],["04-studio-editor","Studio · editor (see Studio V2)"]];
+document.getElementById("shotGallery").innerHTML=SHOTS.map(([f,c])=>`<figure><img class="shot" loading="lazy" src="v2-baseline/${f}.jpg" alt="Current OLIVE: ${esc(c)}"><figcaption>${esc(c)}</figcaption></figure>`).join("");
+tbl("auditTbl",["Area","Verdict","What we see today","V2 action"],[
+ ["Colour tokens",V("Keep"),"Near-black navy ground, restrained blue, olive and pimento kept apart from interface colour. Light theme is native, not inverted.","Keep values; add semantic names, a panel layer and a cyan computing role; fix muted-on-raised contrast (3.71 → 4.69:1)."],
+ ["Iconography",V("Keep"),"One family (lucide outline) throughout the shell.","Keep; standardise stroke 1.75 at 14–18 px and 1.5 at 20 px; no filled icons except status dots."],
+ ["Navigation (labelled, grouped)",V("Refine"),"Clear labelled groups (Work, Build, Knowledge, Personal, System). At 232 px it is wide, and in Studio it costs 16% of a 1440 window.","216 px; brand and status move to a title bar; Studio collapses it to a 48 px rail or hides it; 'Find anything' moves into the title bar."],
+ ["Window chrome / title region",V("Replace"),"No shared title region. Each workspace invents a header (Studio adds a 42 px row holding only Local and Remote).","A 34 px title bar: space switcher, workspace context, command centre, activity (Core), model and Connect status, window controls."],
+ ["Home",V("Replace"),"A 15-tile 'Your apps' grid repeats the navigation. The page answers 'where can I go', not 'what matters now'.","Ask OLIVE, Needs attention, OLIVE is working on, Continue, plus a Today rail (next event, tasks, reminders, devices). No app grid."],
+ ["Chat",V("Refine"),"Good bones: rail, olive author mark, right-aligned user turns, research evidence. The header wraps to two rows, the preset select truncates ('Previous selection · Advance…'), and 'Run on' is detached from the model.","One-row header; model and execution side by side in the composer; attribution on every answer; code-block header with Copy; inline pending-action card."],
+ ["Model selection",V("Refine"),"Truthful presets and 'Unavailable remotely' labelling exist. Hidden inside a wide select.","Compact picker: preset name, underlying tag, status (Ready / Needs setup / Unavailable on Gaming PC)."],
+ ["OLIVE Core",V("Refine"),"Distinctive, well engineered, and stops when hidden. The compact Core lives in the brand slot, so it reads as a logo.","Title-bar activity indicator; cyan only while working; never a hero element outside Welcome."],
+ ["Studio",V("Replace"),"Real capability (LSP, DAP, PTY, Git, tests) inside toolbar-and-dock ergonomics. Panel tabs live in the status bar; Git is a button wall.","Full IDE information architecture: see the Studio V2 artifact."],
+ ["OLIVE GO",V("Keep"),"Compact integrated chrome, native web content, truthful private wording, side panel. Recently designed and approved.","Refine only: 36 px tab strip under the title bar, address bar radius 8, clearer private indication, a real empty state for favourites (no dashed placeholders)."],
+ ["Devices / Connect",V("Refine"),"Correct security model; Off/Ask/Allow segmented control; explicit interface choice. 'Pair device' floats detached; five 'Unavailable' pills clutter the list; trust and connection are mixed in one pill row.","Header with separate Connection · Trust · Encryption facts; 'Pairing grants nothing' statement; capability table; unavailable items folded into one line."],
+ ["Pairing",V("Keep"),"Code comparison and QR flow (C2/C4) are clear and security-correct.","Keep; restyle to V2 tokens only."],
+ ["Tasks",V("Refine"),"Sensible rail · list · detail structure. The empty state is a card inside a card; rows are 44–48 px.","34 px rows, inline add, keyboard hints, flat empty state, detail pane unchanged in content."],
+ ["Calendar",V("Refine"),"Professional month grid; Day/Week/Month/Agenda exist. The toolbar spreads over two rows; there is no mini-month or calendar list.","Week as the working view with a now-line; rail with mini-month and calendar toggles; one toolbar row."],
+ ["Reminders",V("Refine"),"Honest copy ('cannot alert you while the app or PC is off'). Two large empty cards plus an explainer card.","One list: Due now · Upcoming · History, with inline Snooze/Done; the explainer becomes a footnote."],
+ ["Files / Inbox",V("Refine"),"Inert-by-default semantics and exact states (verifying, interrupted…). Per-device only, as text.","One Inbox table across devices: state pills with icons, byte-true progress, Save a copy / Dismiss."],
+ ["Settings",V("Refine"),"Category nav and search are right. Native checkboxes, 400 px selects, and one global 'Save settings' button far from the change.","Grouped categories; label/description left, control right; compact switches and segmented controls; an unsaved-changes bar."],
+ ["Empty states",V("Refine"),"Icon tile + heading + sentence + actions (from GO): good. Often nested in cards.","Same content, flat on the surface, left-aligned in lists."],
+ ["Loading states",V("Keep"),"Mostly honest: real pending text and no fake progress.","Rule: progress bars only for real bytes or steps; indeterminate 2 px line for real running jobs; no shimmer skeletons."],
+ ["Dialogs / sheets",V("Keep"),"Radix dialogs; confirmations outside model authority.","Keep behaviour; radius 12, 440 px default width, footer actions right-aligned."],
+ ["Permission UX",V("Keep"),"Off / Ask / Allow and approval dialogs are the product's backbone.","Order is always Off · Ask · Allow (increasing authority, left to right); Ask is amber with a label."],
+ ["Typography",V("Refine"),"Segoe UI Variable with system fallback; 22 px page titles are generous for productivity software. Linux falls back to a generic sans; Monaco defaults to Consolas.","Workspace title 17 px; body 13–14 px; a full mono stack (Cascadia → JetBrains Mono → DejaVu Sans Mono) so Linux gets a real code face."],
+ ["Spacing / density",V("Refine"),"Consistent 4/8 scale, but 34–36 px controls and 44–48 px rows everywhere.","28/24 px controls, 30–34 px rows; Studio 22 px rows."],
+ ["Status indicators",V("Refine"),"Dots with glow rings; 'AI offline' shown only under the brand.","Plain 7 px dots (no glow) plus text; model and Connect state in the title bar."]
+]);
+
+/* ------------------------------ tokens ------------------------------ */
+const DARK=[["background.base","#0b0f16","--bg","Window ground, title bar, rails"],["background.panel","#0f141b","new","Sidebars, workspace chrome, bottom panels"],["background.surface","#11171f","--surface","Primary work surface: editor, thread, detail"],["background.elevated","#182029","--elevated","Selected rows, chips, inactive controls"],["background.raised","#1f2933","--raised","Menus, popovers, palette, dialogs"],["background.hover","rgba(197,216,240,.06)","--hover","Row and control hover"],["border.subtle","rgba(197,216,240,.09)","--line","Region separators"],["border.default","rgba(197,216,240,.13)","new","Control outlines"],["border.strong","rgba(197,216,240,.20)","--line-strong","Overlays, focused containers"],["text.primary","#e8eef7","--text","16.4:1 on base"],["text.secondary","#9db0c7","--muted","8.1:1 on surface"],["text.muted","#8093aa","--faint (was #6f819a)","≥ 4.69:1 on every surface"],["text.disabled","#4d596b","new","Non-essential only"],["accent.blue","#7cc4ff","--accent","Links, focus ring, selection edge"],["accent.blue.fill","#2f74d0","new","Primary buttons · white text 4.64:1"],["accent.cyan","#5ad1e0","new","Computing: streaming, running, context sent"],["accent.green","#9ab534","--olive","Identity only"],["pimento","#c0232a","--pimento","Icon only"]];
+const STATUS=[["status.online / success","#7fd8a8","Online, verified, passed, Allow in effect"],["status.offline","#8093aa","Hollow dot · offline, off, declined"],["status.warning","#f0c36b","Recoverable issue, stale, interrupted"],["status.ask","#f0c36b","Your decision is needed · always with 'Ask' or an icon"],["status.error","#ff8f8f","Failed, blocked, revoked"],["status.busy","#f0c36b","A device or resource is occupied"],["status.computing","#5ad1e0","OLIVE is working (not a warning)"]];
+const sw=(n,v,a,b)=>`<div class="sw"><i style="background:${v}"></i><div><b>${esc(n)}</b><span>${esc(v)}</span>${a?`<span>${esc(a)}</span>`:""}${b?`<span>${esc(b)}</span>`:""}</div></div>`;
+document.getElementById("swDark").innerHTML=DARK.map(([n,v,m,u])=>sw(n,v,m==="new"?"new in V2":"today "+m,u)).join("");
+document.getElementById("swStatus").innerHTML=STATUS.map(([n,v,u])=>sw(n,v,u)).join("");
+const TYPE=[["app.title · 12.5/600","OLIVE · Studio",'font:600 12.5px/1 var(--ui)'],["workspace.title · 17/600","Devices",'font:600 17px/1.2 var(--ui-display);letter-spacing:-.01em'],["section.heading · 13/650","Needs attention",'font:650 13px/1.3 var(--ui)'],["eyebrow · 11/650 caps +.07em","EXPLORER",'font:650 11px/1 var(--ui);letter-spacing:.07em;color:var(--text-secondary)'],["body.reading · 14/1.62","OLIVE plans each zone without exceeding the daily budget.",'font:400 14px/1.62 var(--ui)'],["body · 13/1.45","Pairing proves identity. It grants nothing.",'font:400 13px/1.45 var(--ui)'],["body.compact · 12.5/1.4","Stage and Commit ask for approval.",'font:400 12.5px/1.4 var(--ui)'],["metadata · 12/1.35","OLIVE MAX · Gaming PC · 8.4 s",'font:400 12px/1.35 var(--ui);color:var(--text-muted)'],["tab · 12.5/500","scheduler.py",'font:500 12.5px/1 var(--ui)'],["status · 12/1","Ln 36, Col 17   UTF-8   LF",'font:400 12px/1 var(--ui);color:var(--text-secondary)'],["code · 13/20 mono","def plan(self) -> list[Slot]:",'font:400 13px/20px var(--code);color:var(--syn-text)']];
+document.getElementById("typeSpec").innerHTML=TYPE.map(([k,t,s])=>`<div><code>${esc(k)}</code><span style="${s}">${esc(t)}</span></div>`).join("");
+document.getElementById("spaceSpec").innerHTML=[2,4,6,8,12,16,20,24,32,48].map(n=>`<div><i style="width:${n}px;height:${n}px"></i>${n}</div>`).join("");
+document.getElementById("radiusSpec").innerHTML=[["r.xs","3"],["r.sm","4"],["r.md","6"],["r.lg","8"],["r.xl","12"],["pill","999"]].map(([n,v])=>`<div style="border-radius:${Math.min(+v,28)}px">${n} · ${v}</div>`).join("");
+document.getElementById("iconSpec").innerHTML=`<div class="rowx" style="color:var(--text-secondary)">${["house","message-square","globe","code-xml","monitor-smartphone","square-check","calendar","bell","inbox","settings","git-branch","bug","flask-conical","shield-check","lock","search"].map(n=>I(n,"s18")).join("")}</div><div style="font-size:12.5px;color:var(--text-secondary);line-height:1.55">One family, lucide outline (already bundled as <code>lucide-react</code>). Stroke 1.75 at 14–18 px, 1.5 at 20 px. Sizes are 12 (inline meta), 14 (buttons, rows), 16 (nav), 18–20 (rails). No filled or two-tone icons in the shell. Only the olive mark and the Core are expressive.</div>`;
+tbl("motionTbl",["Situation","Rule"],[["Hover / press","120 ms colour/background; no scale, no translate on buttons (today's 0.5 px press nudge is removed)"],["Panel open / close","160 ms width or height with <code>cubic-bezier(.2,.7,.2,1)</code>; content doesn't fade"],["Sheets, dialogs, palette","200 ms opacity + 4 px rise; scrim fades"],["Streaming","Cyan block caret, 1 s steps; text appends; no per-token animation"],["Running job","2 px indeterminate line at the top of the owning region, only while the job is really running"],["Success / failure","State changes in place (icon + text); a toast for background outcomes; no confetti, pulses or shakes"],["Core","Welcome rotation (as today); compact Core animates only while working"],["Reduced motion","All of the above become instant; the Core rests (the existing app preference wins)"]]);
+
+/* ------------------------------ components ------------------------------ */
+document.getElementById("compDemo").innerHTML=`
+ <div class="lab">Buttons · 28 default, 24 compact, 32 prominent</div>
+ <div class="rowx"><button class="btn primary lg">Turn Connect on</button><button class="btn primary">Save</button><button class="btn">Cancel</button><button class="btn quiet">${I("refresh-cw","s14")} Refresh</button><button class="btn danger">${I("trash-2","s14")} Revoke pairing</button><button class="btn" disabled>Disabled</button><button class="btn sm">Compact</button><button class="ibtn" title="Icon button">${I("ellipsis","s14")}</button></div>
+ <div class="lab">Fields and selects</div>
+ <div class="rowx"><label class="field" style="width:260px">${I("search","s14")}<input placeholder="Find a setting"></label><span class="select">OLIVE NORMAL ${I("chevron-down","s12")}</span><span class="select">${I("laptop","s12")} This device ${I("chevron-down","s12")}</span></div>
+ <div class="lab">Segmented · permission (always Off · Ask · Allow)</div>
+ <div class="rowx"><div class="seg perm" role="radiogroup"><button data-v="off" aria-pressed="false">Off</button><button data-v="ask" aria-pressed="true">${I("hand","s12")} Ask</button><button data-v="allow" aria-pressed="false">Allow</button></div><div class="seg perm"><button data-v="off" aria-pressed="false">Off</button><button data-v="ask" aria-pressed="false">Ask</button><button data-v="allow" aria-pressed="true">${I("check","s12")} Allow</button></div><div class="seg perm"><button data-v="off" aria-pressed="true">Off</button><button data-v="ask" aria-pressed="false">Ask</button><button data-v="allow" aria-pressed="false">Allow</button></div><div class="seg"><button aria-pressed="true">Week</button><button aria-pressed="false">Month</button><button aria-pressed="false">Agenda</button></div></div>
+ <div class="lab">Status · dot + word, never colour alone</div>
+ <div class="rowx"><span class="pill ok"><span class="dot on"></span>Online · LAN</span><span class="pill"><span class="dot off"></span>Offline · 2 h ago</span><span class="pill warn">${I("hand","s12")} Ask</span><span class="pill err">${I("circle-x","s12")} Failed</span><span class="pill ai"><span class="dot busy"></span>Streaming</span><span class="pill olive">${I("shield-check","s12")} Paired · verified</span><span class="pill info">Default</span><span class="badge">3</span><span class="badge err">1</span></div>
+ <div class="lab">Switch (compact, 30×17) and checkbox</div>
+ <div class="rowx" style="color:var(--text-secondary);font-size:12.5px"><span class="sw on" role="switch" aria-checked="true" tabindex="0"></span> On <span class="sw" role="switch" aria-checked="false" tabindex="0"></span> Off <span class="chk on">${I("check","s12")}</span> Done <span class="chk"></span> Open</div>
+ <div class="lab">List rows · 34 standard, 30 navigation, 22 Studio tree</div>
+ <div style="width:420px;max-width:100%;display:flex;flex-direction:column;gap:1px">
+  <div class="lrow">${I("message-square","s14")}<span class="t">Irrigation budget for spring<small>Chat · Projects / Greenhouse</small></span><span class="end meta">14:02</span></div>
+  <div class="lrow sel">${I("code-xml","s14")}<span class="t">greenhouse-controller<small>Studio · 1 test failing</small></span><span class="end"><span class="pill err">1 failing</span></span></div>
+ </div>
+ <div class="lab">Notices (inline) · toast (transient)</div>
+ <div class="rowx" style="align-items:stretch"><div class="notice warn" style="width:420px">${I("triangle-alert","s14")}<span class="grow">AI offline. Start Ollama to get answers. Everything else works.</span><button class="btn sm">How to start</button></div><div class="toast" style="position:static;transform:none">${I("circle-check","s14")} Event saved to Calendar</div></div>
+ <div class="lab">Dialog · confirmation outside model authority</div>
+ <div class="dialog" style="margin:0" role="dialog" aria-label="Example confirmation"><header><span class="eyebrow" style="color:var(--status-ask)">Approval needed</span><h4>Create reminder "Water seedlings"?</h4></header><div class="body"><span>Today at 15:00 · linked to task <b style="color:var(--text-primary)">Water seedlings</b>. OLIVE drafted this; nothing happens until you confirm.</span></div><footer><button class="btn">Deny</button><button class="btn primary">Create reminder</button></footer></div>
+ <div class="lab">Empty state · flat, left-aligned in lists</div>
+ <div class="empty" style="padding:4px 0">${I("inbox","s20")}<h5>Nothing in your Inbox</h5><p>Files sent from paired devices arrive here and stay inert until you save a copy.</p><button class="btn sm">Pair a device</button></div>
+`;
+
+/* ------------------------------ desktop mock ------------------------------ */
+const NAV=[["","Home","house"],["Work","Chat","message-square"],["","OLIVE GO","globe"],["","Agent","workflow"],["Build","Studio","code-xml"],["","Desktop Control","monitor"],["Knowledge","Projects","folder"],["","Knowledge","book-open"],["","Memory","brain"],["Personal","Mail","mail"],["","Calendar","calendar"],["","Tasks","square-check"],["","Reminders","bell"],["System","Devices","monitor-smartphone"],["","Connections","plug"]];
+const SIZES={"1920":[1920,1080],"1440":[1440,900],"1366":[1366,768]};
+const SCREENS=[
+ {id:"home",label:"Home",nav:"Home",states:[["normal","Normal"],["empty","First run"],["offline","AI offline"],["loading","Loading"]]},
+ {id:"chat",label:"Chat",nav:"Chat",states:[["normal","Answer + code + action"],["streaming","Streaming · remote"],["partial","Remote went offline"],["empty","New conversation"],["vision","Image attached"]]},
+ {id:"go",label:"OLIVE GO",nav:"OLIVE GO",states:[["newtab","New tab"],["page","Page + history"],["private","Private tab"],["error","Offline page"]]},
+ {id:"devices",label:"Devices",nav:"Devices",states:[["detail","Paired device"],["offline","Device offline"],["ask","Incoming request (Ask)"],["pairing","Pairing"],["off","Connect off"]]},
+ {id:"files",label:"Files · Inbox",nav:"Devices",states:[["all","All states"],["empty","Empty"]]},
+ {id:"tasks",label:"Tasks",nav:"Tasks",states:[["normal","List + detail"],["empty","Empty"]]},
+ {id:"calendar",label:"Calendar",nav:"Calendar",states:[["week","Week"],["month","Month"],["agenda","Agenda"]]},
+ {id:"reminders",label:"Reminders",nav:"Reminders",states:[["normal","Due + upcoming"],["empty","Empty"]]},
+ {id:"settings",label:"Settings",nav:"Settings",states:[["appearance","Appearance"],["models","Models"],["privacy","Privacy & Security"],["dirty","Unsaved changes"]]}
+];
+const NOTES={
+ home:["<strong>Home answers four questions in order:</strong> what can I ask, what needs me, what is OLIVE doing, and what was I doing. The Today rail holds time-bound context. The app grid is gone: navigation and the command centre already list every space.","Only real items appear. 'Needs attention' comes from pending approvals, Connect Ask requests, due reminders and failing jobs. 'OLIVE is working on' is <code>runtime.activity</code>. Empty sections disappear instead of showing placeholders."],
+ chat:["<strong>Chat keeps its identity:</strong> olive author mark, generous reading measure (760 px, 14 px / 1.62), user turns as quiet right-aligned bubbles.","Model and execution are separate and sit together in the composer. Every answer carries its true attribution (<em>OLIVE MAX · Gaming PC · 8.4 s</em>). DEEP and REIMAGINE show as unavailable when a paired device is selected, as the backend reports today.","Actions OLIVE proposes arrive as pending-action rows. Confirmation happens in the dialog, never in the model's reply."],
+ go:["<strong>OLIVE GO keeps its approved design.</strong> The refinements: the tab strip sits under the shared title bar, the address bar uses the 8 px radius, and hover and selected tabs are distinguishable without colour.","The new tab page loses the dashed placeholder tiles. With no favourites it says so and offers one action. Private tabs mark the tab, the address bar and a one-line truthful statement."],
+ devices:["<strong>Security hierarchy, top to bottom:</strong> Device → Connection → Trust → Capabilities → Permissions → Activity.","The page says in words that pairing grants nothing, and states which direction each permission applies. Unsupported sharing collapses into one 'Not available yet' line instead of five Unavailable pills.","Revoke is the only destructive action. It is separated and needs confirmation."],
+ files:["<strong>One Inbox across devices.</strong> Every state is a pill with an icon and a word: Waiting, Receiving, Verifying, Complete, Interrupted, Failed, Declined.","Progress is acknowledged bytes, not time. Complete means byte count and SHA-256 agree. Completed files stay inert: <em>Save a copy…</em> and <em>Dismiss</em> are the only actions. There is no Open, and nothing auto-runs."],
+ tasks:["<strong>Fast, keyboard-first list.</strong> 34 px rows, inline add, grouped by due date, with detail on the right. Keyboard hints show in the footer."],
+ calendar:["<strong>Week is the working view.</strong> A now-line, all-day row, mini-month and calendar toggles in the rail, and one toolbar row. Month and Agenda are the existing views, restyled."],
+ reminders:["<strong>Reminders are lightweight:</strong> one list with Due now (Snooze / Done), Upcoming (time, linked task or event) and History. The truthful limitation stays as a footnote."],
+ settings:["<strong>Settings read like desktop software:</strong> grouped categories, rows with the label and description on the left and the control on the right, compact switches, and an unsaved-changes bar that appears only when something changed (the explicit save stays)."]
+};
+const SCLS={
+ home:[["Title bar (space, command centre, Core, model, Connect, activity)","B"],["Window controls in title bar","C"],["Ask OLIVE composer with model + execution","A"],["Needs attention (approvals, Ask requests, reminders, failing jobs)","B"],["OLIVE is working on (runtime.activity)","B"],["Continue (recent chats, workspaces)","A"],["Today rail: next event, tasks, reminders","B"],["Devices summary (connect.snapshot)","B"],["Remove app grid","A"]],
+ chat:[["Conversation rail with groups","A"],["One-row header","A"],["Model picker with status / remote availability","A"],["Execution picker (Run on)","A"],["Answer attribution (RemoteAttribution)","A"],["Code block header + Copy","B"],["Open code block in Studio","D"],["Pending action row → confirmation dialog","A"],["Streaming caret + Stop","A"],["Remote offline: partial kept, no silent local fallback","A"],["Vision warning for non-vision presets","B"]],
+ go:[["Tab strip under title bar","B"],["Address bar, private indication","A"],["Favourites empty state","A"],["History/Favourites/Downloads side panel","A"],["Offline error page","A"]],
+ devices:[["Device header with separate connection / trust / encryption facts","A"],["'Pairing grants nothing' statement","A"],["Capability table with Off · Ask · Allow","A"],["Remote Studio share sub-permissions","A"],["Collapsed 'Not available yet'","A"],["Incoming Ask approval dialog","A"],["Pairing code comparison (C2/C4)","A"],["Last-used column","C"]],
+ files:[["Inbox table across devices","B"],["State pills (7 states)","A"],["Byte-true progress","A"],["Save a copy… / Dismiss","A"],["Accept / Decline for Ask","A"],["Resume interrupted transfer","D"]],
+ tasks:[["Rail · list · detail","A"],["34 px rows, grouped by due date","A"],["Inline add row","B"],["Keyboard: N, ↑↓, Space, Enter, Delete","B"],["Find a work block","A"]],
+ calendar:[["Week grid with now-line","A"],["Mini-month + calendar toggles in rail","B"],["One-row toolbar","A"],["ICS import / export in overflow","A"]],
+ reminders:[["Grouped list with inline Snooze / Done","A"],["Linked task / event","A"],["History with outcome pills","A"],["System notifications while app closed","D"]],
+ settings:[["Grouped category navigation","A"],["Row layout, compact switches","A"],["Unsaved-changes bar (explicit save kept)","B"],["Models table with preset status","A"],["About page (version, licences)","C"],["Notifications category","D"]]
+};
+let scr="home", stt="normal", size="1440";
+const frame=document.getElementById("deskFrame"), scaler=frame.querySelector(".scaler");
+function fit(){ const [w,h]=SIZES[size]; const s=frame.clientWidth/w; scaler.style.transform=`scale(${s})`; frame.style.height=Math.round(h*s)+"px"; }
+new ResizeObserver(fit).observe(frame);
+
+function titlebar(space,ctx,opts={}){
+  const offline=opts.offline;
+  return `<div class="titlebar"${C("B")}><button class="tb-space" title="OLIVE"><span class="mark"></span><span style="letter-spacing:.12em;font-size:11.5px">OLIVE</span></button><span class="tb-sep"></span><button class="tb-space">${esc(space)} ${I("chevron-down","s12")}</button>${ctx?`<span style="color:var(--text-muted);font-size:12px">${ctx}</span>`:""}<span class="grow"></span>
+   <button class="cmdc">${I("search","s14")}<span>Search or run a command</span>${K("Ctrl","Shift","P")}</button><span class="grow"></span>
+   <button class="tb-status" title="OLIVE activity"><span class="core" data-state="${opts.core||"idle"}"></span>${opts.coreText||"Idle"}</button>
+   <button class="tb-status" title="Local models">${offline?`<span class="dot warn"></span>AI offline`:`<span class="dot on"></span>NORMAL ready`}</button>
+   <button class="tb-status" title="OLIVE Connect">${I("monitor-smartphone","s14")} ${opts.connect||"2 devices"}</button>
+   <button class="tb-status" title="Activity and notifications" style="position:relative">${I("bell","s14")}${opts.bell?`<span class="badge" style="position:absolute;top:0;right:2px;height:14px;min-width:14px;font-size:9px">${opts.bell}</span>`:""}</button>
+   <div class="winctl" aria-hidden="true"${C("C")}><span>${I("minus","s14")}</span><span>${I("square","s12")}</span><span>${I("x","s14")}</span></div></div>`;
+}
+function gnav(active){
+  let h=`<nav class="gnav" aria-label="OLIVE navigation"${C("A")}>`;
+  for(const [g,l,i] of NAV){ if(g) h+=`<div class="gh">${g}</div>`; h+=`<button ${l===active?'aria-current="page"':""}>${I(i,"s16")}<span>${l}</span>${l==="Reminders"?'<span class="badge">1</span>':l==="Devices"?'<span class="badge" style="background:var(--status-ask);color:#0b0f16">1</span>':""}</button>`; }
+  return h+`<span class="spacer"></span><button>${I("settings","s16")}<span>Settings</span></button><button style="color:var(--text-muted)">${I("panel-left-close","s16")}<span>Collapse</span></button></nav>`;
+}
+function shell(screen,inner,tb){ return `<div class="app p" style="width:${SIZES[size][0]}px;height:${SIZES[size][1]}px">${tb}<div class="app-body">${gnav(screen.nav)}${inner}</div></div>`; }
+
+/* ---------- Home ---------- */
+function home(s){
+  const offline=s==="offline", empty=s==="empty", loading=s==="loading";
+  const composer=`<div class="field big" style="background:var(--bg-surface)"${C("A")}><textarea placeholder="Ask OLIVE, or describe what you want done" aria-label="Ask OLIVE"></textarea><div class="cf"><button class="ibtn sm" title="Attach">${I("paperclip","s14")}</button><span class="select" style="height:24px">${I("message-square","s12")} Chat ${I("chevron-down","s12")}</span><span style="flex:1"></span><span class="select" style="height:24px">OLIVE NORMAL ${I("chevron-down","s12")}</span><span class="select" style="height:24px">${I("laptop","s12")} This device ${I("chevron-down","s12")}</span><span class="send ${offline?"off":""}">${I("arrow-up","s14")}</span></div></div>`;
+  const attention=`<div${C("B")}><div class="sect-t">Needs attention <span class="badge" style="background:var(--status-ask);color:#0b0f16">3</span></div>
+    <div class="lrow"><span style="color:var(--status-ask)">${I("hand","s16")}</span><span class="t">Pixel 9 wants to send <b>greenhouse-layout.pdf</b> · 2.4 MB<small>Files · Ask · Pixel 9 is paired and online</small></span><span class="end"><button class="btn sm">Decline</button><button class="btn sm primary">Accept into Inbox</button></span></div>
+    <div class="lrow"><span style="color:var(--status-ask)">${I("bell-ring","s16")}</span><span class="t">Water seedlings · due 15:00<small>Reminder · linked task</small></span><span class="end"><button class="btn sm quiet">Snooze 10 min</button><button class="btn sm">Done</button></span></div>
+    <div class="lrow"><span style="color:var(--status-ask)">${I("file-pen-line","s16")}</span><span class="t">Pending action: create event "Supplier call" Thu 14:30<small>Chat · Irrigation budget for spring · drafted by OLIVE</small></span><span class="end"><button class="btn sm">Review…</button></span></div></div>`;
+  const working=`<div${C("B")}><div class="sect-t">OLIVE is working on</div>
+    <div class="lrow"><span class="dot busy"></span><span class="t">Answering in "Irrigation budget for spring"<small>Chat · OLIVE MAX · running on Gaming PC</small></span><span class="end meta tnum">0:14</span></div>
+    <div class="lrow"><span class="dot busy"></span><span class="t">Running tests in greenhouse-controller<small>Studio · unittest</small></span><span class="end meta tnum">0:06</span></div></div>`;
+  const cont=`<div${C("A")}><div class="sect-t">Continue <span class="more">Show all</span></div>${[["message-square","Irrigation budget for spring","Chat · Greenhouse","14:02"],["code-xml","greenhouse-controller","Studio · 1 test failing","13:40"],["globe","Drip line suppliers","OLIVE GO · 4 tabs","11:15"],["folder","Greenhouse","Project · 6 chats, 2 workspaces","Yesterday"],["message-square","Tax receipts checklist","Chat","Mon"]].map(([i,t,m,w])=>`<button class="lrow">${I(i,"s16")}<span class="t">${t}<small>${m}</small></span><span class="end meta">${w}</span></button>`).join("")}</div>`;
+  const today=`<aside class="side"${C("B")}><div class="sect-t" style="justify-content:space-between">Today<span class="meta" style="font-weight:500;color:var(--text-muted)">Wed 23 Sep</span></div>
+    ${loading?`<div class="skel">${I("loader-circle","s14 spin")} Loading today…</div>`:empty?`<div class="empty" style="padding:6px 0"><p>Nothing scheduled today. Events, tasks and reminders you add appear here.</p><button class="btn sm">New event</button></div>`:`
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0"><div style="font:600 20px/1 var(--ui-display);color:var(--text-primary)" class="tnum">14:30</div><div><div style="font-weight:600">Supplier call</div><div class="meta">in 25 min · 30 min · Work</div></div></div>
+    <div class="lrow" style="padding-left:0"><span class="meta tnum" style="width:38px">16:00</span><span class="t">Seedling delivery window</span></div>
+    <div class="lrow" style="padding-left:0"><span class="meta tnum" style="width:38px">19:30</span><span class="t">Dinner with Sam</span></div>
+    <div class="hair"></div><div class="sect-t">Tasks due <span class="badge muted">3</span></div>
+    <div class="lrow" style="padding-left:0"><span class="chk"></span><span class="t">Water seedlings</span><span class="end meta">15:00</span></div>
+    <div class="lrow" style="padding-left:0"><span class="chk"></span><span class="t">Order 16 mm drip line</span></div>
+    <div class="lrow done" style="padding-left:0"><span class="chk on">${I("check","s12")}</span><span class="t">Check pump pressure</span></div>
+    <div class="hair"></div><div class="sect-t">Devices</div>
+    <div class="lrow" style="padding-left:0">${I("laptop","s14")}<span class="t">This PC<small>Connect on · LAN</small></span><span class="end"><span class="dot on"></span></span></div>
+    <div class="lrow" style="padding-left:0">${I("monitor","s14")}<span class="t">Gaming PC<small>Online · Remote AI allowed</small></span><span class="end"><span class="dot on"></span></span></div>
+    <div class="lrow" style="padding-left:0">${I("smartphone","s14")}<span class="t">Pixel 9<small>Offline · last seen 2 h ago</small></span><span class="end"><span class="dot off"></span></span></div>`}</aside>`;
+  const firstRun=`<div${C("A")}><div class="sect-t">Get OLIVE ready</div>
+    <div class="lrow"><span class="chk on">${I("check","s12")}</span><span class="t">OLIVE is installed and running<small>Local-first · data in ~/.olive</small></span></div>
+    <div class="lrow"><span class="chk"></span><span class="t">Start Ollama<small>OLIVE uses local models; nothing is sent to a cloud service</small></span><span class="end"><button class="btn sm">How to start</button></span></div>
+    <div class="lrow"><span class="chk"></span><span class="t">Install a model for OLIVE NORMAL<small>gpt-oss:20b is the default; Settings › Models shows every preset</small></span><span class="end"><button class="btn sm">Open Models</button></span></div>
+    <div class="lrow"><span class="chk"></span><span class="t">Pair a device (optional)<small>Pairing proves identity only; every capability starts Off</small></span><span class="end"><button class="btn sm quiet">Devices</button></span></div></div>`;
+  const main=`<div class="ws"><div style="flex:1;overflow:hidden;display:flex;justify-content:center;background:var(--bg-surface)"><div style="width:min(1140px,100%);display:flex;gap:32px;padding:26px 32px"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:22px">
+    <div><h3 style="font:600 18px/1.2 var(--ui-display);margin:0 0 3px">Good afternoon</h3><div class="meta" style="color:var(--text-muted);font-size:12.5px">Wednesday 23 September</div></div>
+    ${composer}
+    ${offline?`<div class="notice warn"${C("A")}>${I("triangle-alert","s14")}<span class="grow"><b style="color:var(--text-primary)">AI offline.</b> Ollama isn't reachable at 127.0.0.1:11434. Replies need a local model. Tasks, Calendar, GO, Studio and Devices all keep working.</span><button class="btn sm">How to start Ollama</button></div>`:""}
+    ${loading?`<div class="skel">${I("loader-circle","s14 spin")} Loading recent work…</div>`:empty?firstRun:`${attention}${working}${cont}`}
+  </div>@@TODAY@@</div></div></div>`;
+  const tb=titlebar("Home","",{offline,core:empty||offline||loading?"idle":"working",coreText:empty||offline||loading?"Idle":"Working · 2",bell:empty?0:3,connect:empty?"Connect off":"2 devices"});
+  return shell({nav:"Home"},main.replace("@@TODAY@@",today),tb);
+}
+
+/* ---------- Chat ---------- */
+function chat(s){
+  const conv=`<div class="chat-rail"${C("A")}><div style="display:flex;align-items:center;gap:6px;padding:10px 10px 8px"><label class="field" style="flex:1;height:26px">${I("search","s14")}<input placeholder="Find a conversation"></label><button class="ibtn" title="New conversation">${I("square-pen","s16")}</button></div><div style="overflow:hidden;padding:0 6px;flex:1">
+    <div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:8px 8px 4px">Today</div>
+    ${[["Irrigation budget for spring","Greenhouse",1],["Why is Sunday in the plan?","",0],["Summarise supplier quotes (PDF)","Greenhouse",0]].map(([t,p,on])=>`<button class="lrow ${on&&s!=="empty"?"sel":""}" style="min-height:30px;padding:4px 8px"><span class="t">${t}${p?`<small>${p}</small>`:""}</span></button>`).join("")}
+    <div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:12px 8px 4px">Earlier</div>
+    ${["Tax receipts checklist","Translate pump manual (DE → EN)","Weekend hike packing list","Drip line spacing"].map(t=>`<button class="lrow" style="min-height:30px;padding:4px 8px"><span class="t">${t}</span></button>`).join("")}</div>
+    <div class="meta" style="padding:10px 14px;border-top:1px solid var(--border-subtle);font-size:11.5px">${I("lock","s12")} Conversations stay on this device.</div></div>`;
+  const remote=s==="streaming"||s==="partial";
+  const where=remote||s==="normal"?"Gaming PC":"This device";
+  const header=`<div class="ws-head" style="height:46px;background:var(--bg-surface)"${C("A")}><div style="min-width:0"><div style="font-weight:600;font-size:14px">${s==="empty"?"New conversation":"Irrigation budget for spring"}</div></div>${s==="empty"?"":`<span class="pill">${I("folder","s12")} Greenhouse</span>`}<span class="grow"></span><button class="btn quiet sm">${I("book-open","s14")} Research & evidence</button><button class="ibtn" title="Conversation options">${I("sliders-horizontal","s16")}</button><button class="ibtn" title="More">${I("ellipsis","s16")}</button></div>`;
+  const attr=(model,dev,t)=>`<div class="attr"${C("A")}><span class="mark" style="width:12px;height:13px"></span><b>OLIVE</b><span>${model} · ${dev}${t?` · ${t}`:""}</span><span class="acts"><button class="ibtn sm" title="Copy">${I("copy","s14")}</button><button class="ibtn sm" title="Regenerate">${I("rotate-ccw","s14")}</button><button class="ibtn sm" title="Branch from here">${I("git-branch","s14")}</button></span></div>`;
+  const code=`<div class="codeblk"${C("B")}><div class="ch"><span>python</span><span class="grow"></span><button class="btn quiet sm">${I("copy","s12")} Copy</button><button class="btn quiet sm d-only"${C("D")}>${I("code-xml","s12")} Open in Studio</button></div><pre><span class="t-k" style="color:var(--syn-keyword)">for</span> day <span style="color:var(--syn-keyword)">in</span> zone.days:
+    <span style="color:var(--syn-control)">if</span> day <span style="color:var(--syn-keyword)">in</span> <span style="color:var(--syn-constant)">REST_DAYS</span>:
+        <span style="color:var(--syn-control)">continue</span>
+    <span style="color:var(--syn-control)">if</span> used.<span style="color:var(--syn-function)">get</span>(day, <span style="color:var(--syn-number)">0</span>) + zone.minutes &gt; <span style="color:var(--syn-param)">self</span>.budget_minutes:
+        <span style="color:var(--syn-control)">raise</span> <span style="color:var(--syn-type)">ValueError</span>(<span style="color:var(--syn-string)">f"{day} exceeds the budget"</span>)</pre></div>`;
+  let body="";
+  if(s==="empty"){
+    body=`<div class="col" style="padding-top:12%;gap:14px"><span class="core" data-state="idle" style="transform:rotate(-14deg) scale(2);margin:10px 12px"></span><h3 style="font:600 20px/1.2 var(--ui-display);margin:0">What are we working on?</h3><p style="margin:0;color:var(--text-muted);font-size:13px">Answers come from your local models. Choose OLIVE DEEP to work through a document, or run on a paired device you have allowed.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${["Plan my week around the supplier call","Explain this error message","Summarise a PDF","Draft a reply to the pump supplier"].map(t=>`<button class="btn sm">${t}</button>`).join("")}</div></div>`;
+  } else if(s==="vision"){
+    body=`<div class="col"><div class="m-user"><div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="width:56px;height:40px;border-radius:6px;background:linear-gradient(135deg,#3a5a2a,#6d8f3a);display:inline-block"></span><span class="meta">bed-03.jpg · 1.8 MB</span></div>Are these leaves over-watered?</div>
+      <div class="notice warn"${C("B")}>${I("eye-off","s14")}<span class="grow"><b style="color:var(--text-primary)">OLIVE FAST can't see images.</b> The picture would not be sent. Switch to OLIVE DEEP (vision through qwen3-vl:8b on this device), or remove the image.</span><button class="btn sm primary">Use OLIVE DEEP</button><button class="btn sm quiet">Remove image</button></div></div>`;
+  } else {
+    body=`<div class="col">
+      <div class="m-user">Why does the weekly plan still include Sunday? Keep the budget rule.</div>
+      <div class="m-olive">${attr("OLIVE MAX",where,s==="normal"?"8.4 s":"")}
+        <h4>Rest days are never checked</h4>
+        <p><code>Scheduler.plan()</code> loops over each zone's <code>days</code> and only tests the budget. <code>bed-03</code> lists <code>"Sun"</code>, so a Sunday slot is created${s==="partial"?", and the":". Skip rest days before the budget check, so a rest day never consumes budget:"}${s==="partial"?"":""}</p>
+        ${s==="partial"?`<div class="notice err"${C("A")}>${I("wifi-off","s14")}<span class="grow"><b style="color:var(--text-primary)">Gaming PC went offline while answering.</b> The partial answer is kept. OLIVE did not retry on this device.</span><button class="btn sm">Retry on Gaming PC</button><button class="btn sm quiet">Ask on this device</button></div>`:s==="streaming"?`<p>The fix is to <span class="caret"></span></p>`:`${code}
+        <ul><li>The budget check stays exactly as it is.</li><li><code>test_plan_skips_rest_days</code> will pass; <code>test_budget_is_enforced</code> is unaffected.</li></ul>
+        <div class="toolres"${C("A")}>${I("calendar-check","s16")}<span class="grow"><b>Calendar</b> · Event created: Supplier call · Thu 24 Sep, 14:30–15:00</span><button class="btn sm quiet">Open in Calendar</button></div>
+        <div class="toolres" style="box-shadow:inset 2px 0 0 var(--status-ask)"${C("A")}>${I("file-pen-line","s16")}<span class="grow"><b>Pending action</b> · Create reminder "Order drip line" · Fri 09:00 · <span style="color:var(--status-ask)">awaiting your confirmation</span></span><button class="btn sm primary">Review…</button></div>`}
+      </div></div>`;
+  }
+  const composer=`<div class="composer"><div class="col" style="gap:6px"><div class="field big"${C("A")}><textarea placeholder="Ask, explore, or get something done…" aria-label="Message"></textarea><div class="cf"><button class="ibtn sm" title="Attach files">${I("paperclip","s14")}</button><span class="select" style="height:24px">${I("message-square","s12")} Chat ${I("chevron-down","s12")}</span><span style="flex:1"></span>
+      <span class="select" style="height:24px" title="Model preset">${s==="vision"?"OLIVE FAST":"OLIVE MAX"} ${I("chevron-down","s12")}</span><span class="select" style="height:24px" title="Where the model runs">${I(remote||s==="normal"?"monitor":"laptop","s12")} ${where} ${I("chevron-down","s12")}</span>
+      ${s==="streaming"?`<button class="btn sm" title="Stop generating">${I("square","s12")} Stop</button>`:`<span class="send">${I("arrow-up","s14")}</span>`}</div></div>
+      <div class="meta" style="font-size:11.5px;display:flex;gap:10px">${s==="streaming"?`<span style="color:var(--status-computing)">● Thinking on Gaming PC…</span>`:`<span>Enter to send · Shift+Enter new line</span>`}<span style="margin-left:auto">${remote||s==="normal"?"OLIVE DEEP and REIMAGINE are unavailable on paired devices":"Local model · nothing leaves this device"}</span></div></div></div>`;
+  const inner=`<div class="ws" style="flex-direction:row">${conv}<div class="chat-main">${header}<div class="thread">${body}</div>${composer}</div></div>`;
+  return shell({nav:"Chat"},inner,titlebar("Chat",s==="empty"?"":"· Irrigation budget for spring",{core:s==="streaming"?"working":"idle",coreText:s==="streaming"?"Thinking":"Idle",bell:3}));
+}
+
+/* ---------- GO ---------- */
+function go(s){
+  const priv=s==="private";
+  const tabs=[["#1e63c8","Drip irrigation kits · Supplier A",s==="page"],["#5f7016","OLIVE GO",s==="newtab"],["#b31f26","Irrigation calculator",false]];
+  if(priv) tabs.push(["#6b4fa0","Private tab",true]);
+  if(s==="error") tabs[0]=["#8093aa","This page couldn't load",true];
+  const strip=`<div class="go-tabs"${C("B")}>${tabs.map(([c,t,on])=>`<div class="go-tab ${on&&!(priv&&t!=="Private tab")?"on":""}">${t==="Private tab"?I("eye-off","s14"):`<span class="fav" style="background:${c}"></span>`}<span class="t">${t}</span>${I("x","s12")}</div>`).join("")}<button class="ibtn sm" style="margin-bottom:3px">${I("plus","s14")}</button></div>`;
+  const addr=priv?`<span style="color:#c8a2f0;display:inline-flex">${I("eye-off","s14")}</span><span style="color:var(--text-muted)">Search privately or enter address</span>`:s==="newtab"?`${I("search","s14")}<span style="color:var(--text-muted)">Search or enter address</span>`:`${I(s==="error"?"triangle-alert":"lock","s14")}<span class="host">supplier-a.example</span><span class="path">/kits/drip-16mm</span>`;
+  const bar=`<div class="go-bar"${C("A")}><button class="ibtn">${I("arrow-left","s16")}</button><button class="ibtn" disabled>${I("arrow-right","s16")}</button><button class="ibtn">${I("rotate-cw","s16")}</button><div class="addr ${priv?"private":""}">${addr}<span style="margin-left:auto;display:flex;gap:2px"><button class="ibtn sm">${I("star","s14")}</button><button class="ibtn sm" title="Ask OLIVE about this page">${I("message-square","s14")}</button></span></div><button class="ibtn" title="Downloads">${I("download","s16")}</button><button class="ibtn" aria-pressed="${s==="page"}" title="History and favourites">${I("panel-right","s16")}</button><button class="ibtn">${I("ellipsis","s16")}</button></div>`;
+  let page;
+  if(s==="newtab"||priv){
+    page=`<div style="flex:1;background:var(--bg-surface);display:flex;flex-direction:column;align-items:center;padding-top:110px;gap:18px"${C("A")}>${priv?`<span style="color:#c8a2f0">${I("eye-off","s20")}</span><h3 style="margin:0;font:600 18px var(--ui-display)">Private tab</h3><p style="margin:0;max-width:520px;text-align:center;color:var(--text-secondary);font-size:13px;line-height:1.55">History, cookies and site data from this tab are deleted when you close it. Downloads and favourites you save are kept. Websites, your network and your DNS provider can still see what you visit.</p>`:`<span class="mark lg" style="transform:rotate(-14deg) scale(1.6);margin:6px"></span><div style="font:600 15px var(--ui);letter-spacing:.34em">OLIVE <span style="color:var(--accent-green)">GO</span></div>`}
+      <label class="field" style="width:560px;height:38px;border-radius:var(--r-lg);font-size:14px">${I("search","s16")}<input placeholder="Search or enter address"></label>
+      ${priv?"":`<div style="display:flex;gap:6px"><button class="btn sm">${I("message-square","s12")} Ask OLIVE</button><button class="btn sm">${I("eye-off","s12")} Private tab</button><button class="btn sm">${I("download","s12")} Downloads</button></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:18px;color:var(--text-muted);font-size:12.5px">${I("star","s16")}<span>No favourites yet. Press the star in the address bar to keep a site here.</span></div>`}</div>`;
+  } else if(s==="error"){
+    page=`<div style="flex:1;background:var(--bg-surface);display:flex;justify-content:center;padding-top:120px"${C("A")}><div class="empty">${I("wifi-off","s20")}<h5>This page couldn't load</h5><p>supplier-a.example didn't respond. Check the connection on this PC. OLIVE GO did not retry through another device.</p><div style="display:flex;gap:6px"><button class="btn sm primary">Try again</button><button class="btn sm quiet">Details</button></div></div></div>`;
+  } else {
+    page=`<div style="flex:1;display:flex;min-height:0"><div class="page"><div style="height:56px;background:#1f3b2c;display:flex;align-items:center;padding:0 28px;color:#fff;font:600 15px system-ui">Supplier A · Irrigation</div><div style="padding:28px;display:grid;grid-template-columns:260px 1fr;gap:28px"><div style="height:200px;border-radius:8px;background:linear-gradient(135deg,#cfd8c4,#9fb48a)"></div><div><div style="font:600 22px system-ui;margin-bottom:8px">Drip line kit · 16 mm · 50 m</div><div style="font:14px/1.6 system-ui;color:#4a5566">Pressure-compensating emitters every 30 cm. Suitable for raised beds and greenhouse benches.</div><div style="margin-top:14px;font:600 18px system-ui">R 1 249</div></div></div><div style="position:absolute;left:12px;bottom:10px;font:11px system-ui;color:#6b7686">Native web content (example page)</div></div>
+      <aside style="width:320px;flex-shrink:0;border-left:1px solid var(--border-subtle);background:var(--bg-panel);display:flex;flex-direction:column"${C("A")}><div style="padding:10px 12px;display:flex;gap:6px;align-items:center"><div class="seg"><button aria-pressed="true">History</button><button aria-pressed="false">Favourites</button><button aria-pressed="false">Downloads</button></div><span style="flex:1"></span><button class="ibtn sm">${I("x","s14")}</button></div><div style="padding:0 12px 8px"><label class="field" style="height:26px">${I("search","s14")}<input placeholder="Search history"></label></div>
+        <div style="padding:0 6px;overflow:hidden"><div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:8px 8px 4px">Today</div>${[["Drip line kit · 16 mm","supplier-a.example","14:10"],["Irrigation calculator","calc.example","13:58"],["Pressure-compensating emitters explained","wiki.example","11:21"],["Supplier B · Kits","supplier-b.example","11:02"]].map(([t,h,w])=>`<div class="lrow" style="min-height:40px"><span class="fav" style="width:14px;height:14px;border-radius:3px;background:var(--bg-raised)"></span><span class="t">${t}<small>${h}</small></span><span class="end meta">${w}</span></div>`).join("")}</div></aside></div>`;
+  }
+  const inner=`<div class="ws">${strip}${bar}${page}</div>`;
+  return shell({nav:"OLIVE GO"},inner,titlebar("OLIVE GO","",{bell:3}));
+}
+
+/* ---------- Devices ---------- */
+function perm(v,label=""){ return `<div class="seg perm" role="radiogroup" aria-label="${label}"${C("A")}>${["off","ask","allow"].map(x=>`<button data-v="${x}" aria-pressed="${x===v}" data-act="perm">${x==="ask"&&x===v?I("hand","s12")+" ":x==="allow"&&x===v?I("check","s12")+" ":""}${x[0].toUpperCase()+x.slice(1)}</button>`).join("")}</div>`; }
+function devices(s){
+  const off=s==="off";
+  const list=`<div class="dev-rail"${C("A")}><div style="display:flex;align-items:center;padding:12px 12px 6px"><b style="font-size:13px">Devices</b><span style="flex:1"></span><button class="btn sm">${I("plus","s12")} Pair a device</button></div><div style="padding:0 6px;overflow:hidden;flex:1">
+    <div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:10px 8px 4px">This device</div>
+    <button class="lrow ${off?"sel":""}">${I("laptop","s16")}<span class="t">This PC<small>CachyOS Linux · ${off?"Connect off":"Connect on · LAN"}</small></span></button>
+    <div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:12px 8px 4px">Paired</div>
+    <button class="lrow ${!off?"sel":""}">${I("monitor","s16")}<span class="t">Gaming PC<small>${s==="offline"?"Offline · last seen 2 h ago":"Online · LAN · 16 ms"}</small></span><span class="end"><span class="dot ${s==="offline"?"off":"on"}"></span></span></button>
+    <button class="lrow">${I("smartphone","s16")}<span class="t">Pixel 9<small>${s==="ask"?"Online · request waiting":"Offline · last seen 2 h ago"}</small></span><span class="end">${s==="ask"?'<span class="pill warn" style="height:18px">Ask</span>':'<span class="dot off"></span>'}</span></button>
+    <div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:12px 8px 4px">Nearby</div>
+    <div class="lrow">${I("radio","s16")}<span class="t">OLIVE device<small>192.168.x.x · discovered · not paired</small></span><span class="end"><button class="btn sm quiet">Pair…</button></span></div></div>
+    <div style="border-top:1px solid var(--border-subtle);padding:10px 12px;display:flex;align-items:center;gap:8px;font-size:12px">${I("radio-tower","s14")}<span style="flex:1"><b style="font-weight:600">OLIVE Connect</b><br><span class="meta">${off?"Off · not reachable":"On · enp111s0 · discovery on"}</span></span><button class="btn sm">${off?"Set up":"Turn off"}</button></div></div>`;
+  let main;
+  if(off){
+    main=`<div class="dev-main"${C("A")}><div style="display:flex;gap:14px;align-items:center;margin-bottom:18px"><span style="width:44px;height:44px;border-radius:10px;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center">${I("laptop","s20")}</span><div><h3 style="margin:0;font:600 18px var(--ui-display)">This PC</h3><div class="meta">desktop · CachyOS Linux · OLIVE 3.5.1</div></div></div>
+      <div class="set-rows" style="max-width:720px"><div class="srow"><div class="l"><b>OLIVE Connect</b><span>Lets devices you pair reach this PC on your local network. It stays off after a restart until you turn it on.</span></div><span class="pill"><span class="dot off"></span>Off</span></div>
+      <div class="srow" style="align-items:flex-start"><div class="l"><b>Network interface</b><span>Choose the network Connect listens on. OLIVE never changes your firewall.</span></div><div class="seg" style="flex-direction:column;align-items:stretch;gap:2px"><button aria-pressed="false">lo · 127.0.0.1</button><button aria-pressed="true">enp111s0 · 192.168.x.x</button></div></div>
+      <div class="srow"><div class="l"><b>Nearby discovery</b><span>Advertise this PC on the selected network so devices can find it to pair.</span></div><span class="sw"></span></div>
+      <div class="srow"><div class="l"><b>Display name</b><span>Shown to devices you pair with.</span></div><span class="select">This PC ${I("pencil","s12")}</span></div></div>
+      <div style="margin-top:16px"><button class="btn primary lg">Turn Connect on</button></div></div>`;
+  } else {
+    const offline=s==="offline";
+    main=`<div class="dev-main"><div style="display:flex;gap:14px;align-items:center"${C("A")}><span style="width:44px;height:44px;border-radius:10px;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center">${I("monitor","s20")}</span><div style="flex:1"><h3 style="margin:0;font:600 18px var(--ui-display)">Gaming PC</h3><div class="meta">Windows 11 · OLIVE 3.5.1 · paired 12 Sep 2026</div></div><button class="btn sm">${I("pencil","s12")} Rename</button></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:16px 0 10px;border:1px solid var(--border-default);border-radius:var(--r-lg);overflow:hidden;background:var(--border-subtle)"${C("A")}>
+        <div style="background:var(--bg-panel);padding:10px 12px"><div class="meta" style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:650">Connection</div><div style="display:flex;gap:6px;align-items:center;margin-top:4px">${offline?`<span class="dot off"></span>Offline · last seen 14:12`:`<span class="dot on"></span>Online · LAN · 16 ms`}</div></div>
+        <div style="background:var(--bg-panel);padding:10px 12px"><div class="meta" style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:650">Trust</div><div style="display:flex;gap:6px;align-items:center;margin-top:4px;color:var(--accent-green)">${I("shield-check","s14")}<span style="color:var(--text-primary)">Paired · code verified</span></div></div>
+        <div style="background:var(--bg-panel);padding:10px 12px"><div class="meta" style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:650">Encryption</div><div style="display:flex;gap:6px;align-items:center;margin-top:4px">${I("lock","s14")} TLS 1.3 · mutual keys</div></div></div>
+      <div class="notice info" style="margin-bottom:16px"${C("A")}>${I("info","s14")}<span class="grow">Pairing proves this is Gaming PC. <b style="color:var(--text-primary)">It grants no access.</b> Each capability below starts Off and applies to what Gaming PC can do on <b style="color:var(--text-primary)">this PC</b>. What this PC can do on Gaming PC is set on Gaming PC.</span></div>
+      ${offline?`<div class="notice warn" style="margin-bottom:16px">${I("wifi-off","s14")}<span class="grow">Gaming PC is offline. You can still change permissions; they apply the next time it connects.</span></div>`:""}
+      <div class="seg" style="margin-bottom:12px"><button aria-pressed="true">Capabilities</button><button aria-pressed="false">Activity</button><button aria-pressed="false">Details</button></div>
+      <div class="caps"${C("A")}>
+        ${[["refresh-cw","Sync","Conversations and settings you choose to sync","ask","2 h ago"],["file-down","Files","Send files into this PC's OLIVE Inbox (always inert)","ask","Yesterday"],["cpu","Remote AI","Run prompts on this PC's local models","allow","14:02"],["code-xml","Remote Studio","Open workspaces you share from this PC","ask","13:40"],["activity","Connection checks","Ping and device status","allow","now"]].map(([i,n,d,v,lu])=>`<div class="cap"><span style="color:var(--text-secondary)">${I(i,"s18")}</span><div class="d"><b>${n}</b><span>${d}</span></div>${perm(v,n)}<span class="lu">${lu}</span></div>`).join("")}
+        <div class="cap sub"><span></span><div class="d"><b style="font-weight:550">greenhouse-controller <span class="meta" style="font-weight:400">· shared workspace</span></b><span>Read · Allow · Save · Ask · Build · Allow · Test · Allow · Run · Off</span></div><button class="btn sm">Edit share</button><span></span></div>
+      </div>
+      <p class="meta" style="font-size:12px;margin:10px 2px 18px">Not available yet: sharing Tasks, Calendar, Reminders and Notifications.</p>
+      <div class="set-rows" style="border-color:color-mix(in srgb,var(--status-error) 35%,transparent)"><div class="srow"><div class="l"><b>Revoke pairing</b><span>Gaming PC loses every capability immediately and must pair again with a new code.</span></div><button class="btn danger sm">${I("unlink","s12")} Revoke…</button></div></div></div>`;
+  }
+  let overlay="";
+  if(s==="ask") overlay=`<div class="scrim"><div class="dialog" role="dialog" aria-label="Incoming request"${C("A")}><header><span class="eyebrow" style="color:var(--status-ask)">Ask · Files</span><h4>Pixel 9 wants to send a file</h4></header><div class="body"><div class="lrow" style="background:var(--bg-surface);border:1px solid var(--border-subtle)">${I("file-text","s16")}<span class="t">greenhouse-layout.pdf<small>2.4 MB · SHA-256 checked on arrival</small></span></div><span>It will arrive in OLIVE Inbox and stay inert. Nothing opens or runs automatically.</span></div><footer><button class="btn">Decline</button><button class="btn primary">Accept into Inbox</button></footer></div></div>`;
+  if(s==="pairing") overlay=`<div class="scrim"><div class="dialog" role="dialog" aria-label="Pair a device" style="width:480px"${C("A")}><header><span class="eyebrow">Pair a device · step 2 of 3</span><h4>Check that both screens show the same code</h4></header><div class="body" style="align-items:center;gap:14px"><div style="font:600 32px/1 var(--code);letter-spacing:.18em;color:var(--text-primary)">482 915</div><span style="text-align:center">Only continue if <b style="color:var(--text-primary)">Pixel 9</b> shows exactly this code. Pairing proves identity. Every capability starts Off.</span></div><footer><button class="btn">Codes differ · Cancel</button><button class="btn primary">Codes match · Pair</button></footer></div></div>`;
+  const inner=`<div class="ws" style="flex-direction:row">${list}${main}</div>${overlay}`;
+  return shell({nav:"Devices"},inner,titlebar("Devices","",{connect:off?"Connect off":"2 devices",core:s==="ask"?"attention":"idle",coreText:s==="ask"?"Needs you":"Idle",bell:s==="ask"?1:3}));
+}
+
+/* ---------- Files ---------- */
+function files(s){
+  const head=`<div class="ws-head"><h3>Inbox</h3><span class="sub">Files from paired devices</span><span class="grow"></span><div class="seg"><button aria-pressed="true">All</button><button aria-pressed="false">Incoming</button><button aria-pressed="false">Sent</button></div><button class="btn sm">${I("send","s12")} Send a file…</button></div>`;
+  const rows=[
+   ["file-text","greenhouse-layout.pdf","2.4 MB","in","Pixel 9",`<span class="pill warn">${I("hand","s12")} Waiting for you</span>`,"",`<button class="btn sm">Decline</button><button class="btn sm primary">Accept</button>`],
+   ["file-archive","pump-manual-scans.zip","148 MB","in","Gaming PC",`<span class="pill ai">${I("arrow-down","s12")} Receiving</span>`,`<div class="bar"><i style="width:62%"></i></div><span class="meta tnum">92.1 of 148 MB</span>`,`<button class="btn sm quiet">Cancel</button>`],
+   ["file-image","bed-03.jpg","1.8 MB","in","Pixel 9",`<span class="pill ai">${I("shield-check","s12")} Verifying</span>`,`<span class="meta">SHA-256 check</span>`,""],
+   ["file-spreadsheet","water-usage-2026.csv","86 KB","in","Gaming PC",`<span class="pill ok">${I("circle-check","s12")} Complete · verified</span>`,`<span class="meta">Inert in Inbox</span>`,`<button class="btn sm">Save a copy…</button><button class="btn sm quiet">Dismiss</button>`],
+   ["file","firmware-2.1.bin","3.1 MB","out","Gaming PC",`<span class="pill warn">${I("unplug","s12")} Interrupted</span>`,`<span class="meta">Partial data removed</span>`,`<button class="btn sm quiet" title="Starts a new transfer reviewed from zero">Send again…</button>`],
+   ["file-text","notes.md","4 KB","in","Pixel 9",`<span class="pill err">${I("circle-x","s12")} Failed</span>`,`<span class="meta">Checksum mismatch</span>`,`<button class="btn sm quiet">Dismiss</button>`],
+   ["file-video","walkthrough.mp4","412 MB","out","Pixel 9",`<span class="pill">${I("ban","s12")} Declined</span>`,`<span class="meta">Declined on Pixel 9</span>`,""]
+  ];
+  const body=s==="empty"?`<div style="padding:24px 28px"><div class="empty">${I("inbox","s20")}<h5>Nothing in your Inbox</h5><p>Files that paired devices send here arrive only when Files is set to Ask or Allow for that device, and they stay inert until you save a copy.</p><button class="btn sm">Open Devices</button></div></div>`:
+  `<div style="padding:18px 24px;overflow:hidden"><div class="notice" style="margin-bottom:14px"${C("A")}>${I("shield","s14")}<span class="grow">Received files stay inert in OLIVE Inbox. OLIVE never opens, previews or runs them. Complete means the byte count and SHA-256 both matched. Interrupted transfers are never resumed automatically.</span></div>
+   <div class="caps"${C("B")}><div class="xfer h"><span>File</span><span>Device</span><span>State</span><span>Progress</span><span></span></div>${rows.map(([i,n,sz,dir,dev,st,pr,act])=>`<div class="xfer"><div class="fn" style="display:flex;gap:10px;align-items:center;min-width:0">${I(i,"s18")}<div style="min-width:0"><b>${n}</b><span>${sz}</span></div></div><span style="display:flex;gap:6px;align-items:center;color:var(--text-secondary)">${I(dir==="in"?"arrow-down-left":"arrow-up-right","s14")}${dir==="in"?"from":"to"} ${dev}</span><span>${st}</span><span style="display:flex;flex-direction:column;gap:4px">${pr}</span><span style="display:flex;gap:6px;justify-content:flex-end">${act}</span></div>`).join("")}</div></div>`;
+  return shell({nav:"Devices"},`<div class="ws" style="background:var(--bg-surface)">${head}${body}</div>`,titlebar("Devices","· Inbox",{bell:2}));
+}
+
+/* ---------- Tasks ---------- */
+function tasks(s){
+  const empty=s==="empty";
+  const rail=`<div class="rail"${C("A")}>${[["sun","Today",empty?0:4,1],["calendar-days","Upcoming",empty?0:6],["list","All",empty?0:14],["circle-check","Completed",empty?0:31],["folder","By project"]].map(([i,l,n,on])=>`<button class="lrow ${on?"sel":""}">${I(i,"s16")}<span class="t">${l}</span>${n!=null?`<span class="end meta tnum">${n||""}</span>`:""}</button>`).join("")}
+    <div class="rh">Projects</div>${["Greenhouse","Home admin","Hiking club"].map((p,i)=>`<button class="lrow"><span class="dot" style="background:${["#9ab534","#7cc4ff","#e2d59a"][i]}"></span><span class="t">${p}</span></button>`).join("")}</div>`;
+  const row=(t,meta,flag,due,sel,done)=>`<div class="lrow ${sel?"sel":""} ${done?"done":""}" style="min-height:34px"><span class="chk ${done?"on":""}">${done?I("check","s12"):""}</span><span class="t">${t}</span><span class="end">${meta?`<span class="pill" style="height:18px">${meta}</span>`:""}${flag?`<span style="color:var(--status-warning);display:inline-flex" title="High priority">${I("flag","s12")}</span>`:""}<span class="meta tnum" style="width:62px;text-align:right${due&&due.startsWith("Yest")?";color:var(--status-error)":""}">${due||""}</span></span></div>`;
+  const list=`<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-surface)"><div class="ws-head" style="background:var(--bg-surface)"><h3>Today</h3><span class="sub tnum">${empty?"0 tasks":"4 tasks"}</span><span class="grow"></span><label class="field" style="width:220px;height:26px">${I("search","s14")}<input placeholder="Search tasks"></label><button class="btn primary sm">${I("plus","s12")} New task</button></div>
+    <div style="flex:1;overflow:hidden;padding:12px 20px">
+    <div class="lrow" style="color:var(--text-muted);border:1px dashed var(--border-default);margin-bottom:12px"${C("B")}>${I("plus","s14")}<span class="t">Add a task to Today…</span><span class="end">${K("N")}</span></div>
+    ${empty?`<div class="empty">${I("sun","s20")}<h5>A clear day</h5><p>Nothing is due today. Tasks without a date stay in All.</p><div style="display:flex;gap:6px"><button class="btn sm primary">Create a task</button><button class="btn sm quiet">Show upcoming</button></div></div>`:`
+    <div class="sect-t" style="color:var(--status-error)">Overdue <span class="badge muted">1</span></div>${row("Renew pump warranty","Home admin",0,"Yesterday")}
+    <div class="sect-t" style="margin-top:12px">Today <span class="badge muted">3</span></div>${row("Water seedlings","Greenhouse",0,"15:00",1)}${row("Order 16 mm drip line","Greenhouse",1,"")}${row("Check pump pressure","Greenhouse",0,"09:00",0,1)}
+    <div class="sect-t" style="margin-top:12px">Tomorrow <span class="badge muted">2</span></div>${row("Call Supplier B about emitters","Greenhouse",0,"Thu")}${row("Book hut for October hike","Hiking club",0,"Thu")}`}
+    </div><div style="border-top:1px solid var(--border-subtle);padding:6px 20px;display:flex;gap:14px;font-size:11.5px;color:var(--text-muted)"${C("B")}><span>${K("N")} new</span><span>${K("↑")}${K("↓")} move</span><span>${K("Space")} complete</span><span>${K("Enter")} edit</span><span>${K("Del")} delete</span></div></div>`;
+  const detail=empty?`<aside class="side"><div class="empty" style="padding:0">${I("clipboard-list","s20")}<h5>Nothing selected</h5><p>Choose a task to see its description, deadline and links.</p></div></aside>`:
+    `<aside class="side"${C("A")}><div style="display:flex;gap:10px;align-items:flex-start"><span class="chk" style="margin-top:3px"></span><div style="font:600 15px/1.35 var(--ui-display)">Water seedlings</div></div><p style="margin:10px 0 14px;font-size:12.5px;color:var(--text-secondary);line-height:1.55">Tray on bench 2. Check moisture first; skip if the soil is still dark.</p>
+    <div class="set-rows">${[["Due","Today · 15:00"],["Priority","Normal"],["Project","Greenhouse"],["Reminder","15 min before"],["Linked event","—"]].map(([a,b])=>`<div class="srow" style="padding:8px 12px"><div class="l"><span style="margin:0">${a}</span></div><span style="font-size:12.5px">${b}</span></div>`).join("")}</div>
+    <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap"><button class="btn sm">${I("pencil","s12")} Edit</button><button class="btn sm">${I("calendar-plus","s12")} Find a work block</button><button class="btn sm danger">${I("trash-2","s12")} Delete</button></div></aside>`;
+  return shell({nav:"Tasks"},`<div class="ws" style="flex-direction:row">${rail}${list}${detail}</div>`,titlebar("Tasks","",{bell:3}));
+}
+
+/* ---------- Calendar ---------- */
+function calendar(s){
+  const days=["Mon 21","Tue 22","Wed 23","Thu 24","Fri 25","Sat 26","Sun 27"];
+  const rail=`<div class="rail"${C("B")}><div style="display:flex;align-items:center;padding:4px 6px 8px"><b style="font-size:13px">September 2026</b><span style="flex:1"></span><button class="ibtn sm">${I("chevron-left","s14")}</button><button class="ibtn sm">${I("chevron-right","s14")}</button></div>
+    <div class="mini-month" style="padding:0 4px">${["M","T","W","T","F","S","S"].map(d=>`<span class="h">${d}</span>`).join("")}${[31,...Array.from({length:30},(_,i)=>i+1),1,2,3,4].map((d,i)=>`<span class="${i===0||i>30?"o":""} ${d===23&&i<31?"t":""} ${i>=21&&i<=27&&d!==23?"wk":""}">${d}</span>`).join("")}</div>
+    <div class="rh">Calendars</div>${[["Personal","#7cc4ff",1],["Work","#5cc8b4",1],["Imported · school.ics","#e2d59a",1],["Birthdays","#c8a2f0",0]].map(([n,c,on])=>`<label class="lrow" style="min-height:28px"><span class="chk ${on?"on":""}" style="${on?`background:${c};`:""}">${on?I("check","s12"):""}</span><span class="t">${n}</span></label>`).join("")}
+    <div style="margin-top:auto;padding:8px;font-size:11.5px;color:var(--text-muted)">${I("lock","s12")} Stored on this device. Attendees are references; no invitations are sent.</div></div>`;
+  const tb=`<div class="ws-head" style="background:var(--bg-surface)"${C("A")}><button class="btn sm">Today</button><button class="ibtn sm">${I("chevron-left","s14")}</button><button class="ibtn sm">${I("chevron-right","s14")}</button><h3 style="font-size:16px">${s==="month"?"September 2026":s==="agenda"?"23 Sep – 6 Oct 2026":"21 – 27 September 2026"}</h3><span class="grow"></span><label class="field" style="width:200px;height:26px">${I("search","s14")}<input placeholder="Search events"></label><div class="seg">${["Day","Week","Month","Agenda"].map(v=>`<button aria-pressed="${v.toLowerCase()===s}">${v}</button>`).join("")}</div><button class="ibtn" title="Import / export ICS">${I("ellipsis","s16")}</button><button class="btn primary sm">${I("plus","s12")} New event</button></div>`;
+  let grid;
+  if(s==="month"){
+    grid=`<div style="flex:1;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:28px repeat(5,1fr);background:var(--bg-surface)"${C("A")}>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>`<div class="cal-h" style="border-left:0">${d}</div>`).join("")}${[31,...Array.from({length:30},(_,i)=>i+1),1,2,3,4].slice(0,35).map((d,i)=>`<div class="cal-c" style="padding:4px 6px;font-size:12px;${i===0||i>30?"color:var(--text-disabled)":""}"><span style="${d===23&&i<31?"background:var(--accent-blue-fill);color:#fff;border-radius:5px;padding:0 5px;font-weight:700":""}">${d}</span>${d===24&&i<31?'<div class="ev p" style="position:static;margin-top:4px">14:30 Supplier call</div>':""}${d===23&&i<31?'<div class="ev w" style="position:static;margin-top:4px">16:00 Seedlings</div>':""}${d===26&&i<31?'<div class="ev i" style="position:static;margin-top:4px">Market day</div>':""}</div>`).join("")}</div>`;
+  } else if(s==="agenda"){
+    grid=`<div style="flex:1;overflow:hidden;padding:14px 28px;background:var(--bg-surface)"${C("A")}>${[["Wed 23 Sep · Today",[["14:30–15:00","Supplier call","Work","p"],["16:00–17:00","Seedling delivery window","Personal","w"],["19:30–21:30","Dinner with Sam","Personal","p"]]],["Thu 24 Sep",[["09:00–09:30","Pump service check","Work","w"],["14:30–15:00","Call Supplier B","Work","w"]]],["Sat 26 Sep",[["All day","Market day","school.ics","i"]]]].map(([d,evs])=>`<div class="sect-t" style="margin-top:12px">${d}</div>${evs.map(([t,n,c,k])=>`<div class="lrow"><span class="meta tnum" style="width:92px">${t}</span><span style="width:3px;height:22px;border-radius:2px;background:${k==="p"?"#7cc4ff":k==="w"?"#5cc8b4":"#e2d59a"}"></span><span class="t">${n}<small>${c}</small></span></div>`).join("")}`).join("")}</div>`;
+  } else {
+    const H=[7,8,9,10,11,12,13,14,15,16,17,18,19,20];
+    const ev=(col,start,dur,cls,t,sub)=>`<div class="ev ${cls}" style="top:${(start-7)*44+1}px;height:${dur*44-3}px;left:calc(56px + ${col} * ((100% - 56px) / 7) + 3px);right:auto;width:calc((100% - 56px) / 7 - 6px)">${t}<small>${sub}</small></div>`;
+    grid=`<div style="flex:1;display:flex;flex-direction:column;min-height:0;background:var(--bg-surface)"${C("A")}><div style="display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr))"><div></div>${days.map(d=>`<div class="cal-h ${d==="Wed 23"?"today":""}">${d.split(" ")[0]} <b>${d.split(" ")[1]}</b></div>`).join("")}<div class="cal-t" style="transform:none;padding-top:5px">all-day</div>${days.map((d,i)=>`<div class="cal-c" style="height:26px;padding:2px">${i===5?'<div class="ev i" style="position:static;padding:2px 6px">Market day</div>':""}</div>`).join("")}</div>
+      <div style="position:relative;flex:1;overflow:hidden"><div style="display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr));grid-auto-rows:44px">${H.map(h=>`<div class="cal-t">${String(h).padStart(2,"0")}:00</div>${days.map(()=>`<div class="cal-c"></div>`).join("")}`).join("")}</div>
+      ${ev(0,9,1,"w","Stand-up","09:00 · Work")}${ev(1,10,1.5,"p","Dentist","10:00 · Personal")}${ev(2,14.5,.5,"p","Supplier call","14:30")}${ev(2,16,1,"w","Seedling delivery","16:00 · Personal")}${ev(3,9,.5,"w","Pump service","09:00")}${ev(3,14.5,.5,"w","Call Supplier B","14:30")}${ev(4,13,2,"p","Greenhouse work block","13:00 · from task")}${ev(6,10,3,"p","Hike · Table Mountain","10:00 · Hiking club")}
+      <div class="nowline" style="top:${(14.08-7)*44}px;left:calc(56px + 2 * ((100% - 56px) / 7));width:calc((100% - 56px) / 7)"></div></div></div>`;
+  }
+  return shell({nav:"Calendar"},`<div class="ws" style="flex-direction:row">${rail}<div style="flex:1;min-width:0;display:flex;flex-direction:column">${tb}${grid}</div></div>`,titlebar("Calendar","",{bell:3}));
+}
+
+/* ---------- Reminders ---------- */
+function reminders(s){
+  const empty=s==="empty";
+  const head=`<div class="ws-head" style="background:var(--bg-surface)"><h3>Reminders</h3><span class="sub">${empty?"None scheduled":"1 due now · 3 upcoming"}</span><span class="grow"></span><button class="btn primary sm">${I("plus","s12")} New reminder</button></div>`;
+  const body=empty?`<div style="padding:24px 28px"><div class="empty">${I("bell-off","s20")}<h5>Nothing scheduled</h5><p>Attach a reminder to a task or an event. It fires inside OLIVE while OLIVE is running.</p><button class="btn sm primary">Create a reminder</button></div></div>`:
+  `<div style="flex:1;overflow:hidden;padding:16px 28px;max-width:900px"${C("A")}>
+    <div class="sect-t" style="color:var(--status-ask)">Due now</div>
+    <div class="lrow" style="background:var(--bg-panel);border:1px solid var(--border-default);box-shadow:inset 2px 0 0 var(--status-ask)">${I("bell-ring","s16")}<span class="t">Water seedlings<small>Task · Greenhouse · due 15:00 (15 min before)</small></span><span class="end"><span class="select" style="height:24px">Snooze 10 min ${I("chevron-down","s12")}</span><button class="btn sm">Dismiss</button><button class="btn sm primary">Mark task done</button></span></div>
+    <div class="sect-t" style="margin-top:18px">Upcoming <span class="badge muted">3</span></div>
+    ${[["16:00","Seedling delivery window","Event · 15 min before","calendar"],["Thu 09:00","Pump service check","Event · at start","calendar"],["Fri 09:00","Order drip line","Task · Greenhouse · at 09:00","square-check"]].map(([t,n,m,i])=>`<div class="lrow"><span class="meta tnum" style="width:70px">${t}</span>${I(i,"s14")}<span class="t">${n}<small>${m}</small></span><span class="end"><button class="ibtn sm" title="Edit">${I("pencil","s14")}</button><button class="ibtn sm" title="Delete">${I("trash-2","s14")}</button></span></div>`).join("")}
+    <div class="sect-t" style="margin-top:18px">History</div>
+    ${[["13:30","Stand-up notes","Dismissed",""],["09:00","Check pump pressure","Completed task","ok"],["Yesterday","Renew pump warranty","Snoozed twice · then dismissed","warn"]].map(([t,n,o,k])=>`<div class="lrow" style="color:var(--text-secondary)"><span class="meta tnum" style="width:70px">${t}</span><span class="t">${n}</span><span class="end"><span class="pill ${k}">${o}</span></span></div>`).join("")}
+    <p class="meta" style="margin-top:16px;font-size:12px">${I("info","s12")} Reminders fire only while OLIVE is running. Snoozing or dismissing never changes the linked task or event. Completing a task cancels its pending reminders.</p></div>`;
+  return shell({nav:"Reminders"},`<div class="ws" style="background:var(--bg-surface)">${head}${body}</div>`,titlebar("Reminders","",{core:empty?"idle":"attention",coreText:empty?"Idle":"1 due",bell:empty?0:1}));
+}
+
+/* ---------- Settings ---------- */
+function settings(s){
+  const cat=s==="dirty"?"appearance":s;
+  const groups=[["",[["General","sliders-horizontal"],["Appearance","palette"]]],["AI",[["Models","cpu"],["Chat","message-square"],["Memory","brain"],["Knowledge","book-open"],["Research","search"],["OCR","scan-text"]]],["Workspaces",[["Studio","code-xml"],["OLIVE GO","globe"],["Desktop Control","monitor"]]],["Connect & accounts",[["Devices","monitor-smartphone"],["Mail connections","plug"]]],["Privacy & Security",[["Permissions","shield-check"]]],["Data",[["Backup & Data","hard-drive"],["Diagnostics","activity"],["About","info"]]]];
+  const on={appearance:"Appearance",models:"Models",privacy:"Permissions"}[cat];
+  const nav=`<div class="set-nav"${C("A")}><label class="field" style="height:26px;margin:0 4px 8px">${I("search","s14")}<input placeholder="Find a setting"></label>${groups.map(([g,items])=>`${g?`<div class="rh" style="font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:12px 8px 4px">${g}</div>`:""}${items.map(([n,i])=>`<button class="lrow ${n===on?"sel":""}" style="min-height:28px;padding:3px 8px">${I(i,"s14")}<span class="t">${n}</span>${n==="About"?`<span class="end"${C("C")}></span>`:""}</button>`).join("")}`).join("")}</div>`;
+  let main;
+  if(cat==="appearance") main=`<div class="inner"><div><h3 style="margin:0;font:600 18px var(--ui-display)">Appearance</h3><p class="meta" style="margin:4px 0 0;font-size:12.5px">How OLIVE looks on this device.</p></div>
+    <div class="set-sec"><h4>Theme and text</h4><div class="set-rows">
+      <div class="srow"><div class="l"><b>Theme</b><span>Dark is the default. Light is a native palette, not an inversion.</span></div><div class="seg"><button aria-pressed="true">Dark</button><button aria-pressed="false">Light</button></div></div>
+      <div class="srow"><div class="l"><b>Text and interface size</b><span>Scales every workspace, including Studio chrome.</span></div><span class="select">${s==="dirty"?"110%":"100%"} ${I("chevron-down","s12")}</span></div>
+      <div class="srow"><div class="l"><b>Density</b><span>Comfortable adds 4 px to rows and controls outside Studio.</span></div><div class="seg d-only"${C("D")}><button aria-pressed="true">Compact</button><button aria-pressed="false">Comfortable</button></div><span class="meta" style="font-size:11.5px">Design candidate</span></div></div></div>
+    <div class="set-sec"><h4>Motion</h4><div class="set-rows">
+      <div class="srow"><div class="l"><b>Reduce motion</b><span>Removes transitions and stops the compact Core from animating.</span></div><span class="sw ${s==="dirty"?"on":""}" role="switch" aria-checked="${s==="dirty"}"></span></div>
+      <div class="srow"><div class="l"><b>Core animation</b><span>Follow the system setting, animate only the Core, or keep it still.</span></div><div class="seg"><button aria-pressed="true">Follow system</button><button aria-pressed="false">Animate Core</button><button aria-pressed="false">Pause</button></div></div></div></div>
+    <div class="set-sec"><h4>Startup</h4><div class="set-rows">
+      <div class="srow"><div class="l"><b>Show Welcome on startup</b><span>The rotating olive before entering OLIVE.</span></div><span class="sw on"></span></div>
+      <div class="srow"><div class="l"><b>Start on Home</b><span>Otherwise OLIVE reopens the last workspace.</span></div><span class="sw"></span></div>
+      <div class="srow"><div class="l"><b>Developer mode</b><span>Adds Diagnostics to navigation. Permissions, approvals and safety information stay the same.</span></div><span class="sw"></span></div></div></div></div>`;
+  else if(cat==="models") main=`<div class="inner"><div><h3 style="margin:0;font:600 18px var(--ui-display)">Models</h3><p class="meta" style="margin:4px 0 0;font-size:12.5px">Presets are OLIVE pipelines over your local Ollama models. There is no hosted or paid fallback.</p></div>
+    <div class="notice ok">${I("circle-check","s14")}<span class="grow">Ollama is reachable at 127.0.0.1:11434.</span><button class="btn sm quiet">Check again</button></div>
+    <div class="caps"><table class="tbl2"><thead><tr><th>Preset</th><th>Uses</th><th>Status</th><th></th></tr></thead><tbody>
+      ${[["OLIVE FAST","qwen3:8b","Direct text and code","Ready","ok"],["OLIVE NORMAL","gpt-oss:20b","Default for new conversations","Ready","ok"],["OLIVE MAX","qwen3-coder:30b","Long code and reasoning","Ready","ok"],["OLIVE DEEP","gpt-oss:20b + qwen3-vl:8b","Documents, retrieval, vision on relevant pages","Needs setup","warn"],["OLIVE REIMAGINE","Pillow · ComfyUI + SDXL","Local image editing and generation","Needs setup","warn"]].map(([p,m,d,st,k])=>`<tr><td><b>${p}</b>${p==="OLIVE NORMAL"?' <span class="pill info" style="height:17px">Default</span>':""}<br><small>${d}</small></td><td class="mono" style="font-size:12px">${m}</td><td><span class="pill ${k}">${k==="ok"?I("circle-check","s12"):I("triangle-alert","s12")} ${st}</span></td><td style="text-align:right">${k==="ok"?'<button class="btn sm quiet">Details</button>':'<button class="btn sm">Set up…</button>'}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="set-sec"><h4>Advanced</h4><div class="set-rows"><div class="srow"><div class="l"><b>Structured interpretation role</b><span>Used to read tasks, events and mail drafts reliably, separately from the chat preset.</span></div><span class="select mono" style="font-size:12px">gpt-oss:20b ${I("chevron-down","s12")}</span></div></div></div></div>`;
+  else main=`<div class="inner"><div><h3 style="margin:0;font:600 18px var(--ui-display)">Permissions</h3><p class="meta" style="margin:4px 0 0;font-size:12.5px">What OLIVE may do on this device. Approvals always happen here or in a confirmation dialog, never inside a model's reply.</p></div>
+    <div class="set-sec"><h4>Actions</h4><div class="set-rows">${[["Create and change calendar events","ask"],["Create and change tasks and reminders","ask"],["Send mail","ask"],["Write files in approved workspaces","ask"],["Run commands in approved workspaces","ask"],["Desktop Control (keyboard and mouse)","off"],["Read screen for Desktop Control","off"]].map(([n,v])=>`<div class="srow"><div class="l"><b>${n}</b></div>${perm(v,n)}</div>`).join("")}</div></div>
+    <div class="set-sec"><h4>Approved workspaces</h4><div class="set-rows">${[["greenhouse-controller","~/Projects/greenhouse-controller · Trusted"],["Acme.Inventory","~/Projects/Acme.Inventory · Review commands"]].map(([n,p])=>`<div class="srow"><div class="l"><b>${n}</b><span class="mono" style="font-size:11.5px">${p}</span></div><button class="btn sm quiet">Remove approval</button></div>`).join("")}</div></div></div>`;
+  const bar=s==="dirty"?`<div class="savebar" style="left:${216+240}px"${C("B")}>${I("circle-dot","s14")}<span style="flex:1">2 unsaved changes · Text size, Reduce motion</span><button class="btn sm quiet">Revert</button><button class="btn sm primary">Save settings</button></div>`:"";
+  return shell({nav:"Settings"},`<div class="ws" style="flex-direction:row">${nav}<div class="set-main">${main}</div>${bar}</div>`,titlebar("Settings","· "+on,{bell:3}));
+}
+
+const R={home,chat,go,devices,files,tasks,calendar,reminders,settings};
+function render(){
+  scaler.innerHTML=R[scr](stt);
+  const p=scaler.querySelector(".p"); if(p&&document.getElementById("pthemeToggle").getAttribute("aria-pressed")==="true") p.dataset.ptheme="light";
+  icons(scaler); fit();
+  const sc=SCREENS.find(x=>x.id===scr);
+  document.getElementById("stNav").innerHTML=`<span>State</span>`+sc.states.map(([v,l])=>`<button data-st="${v}" aria-pressed="${v===stt}">${l}</button>`).join("");
+  document.querySelectorAll("#scrNav button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.scr===scr)));
+  document.getElementById("scrNotes").innerHTML=`<span class="eyebrow">${esc(sc.label)}</span>${(NOTES[scr]||[]).map(n=>`<p style="margin:0">${n}</p>`).join("")}`;
+  document.getElementById("scrCls").innerHTML=`<span class="eyebrow">Implementation reality · ${esc(sc.label)}</span><div class="tbl-wrap" style="border:0"><table class="tbl"><tbody>${(SCLS[scr]||[]).map(([a,c])=>`<tr><td>${esc(a)}</td><td style="width:60px">${CL(c)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+document.getElementById("scrNav").innerHTML+=SCREENS.map(s=>`<button data-scr="${s.id}">${s.label}</button>`).join("");
+document.getElementById("scrNav").addEventListener("click",e=>{const b=e.target.closest("button[data-scr]"); if(!b) return; scr=b.dataset.scr; stt=SCREENS.find(x=>x.id===scr).states[0][0]; render(); try{history.replaceState(null,"","#screens");}catch(_){}});
+document.getElementById("stNav").addEventListener("click",e=>{const b=e.target.closest("button[data-st]"); if(!b) return; stt=b.dataset.st; render();});
+document.getElementById("szNav").addEventListener("click",e=>{const b=e.target.closest("button[data-size]"); if(!b) return; size=b.dataset.size; document.querySelectorAll("#szNav button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); render();});
+scaler.addEventListener("click",e=>{const b=e.target.closest('[data-act="perm"]'); if(b){ b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); } const c=e.target.closest(".chk"); if(c&&!c.closest(".rail")){ c.classList.toggle("on"); c.innerHTML=c.classList.contains("on")?I("check","s12"):""; icons(c); c.closest(".lrow")?.classList.toggle("done",c.classList.contains("on")); } const sw=e.target.closest(".sw"); if(sw){ sw.classList.toggle("on"); } const sg=e.target.closest(".seg:not(.perm) button"); if(sg&&!sg.dataset.act){ sg.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===sg))); } });
+render();
+
+/* toggles */
+const root=document.documentElement, clsBtn=document.getElementById("clsToggle"), pt=document.getElementById("pthemeToggle");
+clsBtn.addEventListener("click",()=>{const on=!root.classList.contains("show-cls"); root.classList.toggle("show-cls",on); clsBtn.setAttribute("aria-pressed",String(on)); try{localStorage.setItem("olive-v2-cls",on?"1":"0");}catch(_){}});
+try{ if(localStorage.getItem("olive-v2-cls")==="1"){ root.classList.add("show-cls"); clsBtn.setAttribute("aria-pressed","true"); } }catch(_){}
+pt.addEventListener("click",()=>{const on=pt.getAttribute("aria-pressed")!=="true"; pt.setAttribute("aria-pressed",String(on)); document.querySelectorAll(".p").forEach(p=>{ if(on) p.dataset.ptheme="light"; else delete p.dataset.ptheme; }); render(); });
+
+/* ------------------------------ compare ------------------------------ */
+const CMP=[
+ {img:"01-home",scr:"home",st:"normal",t:"Home",why:["<b>From 'where can I go' to 'what matters now'.</b> The current page spends about 400 of 900 px on a 15-tile grid that repeats the navigation beside it. Proposed: the same height holds approvals, live work and recent items.","<b>Time-bound context gets a place.</b> The next event, tasks due and reminders were each a click away. Now they sit in the Today rail.","<b>Status moves out of the brand slot.</b> 'Idle · AI offline' under the logo becomes model, Connect and activity indicators in the title bar."]},
+ {img:"02-chat",scr:"chat",st:"normal",t:"Chat",why:["<b>One header row.</b> Today the header wraps (mode, a truncated preset select, 'Run on', Attach, Options, More). Proposed: title and project in the header; model and execution in the composer, next to where you type.","<b>Truthful attribution on every answer</b> (existing RemoteAttribution), not only while generating.","<b>Code blocks get a header with Copy.</b> Tool results and pending actions become distinct rows, so an action is never mistaken for prose."]},
+ {img:"17-devices",scr:"devices",st:"detail",t:"Devices",why:["<b>Trust is stated, not implied.</b> Connection, trust and encryption are separate facts, and the sentence 'Pairing … grants no access' appears before any control.","<b>Permission direction is explicit</b>: what Gaming PC can do on this PC.","<b>Less noise.</b> Five 'Unavailable' pills become one line. The detached 'Pair device' chip becomes a header action."]},
+ {img:"18-tasks",scr:"tasks",st:"normal",t:"Tasks",why:["<b>More tasks per screen.</b> 34 px rows instead of 44–48 px, no card-in-card empty state.","<b>Keyboard-first:</b> N to add, arrows to move, Space to complete, with hints in the footer."]},
+ {img:"21-settings",scr:"settings",st:"dirty",t:"Settings",why:["<b>Mature settings layout.</b> Label and description on the left, control on the right, compact switches instead of native checkboxes floating in a 1,000 px column.","<b>The save action sits next to the change.</b> The global 'Save settings' button in the top-right corner is joined by an unsaved-changes bar that appears only when needed."]}
+];
+document.getElementById("cmpList").innerHTML=CMP.map((c,i)=>`<div style="display:flex;flex-direction:column;gap:10px"><h3>${c.t}</h3><div class="cmp"><figure><img class="shot" loading="lazy" src="v2-baseline/${c.img}.jpg" alt="Current ${c.t}"><figcaption><b>Current</b> From the app on this branch</figcaption></figure><figure><div class="frame" id="cmp${i}" style="box-shadow:none"><div class="scaler"></div></div><figcaption><b>Proposed</b> V2 at 1440×900</figcaption></figure></div><ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.55;color:var(--pg-muted);display:flex;flex-direction:column;gap:4px">${c.why.map(w=>`<li>${w}</li>`).join("")}</ul></div>`).join("");
+function mountCmp(){
+  CMP.forEach((c,i)=>{const f=document.getElementById("cmp"+i), sc=f.querySelector(".scaler"); const prevS=scr,prevT=stt,prevZ=size; scr=c.scr; stt=c.st; size="1440"; sc.innerHTML=R[c.scr](c.st); scr=prevS; stt=prevT; size=prevZ; icons(sc); const fitc=()=>{const s=f.clientWidth/1440; sc.style.transform=`scale(${s})`; f.style.height=Math.round(900*s)+"px";}; new ResizeObserver(fitc).observe(f); fitc();});
+}
+mountCmp();
+
+/* ------------------------------ tables ------------------------------ */
+tbl("coreTbl",["Where","Core?","Why"],[["Welcome (pre-entry)","Yes · large, rotating (as today)","The one moment for brand and presence"],["Title bar activity","Yes · 18 px, animates only while real work runs","Live 'what is OLIVE doing', opens the activity centre"],["Chat empty conversation","Yes · small, at rest","Signals where answers come from"],["App icon, favicon, OS launcher","No · solid green olive mark","Identity must work at 16 px and not animate"],["Home, Studio editor chrome, GO pages","No","The Core must never become decoration"],["Loading placeholders","No","A spinning Core must not stand in for real progress"],["Approval pending","Amber, still","Waiting for you isn't work"]]);
+tbl("mobileTbl",["C9 element","V2 finding","Recommendation"],[["Colour tokens","Identical values to desktop","Adopt V2 semantic names in the handoff only (no visual change)"],["Radii 14/20","Larger than desktop V2 (4–12)","Keep: touch surfaces and iOS conventions justify it"],["Off / Ask / Allow segmented","Same semantics and order","Keep"],["Status semantics table (§10)","Busy shown as warning; streaming cursor in accent blue","Optional: streaming cursor and 'OLIVE is working' use cyan (computing) for cross-device consistency; Busy (device occupied) stays amber"],["Olive vs success green kept apart","Matches V2 exactly","Keep"],["Remote AI attribution ('OLIVE MAX · Gaming PC')","Same wording as desktop Chat","Keep; desktop adopts it on every answer"],["Remote Studio as companion","Consistent with Studio V2 remote mode (no debugger, Git or terminal remotely)","Keep"],["Typography (SF system)","Platform-native, as desktop uses Segoe","Keep"],["Touch targets 44 pt","Correct for mobile","Keep; desktop's 24 px minimum does not apply"]]);
+tbl("a11yTbl",["Topic","Finding today","V2 rule","Class"],[["Contrast","Token audit passes except muted text on raised surfaces: 3.71:1","text.muted #8093aa (≥ 4.69:1 on all surfaces); small text on raised uses text.secondary","A"],["Focus","Single visible 2 px ring: good","Keep; inside dense Studio lists use an inset 1 px ring so rows don't shift","A"],["Keyboard","Tree roles, dialogs and the palette exist; Studio lacks view shortcuts","VS Code-compatible shortcuts; roving tabindex in the activity bar, tabs and trees","B"],["Target size","34–36 px controls (generous)","28 px default, 24 px minimum (WCAG 2.2 AA 2.5.8)","A"],["Colour-only status","Test counts and Ask highlight rely partly on colour","Every status has an icon or a word; Ask shows a hand icon","A"],["Disabled controls","Disabled Stop looks like a checkbox","Controls that can't act are hidden or explained, not ambiguous","A"],["Screen readers","Accessible names are stable (the e2e suite relies on them)","Keep names; status bar items are buttons with labels; counts are aria-hidden with a spoken total","B"],["Motion","Reduced motion respected except the Welcome olive (always rotates by explicit user request)","Everything else honours reduced motion; flag the Welcome exception for reconsideration","A"],["Text zoom","125% / 150% evidence exists","Layouts reflow; Studio keeps editor ≥ 560 px by collapsing sidebars first","B"]]);
+document.getElementById("osGrid").innerHTML=[["Launcher","The command centre / palette: one searchable surface for spaces, files and commands."],["Dock","The collapsed OLIVE rail: 48 px, olive active indicator, badges for attention."],["Quick Settings","The title-bar status cluster: model, Connect, activity, each opening a compact popover."],["Notifications","Toasts plus the activity centre: the same 'Needs attention' rows as Home."],["OLIVE Core","The activity indicator: rests as olive, computes in cyan, waits in amber."],["Desktop surfaces","Workspaces are already full-bleed panels with no card chrome."],["Window chrome","A 34 px title bar with window controls (class C) is the OS title bar."],["Theming","Semantic tokens with native light and dark palettes; one source for all apps."]].map(([a,b])=>`<div class="pg-card"><b>${a}</b><span>${b}</span></div>`).join("");
+tbl("classTbl",["Area","Element","Class","Basis"],[
+ ["Shell","Title bar (space switcher, command centre, status cluster)","B","Existing palette, runtime.activity, model and Connect state"],["Shell","Window controls inside title bar","C","Electron titleBarOverlay / frameless main-process change"],["Shell","216 px navigation, grouped; collapse to 48 px rail","A","Existing labelled nav + compact mode"],["Shell","Studio auto-collapses or hides the OLIVE rail","B","Route-aware layout"],["Tokens","V2 names + values, muted contrast fix, panel layer","A","tokens.css edit with aliases"],["Tokens","Primary fill #2f74d0 with white text","A","tokens.css"],["Type","Mono stack with Linux fallbacks; Monaco default font","A","tokens.css + editor default"],
+ ["Home","Remove app grid; Needs attention / working / continue / Today","B","Existing APIs; composition only"],["Chat","Header consolidation; composer pickers","A","Existing controls moved"],["Chat","Code block Copy","B","Markdown renderer"],["Chat","Open code in Studio","D","No handoff for code blocks"],["Core","Title-bar placement; cyan working palette","B","Renderer palette parameter"],
+ ["GO","Tab strip under title bar; favourites empty state","B / A","Layout; copy"],["Devices","Header facts, trust statement, capability table","A","Existing data"],["Devices","Last-used per capability","C","Needs per-capability timestamps"],["Files","Unified Inbox table","B","Existing transfer list across devices"],["Files","Resume transfers","D","Deliberately not implemented"],
+ ["Tasks","34 px rows, inline add, keyboard","B","Existing task APIs"],["Calendar","Mini-month and calendar toggles in rail","B","Existing calendars"],["Reminders","Single grouped list","A","Existing data"],["Reminders","OS notifications while app closed","D","Not supported"],
+ ["Settings","Row layout, switches, grouped nav","A","Existing schema"],["Settings","Unsaved-changes bar","B","Draft vs saved diff"],["Settings","About page","C","Version/licence endpoint"],["Settings","Notifications category, Density","D","Not supported"]
+].map(r=>[r[0],esc(r[1]),CL(r[2]),esc(r[3])]));
+icons(document);
+/* Repo copies link to the sibling file; the published copy links to the published Studio artifact. */
+if(location.protocol!=="file:"){ const a=document.getElementById("studioLink"); if(a){ a.href="https://claude.ai/artifact/DyQSkkuAcf2VLrUZH6fGda"; a.target="_blank"; a.rel="noopener"; } }
+})();
+</script>

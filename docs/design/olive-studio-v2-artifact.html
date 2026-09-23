@@ -1,0 +1,1624 @@
+<title>OLIVE Studio V2</title>
+<meta name="description" content="Interactive design proposal for OLIVE Studio V2: IDE layout, debugging, source control, testing, OLIVE assistant, responsive states and implementation classes.">
+<link rel="stylesheet" href="v2-assets/olive-v2.css">
+<style>
+/* ============ Studio frame (scaled to fit the page) ============ */
+.frame{position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid var(--pg-line-strong);background:#05070a;box-shadow:var(--pg-shadow)}
+.frame .scaler{position:absolute;top:0;left:0;transform-origin:0 0}
+.frame:focus-visible{outline:2px solid var(--pg-accent);outline-offset:3px}
+.mock-meta{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12px;color:var(--pg-muted)}
+.mock-meta b{color:var(--pg-text);font-weight:600}
+.subnav{display:flex;flex-wrap:wrap;gap:6px}
+.subnav button{font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--pg-line-strong);background:var(--pg-surface);color:var(--pg-muted);cursor:pointer}
+.subnav button[aria-pressed="true"]{color:var(--pg-text);border-color:var(--pg-accent);background:var(--pg-accent-soft)}
+.notes{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px}
+@media (max-width:980px){.notes{grid-template-columns:1fr}}
+.d-only{display:none!important}
+.show-cls .d-only{display:inline-flex!important}
+
+/* ============ IDE ============ */
+.ide{display:grid;grid-template-rows:34px minmax(0,1fr) 22px;background:var(--bg-base);overflow:hidden;position:relative;font-size:13px;line-height:1.35}
+.ide-body{display:flex;min-height:0;min-width:0}
+.abar{width:44px;flex-shrink:0;background:var(--bg-base);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;align-items:center;padding:2px 0}
+.abar button{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);position:relative}
+.abar button:hover:not(:disabled){color:var(--text-primary)}
+.abar button:disabled{color:var(--text-disabled)}
+.abar button[aria-pressed="true"]{color:var(--text-primary)}
+.abar button[aria-pressed="true"]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:2px;border-radius:0 2px 2px 0;background:var(--accent-blue)}
+.abar .badge{position:absolute;right:6px;bottom:7px}
+.abar .spacer{flex:1}
+.side{flex-shrink:0;background:var(--bg-panel);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.side-head{height:34px;flex-shrink:0;display:flex;align-items:center;gap:2px;padding:0 6px 0 16px;font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--text-secondary)}
+.side-head .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-scroll{flex:1;min-height:0;overflow:auto}
+.sec-h{height:22px;display:flex;align-items:center;gap:2px;padding:0 6px 0 2px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary);cursor:pointer;border-top:1px solid var(--border-subtle);width:100%;text-align:left;user-select:none}
+.sec-h:first-child{border-top:0}
+.sec-h .n{margin-left:6px}
+.sec-h .acts{margin-left:auto;display:flex;gap:0;opacity:0}
+.sec-h:hover .acts,.sec-h:focus-within .acts{opacity:1}
+.sec-h .ic{color:var(--text-secondary)}
+.row{height:22px;display:flex;align-items:center;gap:5px;padding-right:8px;font-size:13px;color:var(--text-primary);white-space:nowrap;cursor:pointer;width:100%;text-align:left;position:relative}
+.row:hover{background:var(--bg-hover)}
+.row.sel{background:var(--bg-selected)}
+.row.sel.focus{box-shadow:inset 0 0 0 1px var(--border-active)}
+.row .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.row .dim{color:var(--text-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.row .end{margin-left:auto;display:flex;align-items:center;gap:4px;flex-shrink:0}
+.row .hov{display:none;gap:0}
+.row:hover .hov,.row.sel .hov{display:flex}
+.row .deco{font:700 11px/1 var(--code);width:12px;text-align:center}
+.deco.M,.nm.M{color:#e2c08d}.deco.U,.deco.A,.nm.U,.nm.A{color:var(--status-success)}.deco.D,.nm.D{color:var(--status-error)}
+.nm.E{color:var(--status-error)}
+.row .chev{width:16px;display:inline-flex;justify-content:center;color:var(--text-secondary)}
+.fi{color:var(--text-secondary)}
+.fi.py{color:#6cb6ff}.fi.cs{color:#5cc8b4}.fi.json{color:#e2d59a}.fi.md{color:#a8b8cc}.fi.toml{color:#d9a47a}.fi.proj{color:#c8a2f0}
+.sym{width:14px;height:14px;border-radius:3px;font:700 9px/14px var(--code);text-align:center;color:#0b0f16;flex-shrink:0}
+.sym.c{background:#e2c08d}.sym.m{background:#c8a2f0}.sym.v{background:#7cc4ff}
+.pad{padding:8px 12px 10px 16px;display:flex;flex-direction:column;gap:8px}
+.hint{font-size:11.5px;color:var(--text-muted);line-height:1.45}
+.hint b{color:var(--text-secondary);font-weight:600}
+
+/* editor column */
+.edcol{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-surface)}
+.tabs{height:32px;flex-shrink:0;display:flex;background:var(--bg-panel);border-bottom:1px solid var(--border-subtle);overflow:hidden}
+.tab{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px 0 12px;border-right:1px solid var(--border-subtle);font-size:12.5px;color:var(--text-secondary);white-space:nowrap;cursor:pointer;position:relative;flex-shrink:0}
+.tab:hover{background:var(--bg-hover)}
+.tab.on{background:var(--bg-surface);color:var(--text-primary);margin-bottom:-1px;height:33px}
+.tab.on::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--accent-blue)}
+.tab .x{width:18px;height:18px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
+.tab .x:hover{background:var(--bg-active);color:var(--text-primary)}
+.tab .x .dirty{width:8px;height:8px;border-radius:50%;background:var(--text-secondary)}
+.tab:hover .x .dirty{display:none}
+.tab .x .xi{display:none}
+.tab:hover .x .xi,.tab.on:not(.dirty) .x .xi{display:inline-flex}
+.tab.on.dirty:not(:hover) .x .xi{display:none}
+.tab.preview .nm{font-style:italic}
+.tabs .tabs-end{margin-left:auto;display:flex;align-items:center;padding:0 6px;gap:2px}
+.crumbs{height:24px;flex-shrink:0;display:flex;align-items:center;gap:3px;padding:0 12px;font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden}
+.crumbs span.c{display:inline-flex;align-items:center;gap:4px;padding:0 3px;border-radius:3px}
+.crumbs span.c:hover{color:var(--text-primary);background:var(--bg-hover)}
+.crumbs .ic{color:var(--text-muted)}
+.notice{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:6px 12px;font-size:12px;border-bottom:1px solid var(--border-subtle);background:var(--bg-panel);color:var(--text-secondary)}
+.notice.warn{box-shadow:inset 2px 0 0 var(--status-warning)}
+.notice.info{box-shadow:inset 2px 0 0 var(--accent-blue)}
+.notice.err{box-shadow:inset 2px 0 0 var(--status-error)}
+.notice .grow{flex:1}
+.editor{flex:1;min-height:0;display:flex;position:relative;overflow:hidden}
+.ecode{flex:1;min-width:0;overflow:hidden;font-family:var(--code);font-size:13px;line-height:20px;padding-top:4px;position:relative}
+.ln{display:flex;height:20px;position:relative}
+.ln .g{width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ln .g:hover::before{content:"";width:9px;height:9px;border-radius:50%;background:rgba(229,83,75,.35)}
+.ln .g .bp{width:9px;height:9px;border-radius:50%;background:#e5534b}
+.ln .g .bp.cond{border-radius:2px;transform:rotate(45deg) scale(.85)}
+.ln .g .bp.unv{background:transparent;box-shadow:inset 0 0 0 1.5px #e5534b}
+.ln .g .here{width:0;height:0;border-left:8px solid var(--status-warning);border-top:5px solid transparent;border-bottom:5px solid transparent;position:absolute;left:6px}
+.ln .num{width:42px;flex-shrink:0;text-align:right;color:var(--editor-line);padding-right:4px;user-select:none;font-variant-numeric:tabular-nums}
+.ln .fold{width:16px;flex-shrink:0;color:var(--text-muted);display:flex;align-items:center;justify-content:center;opacity:0}
+.editor:hover .ln .fold{opacity:1}
+.ln .src{white-space:pre;padding-left:6px;color:var(--syn-text);position:relative;flex:1;min-width:0}
+.ln.cur{background:var(--editor-current)}
+.ln.cur .num{color:var(--editor-line-active)}
+.ln.selx{background:var(--editor-selection)}
+.ln.dbg{background:rgba(240,195,107,.14)}
+.ln.dbg .num{color:var(--status-warning)}
+.ln.add{background:rgba(127,216,168,.10)}
+.ln.del{background:rgba(255,143,143,.10)}
+.ln .src .sq{position:absolute;bottom:1px;height:4px;pointer-events:none;background-repeat:repeat-x;background-size:6px 4px}
+.ln .src .sq.w{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='4'%3E%3Cpath d='M0 3 L1.5 1 L3 3 L4.5 1 L6 3' fill='none' stroke='%23f0c36b' stroke-width='1'/%3E%3C/svg%3E")}
+.ln .src .sq.e{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='4'%3E%3Cpath d='M0 3 L1.5 1 L3 3 L4.5 1 L6 3' fill='none' stroke='%23ff8f8f' stroke-width='1'/%3E%3C/svg%3E")}
+.ln .src .cursor{position:absolute;top:2px;width:2px;height:16px;background:var(--text-primary);animation:olv-caret 1.1s steps(1) infinite}
+.ln .ghost{color:var(--text-muted);font-style:italic}
+.ln .inlay{margin-left:18px;font-family:var(--ui);font-size:11.5px;color:var(--text-muted);background:var(--bg-elevated);border-radius:3px;padding:0 5px}
+.t-c{color:var(--syn-comment);font-style:italic}.t-k{color:var(--syn-keyword)}.t-x{color:var(--syn-control)}.t-s{color:var(--syn-string)}.t-n{color:var(--syn-number)}
+.t-f{color:var(--syn-function)}.t-t{color:var(--syn-type)}.t-p{color:var(--syn-param)}.t-d{color:var(--syn-decorator)}.t-u{color:var(--syn-punct)}.t-o{color:var(--syn-constant)}
+.t-h{color:var(--syn-keyword);font-weight:700}.t-b{color:var(--text-primary);font-weight:700}.t-l{color:var(--accent-cyan)}
+.minimap{width:86px;flex-shrink:0;border-left:1px solid var(--border-subtle);padding:6px 6px;display:flex;flex-direction:column;gap:1px;position:relative}
+.minimap i{display:block;height:2px;border-radius:1px;background:var(--syn-text);opacity:.28}
+.minimap i.k{background:var(--syn-keyword);opacity:.45}.minimap i.c{background:var(--syn-comment);opacity:.4}
+.minimap .view{position:absolute;left:0;right:0;top:4px;height:112px;background:rgba(197,216,240,.06)}
+.oruler{width:12px;flex-shrink:0;position:relative;border-left:1px solid var(--border-subtle)}
+.oruler i{position:absolute;left:3px;right:3px;height:3px;border-radius:1px}
+.oruler i.w{background:var(--status-warning)}.oruler i.e{background:var(--status-error)}.oruler i.b{background:#e5534b;left:1px;right:auto;width:4px}.oruler i.s{background:var(--accent-blue);opacity:.6}
+.hovercard{position:absolute;z-index:15;white-space:normal;font-family:var(--ui);line-height:1.4;color:var(--text-primary);width:430px;background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-overlay);font-size:12.5px}
+.hovercard .hc-code{font-family:var(--code);padding:8px 10px;border-bottom:1px solid var(--border-subtle)}
+.hovercard .hc-body{padding:8px 10px;color:var(--text-secondary);display:flex;gap:8px}
+.hovercard .hc-foot{padding:6px 10px;border-top:1px solid var(--border-subtle);display:flex;gap:14px}
+.hovercard .hc-foot a{color:var(--accent-blue);text-decoration:none;cursor:pointer}
+.selpill{position:absolute;z-index:14;white-space:nowrap;font-family:var(--ui);display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:var(--r-md);background:var(--bg-raised);border:1px solid var(--border-strong);box-shadow:var(--shadow-overlay);font-size:12px;color:var(--text-primary);cursor:pointer}
+.selpill:hover{border-color:var(--accent-cyan)}
+.dbgbar{position:absolute;top:6px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1px;padding:2px;background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-overlay);z-index:20}
+.dbgbar .grip{width:10px;height:22px;background-image:radial-gradient(circle,var(--text-muted) 0 1px,transparent 1.2px);background-size:4px 4px;opacity:.6;margin:0 2px}
+.dbgbar .ibtn.go{color:var(--status-success)}.dbgbar .ibtn.stop{color:var(--status-error)}
+.welcome{flex:1;display:flex;align-items:flex-start;justify-content:center;padding-top:9%;overflow:auto}
+.welcome .w-in{width:min(560px,90%);display:flex;flex-direction:column;gap:18px}
+.welcome h2{font:600 22px/1.2 var(--ui-display);letter-spacing:-.01em;color:var(--text-primary)}
+.welcome .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.welcome .cols h5{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:0 0 6px}
+.welcome .lnk{display:flex;align-items:center;gap:8px;height:26px;color:var(--accent-blue);font-size:13px;cursor:pointer;width:100%;text-align:left}
+.welcome .lnk:hover{text-decoration:underline}
+.welcome .lnk .kbd{margin-left:auto}
+.welcome .rec{display:flex;flex-direction:column;align-items:flex-start;gap:0;height:auto;padding:3px 0}
+.welcome .rec small{color:var(--text-muted);font-size:11.5px}
+
+/* bottom panel */
+.panel{flex-shrink:0;border-top:1px solid var(--border-default);background:var(--bg-panel);display:flex;flex-direction:column;min-height:0;position:relative}
+.panel-tabs{height:32px;flex-shrink:0;display:flex;align-items:center;padding:0 4px 0 10px;gap:2px}
+.ptab{height:32px;padding:0 8px;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);position:relative;white-space:nowrap}
+.ptab:hover{color:var(--text-primary)}
+.ptab[aria-selected="true"]{color:var(--text-primary)}
+.ptab[aria-selected="true"]::after{content:"";position:absolute;left:8px;right:8px;bottom:4px;height:1px;background:var(--accent-blue)}
+.panel-tabs .end{margin-left:auto;display:flex;align-items:center;gap:2px}
+.pbody{flex:1;min-height:0;overflow:auto;font-size:12.5px}
+.prob-file{display:flex;align-items:center;gap:6px;height:22px;padding:0 10px;font-size:12.5px;color:var(--text-primary)}
+.prob{display:flex;align-items:center;gap:7px;height:22px;padding:0 10px 0 34px;font-size:12.5px;color:var(--text-primary);cursor:pointer;white-space:nowrap}
+.prob:hover{background:var(--bg-hover)}
+.prob .src{color:var(--text-muted)}
+.prob .where{color:var(--text-muted);margin-left:auto;font-variant-numeric:tabular-nums}
+.term{font-family:var(--code);font-size:12.5px;line-height:18px;padding:6px 12px;white-space:pre-wrap;color:var(--syn-text);outline:none;min-height:100%}
+.term .pr{color:var(--status-success)}.term .pa{color:var(--accent-blue)}.term .mu{color:var(--text-muted)}.term .in{color:var(--text-primary);font-weight:600}
+.term .blk{display:inline-block;width:8px;height:15px;vertical-align:-3px;background:var(--text-primary);animation:olv-caret 1.1s steps(1) infinite}
+.term:not(:focus) .blk{background:transparent;box-shadow:inset 0 0 0 1px var(--text-secondary);animation:none}
+.term-wrap{display:flex;height:100%}
+.term-wrap .term{flex:1}
+.term-list{width:190px;flex-shrink:0;border-left:1px solid var(--border-subtle);padding:4px 0;font-size:12.5px}
+.term-list .row{padding-left:10px;height:24px}
+.jobcard{margin:8px 12px;border:1px solid var(--border-default);border-radius:var(--r-md);background:var(--bg-surface);display:flex;flex-direction:column}
+.jobcard .jh{display:flex;align-items:center;gap:10px;padding:8px 10px;flex-wrap:wrap}
+.jobcard .jh b{font-size:13px}
+.jobcard .facts{display:flex;gap:14px;flex-wrap:wrap;padding:0 10px 8px;font-size:12px;color:var(--text-secondary)}
+.jobcard .facts span b{color:var(--text-primary);font-weight:600}
+.rawout{font-family:var(--code);font-size:12px;line-height:18px;padding:4px 12px 10px;white-space:pre-wrap;color:var(--text-secondary)}
+.rawout .w{color:var(--status-warning)}.rawout .e{color:var(--status-error)}.rawout .ok{color:var(--status-success)}
+.console-line{font-family:var(--code);font-size:12.5px;line-height:19px;padding:0 12px;white-space:pre}
+.console-in{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid var(--border-subtle);font-family:var(--code);font-size:12.5px;color:var(--text-muted)}
+
+/* assistant */
+.asst{flex-shrink:0;background:var(--bg-panel);border-left:1px solid var(--border-subtle);display:flex;flex-direction:column;min-width:0}
+.asst-head{height:34px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 6px 0 12px;border-bottom:1px solid var(--border-subtle)}
+.asst-head .t{font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--text-secondary)}
+.asst-head .grow{flex:1}
+.chipbtn{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 7px;border-radius:var(--r-sm);font-size:11.5px;font-weight:600;color:var(--text-secondary);border:1px solid var(--border-default);background:var(--bg-base);white-space:nowrap}
+.chipbtn:hover{color:var(--text-primary);border-color:var(--border-strong)}
+.ctx{padding:10px 12px 8px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid var(--border-subtle)}
+.ctx .lbl{font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}
+.ctx .chips{display:flex;flex-wrap:wrap;gap:5px}
+.cchip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 7px;border-radius:var(--r-sm);font-size:11.5px;border:1px dashed var(--border-strong);color:var(--text-muted);background:transparent;white-space:nowrap}
+.cchip[aria-pressed="true"]{border-style:solid;border-color:color-mix(in srgb,var(--accent-cyan) 50%,transparent);background:var(--accent-cyan-soft);color:var(--text-primary)}
+.cchip[aria-pressed="true"] .ic{color:var(--accent-cyan)}
+.quick{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border-subtle)}
+.quick button{height:22px;padding:0 8px;border-radius:var(--r-sm);font-size:11.5px;color:var(--text-secondary);background:var(--bg-elevated)}
+.quick button:hover{color:var(--text-primary);background:var(--bg-raised)}
+.thread{flex:1;min-height:0;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.55;color:var(--text-primary)}
+.msg.me{align-self:flex-end;max-width:88%;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-lg);padding:7px 10px}
+.msg .who{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-muted)}
+.msg .who b{color:var(--text-primary);font-weight:650}
+.msg p{margin:0}
+.msg code{font-size:11.5px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:3px;padding:0 4px}
+.msg pre{margin:0;font-family:var(--code);font-size:11.5px;line-height:17px;background:var(--bg-base);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:7px 9px;white-space:pre;overflow:hidden}
+.msg .caret{display:inline-block;width:7px;height:13px;background:var(--accent-cyan);vertical-align:-2px;animation:olv-caret 1s steps(1) infinite;margin-left:2px}
+.proposal{border:1px solid var(--border-default);border-radius:var(--r-md);background:var(--bg-surface);display:flex;flex-direction:column}
+.proposal .ph{display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid var(--border-subtle);font-size:12px}
+.proposal .ph .add{color:var(--status-success)}.proposal .ph .del{color:var(--status-error)}
+.proposal .pf{display:flex;gap:6px;padding:7px 9px;align-items:center;flex-wrap:wrap}
+.proposal .pn{font-size:11px;color:var(--text-muted);padding:0 9px 8px}
+.composer{padding:8px 10px 10px;border-top:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:6px}
+.composer .box{border:1px solid var(--border-default);border-radius:var(--r-lg);background:var(--bg-field);padding:8px 8px 6px 10px;display:flex;flex-direction:column;gap:6px}
+.composer .box:focus-within{border-color:var(--border-active);box-shadow:0 0 0 2px var(--accent-blue-soft)}
+.composer textarea{background:none;border:0;outline:0;resize:none;color:var(--text-primary);font:12.5px/1.45 var(--ui);height:38px}
+.composer textarea::placeholder{color:var(--text-muted)}
+.composer .cf{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted)}
+.composer .send{margin-left:auto;width:24px;height:24px;border-radius:var(--r-md);background:var(--accent-blue-fill);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.composer .send.stop{background:var(--bg-raised);color:var(--text-primary);border:1px solid var(--border-strong)}
+
+/* status bar */
+.sbar{display:flex;align-items:stretch;background:var(--bg-base);border-top:1px solid var(--border-subtle);font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden}
+.si{padding:0 8px;display:inline-flex;align-items:center;gap:5px;height:21px}
+.si:hover{background:var(--bg-hover);color:var(--text-primary)}
+.si.remote{background:var(--accent-blue-fill);color:#fff;padding:0 10px}
+.si.remote.off{background:#6a4a12}
+.si.local{padding:0 10px;color:var(--text-secondary)}
+.si.warnc{color:var(--status-warning)}
+.si.errc{color:var(--status-error)}
+.si.dbg{color:#0b0f16;background:var(--status-warning);font-weight:600}
+.sbar .grow{flex:1}
+
+/* palette */
+.pal{position:absolute;top:40px;left:50%;transform:translateX(-50%);width:620px;max-width:calc(100% - 40px);z-index:85;background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-overlay);display:flex;flex-direction:column;overflow:hidden}
+.pal .pin{display:flex;align-items:center;gap:8px;margin:6px;padding:0 8px;height:30px;border-radius:var(--r-md);border:1px solid var(--border-active);background:var(--bg-field);box-shadow:0 0 0 2px var(--accent-blue-soft)}
+.pal .pin input{flex:1;background:none;border:0;outline:0;color:var(--text-primary);font-size:13px}
+.pal .plist{max-height:360px;overflow:auto;padding:0 4px 4px}
+.pal .pg-h{font-size:11px;color:var(--text-muted);padding:6px 8px 3px;display:flex;justify-content:space-between}
+.pal .pi{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:var(--r-sm);font-size:12.5px;color:var(--text-primary);width:100%;text-align:left}
+.pal .pi .cat{color:var(--text-muted)}
+.pal .pi .det{color:var(--text-muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.pal .pi .kb{margin-left:auto;display:flex;gap:3px;align-items:center}
+.pal .pi[aria-selected="true"]{background:var(--bg-selected);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--border-active) 55%,transparent)}
+.pal .pi mark{background:none;color:var(--accent-blue);font-weight:700}
+.pal .pfoot{display:flex;gap:14px;padding:6px 10px;border-top:1px solid var(--border-subtle);font-size:11px;color:var(--text-muted);flex-wrap:wrap}
+.pal .pfoot b{color:var(--text-secondary);font-family:var(--code);font-weight:600}
+.pal .empty{padding:14px;font-size:12.5px;color:var(--text-muted)}
+
+/* diagram + misc page bits */
+.diagram{display:grid;grid-template-columns:48px 44px 180px 1fr 190px;grid-template-rows:26px 1fr 110px 20px;gap:3px;height:340px;font-size:11px;color:var(--pg-muted)}
+.diagram div{border:1px solid var(--pg-line-strong);border-radius:4px;background:var(--pg-surface);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;line-height:1.3}
+.diagram b{display:block;color:var(--pg-text);font-size:11.5px}
+.diagram .d-tb{grid-column:1/-1}.diagram .d-sb{grid-column:1/-1}
+.diagram .d-gr{grid-row:2/4}.diagram .d-ab{grid-row:2/4}.diagram .d-side{grid-row:2/4}.diagram .d-as{grid-row:2/4}
+.diagram .opt{border-style:dashed}
+.syn-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:980px){.syn-grid{grid-template-columns:1fr}}
+.syn{border-radius:10px;overflow:hidden;border:1px solid var(--pg-line-strong)}
+.syn .sh{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;background:var(--bg-panel);border-bottom:1px solid var(--border-subtle);font-size:12px;color:var(--text-secondary)}
+.syn .sb{background:var(--bg-surface);padding:6px 0 8px;overflow-x:auto}
+.syn .ln .num{width:34px}
+.kbdrow{display:inline-flex;gap:3px;flex-wrap:wrap}
+.kbdrow kbd{font:500 11px/1 var(--ui);border:1px solid var(--pg-line-strong);border-bottom-width:2px;border-radius:4px;padding:2px 5px;background:var(--pg-sunken);color:var(--pg-text)}
+.mini-frame{position:relative;width:100%;border-radius:8px;overflow:hidden;border:1px solid var(--pg-line-strong);background:#05070a}
+.mini-frame .scaler{position:absolute;top:0;left:0;transform-origin:0 0}
+.why{margin:0;padding-left:18px;font-size:12.5px;line-height:1.55;color:var(--pg-muted);display:flex;flex-direction:column;gap:4px}
+.why b{color:var(--pg-text);font-weight:600}
+.pair{display:flex;flex-direction:column;gap:10px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.support{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.support{grid-template-columns:1fr}}
+.support ul{margin:0;padding:12px 16px 14px 32px;font-size:12.5px;line-height:1.6;color:var(--pg-muted)}
+.support h3{padding:12px 16px 0}
+</style>
+
+<div class="pg" id="top">
+  <header class="pg-head">
+    <div class="olive-mark" aria-hidden="true"></div>
+    <div>
+      <h1>OLIVE Studio V2</h1>
+      <div class="sub">A professional IDE layout for OLIVE Studio, built on what Studio already does. Interactive proposal, not shipped UI. Part of <a id="dsLink" href="olive-design-v2-artifact.html">OLIVE Design System V2</a>.</div>
+    </div>
+    <span class="tag">Design V2 · Proposal</span>
+  </header>
+
+  <nav class="pg-nav" aria-label="Scenario and window controls" id="pgnav">
+    <span class="eyebrow" style="padding:0 4px">Scenario</span>
+    <span id="scnav" class="subnav" style="display:contents"></span>
+    <span class="sep"></span>
+    <span class="eyebrow" style="padding:0 4px">Window</span>
+    <button data-size="1920">1920×1080</button><button data-size="1440" aria-pressed="true">1440×900</button><button data-size="1366">1366×768</button>
+    <span class="sep"></span>
+    <button id="clsToggle" aria-pressed="false" title="Badge every element with its implementation class">A/B/C/D classes</button>
+    <button id="palBtn" title="Open the Studio command palette (Ctrl+Shift+P while the mock has focus)">Command palette</button>
+  </nav>
+
+  <section class="pg-sec" id="mock" aria-label="Interactive Studio mock">
+    <div class="frame" id="mainFrame" tabindex="0" aria-label="Interactive OLIVE Studio mock. Focus it to use keyboard shortcuts."><div class="scaler"></div></div>
+    <div class="mock-meta" id="mockMeta"></div>
+    <div class="notes">
+      <div class="pg-card pg-note" id="scNotes"></div>
+      <div class="pg-card pg-note" id="scCls"></div>
+    </div>
+    <div class="legend">
+      <span><i class="cls A">A</i> Visual only; the backend already supports it</span>
+      <span><i class="cls B">B</i> Frontend behaviour on existing APIs</span>
+      <span><i class="cls C">C</i> Needs small backend or IPC work</span>
+      <span><i class="cls D">D</i> Future; not supported today (shown only while classes are on)</span>
+    </div>
+  </section>
+
+  <section class="pg-sec" id="compare">
+    <header>
+      <span class="eyebrow">Current vs proposed</span>
+      <h2>The same fixture, the same window sizes</h2>
+      <p class="lede">Left: the shipped Studio, captured from the real app on this branch with an isolated temporary profile (interpreter paths redacted). Right: the V2 proposal at the same logical window size. Measurements are taken from the captures.</p>
+    </header>
+    <div id="cmpList" style="display:flex;flex-direction:column;gap:28px"></div>
+    <div class="tbl-wrap"><table class="tbl" id="evalTbl"></table></div>
+  </section>
+
+  <section class="pg-sec" id="layout">
+    <header>
+      <span class="eyebrow">Architecture</span>
+      <h2>Panel hierarchy and proportions</h2>
+      <p class="lede">One title bar, one activity bar, one primary sidebar, the editor group, one bottom panel, an optional secondary sidebar for OLIVE, one status bar. The editor always keeps priority: it never drops below 560 logical pixels wide.</p>
+    </header>
+    <div class="two">
+      <div class="pg-card" style="padding:14px">
+        <div class="diagram" aria-label="Studio panel hierarchy diagram">
+          <div class="d-tb"><span><b>Title bar · 34</b>space · workspace · Local/Remote · command centre · run · Core · OLIVE</span></div>
+          <div class="d-gr opt"><span><b>OLIVE rail</b>48 · optional</span></div>
+          <div class="d-ab"><span><b>Activity</b>44</span></div>
+          <div class="d-side"><span><b>Primary sidebar</b>240–280<br>Explorer · Search · Source Control · Run and Debug · Testing</span></div>
+          <div><span><b>Editor group</b>tabs 32 · breadcrumbs 24 · Monaco</span></div>
+          <div class="d-as opt"><span><b>OLIVE</b>secondary sidebar<br>320–380</span></div>
+          <div><span><b>Panel · 200–280</b>Problems · Output · Terminal · Debug console</span></div>
+          <div class="d-sb"><span><b>Status bar · 22</b></span></div>
+        </div>
+      </div>
+      <div class="tbl-wrap"><table class="tbl" id="propTbl"></table></div>
+    </div>
+    <div class="pg-card pg-note">
+      <strong>Collapse order when space runs out</strong>
+      <ul>
+        <li>1. The OLIVE rail hides first (below 1600 px wide). Every OLIVE space stays one click away through the title-bar space switcher and the command palette.</li>
+        <li>2. Toolbar labels become icon-only buttons with tooltips and shortcuts (below 1440 px).</li>
+        <li>3. The OLIVE secondary sidebar changes from docked to an overlay drawer when docking it would push the editor below 560 px.</li>
+        <li>4. The primary sidebar becomes an overlay (below 1180 px). It reopens with its activity-bar icon or <code>Ctrl+B</code>.</li>
+        <li>5. The panel is capped at 40% of the editor column height and can be maximised (<code>Ctrl+J</code> toggles it).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="pg-sec" id="inventory">
+    <header>
+      <span class="eyebrow">Component inventory</span>
+      <h2>Every Studio component, where its data comes from, and how hard it is to build</h2>
+    </header>
+    <div class="tbl-wrap"><table class="tbl" id="invTbl"></table></div>
+  </section>
+
+  <section class="pg-sec" id="keys">
+    <header>
+      <span class="eyebrow">Keyboard first</span>
+      <h2>Shortcuts</h2>
+      <p class="lede">Bindings follow VS Code wherever Electron and Monaco allow it, so muscle memory transfers. <code>Ctrl+Shift+I</code> is left alone because it opens Electron developer tools.</p>
+    </header>
+    <div class="tbl-wrap"><table class="tbl" id="keyTbl"></table></div>
+  </section>
+
+  <section class="pg-sec" id="commands">
+    <header>
+      <span class="eyebrow">Command palette</span>
+      <h2>Commands and the functions they call</h2>
+      <p class="lede">The palette lists only commands that map to a function Studio has today, or that are classed B/C here. Prefixes: none = files, <code>&gt;</code> commands, <code>#</code> workspace symbols, <code>@</code> symbols in the file, <code>:</code> go to line.</p>
+    </header>
+    <div class="tbl-wrap"><table class="tbl" id="cmdTbl"></table></div>
+  </section>
+
+  <section class="pg-sec" id="theme">
+    <header>
+      <span class="eyebrow">OLIVE Night · Studio theme</span>
+      <h2>Syntax palette</h2>
+      <p class="lede">Near-black navy editor, blue structure, warm strings, teal types. Green is kept out of syntax, so it still means OLIVE's own identity and success. Every token colour clears 4.5:1 against the editor background (measured values in OLIVE_STUDIO_V2.md).</p>
+    </header>
+    <div class="syn-grid" id="synGrid"></div>
+  </section>
+
+  <section class="pg-sec" id="support">
+    <header>
+      <span class="eyebrow">Truthfulness</span>
+      <h2>What Studio supports today, and what this design does not claim</h2>
+    </header>
+    <div class="support">
+      <div class="pg-card"><h3>Supported today (verified in source)</h3><ul id="supList"></ul></div>
+      <div class="pg-card"><h3>Not supported: never shown as working</h3><ul id="unsupList"></ul></div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script>
+(function(){
+"use strict";
+/* ------------------------------------------------------------------ utils */
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const I = (n, c="") => `<span class="ic ${c}" aria-hidden="true"><i data-lucide="${n}"></i></span>`;
+const cls = c => c ? ` data-cls="${c}"` : "";
+const K = (...keys) => keys.map(k => `<span class="kbd">${esc(k)}</span>`).join("");
+function icons(root){ try{ if(window.lucide) window.lucide.createIcons({attrs:{"stroke-width":1.75}, root}); }catch(e){} }
+
+/* ------------------------------------------------------------ highlighter */
+const PYK = new Set("False None True and as assert async await class def del from global import in is lambda nonlocal not or".split(" "));
+const PYX = new Set("if elif else for while return raise try except finally with break continue yield pass".split(" "));
+const PYB = new Set("self cls list dict set tuple str int float bool range len print frozenset super object Iterable ValueError RuntimeError".split(" "));
+const CSK = new Set("using var new public private protected internal readonly static sealed class record namespace void int string bool out get set this true false null override async".split(" "));
+const CSX = new Set("if else while for foreach return break continue switch case try catch throw await".split(" "));
+function hlPy(line){
+  const re=/(#.*$)|([rbfu]{0,2}"""[\s\S]*?"""|[rbfu]{0,2}"(?:\\.|[^"\\])*"|[rbfu]{0,2}'(?:\\.|[^'\\])*')|(@[\w.]+)|(\b\d[\d_]*(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|(.)/y;
+  let out="",m,prev="";re.lastIndex=0;
+  while(re.lastIndex<line.length&&(m=re.exec(line))){
+    const [t,com,str,dec,num,id,ws,p]=m;
+    if(com) out+=`<span class="t-c">${esc(com)}</span>`;
+    else if(str) out+=`<span class="t-s">${esc(str)}</span>`;
+    else if(dec) out+=`<span class="t-d">${esc(dec)}</span>`;
+    else if(num) out+=`<span class="t-n">${esc(num)}</span>`;
+    else if(id){
+      const next=line.slice(re.lastIndex).match(/^\s*\(/);
+      let c="";
+      if(PYK.has(id)) c="t-k"; else if(PYX.has(id)) c="t-x";
+      else if(prev==="def") c="t-f"; else if(prev==="class") c="t-t";
+      else if(id==="self"||id==="cls") c="t-p";
+      else if(PYB.has(id)) c="t-t";
+      else if(/^[A-Z][A-Z0-9_]+$/.test(id)) c="t-o";
+      else if(/^[A-Z]/.test(id)) c="t-t";
+      else if(next) c="t-f";
+      out+=c?`<span class="${c}">${esc(id)}</span>`:esc(id); prev=id; continue;
+    }
+    else if(ws) out+=ws;
+    else out+=`<span class="t-u">${esc(p)}</span>`;
+    if(!ws) prev=t;
+  }
+  return out;
+}
+function hlCs(line){
+  const re=/(\/\/.*$)|(\$?@?"(?:\\.|[^"\\])*")|(\b\d+(?:\.\d+)?[fFdDmM]?\b)|([A-Za-z_]\w*)|(\s+)|(.)/y;
+  let out="",m,prev="";
+  while(re.lastIndex<line.length&&(m=re.exec(line))){
+    const [t,com,str,num,id,ws,p]=m;
+    if(com) out+=`<span class="t-c">${esc(com)}</span>`;
+    else if(str) out+=`<span class="t-s">${esc(str)}</span>`;
+    else if(num) out+=`<span class="t-n">${esc(num)}</span>`;
+    else if(id){
+      const next=line.slice(re.lastIndex).match(/^\s*[(<]/);
+      let c="";
+      if(CSK.has(id)) c="t-k"; else if(CSX.has(id)) c="t-x";
+      else if(next&&prev!=="new") c="t-f";
+      else if(/^[A-Z]/.test(id)) c="t-t";
+      out+=c?`<span class="${c}">${esc(id)}</span>`:esc(id); prev=id; continue;
+    }
+    else if(ws) out+=ws; else out+=`<span class="t-u">${esc(p)}</span>`;
+    if(!ws) prev=t;
+  }
+  return out;
+}
+function hlJson(line){
+  const re=/("(?:\\.|[^"\\])*")(\s*:)?|(-?\d+(?:\.\d+)?)|\b(true|false|null)\b|(\s+)|(.)/y;
+  let out="",m;
+  while(re.lastIndex<line.length&&(m=re.exec(line))){
+    const [t,str,colon,num,lit,ws,p]=m;
+    if(str) out+= colon?`<span class="t-p">${esc(str)}</span><span class="t-u">${esc(colon)}</span>`:`<span class="t-s">${esc(str)}</span>`;
+    else if(num) out+=`<span class="t-n">${esc(num)}</span>`;
+    else if(lit) out+=`<span class="t-k">${lit}</span>`;
+    else if(ws) out+=ws; else out+=`<span class="t-u">${esc(p)}</span>`;
+  }
+  return out;
+}
+function hlToml(line){
+  if(/^\s*\[.*\]\s*$/.test(line)) return `<span class="t-k">${esc(line)}</span>`;
+  const m=line.match(/^(\s*[\w.-]+)(\s*=\s*)(.*)$/);
+  if(!m) return esc(line);
+  const v=m[3].replace(/("(?:\\.|[^"\\])*")/g,"\u0001$1\u0002");
+  return `<span class="t-p">${esc(m[1])}</span><span class="t-u">${esc(m[2])}</span>`+esc(v).replace(/\u0001/g,'<span class="t-s">').replace(/\u0002/g,"</span>").replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="t-n">$1</span>');
+}
+function hlMd(line,st){
+  if(/^```/.test(line)){ st.fence=!st.fence; return `<span class="t-c">${esc(line)}</span>`; }
+  if(st.fence) return `<span class="t-s">${esc(line)}</span>`;
+  if(/^#{1,6} /.test(line)) return `<span class="t-h">${esc(line)}</span>`;
+  let h=esc(line);
+  h=h.replace(/^(\s*[-*] )/,'<span class="t-u">$1</span>');
+  h=h.replace(/`([^`]+)`/g,'<span class="t-s">`$1`</span>');
+  h=h.replace(/\*\*([^*]+)\*\*/g,'<span class="t-b">**$1**</span>');
+  h=h.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<span class="t-l">[$1]</span><span class="t-c">($2)</span>');
+  return h;
+}
+function hl(lang,line,st){
+  if(lang==="py") return hlPy(line);
+  if(lang==="cs") return hlCs(line);
+  if(lang==="json") return hlJson(line);
+  if(lang==="toml") return hlToml(line);
+  if(lang==="md") return hlMd(line,st);
+  if(lang==="proj") return esc(line).replace(/(&lt;\/?)([\w.]+)/g,'$1<span class="t-k">$2</span>').replace(/(&quot;[^&]*&quot;)/g,'<span class="t-s">$1</span>');
+  return esc(line);
+}
+
+/* ------------------------------------------------------------------- data */
+const PY_SCHED = `"""Weekly irrigation planning for greenhouse zones."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, timedelta
+from typing import Iterable
+
+from .zones import Zone
+
+REST_DAYS = frozenset({"Sun"})
+WEEK = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+@dataclass(frozen=True)
+class Slot:
+    zone: str
+    day: str
+    minutes: int
+
+
+class Scheduler:
+    """Plans watering slots without exceeding the daily budget."""
+
+    def __init__(self, zones: Iterable[Zone], budget_minutes: int = 90) -> None:
+        self.zones = list(zones)
+        self.budget_minutes = budget_minutes
+
+    def plan(self) -> list[Slot]:
+        slots: list[Slot] = []
+        used: dict[str, int] = {}
+        for zone in self.zones:
+            for day in zone.days:
+                if used.get(day, 0) + zone.minutes > self.budget_minutes:
+                    raise ValueError(f"{day} would exceed the {self.budget_minutes}-minute budget for {zone.name}")
+                used[day] = used.get(day, 0) + zone.minutes
+                slots.append(Slot(zone.name, day, zone.minutes))
+        return slots
+
+    def next_run(self, today: date) -> date:
+        for offset in range(1, 8):
+            candidate = date.fromordinal(today.toordinal() + offset)
+            if WEEK[candidate.weekday()] not in REST_DAYS:
+                return candidate
+        raise RuntimeError("no watering day in the next week")
+`;
+const PY_ZONES = `"""Zones are named beds with a watering duration and schedule."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Zone:
+    name: str
+    minutes: int
+    days: tuple[str, ...] = ("Mon", "Wed", "Fri")
+    history: list[float] = field(default_factory=list)
+
+    def record(self, litres: float) -> None:
+        if litres < 0:
+            raise ValueError("litres must be positive")
+        self.history.append(litres)
+`;
+const PY_TEST = `import unittest
+from datetime import date
+
+from greenhouse.scheduler import Scheduler
+from greenhouse.zones import Zone
+
+
+class SchedulerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.beds = [Zone("bed-01", 20), Zone("bed-03", 25, ("Mon", "Wed", "Sun"))]
+
+    def test_plan_skips_rest_days(self) -> None:
+        days = [slot.day for slot in Scheduler(self.beds).plan()]
+        self.assertNotIn("Sun", days)
+
+    def test_budget_is_enforced(self) -> None:
+        with self.assertRaises(ValueError):
+            Scheduler([Zone("bed-09", 120)]).plan()
+
+    def test_next_run_skips_sunday(self) -> None:
+        saturday = date(2026, 9, 26)
+        self.assertEqual(Scheduler(self.beds).next_run(saturday), date(2026, 9, 28))
+`;
+const PY_MAIN = `from greenhouse.scheduler import Scheduler
+from greenhouse.zones import Zone
+
+
+def main() -> None:
+    beds = [Zone("bed-01", 20), Zone("bed-03", 25, ("Mon", "Wed", "Sun"))]
+    name = input("Zone to inspect: ").strip()
+    for slot in Scheduler(beds).plan():
+        if slot.zone == name:
+            print(f"{slot.day}: {slot.minutes} minutes")
+
+
+if __name__ == "__main__":
+    main()
+`;
+const JSON_ZONES = `{
+  "budget_minutes": 90,
+  "zones": [
+    { "name": "bed-01", "minutes": 20, "days": ["Mon", "Wed", "Fri"] },
+    { "name": "bed-03", "minutes": 25, "days": ["Mon", "Wed", "Sun"] },
+    { "name": "herbs", "minutes": 10, "days": ["Tue", "Thu"], "enabled": true },
+    { "name": "seedlings", "minutes": 5, "days": [], "enabled": false }
+  ]
+}
+`;
+const MD_README = `# Greenhouse controller
+
+Plans weekly irrigation for each **zone** without exceeding the daily budget.
+
+## Run
+
+\`\`\`
+python -m greenhouse.cli --config config/zones.json
+\`\`\`
+
+- Rest days come from \`REST_DAYS\` in \`scheduler.py\`.
+- The zone format is described in [zones.json](config/zones.json).
+`;
+const TOML = `[project]
+name = "greenhouse-controller"
+version = "0.4.0"
+requires-python = ">=3.12"
+
+[tool.pycodestyle]
+max-line-length = 100
+`;
+const CS_PROGRAM = `using Acme.Inventory.Core;
+
+var ledger = StockLedger.LoadSample();
+Console.WriteLine($"Loaded {ledger.Count} items.");
+
+while (true)
+{
+    Console.Write("SKU to look up (blank to quit): ");
+    var sku = Console.ReadLine()?.Trim();
+    if (string.IsNullOrEmpty(sku))
+    {
+        break;
+    }
+
+    if (ledger.TryFind(sku, out var item))
+    {
+        Console.WriteLine($"{item.Sku} · {item.Name} · {item.OnHand} in stock");
+    }
+    else
+    {
+        Console.WriteLine($"No item with SKU {sku}.");
+    }
+}
+`;
+const CS_LEDGER = `namespace Acme.Inventory.Core;
+
+public sealed record StockItem(string Sku, string Name, int OnHand);
+
+public sealed class StockLedger
+{
+    private readonly Dictionary<string, StockItem> _items = new(StringComparer.OrdinalIgnoreCase);
+
+    public int Count => _items.Count;
+
+    public string Warehouse { get; set; }
+
+    public static StockLedger LoadSample()
+    {
+        var ledger = new StockLedger { Warehouse = "Cape Town" };
+        ledger.Add(new StockItem("AC-1042", "Soil moisture sensor", 38));
+        ledger.Add(new StockItem("AC-2210", "Drip line 16 mm", 120));
+        return ledger;
+    }
+
+    public void Add(StockItem item) => _items[item.Sku] = item;
+
+    public bool TryFind(string sku, out StockItem item) => _items.TryGetValue(sku, out item!);
+}
+`;
+const CS_TESTS = `using Acme.Inventory.Core;
+
+namespace Acme.Inventory.Tests;
+
+public class StockLedgerTests
+{
+    [Fact]
+    public void FindsSkuIgnoringCase()
+    {
+        var ledger = StockLedger.LoadSample();
+        Assert.True(ledger.TryFind("ac-1042", out var item));
+        Assert.Equal(38, item.OnHand);
+    }
+}
+`;
+const CSPROJ = `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\Acme.Inventory.Core\\Acme.Inventory.Core.csproj" />
+  </ItemGroup>
+</Project>
+`;
+const FIX_LINES = ["                if day in REST_DAYS:","                    continue"];
+
+const WS = {
+  py: {
+    id:"py", name:"greenhouse-controller", kind:"Python", branch:"main",
+    tree:[
+      {p:"config",d:1,kids:[{p:"config/zones.json",l:"json",c:JSON_ZONES}]},
+      {p:"src",d:1,kids:[{p:"src/greenhouse",d:1,kids:[
+        {p:"src/greenhouse/__init__.py",l:"py",c:"\"\"\"Greenhouse irrigation planning.\"\"\"\n"},
+        {p:"src/greenhouse/scheduler.py",l:"py",c:PY_SCHED,git:"M"},
+        {p:"src/greenhouse/zones.py",l:"py",c:PY_ZONES,git:"M"}]}]},
+      {p:"tests",d:1,kids:[{p:"tests/test_scheduler.py",l:"py",c:PY_TEST,git:"U"}]},
+      {p:"main.py",l:"py",c:PY_MAIN},
+      {p:"pyproject.toml",l:"toml",c:TOML,git:"M",staged:true},
+      {p:"README.md",l:"md",c:MD_README}
+    ],
+    diags:{"src/greenhouse/scheduler.py":[
+      {line:5,col:31,len:9,sev:"w",code:"F401",msg:"'datetime.timedelta' imported but unused",src:"pyflakes"},
+      {line:34,col:100,len:7,sev:"w",code:"E501",msg:"line too long (107 > 100 characters)",src:"pycodestyle"}]},
+    outline:[["c","Slot",15],["c","Scheduler",21],["m","__init__",24],["m","plan",28],["m","next_run",39]],
+    runcfg:"main.py · Python 3.14", interp:"3.14.7 (.venv)", lsp:"pylsp", dbg:"debugpy"
+  },
+  net: {
+    id:"net", name:"Acme.Inventory", kind:".NET", branch:"feature/ledger",
+    tree:[
+      {p:"src",d:1,kids:[
+        {p:"src/Acme.Inventory.Cli",d:1,kids:[{p:"src/Acme.Inventory.Cli/Program.cs",l:"cs",c:CS_PROGRAM},{p:"src/Acme.Inventory.Cli/Acme.Inventory.Cli.csproj",l:"proj",c:CSPROJ}]},
+        {p:"src/Acme.Inventory.Core",d:1,kids:[{p:"src/Acme.Inventory.Core/StockLedger.cs",l:"cs",c:CS_LEDGER,git:"M"}]}]},
+      {p:"tests",d:1,kids:[{p:"tests/Acme.Inventory.Tests",d:1,kids:[{p:"tests/Acme.Inventory.Tests/StockLedgerTests.cs",l:"cs",c:CS_TESTS}]}]},
+      {p:"Acme.Inventory.sln",l:"proj",c:"Microsoft Visual Studio Solution File, Format Version 12.00\n"}
+    ],
+    diags:{"src/Acme.Inventory.Core/StockLedger.cs":[
+      {line:11,col:18,len:9,sev:"w",code:"CS8618",msg:"Non-nullable property 'Warehouse' must contain a non-null value when exiting constructor.",src:"csharp"}]},
+    outline:[["c","StockItem",3],["c","StockLedger",5],["v","Count",9],["v","Warehouse",11],["m","LoadSample",13],["m","Add",21],["m","TryFind",23]],
+    runcfg:"Acme.Inventory.Cli", interp:".NET 9.0.100", lsp:"OmniSharp", dbg:"netcoredbg"
+  }
+};
+function flat(ws){ const out=[]; (function walk(n){ for(const x of n){ out.push(x); if(x.kids) walk(x.kids);} })(ws.tree); return out; }
+function file(ws,p){ return flat(ws).find(x=>x.p===p); }
+const base = p => p.split("/").pop();
+const dir = p => p.split("/").slice(0,-1).join("/");
+
+/* --------------------------------------------------------------- scenarios */
+const SCEN = [
+ {id:"editor",label:"Editor",ws:"py",view:"explorer",panel:"problems",files:["src/greenhouse/scheduler.py","src/greenhouse/zones.py","config/zones.json"],active:"src/greenhouse/scheduler.py",hover:true,
+  notes:["<strong>Editor and Explorer.</strong> The default Studio layout. The code gets the brightest surface. Everything else is quieter chrome around it.",
+   "Explorer shows Open Editors, the project tree with Git and diagnostic decorations, and an Outline built from the language server's document symbols.",
+   "The hover card is Monaco's existing hover and diagnostics, restyled. Quick Fix calls the existing <code>codeAction</code>."],
+  tryit:["Click files in Explorer to open them; folders collapse","Click the E501 warning in Problems to jump to it","Press Ctrl+Shift+P (with the mock focused) for the command palette","Switch window size to 1366 or 1920"]},
+ {id:"debug",label:"Debugging",ws:"py",view:"debug",panel:"console",files:["src/greenhouse/scheduler.py","tests/test_scheduler.py"],active:"src/greenhouse/scheduler.py",paused:true,
+  notes:["<strong>Paused at a breakpoint (debugpy).</strong> Variables, Watch, Call Stack, Breakpoints and exception filters get the full sidebar height, so the editor and Debug Console stay visible.",
+   "The floating toolbar covers exactly the operations the DAP client exposes today: Continue/Pause, Step Over, Step Into, Step Out, Stop. There is no Restart button because Studio doesn't support restarting a debug session.",
+   "Breakpoints are toggled in the gutter (F9). A diamond marks a conditional breakpoint, since conditions are already sent to <code>dap.breakpoints</code>. A hollow dot means the adapter has not verified it."],
+  tryit:["Use Step Over / Continue in the floating toolbar (or F10 / F5)","Click a gutter to add or remove a breakpoint","Type an expression into the Debug Console","Click a call-stack frame"]},
+ {id:"git",label:"Source Control",ws:"py",view:"scm",panel:null,files:["src/greenhouse/scheduler.py","@diff:src/greenhouse/scheduler.py"],active:"@diff:src/greenhouse/scheduler.py",
+  notes:["<strong>Source Control as a list, not a wall of buttons.</strong> Staged and working changes are visible without clicking, with per-file Stage and Open changes actions.",
+   "It uses only the Git actions Studio has today: <code>status</code>, <code>diff</code>, <code>add</code>, <code>commit</code>, <code>log</code>, <code>branch_list</code>, <code>create_branch</code> and <code>checkout</code>. Stage and Commit go through the existing approval flow.",
+   "Unstage, Discard, Push/Pull, Stash and remote hosting are not implemented. They appear here only as dashed class-D markers when classes are on."],
+  tryit:["Hover a change and press + to stage it (an approval dialog appears)","Type a commit message and press Commit","Click the branch to open the branch picker","Turn on A/B/C/D classes to see what is missing"]},
+ {id:"testing",label:"Testing",ws:"py",view:"testing",panel:"output",files:["tests/test_scheduler.py","src/greenhouse/scheduler.py"],active:"tests/test_scheduler.py",testsFailed:true,
+  notes:["<strong>Structured test results.</strong> The pass/fail/skip counts, durations, failure message and source jump all come from the existing structured runner (Python unittest adapter, TRX for .NET).",
+   "Run all, Run failed, Run selected and Discover are existing actions. The Output panel shows the job header (state, exit code, elapsed time) above the raw runner output. Exit codes decide the result; stderr alone never marks a job failed.",
+   "Debugging a single test is not supported (class D)."],
+  tryit:["Press Run failed: the rows go into a running state, then report","Use Suggest fix in OLIVE (Assistant scenario) and then re-run","Filter to failed tests with the funnel button"]},
+ {id:"assistant",label:"OLIVE Assistant",ws:"py",view:"explorer",panel:null,files:["src/greenhouse/scheduler.py","tests/test_scheduler.py"],active:"src/greenhouse/scheduler.py",asst:true,selection:[31,36],testsFailed:true,
+  notes:["<strong>OLIVE in the secondary sidebar.</strong> The context is explicit: each chip is something that will be sent with the next message, and nothing else is sent. The model gets no workspace authority of its own.",
+   "Answer-only prompts stay conversational. When OLIVE proposes a file change it arrives as a <em>Proposed change</em> card. Review opens the per-file diff, Apply changes the editor buffer only, and saving stays an explicit, hash-checked step.",
+   "The attribution line shows the model and the device it actually ran on (for example OLIVE MAX · This device), using the same truthful wording as Chat."],
+  tryit:["Toggle context chips on and off","Press Suggest fix → Review changes → Apply to buffer","Ask something in the composer and watch the streaming state; Stop cancels","Select-to-ask: the floating Ask OLIVE pill beside the selection"]},
+ {id:"search",label:"Search",ws:"py",view:"search",panel:null,files:["src/greenhouse/scheduler.py"],active:"src/greenhouse/scheduler.py",
+  notes:["<strong>Workspace search.</strong> <em>Current implementation:</em> text search exists, but it is buried: Workspace actions → Find in files calls <code>studio.search</code> (case-insensitive plain text, up to 200 matches, skips binaries and files over 2 MB) and lists matches as cards in a sheet. Symbol search (language-server workspace symbols) sits under the Explorer.",
+   "<em>Design recommendation:</em> promote both into a first-class Search view (Ctrl+Shift+F) with a Text/Symbols switch and results grouped by file, on the same APIs (class B). Regex, whole-word, include/exclude globs and Replace in files need backend work (C/D) and are not shown as available."],
+  tryit:["Type a query; results group by file","Switch to Symbols (existing workspace symbols)","Click a match to open it at the line"]},
+ {id:"build",label:"Build (.NET)",ws:"net",view:"explorer",panel:"output",files:["src/Acme.Inventory.Core/StockLedger.cs","src/Acme.Inventory.Cli/Program.cs"],active:"src/Acme.Inventory.Core/StockLedger.cs",built:true,
+  notes:["<strong>C# solution with OmniSharp and netcoredbg.</strong> The title bar gains the startup project, the Debug/Release configuration and Build, as today, but compact.",
+   "The build result card is assembled from the existing job record: label, command, state, <code>started_at</code>/<code>ended_at</code>, <code>exit_code</code>, and diagnostics parsed from MSBuild output into Problems. Warnings on stderr never turn a successful exit into a failure.",
+   "Rebuild, Clean and Restore are existing actions (title-bar overflow menu and palette)."],
+  tryit:["Toggle a failed build in the panel header","Click the CS8618 warning to jump to it","Open the palette and type 'build'"]},
+ {id:"run",label:"Run (terminal)",ws:"net",view:"explorer",panel:"terminal",files:["src/Acme.Inventory.Cli/Program.cs"],active:"src/Acme.Inventory.Cli/Program.cs",running:true,
+  notes:["<strong>Interactive programs run in the terminal.</strong> Studio already runs programs in a native PTY session, so <code>Console.ReadLine()</code> and Python's <code>input()</code> behave exactly as they would in a shell. The design keeps that and doesn't replace it with output cards.",
+   "Multiple sessions are listed on the right of the panel (program sessions and native shells), as today. Stop in the title bar ends the program."],
+  tryit:["Click into the terminal and type a SKU such as AC-1042, then Enter","Press Stop in the title bar"]},
+ {id:"remote",label:"Remote",ws:"py",view:"explorer",panel:"output",files:["src/greenhouse/scheduler.py"],active:"src/greenhouse/scheduler.py",remote:true,
+  notes:["<strong>Remote Studio (C8) as a mode of the same IDE.</strong> The remote indicator (status bar, far left) and the title show which device owns the files. The per-share permissions stay visible as Off / Ask / Allow.",
+   "Remote Studio supports browsing, opening, saving, building, testing and running (non-interactive output) on the paired device, within the share's permissions. Code intelligence, debugging, Git and terminals are local-only, so those views are disabled with an explanation.",
+   "A save with <em>Ask</em> permission shows as waiting for approval on the other device. It is never shown as saved."],
+  tryit:["Press Save (Ctrl+S) to see the pending-approval state","Hover the disabled activity items"]},
+ {id:"states",label:"Empty & error states",ws:"py",view:"explorer",panel:null,files:[],active:null,state:"noworkspace",
+  notes:["<strong>States.</strong> Choose one below the frame: no workspace, code intelligence unavailable, remote device offline, or permission required."],
+  tryit:["Use the state buttons below the frame"]}
+];
+const SUBSTATES=[["noworkspace","No workspace"],["lspfail","Code intelligence unavailable"],["offline","Remote device offline"],["permission","Permission required"]];
+
+/* per-scenario classification rows: [element, class, source/notes] */
+const SCLS = {
+ editor:[["Title bar with space switcher and command centre","B","Electron frame stays; command centre opens the existing palette"],["Custom window controls in title bar","C","titleBarOverlay / frameless window (main-process change)"],["Activity bar","B","Frontend restructure; each view uses existing APIs"],["Explorer tree, New file, Refresh","A","studio.tree, NewFile, refresh exist"],["Open Editors section","B","From open buffers already tracked"],["Git letters on files","B","studio.git status mapped onto the tree"],["Diagnostics colour on file names","B","From the existing Problems store"],["Outline section and breadcrumbs","B","LSP documentSymbol already proxied"],["Tabs with dirty dot and close","A","Existing tab model, restyled"],["Hover card and Quick Fix","A","Existing LSP hover and codeAction"],["Minimap (1920 only)","A","Monaco option, off today"],["Problems panel grouped by file","A","Existing problems; grouping is a view change"],["Status bar: Ln/Col, spaces, LF, UTF-8","B","Monaco model state; Studio only opens UTF-8 text"],["Status bar: interpreter and venv name","A","scan.tooling.python.version exists; show a name, not the absolute path"],["Split editor","D","One editor host today"]],
+ debug:[["Run and Debug sidebar","B","Moves the existing DebugPanel sections from the bottom panel"],["Floating debug toolbar","A","continue/pause/next/stepIn/stepOut/stop exist"],["Variables (scopes, expandable)","A","DAP scopes/variables exist"],["Watch","A","addWatch/removeWatch/evaluate exist"],["Call stack frames","A","Existing stack; frame selection exists"],["Breakpoints list with remove","B","From tooling.breakpoints; list view is new"],["Conditional breakpoint marker","A","condition already sent to dap.breakpoints"],["Exception filters","A","Adapter exceptionFilters exist"],["Debug Console as a panel tab","B","Existing console, relocated"],["Status-bar debug state","A","debugState exists"],["Enable/disable breakpoint checkbox","D","Only set/remove today"],["Restart debug session","D","Not supported"],["Inline values in editor","D","Not supported"]],
+ git:[["Changes / Staged Changes lists","B","studio.git status parsed into lists"],["Stage file (+)","A","git add via approval"],["Commit box and Commit","A","git commit via approval"],["Open changes (read-only diff tab)","B","studio.git diff shown in a read-only tab"],["Side-by-side diff editor against HEAD","C","Needs HEAD file content (git show) from backend"],["Branch picker, create and checkout","A","branch_list/create_branch/checkout exist"],["Commits section","A","git log exists"],["Unstage","D","No reset/restore --staged action"],["Discard changes","D","Not supported"],["Push / Pull / Sync / GitHub","D","Not supported; no cloud dependency"]],
+ testing:[["Testing sidebar tree","B","Existing results grouped by file and class"],["Run all / Run failed / Run selected / Discover","A","Existing TestsPanel actions"],["Failed-only filter","A","Exists"],["Summary counts and duration","A","summary.passed/failed/skipped/duration_seconds"],["Failure message and stack inline","A","message / stack_trace exist"],["Go to source","A","relative_file + line exist"],["Output job header (state, exit, elapsed)","B","started_at/ended_at/exit_code in job record"],["Debug single test","D","Not supported"]],
+ assistant:[["OLIVE secondary sidebar","A","Existing StudioAssistant, relocated and restyled"],["Explicit context chips","B","path/selection already sent; problems/test/git assembled as today's quick actions do"],["Quick actions: Explain error, Review changes","A","Exist"],["Quick actions: Explain, Find bug, Refactor, Generate tests, Suggest fix","B","Prompt templates over the same submit"],["Conversation thread","B","chat.messages exist; today only the last reply is shown"],["Model and execution chips","B","Chat preset and chat.run_on exist"],["Streaming state and Stop","A","chat.cancel exists"],["Proposed change → per-file review","C","Route model edit proposals into EditPreview instead of the generic approval sheet"],["Apply changes buffer only; Save explicit","A","EditPreview semantics exist"],["Ask OLIVE pill beside a selection","B","Monaco selection listener"]],
+ search:[["Search view, text mode","B","studio.search already used by Workspace actions → Find in files; moved into a view"],["Symbols mode","A","Existing workspace symbol search"],["Match case / whole word / regex","C","Backend supports plain case-insensitive only"],["Include / exclude globs","C","Not in studio.search"],["Replace in files","D","Not supported"]],
+ build:[["Startup project and configuration selects","A","project.config_save exists"],["Build / Rebuild / Clean / Restore","A","project.build variants exist"],["Build result card","B","Job record + parsed diagnostics"],["MSBuild diagnostics in Problems","A","_build_done publishes problems"],["Solution section in Explorer","A","Existing ProjectPanel, restyled"]],
+ run:[["Program runs in PTY terminal","A","Existing program session; input() / ReadLine work"],["Terminal session list","A","Multiple sessions exist"],["Stop in title bar","A","studio.stop exists"],["Local preview tab when a URL is exposed","A","WebPanel exists"]],
+ remote:[["Local / Remote switch in title bar","A","Existing RemoteStudio switch, relocated"],["Remote indicator in status bar","B","From selected peer"],["Per-share permission chips","A","share.permissions studio.* exist"],["Remote build/test/run with output","A","exchange build/test/run exist"],["Pending approval on save (Ask)","B","Surface existing Ask outcome in the tab"],["Remote code intelligence, debugging, Git, terminal","D","Not supported"]],
+ states:[["No-workspace welcome with recent workspaces","A","Existing studio-empty and recent list, restyled"],["Code intelligence unavailable notice","A","languageFailed state + lsp.restart exist"],["Remote offline notice","A","target.online exists"],["Approval dialog for Git write","A","Existing approval flow"]]
+};
+
+/* ------------------------------------------------------ palette commands */
+const CMDS = [
+ ["Go to File…","Files","Ctrl+P","studio.tree (file list)","B","file"],
+ ["Save","File","Ctrl+S","studio.save","A","save"],
+ ["Save All","File","Ctrl+K S","Save all files","A","save"],
+ ["Compare with Saved","File","","studio.compare","A","git-compare"],
+ ["New File…","File","","NewFile","A","file-plus-2"],
+ ["New Project…","File","Ctrl+Alt+N","NewProjectWizard","A","folder-plus"],
+ ["Open Workspace…","File","","Workspace selector","A","folder-open"],
+ ["Close Workspace","File","","Close workspace","A","folder-x"],
+ ["Open in External IDE","File","","studio.open_ide","A","external-link"],
+ ["Run Project","Run","Ctrl+F5","studio.run","A","play"],
+ ["Start Debugging","Run","F5","dap.launch","A","bug"],
+ ["Stop","Run","Shift+F5","studio.stop / dap.stop","A","square"],
+ ["Toggle Breakpoint","Run","F9","dap.breakpoints","A","circle-dot"],
+ ["Build Solution","Build","Ctrl+Shift+B","project.build (.NET)","A","hammer"],
+ ["Rebuild Solution","Build","","project.build rebuild","A","hammer"],
+ ["Clean Solution","Build","","project.build clean","A","hammer"],
+ ["Restore Packages","Build","","project.build restore","A","package"],
+ ["Select Startup Project…","Build","","project.config_save","A","star"],
+ ["Manage Packages…","Build","","Packages","A","package"],
+ ["Run All Tests","Test","","project.test","A","flask-conical"],
+ ["Run Failed Tests","Test","","project.test (failed)","A","rotate-ccw"],
+ ["Discover Tests","Test","","project.test discover","A","refresh-cw"],
+ ["Review Test Commands…","Test","","studio.validate","A","shield-check"],
+ ["Git: Refresh Status","Git","","studio.git status","A","refresh-cw"],
+ ["Git: Stage Current File","Git","","studio.git add","A","plus"],
+ ["Git: Commit Staged…","Git","","studio.git commit","A","git-commit-horizontal"],
+ ["Git: Create Branch…","Git","","studio.git create_branch","A","git-branch-plus"],
+ ["Git: Checkout Branch…","Git","","studio.git checkout","A","git-branch"],
+ ["Git: Show Recent Commits","Git","","studio.git log","A","history"],
+ ["Terminal: New Terminal","Terminal","Ctrl+Shift+`","terminal.open","A","square-terminal"],
+ ["Terminal: Focus Terminal","Terminal","Ctrl+`","Panel focus","B","square-terminal"],
+ ["Go to Symbol in Workspace…","Go","Ctrl+T","LSP workspaceSymbol","A","hash"],
+ ["Go to Symbol in File…","Go","Ctrl+Shift+O","LSP documentSymbol","B","at-sign"],
+ ["Go to Line…","Go","Ctrl+G","Monaco","A","arrow-down-to-line"],
+ ["Rename Symbol","Code","F2","LSP rename + preview","A","text-cursor-input"],
+ ["Find All References","Code","Shift+F12","LSP references","A","link"],
+ ["Format Document","Code","Shift+Alt+F","LSP formatting","A","align-left"],
+ ["Quick Fix…","Code","Ctrl+.","LSP codeAction","A","lightbulb"],
+ ["Restart Code Intelligence","Code","","lsp.restart","A","rotate-cw"],
+ ["Search: Find in Files","View","Ctrl+Shift+F","studio.search","B","search"],
+ ["View: Toggle Primary Side Bar","View","Ctrl+B","Layout","B","panel-left"],
+ ["View: Toggle Panel","View","Ctrl+J","Layout","B","panel-bottom"],
+ ["View: Toggle OLIVE","View","Ctrl+Alt+B","Layout","B","panel-right"],
+ ["View: Show Source Control","View","Ctrl+Shift+G","Layout","B","git-branch"],
+ ["View: Show Run and Debug","View","Ctrl+Shift+D","Layout","B","bug"],
+ ["View: Show Testing","View","","Layout","B","flask-conical"],
+ ["OLIVE: Ask About Selection","OLIVE","Ctrl+Alt+I","Assistant submit (path + selection)","A","message-square"],
+ ["OLIVE: Explain Error","OLIVE","","Assistant quick action","A","message-square"],
+ ["OLIVE: Review Changes","OLIVE","","studio.diff → assistant","A","message-square"],
+ ["OLIVE: Suggest Fix for Failing Test","OLIVE","","Assistant prompt template","B","message-square"],
+ ["OLIVE: Generate Tests for File","OLIVE","","Assistant prompt template","B","message-square"],
+ ["Remote Studio: Open Shared Workspace…","Remote","","connect.studio_* (C8)","A","monitor-smartphone"]
+];
+
+/* ---------------------------------------------------------------- sizing */
+const SIZES = {
+ "1920":{w:1920,h:1080,rail:true,sb:280,as:380,pn:280,mini:true,labels:true,cmd:420},
+ "1440":{w:1440,h:900,rail:false,sb:256,as:340,pn:236,mini:false,labels:true,cmd:340},
+ "1366":{w:1366,h:768,rail:false,sb:240,as:320,pn:200,mini:false,labels:false,cmd:260}
+};
+
+/* ------------------------------------------------------------- IDE model */
+function makeState(scId,size){
+  const sc=SCEN.find(s=>s.id===scId)||SCEN[0];
+  const ws=sc.state==="noworkspace"?null:WS[sc.ws];
+  const st={
+    sc:sc.id,size:size||"1440",wsId:sc.ws,ws,view:sc.view,sideOpen:true,panel:sc.panel,asst:!!sc.asst,
+    tabs:[...sc.files],active:sc.active,dirty:new Set(),open:new Set(["src","src/greenhouse","tests","config","src/Acme.Inventory.Cli","src/Acme.Inventory.Core","tests/Acme.Inventory.Tests"]),
+    collapsed:new Set(sc.id==="debug"?["outline"]:[]),remote:!!sc.remote,paused:!!sc.paused,dbgLine:36,bps:[{f:"src/greenhouse/scheduler.py",l:36},{f:"src/greenhouse/zones.py",l:16,cond:"litres < 0"}],
+    tests:sc.testsFailed?"failed":"passed",testsRunning:false,failedOnly:false,hover:!!sc.hover,selection:sc.selection||null,
+    staged:["pyproject.toml"],changes:["src/greenhouse/scheduler.py","src/greenhouse/zones.py","tests/test_scheduler.py"],commitMsg:"",
+    built:sc.built?"ok":null,running:!!sc.running,term:[],termIn:"",sub:sc.state||"noworkspace",
+    ctx:{file:true,sel:!!sc.selection,problems:false,test:!!sc.testsFailed,git:false},thread:sc.asst?defaultThread():[],streaming:false,
+    fixed:false,palette:null,dialog:null,toast:null,query:"budget",searchMode:"text",consoleLines:[["›","zone.minutes * 60"],["","1500"],["›","used"],["","{'Mon': 45, 'Wed': 45, 'Sun': 20}"]],
+    frame:0,remoteSave:null
+  };
+  if(sc.running) st.term=[["mu","$ dotnet run --project src/Acme.Inventory.Cli"],["","Loaded 2 items."],["","SKU to look up (blank to quit): "]];
+  if(sc.id==="states"&&st.sub!=="noworkspace"){ applySub(st); }
+  return st;
+}
+function applySub(st){
+  const s=st.sub;
+  if(s==="noworkspace"){st.ws=null;st.tabs=[];st.active=null;st.remote=false;st.panel=null;return;}
+  st.ws=WS.py;st.wsId="py";st.tabs=["src/greenhouse/scheduler.py"];st.active="src/greenhouse/scheduler.py";st.remote=s==="offline";st.panel=s==="lspfail"?"problems":null;st.view=s==="permission"?"scm":"explorer";
+  if(s==="permission") st.dialog={kind:"approve-stage",file:"src/greenhouse/scheduler.py"};
+}
+function defaultThread(){
+  return [
+   {me:true,text:"Why does test_plan_skips_rest_days fail?"},
+   {me:false,model:"OLIVE MAX",where:"This device",secs:"6.8 s",html:`<p><code>Scheduler.plan()</code> never consults <code>REST_DAYS</code>. <code>bed-03</code> lists <code>"Sun"</code>, so a Sunday slot is produced and the assertion on line 14 of <code>test_scheduler.py</code> fails.</p><p>Skip rest days before checking the budget, so a rest day never consumes budget either:</p><pre>${hlPy("            for day in zone.days:")}\n${hlPy(FIX_LINES[0])}\n${hlPy(FIX_LINES[1])}</pre>`,proposal:true}
+  ];
+}
+
+function createIDE(host,opts){
+  const scaler=host.querySelector(".scaler");
+  let st=makeState(opts.scenario,opts.size);
+  const api={get state(){return st;},set(sc,size){st=makeState(sc,size||st.size);render();},size(sz){st.size=sz;render();},sub(v){st.sub=v;applySub(st);st.dialog=st.sub==="permission"?st.dialog:null;render();},openPalette(q){st.palette={q:q||">",sel:0};render();focusPal();},render};
+  const W=()=>SIZES[st.size];
+  function fit(){ const s=W(); const scale=host.clientWidth/s.w; scaler.style.transform=`scale(${scale})`; host.style.height=Math.round(s.h*scale)+"px"; }
+  new ResizeObserver(fit).observe(host);
+
+  /* ---- render pieces ---- */
+  function titlebar(){
+    const s=W(), ws=st.ws, net=st.wsId==="net"&&ws, busy=st.testsRunning||st.running||st.paused||st.streaming;
+    const lbl=(t)=> s.labels?`<span>${t}</span>`:"";
+    const coreState=st.dialog||st.remoteSave?"attention":busy?"working":"idle";
+    const coreText=st.dialog||st.remoteSave?"Needs approval":st.paused?"Debugging":st.running?"Running":st.testsRunning?"Testing":st.streaming?"Thinking":"Idle";
+    return `<div class="titlebar"${cls("B")}>
+      <button class="tb-space" title="OLIVE navigation" data-act="toast" data-msg="Opens OLIVE navigation (all spaces)"><span class="mark"></span></button>
+      <button class="tb-space" data-act="toast" data-msg="Space switcher: Home, Chat, GO, Studio, Devices…"${cls("B")}>Studio ${I("chevron-down","s12")}</button>
+      <span class="tb-sep"></span>
+      ${ws?`<button class="tb-space" style="font-weight:550" data-act="toast" data-msg="Workspace switcher (existing)"${cls("A")}>${I(st.remote?"monitor-smartphone":"folder","s14")} ${esc(ws.name)}${st.remote?' <span style="color:var(--text-muted);font-weight:500">· Gaming PC</span>':""} ${I("chevron-down","s12")}</button>
+      <div class="seg" role="group" aria-label="Workspace source"${cls("A")}><button aria-pressed="${!st.remote}" data-act="remote" data-v="0">Local</button><button aria-pressed="${st.remote}" data-act="remote" data-v="1">Remote</button></div>`:""}
+      <span class="grow"></span>
+      <button class="cmdc" style="width:${s.cmd}px" data-act="palette" data-q="" title="Search files and commands"${cls("B")}>${I("search","s14")}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ws?esc(ws.name):"OLIVE Studio"}</span>${K("Ctrl","Shift","P")}</button>
+      <span class="grow"></span>
+      ${ws?`<div style="display:flex;align-items:center;gap:4px">
+        ${net?`<span class="select" title="Startup project"${cls("A")}>${I("star","s12")} ${esc(ws.runcfg)} ${I("chevron-down","s12")}</span><span class="select" title="Build configuration"${cls("A")}>Debug ${I("chevron-down","s12")}</span>
+        <button class="btn quiet sm" title="Build (Ctrl+Shift+B)" data-act="build"${cls("A")}>${I("hammer","s14")}${lbl("Build")}</button>`:`<span class="select" title="Run configuration"${cls("A")}>${I("file-code-2","s12")} ${esc(ws.runcfg)} ${I("chevron-down","s12")}</span>`}
+        <button class="btn sm" title="Run without debugging (Ctrl+F5)" data-act="run" ${st.running||st.remote&&false?"disabled":""}${cls("A")}>${I("play","s14")}${lbl("Run")}</button>
+        ${st.remote?"":`<button class="btn quiet sm" title="Start debugging (F5)" data-act="debug" ${st.paused?"disabled":""}${cls("A")}>${I("bug","s14")}${lbl("Debug")}</button>`}
+        <button class="btn quiet sm" title="Run tests" data-act="runtests"${cls("A")}>${I("flask-conical","s14")}${lbl("Test")}</button>
+        ${st.running||st.paused||st.testsRunning?`<button class="btn sm danger" title="${st.running?"Stop program":st.paused?"Stop debugging":"Stop tests"} (Shift+F5)" data-act="stop"${cls("A")}>${I("square","s14")}${lbl("Stop")}</button>`:""}
+      </div><span class="tb-sep"></span>`:""}
+      <button class="tb-status" title="OLIVE activity: ${coreText}" data-act="toast" data-msg="Activity centre (existing runtime.activity)"${cls("B")}><span class="core" data-state="${coreState}"></span>${s.labels?coreText:""}</button>
+      <button class="ibtn" aria-pressed="${st.asst}" title="Toggle OLIVE (Ctrl+Alt+B)" data-act="asst"${cls("A")}><span class="mark"></span></button>
+      <div class="winctl" aria-hidden="true"${cls("C")}><span>${I("minus","s14")}</span><span>${I("square","s12")}</span><span>${I("x","s14")}</span></div>
+    </div>`;
+  }
+  function grail(){
+    const it=[["house","Home"],["message-square","Chat"],["globe","OLIVE GO"],["code-xml","Studio",1],["workflow","Agent"],["folder","Projects"],["book-open","Knowledge"],["square-check","Tasks"],["calendar","Calendar"],["mail","Mail"]];
+    return `<nav class="grail" aria-label="OLIVE navigation (collapsed)"${cls("B")}>${it.map(([i,l,c])=>`<button title="${l}" ${c?'aria-current="page"':""} data-act="toast" data-msg="${l}">${I(i,"s18")}</button>`).join("")}<span class="spacer"></span><button title="Devices" data-act="toast" data-msg="Devices">${I("monitor-smartphone","s18")}</button><button title="Settings" data-act="toast" data-msg="Settings">${I("settings","s18")}</button></nav>`;
+  }
+  function abar(){
+    const ws=st.ws, rem=st.remote, dis=rem?"disabled":"";
+    const failed=st.tests==="failed"&&!st.fixed?1:0;
+    const b=(v,i,l,extra="",c="B")=>`<button title="${l}${rem&&v!=="explorer"?" · not available for remote workspaces":""}" aria-label="${l}" aria-pressed="${st.sideOpen&&st.view===v}" data-act="view" data-v="${v}" ${v!=="explorer"?dis:""}${cls(c)}>${I(i,"s20")}${extra}</button>`;
+    return `<div class="abar" role="toolbar" aria-orientation="vertical" aria-label="Studio views"${cls("B")}>
+      ${b("explorer","files","Explorer (Ctrl+Shift+E)")}
+      ${b("search","search","Search (Ctrl+Shift+F)")}
+      ${b("scm","git-branch","Source Control (Ctrl+Shift+G)",ws&&!rem?`<span class="badge">${st.changes.length+st.staged.length}</span>`:"")}
+      ${b("debug","bug","Run and Debug (Ctrl+Shift+D)",st.paused?`<span class="badge" style="background:var(--status-warning);color:#0b0f16">‖</span>`:"")}
+      ${b("testing","flask-conical","Testing",failed&&ws&&!rem?`<span class="badge err">${failed}</span>`:"")}
+      <span class="spacer"></span>
+      <button title="Studio settings" aria-label="Studio settings" data-act="toast" data-msg="Opens Settings › Studio"${cls("B")}>${I("settings","s20")}</button>
+    </div>`;
+  }
+  function fileIcon(f){ return I(f.d?(st.open.has(f.p)?"folder-open":"folder"):f.l==="md"?"file-text":f.l==="json"?"braces":f.l==="proj"?"file-cog":"file-code-2",`s14 fi ${f.d?"":f.l}`); }
+  function treeRows(nodes,depth){
+    let h="";
+    for(const f of nodes){
+      const pad=8+depth*12, diag=st.ws.diags[f.p]||[], sel=f.p===st.active;
+      const g=st.remote?null:f.git, stagedOnly=f.staged;
+      if(f.d){
+        const open=st.open.has(f.p);
+        h+=`<button class="row" style="padding-left:${pad}px" data-act="fold" data-p="${f.p}" role="treeitem" aria-expanded="${open}"><span class="chev">${I(open?"chevron-down":"chevron-right","s14")}</span><span class="nm">${esc(base(f.p))}</span>${!open&&hasChangeUnder(f)&&!st.remote?'<span class="end"><span class="dot warn" style="width:5px;height:5px;background:#e2c08d"></span></span>':""}</button>`;
+        if(open) h+=treeRows(f.kids,depth+1);
+      } else {
+        const nmCls=diag.some(d=>d.sev==="e")?"E":g||"";
+        h+=`<button class="row ${sel?"sel focus":""}" style="padding-left:${pad+16}px" data-act="open" data-p="${f.p}" role="treeitem" aria-selected="${sel}">${fileIcon(f)}<span class="nm ${nmCls}">${esc(base(f.p))}</span><span class="end">${diag.length?`<span style="font-size:11px;color:var(--status-warning)">${diag.length}</span>`:""}${g?`<span class="deco ${g}" title="${g==="M"?"Modified":g==="U"?"Untracked":g}${stagedOnly?" · staged":""}">${g}</span>`:""}</span></button>`;
+      }
+    }
+    return h;
+  }
+  function hasChangeUnder(n){ return (n.kids||[]).some(k=>k.git||hasChangeUnder(k)); }
+  function secH(id,title,count,acts="",c=""){
+    const col=st.collapsed.has(id);
+    return `<div class="sec-h" data-act="sec" data-v="${id}" role="button" aria-expanded="${!col}"${cls(c)}>${I(col?"chevron-right":"chevron-down","s14")}<span>${title}</span>${count!=null?`<span class="badge muted n">${count}</span>`:""}<span class="acts">${acts}</span></div>`;
+  }
+  function vExplorer(){
+    const ws=st.ws;
+    if(!ws) return `<div class="side-head"><span class="t">Explorer</span></div><div class="pad"><p class="hint">No folder is open in Studio.</p><button class="btn primary block" data-act="toast" data-msg="Opens the approved-folder picker (existing)">Open folder…</button><button class="btn block" data-act="toast" data-msg="New project wizard (existing)">New project…</button></div>`;
+    const tabsF=st.tabs.filter(t=>!t.startsWith("@"));
+    let h=`<div class="side-head"><span class="t">Explorer</span><button class="ibtn sm" title="More">${I("ellipsis","s14")}</button></div><div class="side-scroll" role="tree" aria-label="Workspace files">`;
+    h+=secH("open","Open editors",null,"",`B`);
+    if(!st.collapsed.has("open")) h+=st.tabs.map(t=>{const d=t.startsWith("@diff:"),p=d?t.slice(6):t,f=file(ws,p);return `<button class="row ${t===st.active?"sel":""}" style="padding-left:22px" data-act="tab" data-p="${esc(t)}">${d?I("git-compare","s14 fi"):fileIcon(f)}<span class="nm">${esc(base(p))}${d?" (Working Tree)":""}</span><span class="dim">${esc(dir(p))}</span><span class="end">${st.dirty.has(t)?'<span class="dot" style="background:var(--text-secondary)"></span>':""}</span></button>`;}).join("");
+    const rootTitle=(st.remote?"Gaming PC · ":"")+ws.name;
+    h+=secH("root",esc(rootTitle),null,`<button class="ibtn sm" title="New file" data-act="toast" data-msg="New file (existing)"${cls("A")}>${I("file-plus-2","s14")}</button><button class="ibtn sm" title="Refresh" data-act="toast" data-msg="Re-read the workspace tree (existing)"${cls("A")}>${I("refresh-cw","s14")}</button><button class="ibtn sm" title="Collapse folders" data-act="collapseall"${cls("B")}>${I("chevrons-down-up","s14")}</button>`,"A");
+    if(!st.collapsed.has("root")) h+=treeRows(ws.tree,0);
+    if(st.wsId==="net"&&!st.remote){
+      h+=secH("sln","Solution · Acme.Inventory",3,"","A");
+      if(!st.collapsed.has("sln")) h+=[["Acme.Inventory.Cli","Startup"],["Acme.Inventory.Core",""],["Acme.Inventory.Tests","Tests"]].map(([n,t])=>`<button class="row" style="padding-left:22px">${I(t==="Tests"?"flask-conical":"boxes","s14 fi proj")}<span class="nm">${n}</span><span class="end">${t?`<span class="pill ${t==="Startup"?"info":""}" style="height:16px;font-size:10.5px">${t}</span>`:""}</span></button>`).join("");
+    }
+    const act=st.active&&!st.active.startsWith("@")?st.active:null;
+    h+=secH("outline","Outline"+(act?` · ${esc(base(act))}`:""),null,"","B");
+    if(!st.collapsed.has("outline")&&act&&!st.remote) h+=ws.outline.map(([k,n,l])=>`<button class="row" style="padding-left:${k==="c"?22:34}px" data-act="goto" data-l="${l}"><span class="sym ${k}">${k==="c"?"C":k==="m"?"ƒ":"v"}</span><span class="nm">${n}</span><span class="end"><span class="dim tnum">${l}</span></span></button>`).join("");
+    if(!st.collapsed.has("outline")&&st.remote) h+=`<p class="hint" style="padding:6px 16px">Outline needs code intelligence, which is local-only.</p>`;
+    return h+`</div>`;
+  }
+  function vSearch(){
+    const ws=st.ws, q=st.query.trim().toLowerCase();
+    let res=[];
+    if(q&&ws){ for(const f of flat(ws)){ if(f.d) continue; f.c.split("\n").forEach((line,i)=>{ if(line.toLowerCase().includes(q)) res.push({f,line:i+1,text:line}); }); } }
+    const byFile={}; res.slice(0,200).forEach(r=>{(byFile[r.f.p]=byFile[r.f.p]||[]).push(r);});
+    const symRes=ws?ws.outline.filter(([,n])=>!q||n.toLowerCase().includes(q)):[];
+    let h=`<div class="side-head"><span class="t">Search</span><button class="ibtn sm" title="Clear results" data-act="clearsearch">${I("list-x","s14")}</button></div><div class="pad" style="gap:6px">
+      <div class="seg" role="group" aria-label="Search mode" style="align-self:flex-start"><button aria-pressed="${st.searchMode==="text"}" data-act="smode" data-v="text"${cls("B")}>Text</button><button aria-pressed="${st.searchMode==="sym"}" data-act="smode" data-v="sym"${cls("A")}>Symbols</button></div>
+      <label class="field" style="height:26px"${cls("B")}>${I("search","s14")}<input id="srchq" value="${esc(st.query)}" placeholder="${st.searchMode==="text"?"Search text in workspace":"Find symbol in workspace"}" aria-label="Search"></label>
+      <span class="d-only" style="gap:4px"${cls("C")}><span class="chipbtn">Aa</span><span class="chipbtn">ab</span><span class="chipbtn">.*</span><span class="chipbtn">files to include</span></span>
+      <span class="d-only"${cls("D")}><span class="chipbtn">${I("replace","s12")} Replace in files</span></span>
+      <p class="hint">${st.searchMode==="text"?`<b>${res.length} results in ${Object.keys(byFile).length} files.</b> Plain text, case-insensitive, first 200 matches.`:`<b>${symRes.length} symbols.</b> From the language server's workspace symbols.`}</p></div><div class="side-scroll">`;
+    if(st.searchMode==="text"){
+      for(const [p,rows] of Object.entries(byFile)){
+        const f=file(ws,p);
+        h+=`<div class="row" style="padding-left:6px"><span class="chev">${I("chevron-down","s14")}</span>${fileIcon(f)}<span class="nm">${esc(base(p))}</span><span class="dim">${esc(dir(p))}</span><span class="end"><span class="badge muted">${rows.length}</span></span></div>`;
+        h+=rows.map(r=>{const t=r.text.trim(),ix=t.toLowerCase().indexOf(q);const pre=t.slice(Math.max(0,ix-18),ix),hit=t.slice(ix,ix+q.length),post=t.slice(ix+q.length,ix+q.length+40);return `<button class="row" style="padding-left:40px" data-act="open" data-p="${p}" data-l="${r.line}"><span class="nm" style="font-size:12.5px;color:var(--text-secondary)">${ix>18?"…":""}${esc(pre)}<mark style="background:rgba(240,195,107,.28);color:var(--text-primary);border-radius:2px">${esc(hit)}</mark>${esc(post)}</span><span class="end"><span class="dim tnum">${r.line}</span></span></button>`;}).join("");
+      }
+      if(!res.length&&q) h+=`<p class="hint" style="padding:6px 16px">No results. Search covers UTF-8 text files up to 2 MB.</p>`;
+    } else {
+      h+=symRes.map(([k,n,l])=>`<button class="row" style="padding-left:16px" data-act="goto" data-l="${l}"><span class="sym ${k}">${k==="c"?"C":k==="m"?"ƒ":"v"}</span><span class="nm">${n}</span><span class="dim">${st.wsId==="py"?"scheduler.py":"StockLedger.cs"}</span></button>`).join("");
+    }
+    return h+`</div>`;
+  }
+  function vScm(){
+    const ws=st.ws; if(!ws) return "";
+    const rowC=(p,staged)=>{const f=file(ws,p),g=f.git||"M";return `<div class="row" style="padding-left:22px" data-act="opendiff" data-p="${p}">${fileIcon(f)}<span class="nm ${g}">${esc(base(p))}</span><span class="dim">${esc(dir(p))}</span><span class="end"><span class="hov"><button class="ibtn sm" title="Open changes" data-act="opendiff" data-p="${p}"${cls("B")}>${I("git-compare","s14")}</button>${staged?`<button class="ibtn sm d-only" title="Unstage (not supported)"${cls("D")}>${I("minus","s14")}</button>`:`<button class="ibtn sm d-only" title="Discard changes (not supported)"${cls("D")}>${I("undo-2","s14")}</button><button class="ibtn sm" title="Stage changes" data-act="stage" data-p="${p}"${cls("A")}>${I("plus","s14")}</button>`}</span><span class="deco ${g}">${g}</span></span></div>`;};
+    const n=st.staged.length;
+    let h=`<div class="side-head"><span class="t">Source control</span><button class="ibtn sm" title="Refresh Git status" data-act="toast" data-msg="studio.git status (existing)"${cls("A")}>${I("refresh-cw","s14")}</button><button class="ibtn sm" title="More Git actions">${I("ellipsis","s14")}</button></div>
+    <div class="pad" style="gap:7px">
+      <button class="btn quiet sm" style="align-self:flex-start;padding-left:4px" data-act="branches" title="Switch or create a branch"${cls("A")}>${I("git-branch","s14")} ${esc(ws.branch)} ${I("chevron-down","s12")}</button>
+      <label class="field" style="height:auto;padding:6px 8px;align-items:flex-start"${cls("A")}><textarea id="commitmsg" rows="2" style="resize:none;font:12.5px/1.4 var(--ui)" placeholder="Message (Ctrl+Enter to commit on ${esc(ws.branch)})" aria-label="Commit message">${esc(st.commitMsg)}</textarea></label>
+      <button class="btn primary block" data-act="commit" ${n?"":"disabled"}${cls("A")}>${I("check","s14")} Commit ${n?`${n} staged file${n>1?"s":""}`:""}</button>
+      <p class="hint">Stage and Commit ask for your approval before Git runs.</p>
+    </div><div class="side-scroll">`;
+    h+=secH("staged","Staged changes",n,"","B");
+    if(!st.collapsed.has("staged")) h+=st.staged.map(p=>rowC(p,true)).join("")||`<p class="hint" style="padding:2px 22px 6px">Nothing staged.</p>`;
+    h+=secH("changes","Changes",st.changes.length,`<button class="ibtn sm" title="Stage all changes" data-act="stageall"${cls("A")}>${I("plus","s14")}</button>`,"B");
+    if(!st.collapsed.has("changes")) h+=st.changes.map(p=>rowC(p,false)).join("")||`<p class="hint" style="padding:2px 22px 6px">No working changes.</p>`;
+    h+=secH("commits","Commits",null,"","A");
+    if(!st.collapsed.has("commits")) h+=[["a41c9e2","Plan slots against the daily budget","2 h"],["7d03b18","Add zone history recording","yesterday"],["e2f95c0","Read zones from config/zones.json","2 days"],["19be4d7","Initial scheduler","5 days"]].map(([hh,m,t])=>`<div class="row" style="padding-left:22px">${I("git-commit-horizontal","s14 fi")}<span class="nm">${m}</span><span class="end"><span class="dim mono" style="font-size:11px">${hh}</span><span class="dim">${t}</span></span></div>`).join("");
+    return h+`</div>`;
+  }
+  function vDebug(){
+    const ws=st.ws; if(!ws) return "";
+    let h=`<div class="side-head"><span class="t">Run and debug</span><button class="ibtn sm" title="More">${I("ellipsis","s14")}</button></div>`;
+    h+=`<div class="pad" style="gap:6px;padding-bottom:8px"><div style="display:flex;gap:4px"><button class="btn ${st.paused?"sm":"primary sm"}" data-act="debug" ${st.paused?"disabled":""}${cls("A")}>${I("play","s14")} ${st.paused?"Debugging":"Start debugging"}</button><span class="select" style="height:24px;flex:1;min-width:0;overflow:hidden"${cls("A")}>${esc(st.wsId==="py"?"Python: main.py":"Acme.Inventory.Cli")} <span style="color:var(--text-muted)">· ${ws.dbg}</span></span></div>${st.paused?"":`<p class="hint">Click the gutter or press <b>F9</b> to set a breakpoint, then <b>F5</b>.</p>`}</div><div class="side-scroll">`;
+    if(st.paused){
+      h+=secH("vars","Variables",null,"","A");
+      if(!st.collapsed.has("vars")) h+=`<div class="row" style="padding-left:6px"><span class="chev">${I("chevron-down","s14")}</span><span class="nm" style="font-weight:600">Locals</span></div>`+
+        [["self","&lt;Scheduler&gt;","t-t",1],["zone","Zone(name='bed-03', minutes=25, days=('Mon', 'Wed', 'Sun'), history=[])","t-t",1],["day","'Sun'","t-s"],["slots","list[Slot] len=3","t-t",1],["used","{'Mon': 45, 'Wed': 45, 'Sun': 20}","t-t",1]]
+        .map(([n,v,c,x])=>`<div class="row mono" style="padding-left:${x?22:38}px;font-size:12.5px">${x?`<span class="chev">${I("chevron-right","s12")}</span>`:""}<span class="t-p">${n}</span><span class="t-u">=</span><span class="${c}" style="overflow:hidden;text-overflow:ellipsis">${v}</span></div>`).join("")+
+        `<div class="row" style="padding-left:6px"><span class="chev">${I("chevron-right","s14")}</span><span class="nm" style="font-weight:600">Globals</span></div>`;
+      h+=secH("watch","Watch",null,`<button class="ibtn sm" title="Add expression"${cls("A")}>${I("plus","s14")}</button>`,"A");
+      if(!st.collapsed.has("watch")) h+=[["zone.minutes * 60","1500","t-n"],["day in REST_DAYS","True","t-k"]].map(([e,v,c])=>`<div class="row mono" style="padding-left:22px;font-size:12.5px"><span>${esc(e)}</span><span class="t-u">:</span><span class="${c}">${v}</span></div>`).join("");
+      h+=secH("stack","Call stack",null,"","A");
+      if(!st.collapsed.has("stack")) h+=`<div class="row" style="padding-left:6px"><span class="chev">${I("chevron-down","s14")}</span><span class="nm">MainThread</span><span class="end"><span class="pill warn" style="height:16px;font-size:10.5px">Paused on breakpoint</span></span></div>`+
+        [["plan","scheduler.py",`${st.dbgLine}:17`,1],["main","main.py","8:17"],["&lt;module&gt;","main.py","14:5"]].map(([fn,f,l,on])=>`<button class="row ${on?"sel":""}" style="padding-left:28px" data-act="toast" data-msg="Selects the frame (existing)"><span class="nm">${fn}</span><span class="dim">${f}</span><span class="end"><span class="dim tnum">${l}</span></span></button>`).join("");
+    }
+    h+=secH("bps","Breakpoints",st.bps.length,"","B");
+    if(!st.collapsed.has("bps")) h+=st.bps.map(b=>`<div class="row" style="padding-left:22px"><span class="d-only"${cls("D")}><input type="checkbox" checked disabled aria-label="Enable (not supported)"></span><span style="width:9px;height:9px;border-radius:${b.cond?"2px":"50%"};background:#e5534b;${b.cond?"transform:rotate(45deg) scale(.85)":""};flex-shrink:0"></span><span class="nm">${esc(base(b.f))}</span><span class="dim">${b.cond?esc(b.cond):esc(dir(b.f))}</span><span class="end"><span class="dim tnum">${b.l}</span><span class="hov"><button class="ibtn sm" title="Remove breakpoint" data-act="rmbp" data-f="${b.f}" data-l="${b.l}"${cls("A")}>${I("x","s12")}</button></span></span></div>`).join("");
+    h+=secH("exc","Exception filters",null,"","A");
+    if(!st.collapsed.has("exc")) h+= st.paused?[["Raised exceptions",false],["Uncaught exceptions",true],["User uncaught exceptions",false]].map(([n,c])=>`<label class="row" style="padding-left:22px;gap:8px"><input type="checkbox" ${c?"checked":""}> <span class="nm">${n}</span></label>`).join(""):`<p class="hint" style="padding:2px 22px 6px">The adapter offers filters once a session starts.</p>`;
+    return h+`</div>`;
+  }
+  function vTesting(){
+    const ws=st.ws; if(!ws) return "";
+    const failed=st.tests==="failed"&&!st.fixed, run=st.testsRunning;
+    const tests=[["test_plan_skips_rest_days",failed?"failed":"passed",3],["test_budget_is_enforced","passed",1],["test_next_run_skips_sunday","passed",1]];
+    const zt=[["test_record_appends","passed",1],["test_record_rejects_negative","passed",1],["test_default_days","passed",0]];
+    const ic=(s)=>run?I("loader-circle","s14 spin"):s==="failed"?`<span style="color:var(--status-error);display:inline-flex">${I("circle-x","s14")}</span>`:s==="skipped"?`<span style="color:var(--text-muted);display:inline-flex">${I("circle-slash","s14")}</span>`:`<span style="color:var(--status-success);display:inline-flex">${I("circle-check","s14")}</span>`;
+    const row=(n,s,ms,pad,file)=>`<div class="row ${s==="failed"&&!run?"sel":""}" style="padding-left:${pad}px"><input type="checkbox" aria-label="Select ${n} for Run selected" style="width:13px;height:13px;margin:0"${cls("A")}>${ic(s)}<span class="nm">${n}</span><span class="end"><span class="dim tnum">${run?"":ms+" ms"}</span><span class="hov"><button class="ibtn sm" title="Run test"${cls("A")}>${I("play","s12")}</button><button class="ibtn sm" title="Go to test" data-act="open" data-p="${file}" data-l="12"${cls("A")}>${I("file-symlink","s12")}</button><button class="ibtn sm d-only" title="Debug test (not supported)"${cls("D")}>${I("bug","s12")}</button></span></span></div>`;
+    let h=`<div class="side-head" style="position:relative"><span class="t">Testing</span>
+      <button class="ibtn sm" title="Run all tests" data-act="runtests"${cls("A")}>${I("play","s14")}</button>
+      <button class="ibtn sm" title="Run failed tests" data-act="runtests"${cls("A")}>${I("rotate-ccw","s14")}</button>
+      <button class="ibtn sm" title="Discover tests" data-act="toast" data-msg="project.test discover (existing)"${cls("A")}>${I("refresh-cw","s14")}</button>
+      <button class="ibtn sm" aria-pressed="${st.failedOnly}" title="Show failed tests only" data-act="failedonly"${cls("A")}>${I("list-filter","s14")}</button>
+      ${run?'<span class="progress-line" style="bottom:0"></span>':""}</div>
+      <div class="pad" style="gap:4px;padding-top:2px"${cls("A")}><div style="display:flex;gap:12px;font-size:12px" class="tnum">${run?`<span style="color:var(--status-computing)">Running 6 tests…</span>`:`<span style="color:var(--status-success)">${failed?5:6} passed</span><span style="color:${failed?"var(--status-error)":"var(--text-muted)"}">${failed?1:0} failed</span><span style="color:var(--text-muted)">0 skipped</span><span style="color:var(--text-muted);margin-left:auto">0.84 s</span>`}</div></div><div class="side-scroll">`;
+    const show=(arr)=>arr.filter(t=>!st.failedOnly||t[1]==="failed");
+    h+=`<div class="row" style="padding-left:6px"><span class="chev">${I("chevron-down","s14")}</span>${ic(failed?"failed":"passed")}<span class="nm">test_scheduler.py</span><span class="dim">tests</span></div>`;
+    h+=`<div class="row" style="padding-left:22px"><span class="chev">${I("chevron-down","s14")}</span>${ic(failed?"failed":"passed")}<span class="nm">SchedulerTests</span></div>`;
+    for(const t of show(tests)){
+      h+=row(t[0],t[1],t[2],54,"tests/test_scheduler.py");
+      if(t[1]==="failed"&&!run) h+=`<div style="margin:2px 10px 6px 54px;border-left:2px solid var(--status-error);background:var(--status-error-soft);border-radius:0 4px 4px 0;padding:6px 8px;font:11.5px/1.5 var(--code);color:var(--text-primary);white-space:pre-wrap"${cls("A")}>AssertionError: 'Sun' unexpectedly found in ['Mon', 'Wed', 'Mon', 'Wed', 'Sun']\n<span style="color:var(--text-muted)">tests/test_scheduler.py:14 in test_plan_skips_rest_days</span></div>`;
+    }
+    if(!st.failedOnly){
+      h+=`<div class="row" style="padding-left:6px"><span class="chev">${I("chevron-right","s14")}</span>${ic("passed")}<span class="nm">test_zones.py</span><span class="dim">tests</span><span class="end"><span class="dim">3 tests</span></span></div>`;
+    }
+    return h+`</div>`;
+  }
+  function side(){
+    const s=W(); const v=st.view;
+    const body=v==="explorer"?vExplorer():v==="search"?vSearch():v==="scm"?vScm():v==="debug"?vDebug():vTesting();
+    return `<aside class="side" style="width:${s.sb}px" aria-label="Primary sidebar">${body}</aside>`;
+  }
+  function tabsBar(){
+    const ws=st.ws;
+    return `<div class="tabs" role="tablist"${cls("A")}>${st.tabs.map(t=>{const d=t.startsWith("@diff:"),p=d?t.slice(6):t,f=file(ws,p),on=t===st.active,dirty=st.dirty.has(t);
+      return `<div class="tab ${on?"on":""} ${dirty?"dirty":""}" role="tab" aria-selected="${on}" data-act="tab" data-p="${esc(t)}" title="${esc(p)}">${d?I("git-compare","s14 fi"):fileIcon(f)}<span class="nm">${esc(base(p))}${d?' <span style="color:var(--text-muted)">(Working Tree)</span>':""}</span><button class="x" data-act="close" data-p="${esc(t)}" aria-label="Close ${esc(base(p))}">${dirty?'<span class="dirty"></span>':""}<span class="xi">${I("x","s14")}</span></button></div>`;}).join("")}
+      <span class="tabs-end"><button class="ibtn sm d-only" title="Split editor (not supported)"${cls("D")}>${I("columns-2","s14")}</button><button class="ibtn sm" title="More">${I("ellipsis","s14")}</button></span></div>`;
+  }
+  function crumbs(){
+    const t=st.active; if(!t) return "";
+    const d=t.startsWith("@diff:"),p=d?t.slice(6):t;
+    const parts=p.split("/");
+    const sym=st.wsId==="py"&&p.endsWith("scheduler.py")&&!d?[["c","Scheduler"],["m","plan"]]:st.wsId==="net"&&p.endsWith("StockLedger.cs")?[["c","StockLedger"],["v","Warehouse"]]:[];
+    return `<div class="crumbs" aria-label="Breadcrumbs"${cls("B")}>${parts.map((x,i)=>`<span class="c">${i===parts.length-1?fileIcon(file(st.ws,p)||{l:""}):""}${esc(x)}</span>`).join(I("chevron-right","s12"))}${sym.map(([k,n])=>`${I("chevron-right","s12")}<span class="c"><span class="sym ${k}">${k==="c"?"C":k==="m"?"ƒ":"v"}</span>${n}</span>`).join("")}${d?`<span style="margin-left:8px" class="pill">Read-only diff · git diff</span>`:""}</div>`;
+  }
+  function editorBody(){
+    const s=W(), ws=st.ws, t=st.active;
+    if(!t) return "";
+    const d=t.startsWith("@diff:"), p=d?t.slice(6):t, f=file(ws,p);
+    const lang=d?"diff":f.l;
+    let lines;
+    if(d){ lines=DIFF_LINES; }
+    else lines=(st.fixed&&p==="src/greenhouse/scheduler.py"?fixedSched():f.c).replace(/\n$/,"").split("\n");
+    const diags=d||st.remote?[]:(ws.diags[p]||[]);
+    const mst={fence:false};
+    const bps=st.bps.filter(b=>b.f===p);
+    const showDbg=st.paused&&p==="src/greenhouse/scheduler.py";
+    const curLine=showDbg?st.dbgLine:(st.selection?st.selection[1]:(lang==="py"?29:lang==="cs"?11:3));
+    const lspOff=st.sc==="states"&&st.sub==="lspfail";
+    let rows="";
+    lines.forEach((line,i)=>{
+      const n=i+1, bp=bps.find(b=>b.l===n);
+      let cl="ln";
+      if(showDbg&&n===st.dbgLine) cl+=" dbg"; else if(n===curLine&&!d) cl+=" cur";
+      if(st.selection&&n>=st.selection[0]&&n<=st.selection[1]) cl+=" selx";
+      let code;
+      if(d){ const c=line[0]; cl+=c==="+"?" add":c==="-"?" del":""; code=c==="@"?`<span class="t-l">${esc(line)}</span>`:c==="+"||c==="-"?`<span class="${c==="+"?"t-n":"t-s"}" style="opacity:.8">${esc(c)}</span>${hlPy(line.slice(1))}`:" "+hlPy(line.slice(1)); }
+      else code=hl(lang,line,mst);
+      const sq=lspOff?"":diags.filter(x=>x.line===n).map(x=>`<span class="sq ${x.sev}" style="left:calc(${x.col}ch + 6px);width:${x.len}ch"></span>`).join("");
+      const cursor=n===curLine&&!d&&!st.selection&&!showDbg?`<span class="cursor" style="left:calc(${lang==="py"?8:4}ch + 6px)"></span>`:"";
+      const inlay=showDbg&&n===st.dbgLine?`<span class="inlay d-only"${cls("D")}>zone = bed-03, day = 'Sun'</span>`:"";
+      const fixedMark=st.fixed&&p==="src/greenhouse/scheduler.py"&&(n===33||n===34)?" add":"";
+      let extra="";
+      if(st.hover&&n===5&&p==="src/greenhouse/scheduler.py"&&!lspOff) extra+=`<div class="hovercard" style="top:20px;left:calc(31ch + 6px)"${cls("A")}><div class="hc-code">${hlPy("(class) timedelta(days: float = ..., seconds: float = ...)")}</div><div class="hc-body"><span style="color:var(--status-warning);display:inline-flex">${I("triangle-alert","s14")}</span><span>'datetime.timedelta' imported but unused <span style="color:var(--text-muted)">pyflakes(F401)</span></span></div><div class="hc-foot"><a data-act="toast" data-msg="Quick Fix → LSP codeAction (existing)">Quick Fix… <span class="kbd">Ctrl+.</span></a><a data-act="panel" data-v="problems">View problem</a></div></div>`;
+      if(st.selection&&n===st.selection[0]&&p==="src/greenhouse/scheduler.py"&&!st.fixed) extra+=`<button class="selpill" style="top:-26px;left:calc(56ch + 6px)" data-act="asst-open" title="Ask OLIVE about the selection (Ctrl+Alt+I)"${cls("B")}><span class="mark"></span> Ask OLIVE ${K("Ctrl","Alt","I")}</button>`;
+      rows+=`<div class="${cl}${fixedMark}"><span class="g" data-act="bp" data-l="${n}" data-f="${p}" title="Toggle breakpoint (F9)">${bp?`<span class="bp ${bp.cond?"cond":""}"></span>`:""}${showDbg&&n===st.dbgLine?'<span class="here"></span>':""}</span><span class="num">${n}</span><span class="fold">${/:\s*$|\{\s*$/.test(line)?I("chevron-down","s12"):""}</span><span class="src">${code}${sq}${cursor}${inlay}${extra}</span></div>`;
+    });
+    const total=lines.length;
+    const ruler=`<div class="oruler" aria-hidden="true">${diags.map(x=>`<i class="${x.sev}" style="top:${(x.line/Math.max(total,40))*100}%"></i>`).join("")}${bps.map(b=>`<i class="b" style="top:${(b.l/Math.max(total,40))*100}%"></i>`).join("")}${st.selection?`<i class="s" style="top:${(st.selection[0]/Math.max(total,40))*100}%;height:${(st.selection[1]-st.selection[0]+1)/Math.max(total,40)*100}%"></i>`:""}</div>`;
+    const mini=s.mini&&!d?`<div class="minimap" aria-hidden="true"${cls("A")}><span class="view"></span>${lines.map(l=>`<i class="${/^\s*(#|\/\/)/.test(l)?"c":/^\s*(def|class|public|if|for|return)/.test(l)?"k":""}" style="width:${Math.min(70,l.length*0.9)}px;margin-left:${(l.match(/^\s*/)[0].length)*0.9}px"></i>`).join("")}</div>`:"";
+    let over="";
+    if(showDbg){
+      over+=`<div class="dbgbar" role="toolbar" aria-label="Debug controls"${cls("A")}><span class="grip"></span>
+        <button class="ibtn sm go" title="Continue (F5)" data-act="continue">${I("play","s14")}</button>
+        <button class="ibtn sm" title="Step Over (F10)" data-act="step">${I("redo-2","s14")}</button>
+        <button class="ibtn sm" title="Step Into (F11)" data-act="step">${I("arrow-down-to-dot","s14")}</button>
+        <button class="ibtn sm" title="Step Out (Shift+F11)" data-act="step">${I("arrow-up-from-dot","s14")}</button>
+        <button class="ibtn sm d-only" title="Restart (not supported)"${cls("D")}>${I("rotate-cw","s14")}</button>
+        <button class="ibtn sm stop" title="Stop (Shift+F5)" data-act="stop">${I("square","s14")}</button></div>`;
+    }
+    return `<div class="editor" data-cls="A"><div class="ecode" aria-label="Source editor (Monaco)">${rows}</div>${over}${mini}${ruler}</div>`;
+  }
+  function notice(){
+    if(st.remote&&st.sc==="remote") return `<div class="notice info"${cls("A")}>${I("monitor-smartphone","s14")}<span class="grow">Files live on <b>Gaming PC</b>. Build, test and run happen there. Code intelligence, debugging, Git and terminals are local-only.</span>
+      <span class="pill ok">Read · Allow</span><span class="pill warn">Save · Ask</span><span class="pill ok">Build · Allow</span><span class="pill ok">Test · Allow</span><span class="pill">Run · Off</span></div>`;
+    if(st.sc==="states"&&st.sub==="lspfail") return `<div class="notice warn"${cls("A")}>${I("triangle-alert","s14")}<span class="grow"><b>Python code intelligence stopped.</b> Completions, hover and diagnostics are unavailable until pylsp restarts. Editing and saving still work.</span><button class="btn sm" data-act="toast" data-msg="lsp.restart (existing)">Restart code intelligence</button><button class="btn quiet sm" data-act="panel" data-v="output">Show output</button></div>`;
+    if(st.sc==="states"&&st.sub==="offline") return `<div class="notice err"${cls("A")}>${I("wifi-off","s14")}<span class="grow"><b>Gaming PC is offline.</b> Your edits stay in this buffer. Save, build, test and run are unavailable until it reconnects.</span><button class="btn sm" data-act="toast" data-msg="Retries the connection (existing)">Retry</button></div>`;
+    return "";
+  }
+  function welcome(){
+    return `<div class="welcome"${cls("A")}><div class="w-in"><div style="display:flex;align-items:center;gap:12px"><span class="mark lg"></span><div><h2>Studio</h2><p style="margin:2px 0 0;color:var(--text-muted);font-size:13px">Edit, build, test and debug local projects.</p></div></div>
+      <div class="cols"><div><h5>Start</h5>
+        <button class="lnk" data-act="toast" data-msg="Opens the approved-folder picker">${I("folder-open","s14")} Open folder… ${K("Ctrl","K","O")}</button>
+        <button class="lnk" data-act="toast" data-msg="New project wizard">${I("folder-plus","s14")} New project… ${K("Ctrl","Alt","N")}</button>
+        <button class="lnk" data-act="remote" data-v="1">${I("monitor-smartphone","s14")} Open a shared workspace on a paired device…</button></div>
+      <div><h5>Recent</h5>
+        <button class="lnk rec" data-act="scenario" data-v="editor"><span>greenhouse-controller</span><small>Python · approved folder</small></button>
+        <button class="lnk rec" data-act="scenario" data-v="build"><span>Acme.Inventory</span><small>.NET solution · approved folder</small></button>
+        <button class="lnk rec" data-act="scenario" data-v="remote"><span>greenhouse-controller</span><small>Shared by Gaming PC</small></button></div></div>
+      <p style="margin:0;font-size:12px;color:var(--text-muted)">Studio only opens folders you have approved. Terminals run with your own account's permissions.</p></div></div>`;
+  }
+  function panel(){
+    const s=W(), ws=st.ws, pr=ws&&!st.remote?(ws.diags[Object.keys(ws.diags)[0]]||[]):[];
+    const lspOff=st.sc==="states"&&st.sub==="lspfail";
+    const tabs=[["problems","Problems",lspOff?0:pr.length,"A"],["output","Output",0,"A"],["terminal","Terminal",0,"A"],["console","Debug console",0,"B"]];
+    const t=st.panel;
+    let body="";
+    if(t==="problems"){
+      if(lspOff) body=`<p class="hint" style="padding:10px 12px">Problems from code intelligence are unavailable while pylsp is stopped. Build and test diagnostics still appear here.</p>`;
+      else if(!pr.length) body=`<p class="hint" style="padding:10px 12px">No problems have been detected in the workspace.</p>`;
+      else { const fp=Object.keys(ws.diags)[0]; body=`<div class="prob-file">${I("chevron-down","s14")}${fileIcon(file(ws,fp))}<b style="font-weight:600">${esc(base(fp))}</b><span class="dim" style="color:var(--text-muted);font-size:12px">${esc(dir(fp))}</span><span class="badge muted">${pr.length}</span></div>`+pr.map(x=>`<div class="prob" data-act="open" data-p="${fp}" data-l="${x.line}"><span style="color:${x.sev==="e"?"var(--status-error)":"var(--status-warning)"};display:inline-flex">${I(x.sev==="e"?"circle-x":"triangle-alert","s14")}</span><span>${esc(x.msg)}</span><span class="src">${x.src}(${x.code})</span><span class="where">[Ln ${x.line}, Col ${x.col+1}]</span></div>`).join(""); }
+    } else if(t==="output"){
+      body=outputBody();
+    } else if(t==="terminal"){
+      const sessions=st.wsId==="net"?[["play","Acme.Inventory.Cli","program",st.running],["square-terminal","bash","shell",false]]:[["square-terminal","bash","shell",true]];
+      const lines=st.term.length?st.term:[["pr","you@workstation"],["","~/Projects/greenhouse-controller $ "]];
+      body=`<div class="term-wrap"><div class="term" tabindex="0" data-term="1" aria-label="Terminal. Type to send input to the program.">${lines.map(([c,tx],i)=>`${i?"\n":""}<span class="${c}">${esc(tx)}</span>`).join("")}<span class="in">${esc(st.termIn)}</span><span class="blk"></span></div>
+        <div class="term-list"${cls("A")}>${sessions.map(([i,n,k,on])=>`<div class="row ${on?"sel":""}">${I(i,"s14")}<span class="nm">${n}</span><span class="dim">${k}</span></div>`).join("")}</div></div>`;
+    } else if(t==="console"){
+      body=`<div style="display:flex;flex-direction:column;height:100%"${cls("B")}><div style="flex:1;padding-top:4px">${st.consoleLines.map(([a,b])=>`<div class="console-line">${a?`<span style="color:var(--accent-blue)">${a}</span> ${esc(b)}`:`<span class="t-s" style="padding-left:14px">${esc(b)}</span>`}</div>`).join("")}</div><label class="console-in"><span style="color:var(--accent-blue)">›</span><input id="dbgin" style="flex:1;background:none;border:0;outline:0;color:var(--text-primary);font:inherit" placeholder="${st.paused?"Evaluate an expression in the selected frame":"Start a debug session to evaluate expressions"}" ${st.paused?"":"disabled"}></label></div>`;
+    }
+    const end=t==="terminal"?`<span class="select" style="height:22px;font-size:11.5px">${I("square-terminal","s12")} ${st.wsId==="net"&&st.running?"Acme.Inventory.Cli":"bash"} ${I("chevron-down","s12")}</span><button class="ibtn sm" title="New terminal (Ctrl+Shift+\`)"${cls("A")}>${I("plus","s14")}</button><button class="ibtn sm" title="Kill terminal"${cls("A")}>${I("trash-2","s14")}</button>`
+      :t==="output"?`<span class="select" style="height:22px;font-size:11.5px"${cls("A")}>${st.wsId==="net"?"Build":st.remote?"Remote · Gaming PC":"Tests"} ${I("chevron-down","s12")}</span>${st.wsId==="net"?`<button class="btn quiet sm" data-act="togglebuild" title="Design toggle: show the failure variant">${st.built==="ok"?"Show failure":"Show success"}</button>`:""}`:"";
+    return `<section class="panel" style="height:${s.pn}px" aria-label="Panel"><div class="panel-tabs" role="tablist"${cls("B")}>${tabs.map(([id,l,n,c])=>`<button class="ptab" role="tab" aria-selected="${t===id}" data-act="panel" data-v="${id}"${cls(c)}>${l}${n?` <span class="badge muted">${n}</span>`:""}</button>`).join("")}
+      <span class="end">${end}<button class="ibtn sm" title="Maximise panel">${I("chevron-up","s14")}</button><button class="ibtn sm" title="Close panel (Ctrl+J)" data-act="panel" data-v="">${I("x","s14")}</button></span></div><div class="pbody">${body}</div></section>`;
+  }
+  function outputBody(){
+    if(st.wsId==="net"){
+      const ok=st.built==="ok";
+      return `<div class="jobcard"${cls("B")}><div class="jh"><span style="color:${ok?"var(--status-success)":"var(--status-error)"};display:inline-flex">${I(ok?"circle-check":"circle-x","s18")}</span><b>${ok?"Build succeeded":"Build failed"}</b><span class="pill ${ok?"warn":"err"}">${ok?"1 warning":"1 error · 1 warning"}</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" data-act="panel" data-v="problems">Show in Problems</button><button class="btn quiet sm" data-act="build">Rebuild</button></span></div>
+        <div class="facts tnum"><span>Target <b>Acme.Inventory.Cli</b></span><span>Configuration <b>Debug</b></span><span>Started <b>14:02:11</b></span><span>Elapsed <b>${ok?"4.81":"3.97"} s</b></span><span>Exit code <b>${ok?0:1}</b></span></div></div>
+        <div class="rawout">  Determining projects to restore...
+  All projects are up-to-date for restore.
+<span class="w">src/Acme.Inventory.Core/StockLedger.cs(11,19): warning CS8618: Non-nullable property 'Warehouse' must contain a non-null value when exiting constructor.</span>
+${ok?`  Acme.Inventory.Core -> src/Acme.Inventory.Core/bin/Debug/net9.0/Acme.Inventory.Core.dll
+  Acme.Inventory.Cli -> src/Acme.Inventory.Cli/bin/Debug/net9.0/Acme.Inventory.Cli.dll
+
+<span class="ok">Build succeeded.</span>
+    1 Warning(s)
+    0 Error(s)`:`<span class="e">src/Acme.Inventory.Cli/Program.cs(17,40): error CS1061: 'StockItem' does not contain a definition for 'OnHnad'.</span>
+
+<span class="e">Build FAILED.</span>
+    1 Warning(s)
+    1 Error(s)`}</div>`;
+    }
+    if(st.remote){
+      return `<div class="jobcard"${cls("A")}><div class="jh"><span style="color:var(--status-success);display:inline-flex">${I("circle-check","s18")}</span><b>Remote test completed on Gaming PC</b><span class="pill ok">6 passed</span></div><div class="facts tnum"><span>Workspace <b>greenhouse-controller (shared)</b></span><span>Elapsed <b>3.1 s</b></span><span>Exit code <b>0</b></span></div></div><div class="rawout">Ran 6 tests in 0.842s
+
+<span class="ok">OK</span></div>`;
+    }
+    const failed=st.tests==="failed"&&!st.fixed;
+    return `<div class="jobcard"${cls("B")}><div class="jh"><span style="color:${failed?"var(--status-error)":"var(--status-success)"};display:inline-flex">${I(failed?"circle-x":"circle-check","s18")}</span><b>Tests ${failed?"failed":"passed"}</b><span class="pill ${failed?"err":"ok"}">${failed?"1 failed · 5 passed":"6 passed"}</span></div><div class="facts tnum"><span>Runner <b>unittest (structured)</b></span><span>Started <b>14:06:52</b></span><span>Elapsed <b>1.12 s</b></span><span>Exit code <b>${failed?1:0}</b></span></div></div>
+    <div class="rawout">$ python -m olive_tests --json … --start tests
+${failed?`<span class="e">FAIL: test_plan_skips_rest_days (test_scheduler.SchedulerTests.test_plan_skips_rest_days)</span>
+Traceback (most recent call last):
+  File "tests/test_scheduler.py", line 14, in test_plan_skips_rest_days
+    self.assertNotIn("Sun", days)
+<span class="e">AssertionError: 'Sun' unexpectedly found in ['Mon', 'Wed', 'Mon', 'Wed', 'Sun']</span>
+
+Ran 6 tests in 0.842s
+<span class="e">FAILED (failures=1)</span>`:`Ran 6 tests in 0.839s
+
+<span class="ok">OK</span>`}</div>`;
+  }
+  function asst(){
+    const s=W(), c=st.ctx, failed=st.tests==="failed"&&!st.fixed;
+    const chip=(k,icon,label,extra="")=>`<button class="cchip" aria-pressed="${!!c[k]}" data-act="ctx" data-v="${k}" title="${c[k]?"Will be sent with your next message. Click to remove.":"Not sent. Click to include."}">${I(c[k]?"check":icon,"s12")} ${label}${extra}</button>`;
+    const act=st.active&&!st.active.startsWith("@")?base(st.active):"no file";
+    return `<aside class="asst" style="width:${s.as}px" aria-label="OLIVE assistant"${cls("A")}>
+      <div class="asst-head"><span class="mark"></span><span class="t">OLIVE</span><span class="grow"></span>
+        <button class="chipbtn" title="Model preset for Studio requests" data-act="toast" data-msg="Model preset picker (FAST / NORMAL / MAX / DEEP)"${cls("B")}>OLIVE MAX ${I("chevron-down","s12")}</button>
+        <button class="chipbtn" title="Where the model runs" data-act="toast" data-msg="Execution: This device or an explicitly paired device with Remote AI allowed"${cls("B")}>${I("laptop","s12")} This device</button>
+        <button class="ibtn sm" title="New thread"${cls("B")}>${I("square-pen","s14")}</button><button class="ibtn sm" title="Close OLIVE (Ctrl+Alt+B)" data-act="asst">${I("x","s14")}</button></div>
+      <div class="ctx"${cls("B")}><div class="lbl"><span>Context sent with your next message</span><span>${Object.values(c).filter(Boolean).length} of 5</span></div><div class="chips">
+        ${chip("file","file-code-2",esc(act))}${st.selection?chip("sel","text-select",`Selection · lines ${st.selection[0]}–${st.selection[1]}`):""}${chip("problems","triangle-alert","Problems · 2")}${failed?chip("test","circle-x","Failing test · 1"):""}${chip("git","git-branch","Uncommitted changes")}</div></div>
+      <div class="quick" role="group" aria-label="Quick requests">${[["Explain","B"],["Find bug","B"],["Refactor","B"],["Generate tests","B"],["Explain error","A"],["Suggest fix","B"],["Review changes","A"]].map(([q,k])=>`<button data-act="quick" data-v="${q}"${cls(k)}>${q}</button>`).join("")}</div>
+      <div class="thread" id="thread">${st.thread.map(m=>m.me?`<div class="msg me">${esc(m.text)}</div>`:`<div class="msg"><div class="who"><span class="mark" style="width:11px;height:12px"></span><b>OLIVE</b><span>${m.model} · ${m.where}${m.secs?` · ${m.secs}`:""}</span></div>${m.html}${m.streaming?'<span class="caret"></span>':""}${m.proposal&&!st.fixed?`<div class="proposal"${cls("C")}><div class="ph">${I("file-diff","s14")}<b style="font-weight:600">Proposed change</b><span>scheduler.py</span><span class="add">+2</span><span class="del">−0</span></div><div class="pf"><button class="btn primary sm" data-act="review">Review changes</button><button class="btn quiet sm" data-act="discardprop">Discard</button></div><div class="pn">Nothing changes until you review it. Applying edits the buffer only. Saving is still up to you.</div></div>`:""}${m.proposal&&st.fixed?`<div class="pill ok" style="align-self:flex-start">${I("check","s12")} Applied to buffer · unsaved</div>`:""}</div>`).join("")||`<div class="hint" style="padding:6px 2px">Ask about the current file, a selection, a failing test or your changes. Answers appear here. File changes are only ever proposed, never written silently.</div>`}</div>
+      <div class="composer"><div class="box"><textarea id="asktext" placeholder="Ask about ${esc(act)}…" aria-label="Ask OLIVE"></textarea><div class="cf"><span>${K("Ctrl","Enter")} to send</span>${st.streaming?`<button class="send stop" title="Stop generating" data-act="stopgen">${I("square","s12")}</button>`:`<button class="send" title="Send" data-act="ask">${I("arrow-up","s14")}</button>`}</div></div></div>
+    </aside>`;
+  }
+  function sbar(){
+    const ws=st.ws, pr=ws&&!st.remote?(ws.diags[Object.keys(ws.diags)[0]]||[]).length:0;
+    const lspOff=st.sc==="states"&&st.sub==="lspfail", offline=st.sc==="states"&&st.sub==="offline";
+    const lang=st.active?(file(ws,st.active.replace("@diff:",""))||{}).l:"";
+    const langName={py:"Python",cs:"C#",json:"JSON",md:"Markdown",toml:"TOML",proj:"XML"}[lang]||"";
+    return `<footer class="sbar" aria-label="Studio status">
+      ${st.remote?`<span class="si remote ${offline?"off":""}"${cls("B")}>${I(offline?"wifi-off":"monitor-smartphone","s12")} Gaming PC${offline?" · offline":""}</span>`:`<span class="si local" title="Local workspace"${cls("B")}>${I("laptop","s12")} Local</span>`}
+      ${ws&&!st.remote?`<span class="si" title="Current branch"${cls("B")}>${I("git-branch","s12")} ${esc(ws.branch)}${st.changes.length?"*":""}</span>`:""}
+      ${ws?`<span class="si" title="Problems" data-act="panel" data-v="problems"${cls("A")}>${I("circle-x","s12")} 0 ${I("triangle-alert","s12")} ${lspOff?"–":pr}</span>`:""}
+      ${st.paused?`<span class="si dbg"${cls("A")}>${I("pause","s12")} Paused on breakpoint · scheduler.py:${st.dbgLine}</span>`:""}
+      ${st.running?`<span class="si" style="color:var(--status-computing)"${cls("A")}>${I("play","s12")} Acme.Inventory.Cli running</span>`:""}
+      ${st.testsRunning?`<span class="si" style="color:var(--status-computing)"${cls("A")}>${I("loader-circle","s12 spin")} Running tests</span>`:""}
+      <span class="grow"></span>
+      ${ws&&st.active&&!st.active.startsWith("@")?`<span class="si tnum"${cls("B")}>Ln ${st.paused?st.dbgLine:st.selection?st.selection[1]:29}, Col ${st.paused?17:9}${st.selection?` (${st.selection[1]-st.selection[0]+1} lines selected)`:""}</span><span class="si"${cls("B")}>Spaces: 4</span><span class="si"${cls("B")}>UTF-8</span><span class="si"${cls("B")}>LF</span><span class="si"${cls("A")}>${langName}</span>`:""}
+      ${ws&&!st.remote?`<span class="si" title="${st.wsId==="py"?"Interpreter":"SDK"}"${cls("A")}>${esc(ws.interp)}</span><span class="si ${lspOff?"warnc":""}" title="Code intelligence"${cls("A")}>${I(lspOff?"triangle-alert":"braces","s12")} ${ws.lsp}${lspOff?" stopped":""}</span>`:""}
+      ${ws?`<span class="si" title="Save state"${cls("A")}>${st.remoteSave?`${I("clock","s12")} Waiting for Gaming PC to approve save`:st.dirty.size?`${I("circle","s12")} ${st.dirty.size} unsaved`:`${I("check","s12")} Saved`}</span>`:""}
+    </footer>`;
+  }
+  function palette(){
+    if(!st.palette) return "";
+    return `<div class="pal" role="dialog" aria-label="Command palette"${cls("B")}><label class="pin">${I("search","s14")}<input id="palq" value="${esc(st.palette.q)}" aria-label="Type a command or file" autocomplete="off"></label><div class="plist" id="plist" role="listbox">${paletteList()}</div>
+      <div class="pfoot"><span><b>&gt;</b> commands</span><span><b>#</b> workspace symbols</span><span><b>@</b> symbols in file</span><span><b>:</b> go to line</span><span>No prefix: files</span><span style="margin-left:auto">${K("↑","↓")} ${K("Enter")} ${K("Esc")}</span></div></div>`;
+  }
+  function paletteItems(){
+    const q=st.palette.q, ws=st.ws||WS.py;
+    if(q.startsWith(">")){ const t=q.slice(1).trim().toLowerCase(); return CMDS.filter(c=>!t||(`${c[1]}: ${c[0]}`).toLowerCase().includes(t)).map(c=>({k:"cmd",c,label:c[0],cat:c[1],key:c[2],icon:c[5],cls:c[4]})); }
+    if(q.startsWith("#")||q.startsWith("@")){ const t=q.slice(1).trim().toLowerCase(); return ws.outline.filter(([,n])=>!t||n.toLowerCase().includes(t)).map(([k,n,l])=>({k:"sym",label:n,det:(st.wsId==="net"?"StockLedger.cs":"scheduler.py")+" · line "+l,l,sym:k,cls:q[0]==="#"?"A":"B"})); }
+    if(q.startsWith(":")) return [{k:"line",label:`Go to line ${q.slice(1)||"…"}`,det:"Monaco",cls:"A",icon:"arrow-down-to-line"}];
+    const t=q.trim().toLowerCase();
+    return flat(ws).filter(f=>!f.d&&(!t||f.p.toLowerCase().includes(t))).map(f=>({k:"file",f,label:base(f.p),det:dir(f.p),cls:"B"}));
+  }
+  function paletteList(){
+    const items=paletteItems().slice(0,40); st.palette.count=items.length;
+    if(!items.length) return `<div class="empty">No matching commands. The palette only lists what Studio can do today.</div>`;
+    const sel=Math.min(st.palette.sel,items.length-1);
+    const q=st.palette.q.replace(/^[>#@:]/,"").trim();
+    const mk=(s)=>{ if(!q) return esc(s); const i=s.toLowerCase().indexOf(q.toLowerCase()); return i<0?esc(s):esc(s.slice(0,i))+"<mark>"+esc(s.slice(i,i+q.length))+"</mark>"+esc(s.slice(i+q.length)); };
+    const head=st.palette.q.startsWith(">")?`<div class="pg-h"><span>${q?"Matching commands":"Commands"}</span><span>${items.length}</span></div>`:st.palette.q.startsWith("#")?`<div class="pg-h"><span>Workspace symbols</span></div>`:st.palette.q.startsWith("@")?`<div class="pg-h"><span>Symbols in file</span></div>`:st.palette.q.startsWith(":")?"":`<div class="pg-h"><span>Files</span><span>type &gt; for commands</span></div>`;
+    return head+items.map((it,i)=>`<button class="pi" role="option" aria-selected="${i===sel}" data-act="palrun" data-i="${i}"${cls(it.cls)}>${it.k==="file"?fileIcon(it.f):it.k==="sym"?`<span class="sym ${it.sym}">${it.sym==="c"?"C":it.sym==="m"?"ƒ":"v"}</span>`:I(it.icon||"chevron-right","s14")}${it.cat?`<span class="cat">${esc(it.cat)}:</span>`:""}<span>${mk(it.label)}</span>${it.det?`<span class="det">${esc(it.det)}</span>`:""}<span class="kb">${it.key?it.key.split(" ").map(ch=>K(...ch.split("+"))).join(" "):""}</span></button>`).join("");
+  }
+  function dialog(){
+    const d=st.dialog; if(!d) return "";
+    if(d.kind==="approve-stage"||d.kind==="approve-commit"){
+      const commit=d.kind==="approve-commit";
+      return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-label="Approve Git action"${cls("A")}><header><span class="eyebrow" style="color:var(--status-ask)">Approval needed</span><h4>${commit?`Commit ${st.staged.length} staged file${st.staged.length>1?"s":""} on ${esc(st.ws.branch)}?`:`Stage ${esc(base(d.file))}?`}</h4></header>
+        <div class="body"><span>Studio will run this in <b style="color:var(--text-primary)">${esc(st.ws.name)}</b>:</span><pre class="mono" style="margin:0;padding:8px 10px;border-radius:6px;background:var(--bg-base);border:1px solid var(--border-subtle);color:var(--text-primary);font-size:12px;white-space:pre-wrap">${commit?`git commit -m "${esc(st.commitMsg||"Skip rest days when planning")}"`:`git add ${esc(d.file)}`}</pre><span>This uses the same approval as every other writable Git action. OLIVE's model can't approve it.</span></div>
+        <footer><button class="btn" data-act="dlg-no">Deny</button><button class="btn primary" data-act="dlg-yes">${commit?"Commit":"Stage"}</button></footer></div></div>`;
+    }
+    if(d.kind==="review"){
+      const ctx=[29,30,31,32];
+      return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-label="Review proposed change" style="width:720px"${cls("C")}><header><span class="eyebrow">Review proposed change · 1 file</span><h4>scheduler.py <span style="font-weight:500;color:var(--text-muted)">src/greenhouse</span></h4></header>
+        <div class="body" style="padding:0 0 8px"><div style="font:12.5px/20px var(--code);background:var(--bg-surface);border-block:1px solid var(--border-subtle)">${ctx.map(n=>`<div class="ln"><span class="num">${n}</span><span class="src" style="padding-left:14px">${hlPy(PY_SCHED.split("\n")[n-1])}</span></div>`).join("")}${FIX_LINES.map((l,i)=>`<div class="ln add"><span class="num" style="color:var(--status-success)">+${33+i}</span><span class="src" style="padding-left:14px">${hlPy(l)}</span></div>`).join("")}<div class="ln"><span class="num">35</span><span class="src" style="padding-left:14px">${hlPy(PY_SCHED.split("\n")[32])}</span></div></div>
+        <label style="display:flex;gap:8px;align-items:center;padding:8px 16px 0"><input type="checkbox" checked> Include scheduler.py</label></div>
+        <footer><span style="margin-right:auto;font-size:11.5px;color:var(--text-muted);align-self:center">Applying edits the editor buffer only. Save separately (Ctrl+S).</span><button class="btn" data-act="dlg-no">Cancel</button><button class="btn primary" data-act="apply">Apply to buffer</button></footer></div></div>`;
+    }
+    if(d.kind==="branches"){
+      return `<div class="pal" role="dialog" aria-label="Switch branch"${cls("A")}><label class="pin">${I("git-branch","s14")}<input value="" placeholder="Select a branch to checkout, or type a new branch name" aria-label="Branch"></label><div class="plist">
+        <div class="pg-h"><span>Branches</span></div>${["main","feature/rest-days","spike/budget-report"].map((b,i)=>`<button class="pi" aria-selected="${i===0}" data-act="dlg-no">${I("git-branch","s14")}<span>${b}</span>${i===0?'<span class="det">current</span>':""}</button>`).join("")}
+        <button class="pi" data-act="dlg-no">${I("git-branch-plus","s14")}<span>Create new branch…</span><span class="det">git create_branch</span></button></div></div>`;
+    }
+    return "";
+  }
+  function toast(){ return st.toast?`<div class="toast" role="status">${I("info","s14")} ${esc(st.toast)}</div>`:""; }
+
+  function render(){
+    const s=W();
+    let editorCol;
+    if(!st.ws) editorCol=welcome();
+    else editorCol=`${tabsBar()}${crumbs()}${notice()}${editorBody()}${st.panel?panel():""}`;
+    scaler.innerHTML=`<div class="ide p" style="width:${s.w}px;height:${s.h}px">${titlebar()}<div class="ide-body">${s.rail?grail():""}${abar()}${st.sideOpen?side():""}<div class="edcol" aria-label="Editor group">${editorCol}</div>${st.asst&&st.ws?asst():""}</div>${sbar()}${palette()}${dialog()}${toast()}</div>`;
+    icons(scaler); fit();
+    const th=scaler.querySelector("#thread"); if(th) th.scrollTop=th.scrollHeight;
+    if(opts.onRender) opts.onRender(st);
+  }
+  function focusPal(){ const i=scaler.querySelector("#palq"); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length);} }
+  let toastT;
+  function say(msg){ st.toast=msg; render(); clearTimeout(toastT); toastT=setTimeout(()=>{st.toast=null;render();},2600); }
+  function openFile(p,l){
+    if(!st.tabs.includes(p)) st.tabs.push(p);
+    st.active=p; st.hover=false;
+    if(l){ st.selection=null; }
+    render();
+  }
+  function runPal(i){
+    const it=paletteItems()[i]; st.palette=null; if(!it){render();return;}
+    if(it.k==="file"){ openFile(it.f.p); return; }
+    if(it.k==="sym"||it.k==="line"){ say(it.k==="sym"?`Jumps to ${it.label}`:"Go to line (Monaco)"); return; }
+    const name=it.label;
+    const map={"Start Debugging":"debug","Run All Tests":"testing","Run Failed Tests":"testing","Build Solution":"build","Search: Find in Files":"search","View: Show Source Control":"git","Git: Commit Staged…":"git","View: Show Run and Debug":"debug","View: Show Testing":"testing","Remote Studio: Open Shared Workspace…":"remote","OLIVE: Ask About Selection":"assistant","OLIVE: Suggest Fix for Failing Test":"assistant","Run Project":"run"};
+    if(map[name]){ opts.goScenario?opts.goScenario(map[name]):api.set(map[name]); return; }
+    if(name==="View: Toggle Primary Side Bar"){st.sideOpen=!st.sideOpen;render();return;}
+    if(name==="View: Toggle Panel"){st.panel=st.panel?null:"problems";render();return;}
+    if(name==="View: Toggle OLIVE"){st.asst=!st.asst;render();return;}
+    if(name.startsWith("Terminal")){st.panel="terminal";render();return;}
+    say(`${name} → ${it.c[3]} (${it.cls==="A"?"exists today":"class "+it.cls})`);
+  }
+
+  /* ---- events ---- */
+  scaler.addEventListener("click",e=>{
+    const el=e.target.closest("[data-act]"); if(!el||!scaler.contains(el)) return;
+    const a=el.dataset.act, v=el.dataset.v, p=el.dataset.p;
+    if(el.disabled) return;
+    e.stopPropagation();
+    switch(a){
+      case "view": if(st.view===v&&st.sideOpen) st.sideOpen=false; else {st.view=v;st.sideOpen=true;} render(); break;
+      case "fold": st.open.has(p)?st.open.delete(p):st.open.add(p); render(); break;
+      case "collapseall": st.open.clear(); render(); break;
+      case "open": openFile(p,el.dataset.l); break;
+      case "opendiff": openFile("@diff:"+p); break;
+      case "tab": st.active=p; st.hover=false; render(); break;
+      case "close": { const i=st.tabs.indexOf(p); st.tabs.splice(i,1); if(st.active===p) st.active=st.tabs[Math.max(0,i-1)]||null; render(); break; }
+      case "sec": st.collapsed.has(v)?st.collapsed.delete(v):st.collapsed.add(v); render(); break;
+      case "panel": st.panel=v||null; render(); break;
+      case "asst": st.asst=!st.asst; render(); break;
+      case "asst-open": st.asst=true; st.ctx.sel=true; render(); break;
+      case "palette": st.palette={q:el.dataset.q!=null?el.dataset.q:">",sel:0}; render(); focusPal(); break;
+      case "palrun": runPal(+el.dataset.i); break;
+      case "remote": if(opts.goScenario&&st.sc!=="states") opts.goScenario(v==="1"?"remote":"editor"); else api.set(v==="1"?"remote":"editor"); break;
+      case "scenario": opts.goScenario?opts.goScenario(v):api.set(v); break;
+      case "toast": say(el.dataset.msg); break;
+      case "bp": { if(st.remote) {say("Breakpoints need the local debugger");break;} const l=+el.dataset.l,f=el.dataset.f; const i=st.bps.findIndex(b=>b.f===f&&b.l===l); if(i>=0) st.bps.splice(i,1); else st.bps.push({f,l}); render(); break; }
+      case "rmbp": { const i=st.bps.findIndex(b=>b.f===el.dataset.f&&b.l===+el.dataset.l); if(i>=0) st.bps.splice(i,1); render(); break; }
+      case "debug": if(st.remote) break; st.paused=true; st.view="debug"; st.sideOpen=true; st.panel="console"; if(!st.tabs.includes("src/greenhouse/scheduler.py")&&st.wsId==="py") st.tabs.unshift("src/greenhouse/scheduler.py"); if(st.wsId==="py") st.active="src/greenhouse/scheduler.py"; st.selection=null; st.hover=false; render(); break;
+      case "continue": st.paused=false; st.consoleLines.push(["","Program exited with code 0"]); say("Continued · the session ended (exit 0)"); break;
+      case "step": st.dbgLine=st.dbgLine===36?33:st.dbgLine===33?35:36; render(); break;
+      case "stop": if(st.running){st.running=false;st.term.push(["mu","\n[program stopped]"]);} st.paused=false; st.testsRunning=false; render(); break;
+      case "run": if(st.wsId==="net"){ st.running=true; st.panel="terminal"; st.term=[["mu","$ dotnet run --project src/Acme.Inventory.Cli"],["","Loaded 2 items."],["","SKU to look up (blank to quit): "]]; render(); } else { st.panel="terminal"; st.term=[["mu","$ python main.py"],["","Zone to inspect: "]]; st.running=true; render(); } break;
+      case "build": st.built="ok"; st.panel="output"; say("Build started → project.build (existing)"); break;
+      case "togglebuild": st.built=st.built==="ok"?"fail":"ok"; render(); break;
+      case "runtests": st.testsRunning=true; if(st.view!=="testing"){st.view="testing";st.sideOpen=true;} render(); setTimeout(()=>{st.testsRunning=false; st.tests=st.fixed?"passed":"failed"; render();},1400); break;
+      case "failedonly": st.failedOnly=!st.failedOnly; render(); break;
+      case "stage": st.dialog={kind:"approve-stage",file:p}; render(); break;
+      case "stageall": st.dialog={kind:"approve-stage",file:st.changes.join(" ")}; render(); break;
+      case "commit": { const m=scaler.querySelector("#commitmsg"); st.commitMsg=m?m.value:st.commitMsg; st.dialog={kind:"approve-commit"}; render(); break; }
+      case "branches": st.dialog={kind:"branches"}; render(); break;
+      case "dlg-no": st.dialog=null; render(); break;
+      case "dlg-yes": { const d=st.dialog; st.dialog=null; if(d.kind==="approve-stage"){ for(const f of d.file.split(" ")){ st.changes=st.changes.filter(x=>x!==f); if(!st.staged.includes(f)) st.staged.push(f);} say("Staged · git add completed"); } else { st.staged=[]; st.commitMsg=""; say("Committed · git commit completed"); } break; }
+      case "ctx": st.ctx[v]=!st.ctx[v]; render(); break;
+      case "quick": ask(v==="Suggest fix"?"Suggest a fix for the failing test.":v==="Explain error"?"Explain the first problem in Problems.":`${v} for the ${st.ctx.sel&&st.selection?"selected code":"current file"}.`, v==="Suggest fix"); break;
+      case "ask": { const t=scaler.querySelector("#asktext"); if(t&&t.value.trim()) ask(t.value.trim(),false); break; }
+      case "stopgen": { const m=st.thread[st.thread.length-1]; if(m){m.streaming=false; m.html+=`<p style="color:var(--text-muted);font-size:11.5px">Stopped · partial answer kept</p>`;} st.streaming=false; clearTimeout(streamT); render(); break; }
+      case "review": st.dialog={kind:"review"}; render(); break;
+      case "discardprop": { const m=st.thread.find(x=>x.proposal); if(m) m.proposal=false; render(); break; }
+      case "apply": st.dialog=null; st.fixed=true; st.dirty.add("src/greenhouse/scheduler.py"); if(!st.tabs.includes("src/greenhouse/scheduler.py")) st.tabs.push("src/greenhouse/scheduler.py"); st.active="src/greenhouse/scheduler.py"; st.selection=null; say("Applied to buffer · press Ctrl+S to save"); break;
+      case "smode": st.searchMode=v; render(); break;
+      case "clearsearch": st.query=""; render(); break;
+      case "goto": say(`Jumps to line ${el.dataset.l}`); break;
+    }
+  });
+  let streamT;
+  function ask(text,proposal){
+    st.asst=true;
+    st.thread.push({me:true,text});
+    const full=proposal?defaultThread()[1].html:`<p>${st.ctx.sel&&st.selection?"The selected loop":"This file"} walks every zone's days and accumulates <code>used</code> per day. It raises <code>ValueError</code> as soon as a day would exceed <code>budget_minutes</code>, so the plan is all-or-nothing. It does not skip <code>REST_DAYS</code>, which is why Sunday slots appear.</p>`;
+    const m={me:false,model:"OLIVE MAX",where:"This device",secs:"",html:"",streaming:true,proposal:false};
+    st.thread.push(m); st.streaming=true; render();
+    const words=full.split(/(?<=\s)/); let i=0;
+    const tick=()=>{ i=Math.min(words.length,i+6); m.html=words.slice(0,i).join(""); if(i>=words.length){m.streaming=false;st.streaming=false;m.secs="5.9 s";m.proposal=proposal; if(proposal) m.html=full; render(); return;} render(); streamT=setTimeout(tick,110); };
+    streamT=setTimeout(tick,200);
+  }
+  scaler.addEventListener("input",e=>{
+    if(e.target.id==="palq"){ st.palette.q=e.target.value; st.palette.sel=0; const l=scaler.querySelector("#plist"); l.innerHTML=paletteList(); icons(l); }
+    if(e.target.id==="srchq"){ st.query=e.target.value; const pos=e.target.selectionStart; render(); const n=scaler.querySelector("#srchq"); if(n){n.focus();n.setSelectionRange(pos,pos);} }
+    if(e.target.id==="commitmsg"){ st.commitMsg=e.target.value; }
+  });
+  host.addEventListener("keydown",e=>{
+    const k=e.key, c=e.ctrlKey||e.metaKey;
+    if(st.palette&&e.target.id==="palq"){
+      if(k==="ArrowDown"){st.palette.sel=Math.min((st.palette.count||1)-1,st.palette.sel+1);refreshPal();e.preventDefault();}
+      else if(k==="ArrowUp"){st.palette.sel=Math.max(0,st.palette.sel-1);refreshPal();e.preventDefault();}
+      else if(k==="Enter"){runPal(st.palette.sel);e.preventDefault();}
+      else if(k==="Escape"){st.palette=null;render();host.focus();e.preventDefault();}
+      return;
+    }
+    if(k==="Escape"&&(st.dialog||st.palette)){st.dialog=null;st.palette=null;render();host.focus();return;}
+    if(e.target.dataset&&e.target.dataset.term){
+      if(!st.running) return;
+      if(k==="Enter"){ const v=st.termIn; st.termIn=""; const last=st.term[st.term.length-1]; last[1]+=v;
+        if(st.wsId==="net"){ if(!v.trim()){ st.term.push(["mu","[program exited with code 0]"]); st.running=false; } else { const hit={"ac-1042":"AC-1042 · Soil moisture sensor · 38 in stock","ac-2210":"AC-2210 · Drip line 16 mm · 120 in stock"}[v.trim().toLowerCase()]; st.term.push(["",hit||`No item with SKU ${v.trim()}.`]); st.term.push(["","SKU to look up (blank to quit): "]); } }
+        else { st.term.push(["",v.trim()==="bed-03"?"Mon: 25 minutes\nWed: 25 minutes\nSun: 25 minutes":"(no slots)"]); st.term.push(["mu","[program exited with code 0]"]); st.running=false; }
+        render(); const t=scaler.querySelector("[data-term]"); if(t) t.focus(); e.preventDefault(); return; }
+      if(k==="Backspace"){ st.termIn=st.termIn.slice(0,-1); render(); const t=scaler.querySelector("[data-term]"); if(t) t.focus(); e.preventDefault(); return; }
+      if(k.length===1&&!c){ st.termIn+=k; render(); const t=scaler.querySelector("[data-term]"); if(t) t.focus(); e.preventDefault(); return; }
+      return;
+    }
+    if(e.target.id==="asktext"&&c&&k==="Enter"){ if(e.target.value.trim()) ask(e.target.value.trim(),false); e.preventDefault(); return; }
+    if(e.target.id==="commitmsg"&&c&&k==="Enter"){ st.commitMsg=e.target.value; if(st.staged.length){st.dialog={kind:"approve-commit"};render();} e.preventDefault(); return; }
+    if(e.target.id==="dbgin"&&k==="Enter"){ const v=e.target.value.trim(); if(v){ st.consoleLines.push(["›",v]); st.consoleLines.push(["",v==="day"?"'Sun'":v==="zone.name"?"'bed-03'":v.includes("REST")?"frozenset({'Sun'})":"<evaluated in frame plan>"]); render(); const n=scaler.querySelector("#dbgin"); if(n) n.focus(); } e.preventDefault(); return; }
+    if(["INPUT","TEXTAREA"].includes(e.target.tagName)) return;
+    if(c&&e.shiftKey&&(k==="P"||k==="p")){ api.openPalette(">"); e.preventDefault(); }
+    else if(c&&!e.shiftKey&&(k==="p"||k==="P")){ api.openPalette(""); e.preventDefault(); }
+    else if(c&&!e.shiftKey&&k==="t"){ api.openPalette("#"); e.preventDefault(); }
+    else if(c&&e.altKey&&(k==="b"||k==="B")){ st.asst=!st.asst; render(); e.preventDefault(); }
+    else if(c&&!e.shiftKey&&(k==="b"||k==="B")){ st.sideOpen=!st.sideOpen; render(); e.preventDefault(); }
+    else if(c&&(k==="j"||k==="J")){ st.panel=st.panel?null:"problems"; render(); e.preventDefault(); }
+    else if(c&&k==="`"){ st.panel="terminal"; render(); e.preventDefault(); }
+    else if(c&&e.shiftKey&&"EFGD".includes(k.toUpperCase())){ st.view={E:"explorer",F:"search",G:"scm",D:"debug"}[k.toUpperCase()]; st.sideOpen=true; render(); e.preventDefault(); }
+    else if(c&&(k==="s"||k==="S")){ if(st.remote){ st.remoteSave=true; say("Saving · waiting for approval on Gaming PC (Ask)"); } else { st.dirty.clear(); say("Saved · hash-checked write"); } e.preventDefault(); }
+    else if(k==="F5"&&st.paused){ scaler.querySelector('[data-act="continue"]').click(); e.preventDefault(); }
+    else if(k==="F10"&&st.paused){ st.dbgLine=st.dbgLine===36?33:st.dbgLine===33?35:36; render(); e.preventDefault(); }
+  });
+  function refreshPal(){ const l=scaler.querySelector("#plist"); if(l){ l.innerHTML=paletteList(); icons(l); const s=l.querySelector('[aria-selected="true"]'); if(s) s.scrollIntoView({block:"nearest"}); } }
+  function fixedSched(){ const L=PY_SCHED.split("\n"); L.splice(32,0,...FIX_LINES); return L.join("\n"); }
+  render();
+  return api;
+}
+const DIFF_LINES = `@@ -8,6 +8,7 @@ from .zones import Zone
+
+ REST_DAYS = frozenset({"Sun"})
++WEEK = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+ @dataclass(frozen=True)
+@@ -36,3 +37,10 @@ class Scheduler:
+                 slots.append(Slot(zone.name, day, zone.minutes))
+         return slots
++
++    def next_run(self, today: date) -> date:
++        for offset in range(1, 8):
++            candidate = date.fromordinal(today.toordinal() + offset)
++            if WEEK[candidate.weekday()] not in REST_DAYS:
++                return candidate
++        raise RuntimeError("no watering day in the next week")`.split("\n");
+
+/* ------------------------------------------------------------- page wiring */
+const pageRoot=document.documentElement;
+let cur="editor", size="1440";
+const frame=document.getElementById("mainFrame");
+const main=createIDE(frame,{scenario:cur,size,goScenario:go,onRender:meta});
+function go(id){ cur=id; main.set(id,size); syncNav(); notes(); try{history.replaceState(null,"","#"+id);}catch(e){} }
+function syncNav(){ document.querySelectorAll("#scnav button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.sc===cur))); document.querySelectorAll("[data-size]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.size===size))); }
+const scnav=document.getElementById("scnav");
+scnav.innerHTML=SCEN.map(s=>`<button data-sc="${s.id}">${s.label}</button>`).join("");
+scnav.addEventListener("click",e=>{const b=e.target.closest("button[data-sc]"); if(b) go(b.dataset.sc);});
+document.querySelectorAll("[data-size]").forEach(b=>b.addEventListener("click",()=>{size=b.dataset.size; main.size(size); syncNav();}));
+const clsBtn=document.getElementById("clsToggle");
+clsBtn.addEventListener("click",()=>{const on=!pageRoot.classList.contains("show-cls"); pageRoot.classList.toggle("show-cls",on); clsBtn.setAttribute("aria-pressed",String(on)); try{localStorage.setItem("olive-v2-cls",on?"1":"0");}catch(e){} });
+try{ if(localStorage.getItem("olive-v2-cls")==="1"){ pageRoot.classList.add("show-cls"); clsBtn.setAttribute("aria-pressed","true"); } }catch(e){}
+document.getElementById("palBtn").addEventListener("click",()=>{ frame.scrollIntoView({block:"nearest"}); main.openPalette(">"); });
+function meta(st){
+  const s=SIZES[st.size]; const ed=s.w-(s.rail?48:0)-44-(st.sideOpen?s.sb:0)-(st.asst&&st.ws?s.as:0);
+  document.getElementById("mockMeta").innerHTML=`<span>Logical window <b>${s.w}×${s.h}</b></span><span>OLIVE rail <b>${s.rail?"48 px (collapsed)":"hidden · title-bar switcher"}</b></span><span>Sidebar <b>${st.sideOpen?s.sb+" px":"closed"}</b></span><span>OLIVE <b>${st.asst&&st.ws?s.as+" px":"closed"}</b></span><span>Panel <b>${st.panel&&st.ws?s.pn+" px":"closed"}</b></span><span>Editor width <b style="color:${ed<560?"var(--pg-err)":"inherit"}">${ed} px</b> (minimum 560)</span>`;
+}
+function notes(){
+  const sc=SCEN.find(s=>s.id===cur);
+  let sub="";
+  if(cur==="states") sub=`<div class="subnav" role="group" aria-label="State">${SUBSTATES.map(([v,l])=>`<button data-sub="${v}" aria-pressed="${main.state.sub===v}">${l}</button>`).join("")}</div>`;
+  document.getElementById("scNotes").innerHTML=`<span class="eyebrow">${esc(sc.label)}</span>${sc.notes.map(n=>`<p style="margin:0">${n}</p>`).join("")}${sub}<strong style="margin-top:4px">Try</strong><ul>${sc.tryit.map(t=>`<li>${t}</li>`).join("")}</ul>`;
+  document.getElementById("scCls").innerHTML=`<span class="eyebrow">Implementation reality · ${esc(sc.label)}</span><div class="tbl-wrap" style="border:0"><table class="tbl"><thead><tr><th>Element</th><th>Class</th><th>Basis</th></tr></thead><tbody>${(SCLS[cur]||[]).map(([a,c,b])=>`<tr><td>${esc(a)}</td><td><span class="cls ${c}">${c}</span></td><td>${esc(b)}</td></tr>`).join("")}</tbody></table></div>`;
+  const sn=document.querySelector("#scNotes .subnav"); if(sn) sn.addEventListener("click",e=>{const b=e.target.closest("button[data-sub]"); if(!b) return; main.sub(b.dataset.sub); sn.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));});
+}
+const initial=(location.hash||"").slice(1); if(SCEN.some(s=>s.id===initial)) cur=initial;
+go(cur);
+
+/* ---- compare section ---- */
+const CMP=[
+ {id:"editor",img:"04-studio-editor.jpg",title:"Editor and shell at 1440×900",sc:"editor",sz:"1440",why:[
+   "<b>+17% editor width, +4.5% height.</b> Current editor viewport is 978×754 px (it starts at x=462 behind the 232 px OLIVE navigation and the Explorer, and at y=118 behind the Local/Remote row and the toolbar). Proposed: 1140×788 px with the OLIVE rail folded into the title bar.",
+   "<b>One row of chrome instead of three.</b> Local/Remote, workspace, run controls, activity and OLIVE share one 34 px title bar. Today a 42 px row holds only two buttons.",
+   "<b>Panel tabs leave the status bar.</b> Terminal/Problems/Tests/Output/Git/Debug currently live in the status strip beside status text, which mixes navigation with information. The status bar now carries only status.",
+   "<b>No absolute path in the status bar.</b> The interpreter shows as <code>3.14.7 (.venv)</code>, not the absolute interpreter path.",
+   "<b>Familiar placement.</b> Explorer, tabs, breadcrumbs, Problems and the status-bar order match VS Code, so there is nothing to relearn."]},
+ {id:"small",img:"06-studio-1366.jpg",title:"Toolbar at 1366×768",sc:"editor",sz:"1366",why:[
+   "<b>The toolbar no longer wraps.</b> At 1366 the current toolbar breaks onto a second row, and the editor starts at y=154. Proposed: icon-only run controls with tooltips keep the title bar to one 34 px row, and the editor starts at y=90 (+70 px, +12% height).",
+   "<b>+178 px editor width</b> (904 → 1082 px) because the OLIVE rail folds away below 1600 px."]},
+ {id:"git",img:"10-git.jpg",title:"Source control",sc:"git",sz:"1440",why:[
+   "<b>Changes are visible without a click.</b> Today the Git panel is seven buttons ('Working changes', 'Staged changes', 'Review staging selected file'…). You press a button to find out what changed. Proposed: two lists with status letters, always present.",
+   "<b>Per-file actions where the file is.</b> Stage and Open changes sit on the row, so you no longer open the file first and then press 'Review staging selected file'.",
+   "<b>The same backend.</b> It uses only status, diff, add, commit, log, branch_list, create_branch and checkout, with the existing approval."]},
+ {id:"debug",img:"11-debug.jpg",title:"Debugging",sc:"debug",sz:"1440",why:[
+   "<b>Inspection no longer competes with the code.</b> Today Call Stack and Variables share the ~240 px bottom dock with the editor. Proposed: they get the full sidebar height, and the editor and Debug Console stay visible.",
+   "<b>Step controls stay where your eyes are.</b> A floating toolbar over the editor, with the standard F5/F10/F11 order.",
+   "<b>Breakpoints become a visible list.</b> Conditional (diamond) and unverified (hollow) breakpoints are distinguishable."]},
+ {id:"testing",img:"09-tests.jpg",title:"Testing",sc:"testing",sz:"1440",why:[
+   "<b>Kept:</b> Run all / Run failed / Run selected / Discover, counts, durations and source links are already good, and they stay.",
+   "<b>Refined:</b> a tree grouped by file and class scales past a handful of tests, and failure messages show inline under the failing test. The job header (state, exit code, elapsed time) separates the result from raw output."]},
+ {id:"assistant",img:"14-assistant.jpg",title:"OLIVE assistant",sc:"assistant",sz:"1440",why:[
+   "<b>Explicit context.</b> Today the selection 'travels with the request', but the UI shows only a file chip. Proposed: every item sent is a visible, removable chip.",
+   "<b>A thread, not a single reply.</b> Today only the latest response appears. Proposed: a conversation, with model and device attribution on every answer.",
+   "<b>Changes arrive as proposals.</b> Proposed change → Review → Apply to buffer → explicit Save. Nothing is written silently.",
+   "<b>OLIVE identity without an AI dashboard.</b> The olive mark and cyan 'will be sent' chips are the only accents. The editor stays primary."]}
+];
+const cmpList=document.getElementById("cmpList");
+cmpList.innerHTML=CMP.map(c=>`<div class="pair"><h3>${c.title}</h3><div class="cmp"><figure><img class="shot" src="v2-baseline/${c.img}" alt="Current OLIVE Studio: ${c.title}" loading="lazy"><figcaption><b>Current</b> Captured from the app on this branch</figcaption></figure><figure><div class="mini-frame" id="mini-${c.id}"><div class="scaler"></div></div><figcaption><b>Proposed</b> Interactive · same logical size</figcaption></figure></div><ul class="why">${c.why.map(w=>`<li>${w}</li>`).join("")}</ul></div>`).join("");
+const minis=[];
+const io=new IntersectionObserver(es=>{ for(const e of es){ if(e.isIntersecting&&!e.target.dataset.done){ e.target.dataset.done="1"; const c=CMP.find(x=>"mini-"+x.id===e.target.id); minis.push(createIDE(e.target,{scenario:c.sc,size:c.sz})); } } },{rootMargin:"400px"});
+CMP.forEach(c=>io.observe(document.getElementById("mini-"+c.id)));
+setTimeout(()=>{ for(const c of CMP){ const el=document.getElementById("mini-"+c.id); if(!el.dataset.done){ el.dataset.done="1"; minis.push(createIDE(el,{scenario:c.sc,size:c.sz})); } } },2500);
+
+const EVAL=[
+ ["Information density","Large text buttons; 42 px row for two buttons; Git as buttons","Compact 28/24 px controls, 22 px rows, one title bar","Editor area +17% width, +4.5% height at 1440"],
+ ["Task efficiency","Stage = open file → Git tab → 'Review staging selected file'","Hover row → +","3 steps become 1; changes visible without clicking"],
+ ["Visual hierarchy","Toolbar buttons, dock tabs and status compete at the same weight","Editor brightest; chrome recedes; accents only for state","Surface ladder base → panel → surface"],
+ ["Consistency","Studio-only patterns (dock tabs in status strip)","The same title bar, segmented control and status semantics as the rest of OLIVE V2","Shared tokens"],
+ ["Scalability","Every new tool adds a toolbar button or a dock tab","New tools become activity-bar views or palette commands","Palette and activity bar absorb growth"],
+ ["Accessibility","Disabled Stop looks like a checkbox; status colour-only in places","Icon + text for every status; 24 px minimum targets; visible focus","WCAG 2.2 target size, 1.4.1 use of colour"],
+ ["Familiarity","IDE users hunt for Explorer/SCM/Debug","VS Code information architecture and shortcuts","Zero relearning for VS Code users"],
+ ["OLIVE identity","Generic dark UI; the 'Ask OLIVE' button is the only identity","Olive mark, OLIVE sidebar, truthful model/device attribution, Core","Identity comes from behaviour, not paint"]
+];
+document.getElementById("evalTbl").innerHTML=`<thead><tr><th>Criterion</th><th>Current</th><th>Proposed</th><th>Evidence</th></tr></thead><tbody>${EVAL.map(r=>`<tr>${r.map((x,i)=>`<td>${i===0?`<b>${x}</b>`:esc(x)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+
+document.getElementById("propTbl").innerHTML=`<thead><tr><th>Region</th><th>1920×1080</th><th>1440×900</th><th>1366×768</th></tr></thead><tbody>${[
+ ["Title bar","34","34","34 (icon-only run controls)"],["OLIVE rail","48 (collapsed)","hidden","hidden"],["Activity bar","44","44","44"],["Primary sidebar","280 (200–480)","256","240"],["Editor minimum","560","560","560"],["OLIVE sidebar","380 docked","340 docked","320 docked, overlay if editor < 560"],["Tabs / breadcrumbs","32 / 24","32 / 24","32 / 24"],["Panel","280","236","200 (max 40%)"],["Status bar","22","22","22"],["Minimap","on","off","off"]
+].map(r=>`<tr>${r.map((x,i)=>`<td>${i?esc(x):`<b>${x}</b>`}</td>`).join("")}</tr>`).join("")}</tbody>`;
+
+const INV=[
+ ["Title bar","Space switcher, workspace, Local/Remote, command centre, run controls, Core, OLIVE toggle","Existing workspace selector, RemoteStudio switch, run/debug/test/stop handlers","B"],
+ ["Window controls in title bar","Minimise / maximise / close in the 34 px bar","Electron titleBarOverlay (Windows) / frameless (Linux)","C"],
+ ["Activity bar","Explorer, Search, Source Control, Run and Debug, Testing, Settings","Layout only","B"],
+ ["Explorer · tree","Nested folders, selection, expand/collapse, New file, Refresh","studio.tree, Explorer component","A"],
+ ["Explorer · Open Editors","Open buffers with dirty dot","Open-file map","B"],
+ ["Explorer · Git and diagnostic decorations","M/U/A/D letters, error tint","studio.git status, Problems","B"],
+ ["Explorer · Outline","Classes, functions, fields","LSP documentSymbol","B"],
+ ["Explorer · Solution (.NET)","Projects, startup project","ProjectPanel / project.scan","A"],
+ ["Editor tabs","Active, preview, dirty, close, overflow","Existing tab model","A"],
+ ["Breadcrumbs","Path › symbol","documentSymbol","B"],
+ ["Editor","Monaco, line numbers, glyph margin, diagnostics, hover, code actions","Existing Monaco + LSP","A"],
+ ["Minimap","Wide windows only","Monaco option","A"],
+ ["Split editor","Two editor groups","One editor host today","D"],
+ ["Search view","Text (studio.search) / Symbols (workspaceSymbol)","Both exist today (Workspace actions sheet; Explorer symbol box)","B"],
+ ["Search options / replace","Case, word, regex, globs, replace","Not in backend","C / D"],
+ ["Source Control","Branch, commit box, Staged, Changes, Commits","studio.git status/diff/add/commit/log/branch_*","B"],
+ ["Diff tab","Read-only unified diff","studio.git diff","B"],
+ ["Side-by-side diff","Against HEAD","Needs HEAD content","C"],
+ ["Run and Debug","Config, Start, Variables, Watch, Call Stack, Breakpoints, Exception filters","useDebugger (DAP) — debugpy, netcoredbg","B"],
+ ["Debug toolbar","Continue/Pause, Step Over/Into/Out, Stop","debug.step / debug.stop","A"],
+ ["Testing","Tree, run all/failed/selected, discover, filter, messages","TestsPanel / project.test","B"],
+ ["Panel · Problems","Grouped by file, jump to location","useProblems","A"],
+ ["Panel · Output","Channels, job header, raw output","Output channels + job record","B"],
+ ["Panel · Terminal","Native PTY sessions, list, new, kill","terminal.open/write/resize/close","A"],
+ ["Panel · Debug Console","Evaluate in frame","DAP evaluate","B"],
+ ["Panel · Local preview / References","Appears only when present","WebPanel, findReferences","A"],
+ ["Status bar","Remote, branch, problems, debug state, Ln/Col, spaces, UTF-8, EOL, language, interpreter, LSP, save state","Existing strip items + Monaco state","B"],
+ ["Command palette","Files / > commands / # symbols / @ file symbols / : line","Existing global palette + Studio command registry","B"],
+ ["OLIVE sidebar","Context chips, quick actions, thread, proposals, composer","StudioAssistant, chat submit/cancel","B"],
+ ["Proposed-change review","Per-file diff, Apply to buffer","EditPreview (LSP) — model edits need routing","C"],
+ ["Approval dialogs","Git writes, test command review","Existing approval flow","A"],
+ ["Remote mode","Remote indicator, permission chips, pending approval","RemoteStudio exchange + share permissions","B"]
+];
+document.getElementById("invTbl").innerHTML=`<thead><tr><th>Component</th><th>Contents / behaviour</th><th>Existing source</th><th>Class</th></tr></thead><tbody>${INV.map(([a,b,c,d])=>`<tr><td><b>${esc(a)}</b></td><td>${esc(b)}</td><td>${esc(c)}</td><td>${d.split(" / ").map(x=>`<span class="cls ${x}">${x}</span>`).join(" ")}</td></tr>`).join("")}</tbody>`;
+
+const KEYS=[
+ ["Command palette","Ctrl+Shift+P","Exists (global)","A"],["Go to file","Ctrl+P","New binding","B"],["Workspace symbol","Ctrl+T","Existing search, new binding","B"],["Symbol in file","Ctrl+Shift+O","documentSymbol","B"],["Go to line","Ctrl+G","Monaco","A"],
+ ["Save / Save all","Ctrl+S / Ctrl+K S","Save exists","A"],["Close tab / next tab","Ctrl+W / Ctrl+Tab","Tab model","B"],
+ ["Explorer / Search / Source Control / Run and Debug","Ctrl+Shift+E / F / G / D","Layout","B"],["Toggle sidebar / panel / OLIVE","Ctrl+B / Ctrl+J / Ctrl+Alt+B","Layout","B"],["Focus terminal / new terminal","Ctrl+` / Ctrl+Shift+`","terminal.open","B"],
+ ["Build","Ctrl+Shift+B","Exists","A"],["Run without debugging","Ctrl+F5","studio.run","B"],["Start / continue debugging","F5","Exists","A"],["Stop","Shift+F5","Exists","A"],["Step over / into / out","F10 / F11 / Shift+F11","Exist","A"],["Toggle breakpoint","F9","dap.breakpoints","B"],
+ ["Next / previous problem","F8 / Shift+F8","Problems store","B"],["Rename / references / definition","F2 / Shift+F12 / F12","LSP","A"],["Quick fix / format","Ctrl+. / Shift+Alt+F","LSP","A"],
+ ["Ask OLIVE about selection","Ctrl+Alt+I","Assistant","B"],["Send in OLIVE / commit","Ctrl+Enter","Exists in assistant","A"],["Close overlay","Esc","—","A"],["New project","Ctrl+Alt+N","Exists","A"]
+];
+document.getElementById("keyTbl").innerHTML=`<thead><tr><th>Action</th><th>Shortcut</th><th>Basis</th><th>Class</th></tr></thead><tbody>${KEYS.map(([a,k,b,c])=>`<tr><td>${esc(a)}</td><td><span class="kbdrow">${k.split(" / ").map(x=>x.split(" ").map(ch=>ch.split("+").map(y=>`<kbd>${esc(y)}</kbd>`).join("")).join(" ")).join(" &nbsp;/&nbsp; ")}</span></td><td>${esc(b)}</td><td><span class="cls ${c}">${c}</span></td></tr>`).join("")}</tbody>`;
+
+document.getElementById("cmdTbl").innerHTML=`<thead><tr><th>Command</th><th>Shortcut</th><th>Calls</th><th>Class</th></tr></thead><tbody>${CMDS.map(c=>`<tr><td><span style="color:var(--pg-faint)">${esc(c[1])}:</span> ${esc(c[0])}</td><td>${c[2]?`<span class="kbdrow">${c[2].split(" ").map(ch=>ch.split("+").map(y=>`<kbd>${esc(y)}</kbd>`).join("")).join(" ")}</span>`:""}</td><td><code>${esc(c[3])}</code></td><td><span class="cls ${c[4]}">${c[4]}</span></td></tr>`).join("")}</tbody>`;
+
+const SAMPLES=[["Python","py","scheduler.py",PY_SCHED.split("\n").slice(20,38).join("\n")],["C#","cs","StockLedger.cs",CS_LEDGER.split("\n").slice(0,20).join("\n")],["JSON","json","zones.json",JSON_ZONES.trim()],["Markdown","md","README.md",MD_README.trim()]];
+document.getElementById("synGrid").innerHTML=SAMPLES.map(([n,l,f,c])=>{const st={fence:false};return `<div class="syn p"><div class="sh"><span class="ic s14 fi ${l}"><i data-lucide="${l==="md"?"file-text":l==="json"?"braces":"file-code-2"}"></i></span>${f}<span style="margin-left:auto;color:var(--text-muted)">${n}</span></div><div class="sb" style="font:13px/20px var(--code)">${c.split("\n").map((x,i)=>`<div class="ln"><span class="num">${i+1}</span><span class="src" style="padding-left:12px">${hl(l,x,st)}</span></div>`).join("")}</div></div>`;}).join("");
+icons(document.getElementById("synGrid"));
+
+document.getElementById("supList").innerHTML=["Approved local workspaces, file tree, open/edit/save with hash-checked writes, compare with disk","Monaco editor with Python (pylsp) and C# (OmniSharp-Roslyn): completion, hover, signature help, definition, references, rename with preview, document/workspace symbols, formatting, code actions, diagnostics","Build / Rebuild / Clean / Restore for .NET solutions; startup project and Debug/Release","Run in a native PTY (interactive input works); multiple terminal sessions; local web preview","Structured tests: discover, run all / failed / selected, durations, messages, stack traces","Debugging: debugpy and netcoredbg — breakpoints (with conditions), continue/pause/step, call stack, variables, watch, debug console, exception filters","Git: status, diff (working/staged), stage (add), commit, log, branch list/create/checkout — writes via approval","Workspace text search (studio.search) — today inside Workspace actions → Find in files","OLIVE assistant with current file + selection, Explain error, Review changes; edits through permissions and review","Remote Studio (C8): shared workspaces on a paired device — browse, read, save, build, test, run, cancel, gated per share"].map(x=>`<li>${esc(x)}</li>`).join("");
+document.getElementById("unsupList").innerHTML=["Extension marketplace (none exists, none is designed)","Split editor / multiple editor groups","Unstage, discard, stash, push, pull, sync, GitHub or any hosted Git service","Side-by-side diff against HEAD (needs a backend call)","Regex / whole-word / glob search and Replace in files","Enable/disable breakpoints, inline values, restart debug session, debugging a single test","Code intelligence, debugging, Git or terminals on Remote Studio workspaces","Model-driven file writes without review, or any model authority over the workspace","Encoding detection other than UTF-8 (Studio opens UTF-8 text only)"].map(x=>`<li>${esc(x)}</li>`).join("");
+
+if(location.protocol!=="file:"){ const a=document.getElementById("dsLink"); if(a){ a.href="https://claude.ai/artifact/3rsJqnim7cMm3mUFK5jJHs"; a.target="_blank"; a.rel="noopener"; } }
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1); if(SCEN.some(s=>s.id===h)&&h!==cur) go(h);});
+})();
+</script>
