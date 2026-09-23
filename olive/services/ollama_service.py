@@ -68,17 +68,23 @@ class OllamaService:
         is awaited inside the lease; a timeout is not proof of provider release.
         """
         budget = self.stream_budgets
-        deadline = time.monotonic() + budget.total_seconds
+        started = time.monotonic()
+        deadline = started + budget.total_seconds
+        startup_deadline = started + budget.startup_seconds
         parts = await asyncio.wait_for(self.client.chat(**kwargs, stream=True),
                                        min(budget.startup_seconds, budget.total_seconds))
         received = False
         try:
             while True:
-                remaining = deadline - time.monotonic()
+                now = time.monotonic()
+                remaining = deadline - now
                 if remaining <= 0:
                     raise TimeoutError("The local model exceeded the whole-request stream budget")
+                activity_budget = budget.inactivity_seconds if received else startup_deadline - now
+                if activity_budget <= 0:
+                    raise TimeoutError("The local model exceeded the stream startup budget")
                 try:
-                    part = await asyncio.wait_for(anext(parts), min(remaining, budget.inactivity_seconds if received else budget.startup_seconds))
+                    part = await asyncio.wait_for(anext(parts), min(remaining, activity_budget))
                 except StopAsyncIteration:
                     return
                 received = True

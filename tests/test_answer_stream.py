@@ -124,6 +124,19 @@ class MeasuredAnswerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(service.residency.lock.locked())
 
 class BoundedStreamTests(unittest.IsolatedAsyncioTestCase):
+    async def test_startup_budget_includes_stream_creation(self):
+        from unittest.mock import Mock, patch
+        from olive.services.ollama_service import StreamBudgets
+        parts = SimpleNamespace(aclose=AsyncMock())
+        service = OllamaService()
+        service.stream_budgets = StreamBudgets(10, 10, 100)
+        service.client = SimpleNamespace(chat=AsyncMock(return_value=parts))
+        clock = SimpleNamespace(monotonic=Mock(side_effect=[0, 11]))
+        with patch('olive.services.ollama_service.time', clock):
+            with self.assertRaisesRegex(TimeoutError, 'startup'):
+                await anext(service._bounded_stream())
+        parts.aclose.assert_awaited_once()
+
     async def test_inactivity_closes_owned_stream_and_next_request_works(self):
         import asyncio
         from olive.services.ollama_service import StreamBudgets
