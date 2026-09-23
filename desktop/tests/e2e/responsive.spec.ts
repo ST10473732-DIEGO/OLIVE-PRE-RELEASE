@@ -1,6 +1,6 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import path from "node:path";
-import { mkdtemp, mkdir } from "node:fs/promises";
+import { mkdtemp, mkdir, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { openSpace, showPanel } from "./shell";
@@ -15,6 +15,9 @@ test("window resizing reflows Home Chat and Studio while retaining editor conten
       { cwd: root },
     ).status,
   ).toBe(0);
+  // V2 exposes Stop only for active work. Hold an owned program at input so
+  // the existing Stop visibility assertion tests the actual runtime state.
+  await appendFile(path.join(profile, "fixture-workspace/main.py"), '\ninput("Resize acceptance: press Stop when finished")\n');
   const app = await electron.launch({
     args: [path.resolve(".")],
     env: { ...process.env, OLIVE_DATA_DIR: profile },
@@ -65,6 +68,9 @@ test("window resizing reflows Home Chat and Studio while retaining editor conten
     await editor.pressSequentially("# Preserved through resizing");
     // The tool dock is on-demand; open Output so it reflows with the window.
     await showPanel(page, "Output");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Stop program", exact: true })).toBeVisible();
     for (const [width, height] of [
       [1920, 1080],
       [1366, 768],
@@ -110,6 +116,7 @@ test("window resizing reflows Home Chat and Studio while retaining editor conten
         path: path.join(evidence, `studio-${width}.png`),
       });
     }
+    await page.getByRole("button", { name: "Stop program", exact: true }).click();
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "Approve this action", exact: true }),

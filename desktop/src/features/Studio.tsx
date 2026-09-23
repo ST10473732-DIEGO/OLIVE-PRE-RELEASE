@@ -339,6 +339,9 @@ function LocalStudio({
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [dock, setDock] = useState<DockTab | "">("");
   const [panelMax, setPanelMax] = useState(false);
+  useEffect(() => {
+    if (dock && layout.sidebarOverlay) setExplorer(false);
+  }, [dock, layout.sidebarOverlay]);
   const [terminalRequest, setTerminalRequest] = useState(0);
   const lastDock = useRef<DockTab>("problems");
   useEffect(() => {
