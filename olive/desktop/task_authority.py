@@ -41,7 +41,8 @@ def interpreted_scope(request, steps):
             if set(entities) != {'application'}:
                 raise ValueError('Unexpected application scope fields')
         elif intent == 'application.search':
-            if set(entities) != {'application', 'query'} or effect != 'open':
+            expected = {'query'} if app and 'application' not in entities else {'application', 'query'}
+            if set(entities) != expected or effect != 'open':
                 raise ValueError('Unexpected or repeated search effect')
             effect, content = 'search', entities['query']
         elif intent == 'application.control':
@@ -50,7 +51,10 @@ def interpreted_scope(request, steps):
             effect, content = 'click', entities['target']
         else:
             raise ValueError('This interpreted desktop effect is not implemented')
-        candidate = entities.get('application', '')
+        # A compound request can name the app in its launch step and omit it
+        # from the following search. Inherit only this proposal's verified app,
+        # never a prior conversation, observation, or model-supplied reference.
+        candidate = entities.get('application', app)
         if not isinstance(candidate, str) or not candidate or candidate.casefold() not in request.casefold() or app and app.casefold() != candidate.casefold():
             raise ValueError('The proposed application is outside the original request')
         app = candidate

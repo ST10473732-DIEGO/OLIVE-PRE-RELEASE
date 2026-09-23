@@ -48,6 +48,18 @@ class UnifiedAuthorityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             interpreted_scope(request, steps)
 
+    def test_compound_search_inherits_only_app_from_same_verified_request(self):
+        request = 'Could you bring up Firefox and look up glacier monitoring please?'
+        steps = [{'intent':'application.launch', 'entities':{'application':'Firefox'}, 'references':{}},
+                 {'intent':'application.search', 'entities':{'query':'glacier monitoring'}, 'references':{}}]
+        scope = interpreted_scope(request, steps)
+        self.assertEqual((scope.application, scope.effect, scope.content), ('Firefox', 'search', 'glacier monitoring'))
+        with self.assertRaises(ValueError):
+            interpreted_scope(request, steps[1:])
+        steps[1]['references'] = {'application':'application'}
+        with self.assertRaises(ValueError):
+            interpreted_scope(request, steps)
+
 
 class GuiProtocolTests(unittest.TestCase):
     def action(self, value):
