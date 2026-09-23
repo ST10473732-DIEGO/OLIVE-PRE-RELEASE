@@ -1,0 +1,45 @@
+"""One-step semantic suggestions for fields already fixed by the user's task.
+
+No new authority, coordinates, model call or app-specific path. Every suggestion
+still crosses the shared broker and a fresh native observation before execution.
+Missing or ambiguous semantics fall back to the bounded planner/handoff.
+"""
+from .task_authority import is_composer, is_search_control
+
+
+def next_step(scope, observation, submitted):
+    if submitted:
+        return None  # Verification, never a second submission, owns this phase.
+    controls = [c for c in observation['controls'] if c.get('enabled')]
+    if scope.effect == 'search':
+        candidates = [c for c in controls if is_search_control(c)]
+    elif scope.effect in {'send', 'draft'}:
+        context = {'account': scope.account, 'destination': scope.destination, 'server': scope.server}
+        if observation.get('destination') != context:
+            return None
+        candidates = [c for c in controls if is_composer(c)]
+    else:
+        return None
+    if len(candidates) != 1:
+        return None
+    target = candidates[0]
+    value = target.get('value', '')
+    if value and value != scope.content:
+        return None  # Never overwrite an unrelated draft/query.
+    if not target.get('focused'):
+        action, argument = 'focus', ''
+    elif not value:
+        action, argument = 'type', scope.content
+    elif scope.effect == 'draft':
+        action, argument = 'finish', ''
+    elif scope.effect == 'send':
+        buttons = [c for c in controls if c.get('name', '').strip().casefold() in {'send', 'send message'}]
+        if len(buttons) != 1:
+            return None  # Enter can insert a newline in an unknown messenger.
+        target = buttons[0]
+        advertised = [a for a in target.get('actions', []) if a in {'click', 'press', 'activate', 'invoke'}]
+        action, argument = ('invoke', advertised[0]) if len(advertised) == 1 else ('click', '')
+    else:
+        action, argument = 'key', 'Enter'
+    return dict(action=action, target=target['id'], value=argument,
+                revision=observation['revision'], expected='Verify the requested state after this step')

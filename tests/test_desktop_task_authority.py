@@ -29,6 +29,45 @@ class TaskAuthorityTests(unittest.TestCase):
         self.assertEqual(direct_scope('Open Firefox and search for Cape Town weather').content, 'Cape Town weather')
         self.assertEqual(direct_scope("Send 'Don\'t worry.\nSee you!' to Alex in Messenger using account Work").content, "Don't worry.\nSee you!")
         self.assertEqual(direct_scope('Open Kate').effect, 'open')
+        self.assertEqual(direct_scope('Please search for Cape Town weather in Firefox').content, 'Cape Town weather')
+        self.assertEqual(direct_scope("Open Discord, go to OLIVE Community, open development, send 'The new build is ready.'").account, '')
+
+    def test_omitted_account_is_narrowed_once_and_old_grant_is_invalid(self):
+        grant = self.grant("Send 'Exact text' to Alex in Messenger")
+        narrowed = self.authority.bind_account(grant, {'controls': [dict(name='Account: Work', role='label')]}, POLICY)
+        self.assertEqual(narrowed.scope.account, 'Work')
+        self.assertEqual(narrowed.request_digest, grant.request_digest)
+        self.assertEqual(narrowed.expires, grant.expires)
+        with self.assertRaises(InterruptedError):
+            self.authority.check(grant, POLICY)
+        self.assertIs(self.authority.bind_account(narrowed, {'controls': [dict(name='Account: Other', role='label')]}, POLICY), narrowed)
+
+    def test_missing_duplicate_or_message_claimed_account_cannot_bind(self):
+        for controls in ([], [dict(name='Account: Work', role='text')],
+                         [dict(name='Account: Work', role='label')] * 2):
+            grant = self.grant("Send 'Exact text' to Alex in Messenger")
+            with self.assertRaisesRegex(ValueError, 'NEEDS_USER_CLARIFICATION'):
+                self.authority.bind_account(grant, {'controls': controls}, POLICY)
+
+    def test_content_cannot_be_typed_into_wrong_destination_or_unrelated_field(self):
+        grant = self.grant()
+        for field in ('destination', 'target'):
+            observed = self.observation(grant)
+            observed['controls'][1]['value'] = ''
+            if field == 'destination':
+                observed['destination']['destination'] = 'Other recipient'
+            else:
+                observed['controls'][1]['name'] = 'Profile biography'
+            with self.assertRaises(PermissionError):
+                validate_effect(grant, dict(action='type', target='composer', value=grant.scope.content,
+                    revision='fresh', expected=''), observed)
+
+    def test_enter_on_unrelated_control_cannot_submit_a_valid_draft(self):
+        grant = self.grant()
+        observed = self.observation(grant)
+        observed['controls'].append(dict(id='other', name='OK', enabled=True))
+        with self.assertRaises(PermissionError):
+            validate_effect(grant, dict(action='key', target='other', value='Enter', revision='fresh', expected=''), observed)
 
     def test_scroll_is_strict_and_bounded(self):
         self.assertEqual(scroll_amount('-300'), -300)

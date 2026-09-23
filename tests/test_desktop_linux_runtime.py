@@ -7,7 +7,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from olive.application.service_container import ServiceContainer
 
@@ -24,6 +24,7 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
                                     keyboard_policy='allow', mouse_policy='allow'))
         self.runtime = self.desktop.linux
         self.runtime.prepare = AsyncMock()
+        self.runtime.activate_app = AsyncMock()
         self.runtime.native.call = AsyncMock(side_effect=self.dispatch)
         app = SimpleNamespace(name='Owned messenger', executable=Path(sys.executable))
         self.runtime.apps = SimpleNamespace(discover=Mock(), resolve=Mock(return_value=app), launch=Mock(return_value=[(123, 1)]))
@@ -111,7 +112,8 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_malformed_output_never_reaches_input(self):
         self.services.ollama.chat_once = AsyncMock(return_value='{"action":"shell","approved":true}')
-        await self.run_message()
+        with patch('olive.desktop.linux.runtime.next_step', return_value=None):
+            await self.run_message()
         self.assertEqual(self.actions, [])
         self.assertEqual(self.desktop.record.status, 'needs-human')
 
@@ -121,7 +123,8 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.change_destination = True
             return response
         self.services.ollama.chat_once.side_effect = changed
-        await self.run_message()
+        with patch('olive.desktop.linux.runtime.next_step', return_value=None):
+            await self.run_message()
         self.assertEqual(self.actions, [])
         self.assertEqual(self.desktop.record.status, 'needs-human')
 
@@ -139,12 +142,70 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
             entered.set()
             await asyncio.Event().wait()
         self.services.ollama.chat_once.side_effect = blocked
-        task = asyncio.create_task(self.run_message())
-        await entered.wait()
-        self.runtime.stop()
-        with self.assertRaises(asyncio.CancelledError):
-            await task
+        with patch('olive.desktop.linux.runtime.next_step', return_value=None):
+            task = asyncio.create_task(self.run_message())
+            await entered.wait()
+            self.runtime.stop()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
         self.assertEqual(self.actions, [])
         self.assertEqual(self.desktop.record.status, 'cancelled')
         self.assertIsNone(self.runtime.owner)
         self.runtime.native.call.assert_awaited_with('end', timeout=4)
+
+    async def test_moved_control_discards_old_proposal_and_replans(self):
+        observe = self.observe
+        async def moving(*args):
+            result = await observe(*args)
+            result['controls'][2]['bounds'][0] = 40 if self.revision >= 2 else 10
+            return result
+        self.runtime.observe_app.side_effect = moving
+        await self.run_message()
+        self.assertEqual(self.actions, ['type', 'key'])
+        self.assertEqual(self.desktop.record.status, 'completed')
+        self.assertEqual(sum(h['operation'] == 'reobserve' for h in self.desktop.record.history), 1)
+
+    async def test_continuously_moving_target_exhausts_replan_budget_without_input(self):
+        observe = self.observe
+        async def moving(*args):
+            result = await observe(*args)
+            result['controls'][2]['bounds'][0] = self.revision
+            return result
+        self.runtime.observe_app.side_effect = moving
+        await self.run_message()
+        self.assertEqual(self.actions, [])
+        self.assertEqual(self.desktop.record.status, 'needs-human')
+        self.assertEqual(sum(h['operation'] == 'reobserve' for h in self.desktop.record.history), 3)
+
+    async def test_semantic_send_button_needs_no_model_or_reconfirmation(self):
+        observe, dispatch = self.observe, self.dispatch
+        async def with_button(*args):
+            result = await observe(*args)
+            result['controls'].append(dict(id='send', name='Send', role='push button', enabled=True,
+                                           actions=['click'], bounds=[300, 10, 40, 40]))
+            return result
+        async def submit(method, args=None, **kwargs):
+            result = await dispatch(method, args, **kwargs)
+            if method == 'invoke':
+                self.sent = True
+            return result
+        self.runtime.observe_app.side_effect = with_button
+        self.runtime.native.call.side_effect = submit
+        await self.run_message()
+        self.assertEqual(self.actions, ['type', 'invoke'])
+        self.assertEqual(self.desktop.record.status, 'completed')
+        self.services.ollama.chat_once.assert_not_awaited()
+        self.confirm.assert_not_awaited()
+
+    async def test_omitted_account_resolves_from_one_visible_account_without_question(self):
+        await self.runtime.run("Send 'Exact synthetic text.' to New recipient in Owned messenger", 'owned-message')
+        self.assertEqual(self.actions, ['type', 'key'])
+        self.assertEqual(self.desktop.record.status, 'completed')
+        self.confirm.assert_not_awaited()
+
+    async def test_existing_unrelated_draft_survives_failure_and_cleanup(self):
+        self.value = 'An unrelated unfinished message'
+        await self.run_message()
+        self.assertEqual(self.actions, [])
+        self.assertEqual(self.value, 'An unrelated unfinished message')
+        self.assertFalse(self.sent)

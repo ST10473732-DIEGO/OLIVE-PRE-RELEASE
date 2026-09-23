@@ -87,7 +87,7 @@ class NaturalLanguageOrchestrator:
         native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
         if native and not research_mode and not context.workspace_id and not self.selected_workspace and not getattr(self.s.chat, 'targets', {}).get(chat_id):
             import re
-            if re.match(r'^(?:open|launch|send|draft)\b', text.strip(), re.I) and self.s.desktop.configuration().get('trusted_tasks'):
+            if re.match(r'^(?:please\s+)?(?:open|launch|send|draft|search for)\b', text.strip(), re.I) and self.s.desktop.configuration().get('trusted_tasks'):
                 if chat_id in self.active:
                     return self.reply(chat_id, text, 'Stop the current task before replacing its request.')
                 self.active[chat_id] = asyncio.current_task()

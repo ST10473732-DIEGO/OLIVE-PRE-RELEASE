@@ -110,6 +110,8 @@ class Worker:
             self.cleanup()
             return {'cleanup_completed': True}
         self.require_session()
+        if method == 'activate' and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
+            return self.accessibility.activate(args['pid'], approved_region(self.portal.streams[0][1]), self.stopped)
         if method == 'observe' and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
             return self.accessibility.observe(args['pid'], approved_region(self.portal.streams[0][1]))
         if method == 'capture' and not args:

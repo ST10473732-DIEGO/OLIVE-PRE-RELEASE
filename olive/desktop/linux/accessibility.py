@@ -5,7 +5,7 @@ import uuid
 import gi
 
 gi.require_version('Atspi', '2.0')
-from gi.repository import Atspi
+from gi.repository import Atspi, GLib
 from .geometry import contains
 
 
@@ -32,6 +32,77 @@ class Accessibility:
         if len(matches) != 1:
             raise LookupError('Requested application is not uniquely accessible')
         return matches[0]
+
+    def activate(self, pid, region, stopped, timeout_ms=5000):
+        """Attempt one app-scoped native focus; wait for actual window/activation events.
+
+        No KWin eval, fabricated activation token or repeated focus stealing. This
+        is used once at task admission, never to undo a user's later focus change.
+        """
+        changed, expired = [True], [False]
+        def event(value, *_):
+            try:
+                if value.source.get_process_id() == pid:
+                    changed[0] = True
+            except Exception:
+                pass
+        listener = Atspi.EventListener.new(event, None)
+        names = ('window:create', 'window:activate', 'object:state-changed:showing')
+        registered = []
+        timer = None
+        attempted = False
+        try:
+            for name in names:
+                if listener.register(name):
+                    registered.append(name)
+            def expire():
+                expired[0] = True
+                return False
+            timer = GLib.timeout_add(timeout_ms, expire)
+            while not expired[0]:
+                if stopped.is_set():
+                    raise InterruptedError('Stopped while waiting for the requested application')
+                if changed[0]:
+                    changed[0] = False
+                    try:
+                        app = self.resolve(pid)
+                    except LookupError:
+                        app = None
+                    windows = []
+                    if app:
+                        for index in range(min(app.get_child_count(), 80)):
+                            node = app.get_child_at_index(index)
+                            states = node.get_state_set() if node else None
+                            if not states or not states.contains(Atspi.StateType.VISIBLE):
+                                continue
+                            if node.get_role() == Atspi.Role.DIALOG:
+                                raise PermissionError('Requested app has a dialog; human handoff before focus')
+                            if node.get_role() not in (Atspi.Role.FRAME, Atspi.Role.WINDOW):
+                                continue
+                            component = node.get_component_iface()
+                            rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
+                            if rect and contains(region, [rect.x, rect.y, rect.width, rect.height]):
+                                windows.append(node)
+                    if len(windows) > 1:
+                        raise ValueError('NEEDS_USER_CLARIFICATION: multiple windows of the requested app are visible')
+                    if len(windows) == 1:
+                        node = windows[0]
+                        if node.get_state_set().contains(Atspi.StateType.ACTIVE):
+                            self.clear()
+                            return {'pid': pid, 'active': True}
+                        if not attempted:
+                            attempted = True
+                            if not node.get_component_iface().grab_focus():
+                                raise PermissionError('Application refused focus; no input was sent')
+                            changed[0] = True
+                            continue
+                GLib.MainContext.default().iteration(True)
+            raise TimeoutError('Requested application did not expose one active window within five seconds')
+        finally:
+            if timer and GLib.MainContext.default().find_source_by_id(timer):
+                GLib.source_remove(timer)
+            for name in registered:
+                listener.deregister(name)
 
     def observe(self, pid, region):
         app = self.resolve(pid)

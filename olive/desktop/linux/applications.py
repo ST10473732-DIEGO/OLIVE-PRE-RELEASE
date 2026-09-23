@@ -7,6 +7,8 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
+import asyncio
+import time
 
 from ..application_discovery import AmbiguousApplication, normalized
 
@@ -80,11 +82,13 @@ class Applications:
     def processes(self, app):
         import psutil
         result = []
-        for process in psutil.process_iter(['pid', 'exe', 'uids', 'create_time']):
+        for process in psutil.process_iter(['pid', 'ppid', 'exe', 'uids', 'create_time']):
             info = process.info
             if info['exe'] and info['uids'] and info['uids'].real == os.getuid() and Path(info['exe']).resolve() == app.executable:
-                result.append((info['pid'], info['create_time']))
-        return result
+                result.append((info['pid'], info['ppid'], info['create_time']))
+        pids = {pid for pid, _, _ in result}
+        # Browser renderer/utility children are not independent app instances.
+        return [(pid, created) for pid, parent, created in result if parent not in pids]
 
     def launch(self, app):
         if self.values.get(app.id) is not app or hashlib.sha256(app.entry.read_bytes()).hexdigest() != app.digest:
@@ -98,3 +102,21 @@ class Applications:
         self.launches = [p for p in self.launches if p.poll() is None]
         self.launches.append(process)
         return self.processes(app)
+
+    async def wait_for_processes(self, app, stopped, *, timeout=3, clock=time.monotonic, wait=asyncio.sleep):
+        """Bounded discovery after one launch, not a retry of launching the app.
+
+        Process creation has no portable session event; poll metadata at 100 ms.
+        Window readiness uses native AT-SPI events separately.
+        """
+        deadline = clock() + timeout
+        while True:
+            if stopped.is_set():
+                raise InterruptedError('Stopped while waiting for the requested application')
+            found = await asyncio.to_thread(self.processes, app)
+            if found:
+                return found
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise TimeoutError('App launched once but no matching process appeared within the startup budget')
+            await wait(min(.1, remaining))

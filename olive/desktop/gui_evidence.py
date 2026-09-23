@@ -7,6 +7,14 @@ not a protocol-level exactly-once guarantee.
 from urllib.parse import urlsplit, parse_qs
 
 
+def current_account(observation):
+    accounts = [c['name'][9:].strip() for c in observation['controls']
+                if c.get('name', '').startswith('Account: ') and
+                c.get('role') in {'label', 'heading', 'push button'}]
+    # Duplicate visible accounts remain ambiguous, even if the labels coincide.
+    return accounts[0] if len(accounts) == 1 and 0 < len(accounts[0]) <= 100 else None
+
+
 def messaging_destination(scope, observation):
     controls = observation['controls']
     accounts = [c for c in controls if c['name'] == 'Account: ' + scope.account
