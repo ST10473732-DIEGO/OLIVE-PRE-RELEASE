@@ -53,3 +53,46 @@ The fresh Electron aggregate, source freeze and native synthetic capture results
 are recorded in [the unattended report](OLIVE_DESKTOP_UNATTENDED_RUN.md) and its
 content-free evidence manifest. Human global Stop/source consent and broad real
 GUI workflows remain incomplete; no real message or screenshot action was claimed.
+
+
+## 2026-09-24 — Unified Chat reaches the real KDE desktop
+
+Continued from exact desktop baseline `7b19f1d658bdada456f3725147b9c026cd7207af`,
+preserved as `baseline/olive-unified-agent-7b19f1d`, on
+`feature/olive-unified-agent`. The owner explicitly replaced the old physical
+shortcut, control-page and per-task enable prerequisites. Implementation commit
+`416f35d` replaces that workspace with normal Chat execution; `63a24d6` repairs
+application inheritance within one model-interpreted compound request. Eleven
+formerly frozen paths have a new scoped ledger; historical manifests remain intact.
+
+Provisioned only the verified `local.dmdo.desktop` KDE grant after same-connection
+Registry registration and an exact-entry backup. The pre-existing anonymous entry
+was left untouched. Combined RemoteDesktop/PipeWire/EIS sessions now deliver real
+frames and input without a portal dialog. Normal terminal and installed desktop
+launches, repeated tasks, Chat Stop, live named-grant revocation and independent
+helper-watchdog expiry were exercised. No physical shortcut test was claimed.
+
+Production Chat completed fresh Firefox searches and page scrolling/tab navigation,
+two Kate saves, Dolphin copy/move with collision refusal, three owned local-messenger
+sends, a drawn control and generic KCalc input. A real freeform launch/search request
+passed after repairing a validator mismatch, taking 14.312 seconds end to end.
+Earlier capture sizing, EIS readiness, Qt accessibility, dialog labeling, text
+entry, OCR and KWin lifetime failures are retained in the acceptance report.
+No external example message was sent and no unrelated draft or document was erased.
+
+Acquired one GUI-Owl-1.5-8B Q5_K_M with its f16 projector and pinned CUDA llama.cpp.
+Canonical prompting improved the initial reused-set result from 13/50 to 41/50.
+A separate untouched 50-case set scored 40/50: all 40 present targets, none of the
+10 absent targets. Median warm inference was 1.491 seconds, peak sampled GPU use
+8,306 MiB. The independent OCR gate rejected absent targets but accepted only
+2/40 present cases in the earlier set. These are concrete limitations; general
+visual operation and broad multi-effect freeform tasks remain unfinished.
+Ollama, its working models, Studio/GO and Connect consumers remain.
+
+The final Python run passed 1,204 tests with 8 skips; exact Connect passed 241,
+frontend passed 96, Electron passed 55 with 16 skips, and typecheck/lint/build passed. All 718 repository Python
+sources compile. Whole-directory compileall still reports an ignored third-party
+PySide6 Android Jinja template; it was not edited to hide the failure. Final
+Electron totals, live evidence, provenance, setup rollback and outstanding native
+coverage are recorded in [the implementation report](OLIVE_UNIFIED_AGENT_IMPLEMENTATION.md).
+No push, release, hosted CI, C9/C10 or Mobile implementation was performed.

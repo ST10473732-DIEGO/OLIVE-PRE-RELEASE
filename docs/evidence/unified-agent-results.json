@@ -1,0 +1,2233 @@
+{
+  "baseline_head": "7b19f1d658bdada456f3725147b9c026cd7207af",
+  "kind": "Real KDE production Chat; loopback frontend instrumentation only",
+  "live_tasks": [
+    {
+      "task_id": "f4f4e0abcace4e31b4003a56ac0c69e6",
+      "at": "2026-09-23T21:22:35+00:00",
+      "effect": "copy",
+      "application": "Dolphin",
+      "status": "completed",
+      "verification": "The visible file manager transferred the exact file; destination contents and source state were verified.",
+      "history": [],
+      "window_bounds": [
+        817.0725959058286,
+        224.56749694544965,
+        760,
+        630
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 15724692
+        }
+      }
+    },
+    {
+      "task_id": "070afe5be6bc4bf7892c3ca79f3441bb",
+      "at": "2026-09-23T21:23:40+00:00",
+      "effect": "move",
+      "application": "Dolphin",
+      "status": "completed",
+      "verification": "The visible file manager transferred the exact file; destination contents and source state were verified.",
+      "history": [],
+      "window_bounds": [
+        817.0725959058286,
+        224.56749694544965,
+        760,
+        630
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 14030695
+        }
+      }
+    },
+    {
+      "task_id": "f12eec58d5f0470697f8afb0e4cbb5a7",
+      "at": "2026-09-23T21:23:55+00:00",
+      "effect": "copy",
+      "application": "Dolphin",
+      "status": "needs-human",
+      "verification": "The destination already exists; no file was copied, moved or replaced",
+      "history": [],
+      "window_bounds": [
+        817.0725959058286,
+        224.56749694544965,
+        760,
+        630
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 12197816
+        }
+      }
+    },
+    {
+      "task_id": "ebe6ea505f6648c197da13a338ffcf49",
+      "at": "2026-09-23T21:24:20+00:00",
+      "effect": "click",
+      "application": "OLIVE owned messenger",
+      "status": "needs-human",
+      "verification": "Visual target is absent, ambiguous or unreadable; no input",
+      "history": [],
+      "window_bounds": [
+        560,
+        239,
+        800,
+        600
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 15881721
+        }
+      }
+    },
+    {
+      "task_id": "2b04d3d1ca5d4f4e9d833ee843c4fe6f",
+      "at": "2026-09-23T21:24:55+00:00",
+      "effect": "click",
+      "application": "OLIVE owned messenger",
+      "status": "completed",
+      "verification": "Clicked the uniquely named control in the requested application and observed changed controls.",
+      "history": [
+        {
+          "operation": "click",
+          "status": "dispatched; re-observed"
+        }
+      ],
+      "window_bounds": [
+        560,
+        239,
+        800,
+        600
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 12394134
+        }
+      }
+    },
+    {
+      "task_id": "c53d1eaf01b14c8488368b6918119bc0",
+      "at": "2026-09-23T21:25:21+00:00",
+      "effect": "click",
+      "application": "KCalc",
+      "status": "needs-human",
+      "verification": "Native operation failed: RuntimeError",
+      "history": [],
+      "window_bounds": null,
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 15410059
+        }
+      }
+    },
+    {
+      "task_id": "96535e22d24440d5a4b01d541f0592de",
+      "at": "2026-09-23T21:26:29+00:00",
+      "effect": "click",
+      "application": "KCalc",
+      "status": "needs-human",
+      "verification": "Visual target is absent, ambiguous or unreadable; no input",
+      "history": [],
+      "window_bounds": [
+        640,
+        299,
+        640,
+        480
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8362",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 10474888
+        }
+      }
+    },
+    {
+      "task_id": "a99a86d7542f49bda95ae6196f3d6309",
+      "at": "2026-09-23T21:27:04+00:00",
+      "effect": "click",
+      "application": "OLIVE owned messenger",
+      "status": "needs-human",
+      "verification": "Visual target is absent, ambiguous or unreadable; no input",
+      "history": [],
+      "window_bounds": [
+        560,
+        239,
+        720,
+        540
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8382",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 10722934
+        }
+      }
+    },
+    {
+      "task_id": "a9bac88b5e1142f3a02f3c7fcefb1f72",
+      "at": "2026-09-23T21:28:42+00:00",
+      "effect": "click",
+      "application": "OLIVE owned messenger",
+      "status": "needs-human",
+      "verification": "Visual target is absent, ambiguous or unreadable; no input",
+      "history": [],
+      "window_bounds": [
+        560,
+        239,
+        720,
+        540
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8391",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 14810375
+        }
+      }
+    },
+    {
+      "task_id": "a9032d696baa4e61b16855e64c0214f5",
+      "at": "2026-09-23T21:30:52+00:00",
+      "effect": "click",
+      "application": "OLIVE owned messenger",
+      "status": "needs-human",
+      "verification": "KWin script run failed: g-dbus-error-quark: GDBus.Error:org.freedesktop.DBus.Error.UnknownObject: No such object path '/Scripting/Script1' (41)",
+      "history": [],
+      "window_bounds": null,
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8399",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 11741424
+        }
+      }
+    },
+    {
+      "task_id": "de4aff24189c41cf93735ef4ccac4266",
+      "at": "2026-09-23T21:33:25+00:00",
+      "effect": "click",
+      "application": "OLIVE owned messenger",
+      "status": "completed",
+      "verification": "The requested text control was independently located, clicked through EIS, and a changed frame observed.",
+      "history": [
+        {
+          "operation": "visual_click",
+          "status": "dispatched; changed frame observed",
+          "model": "GUI-Owl-1.5-8B-Instruct-Q5_K_M",
+          "seconds": 1.2565245990044787
+        }
+      ],
+      "window_bounds": [
+        560,
+        239,
+        720,
+        540
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8408",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 8876504
+        }
+      }
+    },
+    {
+      "task_id": "0e1344160a3e49ceabf9f5e06f25656f",
+      "at": "2026-09-23T21:34:31+00:00",
+      "effect": "click",
+      "application": "KCalc",
+      "status": "completed",
+      "verification": "Clicked the uniquely named control in the requested application and observed changed controls.",
+      "history": [
+        {
+          "operation": "click",
+          "status": "dispatched; re-observed"
+        }
+      ],
+      "window_bounds": [
+        640,
+        299,
+        640,
+        480
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8408",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 10037352
+        }
+      }
+    },
+    {
+      "task_id": "697db08d673e42f7a7a9ed18f2aa23e7",
+      "at": "2026-09-23T21:37:46+00:00",
+      "effect": "search",
+      "application": "Firefox",
+      "status": "completed",
+      "verification": "The requested search is visible in the browser title and the rendered results page was read from a fresh desktop frame.",
+      "history": [
+        {
+          "operation": "new_tab",
+          "status": "dispatched; fresh scoped frame observed"
+        },
+        {
+          "operation": "address",
+          "status": "dispatched; fresh scoped frame observed"
+        },
+        {
+          "operation": "type_query",
+          "status": "dispatched; fresh scoped frame observed"
+        },
+        {
+          "operation": "submit",
+          "status": "dispatched; fresh scoped frame observed"
+        }
+      ],
+      "window_bounds": [
+        1920,
+        0,
+        1920,
+        1080
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8445",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 14856130
+        }
+      }
+    },
+    {
+      "task_id": "a1d82716895a4536867205c14b92bc8c",
+      "at": "2026-09-23T21:38:07+00:00",
+      "effect": "search",
+      "application": "Firefox",
+      "status": "completed",
+      "verification": "The requested search is visible in the browser title and the rendered results page was read from a fresh desktop frame.",
+      "history": [
+        {
+          "operation": "new_tab",
+          "status": "dispatched; fresh scoped frame observed"
+        },
+        {
+          "operation": "address",
+          "status": "dispatched; fresh scoped frame observed"
+        },
+        {
+          "operation": "type_query",
+          "status": "dispatched; fresh scoped frame observed"
+        },
+        {
+          "operation": "submit",
+          "status": "dispatched; fresh scoped frame observed"
+        }
+      ],
+      "window_bounds": [
+        1920,
+        0,
+        1920,
+        1080
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "DP-4",
+              "position": [
+                1920,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8445",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              116,
+              {
+                "mapping_id": "DP-4",
+                "position": [
+                  1920,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 10146284
+        }
+      }
+    },
+    {
+      "task_id": "dd812c6a44ab4624ac14bdeedd61ee5e",
+      "at": "2026-09-23T21:38:33+00:00",
+      "effect": "scroll",
+      "application": "Firefox",
+      "status": "completed",
+      "verification": "The visible browser page was read from a fresh desktop frame. OCR text may contain transcription errors.",
+      "history": [],
+      "window_bounds": [
+        1920,
+        0,
+        1920,
+        1080
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "DP-4",
+              "position": [
+                1920,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8445",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              116,
+              {
+                "mapping_id": "DP-4",
+                "position": [
+                  1920,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 11966662
+        }
+      }
+    },
+    {
+      "task_id": "e7ffde4845494528991b18373f5e0890",
+      "at": "2026-09-23T21:39:18+00:00",
+      "effect": "tab",
+      "application": "Firefox",
+      "status": "completed",
+      "verification": "The visible browser page was read from a fresh desktop frame. OCR text may contain transcription errors.",
+      "history": [],
+      "window_bounds": [
+        1920,
+        0,
+        1920,
+        1080
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "DP-4",
+              "position": [
+                1920,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8445",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              116,
+              {
+                "mapping_id": "DP-4",
+                "position": [
+                  1920,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 9655216
+        }
+      }
+    },
+    {
+      "task_id": "72840e4e3652448d93ac368f2aff7aad",
+      "at": "2026-09-23T21:40:19+00:00",
+      "effect": "open",
+      "application": "Kate",
+      "status": "completed",
+      "verification": "The requested installed application has a visible accessible window.",
+      "history": [],
+      "window_bounds": [
+        392,
+        200,
+        1135,
+        677
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "DP-4",
+              "position": [
+                1920,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8445",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              116,
+              {
+                "mapping_id": "DP-4",
+                "position": [
+                  1920,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 8518897
+        }
+      }
+    },
+    {
+      "task_id": "fc5995964d4744b59ef143e0236aaa68",
+      "at": "2026-09-23T21:41:26+00:00",
+      "effect": "open",
+      "application": "Kate",
+      "status": "completed",
+      "verification": "The requested installed application has a visible accessible window.",
+      "history": [],
+      "window_bounds": [
+        392,
+        200,
+        1135,
+        677
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "DP-4",
+              "position": [
+                1920,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8610",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              116,
+              {
+                "mapping_id": "DP-4",
+                "position": [
+                  1920,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 13232564
+        }
+      }
+    },
+    {
+      "task_id": "0d1c7bc0629b4587aee89e5ae4afca62",
+      "at": "2026-09-23T21:42:36+00:00",
+      "effect": "edit_save",
+      "application": "Kate",
+      "status": "completed",
+      "verification": "The visible editor saved the requested new file; its contents were read back and verified.",
+      "history": [],
+      "window_bounds": [
+        392,
+        200,
+        1135,
+        677
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8614",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              90,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 16730460
+        }
+      }
+    },
+    {
+      "task_id": "ab4d970c4f0b44b09ddff0bacc13a4b5",
+      "at": "2026-09-23T21:43:20+00:00",
+      "effect": "send",
+      "application": "OLIVE owned messenger",
+      "status": "completed",
+      "verification": "The intended destination shows the exact outgoing message with a Sent/Delivered indicator.",
+      "history": [
+        {
+          "operation": "click",
+          "status": "dispatched; re-observed"
+        },
+        {
+          "operation": "click",
+          "status": "dispatched; re-observed"
+        },
+        {
+          "operation": "focus",
+          "status": "dispatched; re-observed"
+        },
+        {
+          "operation": "type",
+          "status": "dispatched; re-observed"
+        },
+        {
+          "operation": "invoke",
+          "status": "dispatched; re-observed"
+        }
+      ],
+      "window_bounds": [
+        560,
+        239,
+        720,
+        540
+      ],
+      "last_session_evidence": {
+        "streams": [
+          [
+            92,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ],
+        "devices": 3,
+        "backend": "libei",
+        "identity": {
+          "app_id": "local.dmdo.desktop",
+          "peer": ":1.8614",
+          "registered_on_portal_connection": true,
+          "permission": [
+            "yes"
+          ],
+          "remote_session": true,
+          "streams": [
+            [
+              92,
+              {
+                "mapping_id": "HDMI-A-5",
+                "position": [
+                  0,
+                  0
+                ],
+                "size": [
+                  1920,
+                  1080
+                ],
+                "source_type": 1
+              }
+            ]
+          ]
+        },
+        "frame": {
+          "width": 1280,
+          "height": 720,
+          "original_width": 1920,
+          "original_height": 1080,
+          "pts": 11483466
+        }
+      }
+    }
+  ],
+  "chat-stop": {
+    "ackMs": 3.6459149999998317,
+    "cleanupMs": 444.1574599999999,
+    "stopped": true,
+    "active": false,
+    "session": {
+      "task": "Local user-directed click",
+      "application": "Kate",
+      "window": {
+        "active": true,
+        "accessible": true,
+        "window_id": "{50eee453-1166-48ea-acb7-466d9928245a}",
+        "bounds": [
+          392,
+          200,
+          1135,
+          677
+        ]
+      },
+      "id": "ad6d12cfbe3b4042bc653560178d1e96",
+      "status": "cancelled",
+      "started_at": "2026-09-23T21:42:08+00:00",
+      "last_activity": "2026-09-23T21:42:08+00:00",
+      "capabilities": [],
+      "current_action": "Finding the next control",
+      "verification": "Stopped. No effect was replayed; inspect any uncertain submission.",
+      "history": []
+    }
+  },
+  "revoke": {
+    "mode": "revoke",
+    "cancelled": "cancelled",
+    "denied": "OLIVE KDE remote-desktop permission is absent or revoked",
+    "stopped": true,
+    "revocation_and_denied_task_ms": 923.0393430000001
+  },
+  "watchdog": {
+    "mode": "watchdog",
+    "helperExitMs": 1819.2025400000002,
+    "stopped": true,
+    "task": "cancelled"
+  },
+  "gui_heldout": {
+    "model": "GUI-Owl-1.5-8B-Instruct-Q5_K_M",
+    "fixture_seed": 730951,
+    "count": 50,
+    "correct": 40,
+    "present_correct": 40,
+    "absent_correct": 0,
+    "median_seconds": 1.4908546680017025,
+    "cases": [
+      {
+        "case": 0,
+        "present": true,
+        "pass": true,
+        "seconds": 3.4595720630022697,
+        "action": "left_click",
+        "point": [
+          737,
+          253
+        ]
+      },
+      {
+        "case": 1,
+        "present": true,
+        "pass": true,
+        "seconds": 1.512700268998742,
+        "action": "left_click",
+        "point": [
+          757,
+          752
+        ]
+      },
+      {
+        "case": 2,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4204001129983226,
+        "action": "left_click",
+        "point": [
+          753,
+          164
+        ]
+      },
+      {
+        "case": 3,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2075127249991056,
+        "action": "left_click",
+        "point": [
+          236,
+          250
+        ]
+      },
+      {
+        "case": 4,
+        "present": false,
+        "pass": false,
+        "seconds": 1.7533638420063653,
+        "action": "left_click",
+        "point": [
+          259,
+          513
+        ]
+      },
+      {
+        "case": 5,
+        "present": true,
+        "pass": true,
+        "seconds": 1.3789870500040706,
+        "action": "left_click",
+        "point": [
+          256,
+          771
+        ]
+      },
+      {
+        "case": 6,
+        "present": true,
+        "pass": true,
+        "seconds": 1.5908835180016467,
+        "action": "left_click",
+        "point": [
+          238,
+          228
+        ]
+      },
+      {
+        "case": 7,
+        "present": true,
+        "pass": true,
+        "seconds": 1.518767266003124,
+        "action": "left_click",
+        "point": [
+          761,
+          437
+        ]
+      },
+      {
+        "case": 8,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2396395370014943,
+        "action": "left_click",
+        "point": [
+          754,
+          255
+        ]
+      },
+      {
+        "case": 9,
+        "present": false,
+        "pass": false,
+        "seconds": 1.6331403040021542,
+        "action": "left_click",
+        "point": [
+          738,
+          740
+        ]
+      },
+      {
+        "case": 10,
+        "present": true,
+        "pass": true,
+        "seconds": 1.3827202239990584,
+        "action": "left_click",
+        "point": [
+          757,
+          773
+        ]
+      },
+      {
+        "case": 11,
+        "present": true,
+        "pass": true,
+        "seconds": 1.7266484680003487,
+        "action": "left_click",
+        "point": [
+          248,
+          218
+        ]
+      },
+      {
+        "case": 12,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4992694000029587,
+        "action": "left_click",
+        "point": [
+          253,
+          151
+        ]
+      },
+      {
+        "case": 13,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2833246950031025,
+        "action": "left_click",
+        "point": [
+          746,
+          494
+        ]
+      },
+      {
+        "case": 14,
+        "present": false,
+        "pass": false,
+        "seconds": 1.5560908150000614,
+        "action": "left_click",
+        "point": [
+          763,
+          468
+        ]
+      },
+      {
+        "case": 15,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2550615620057215,
+        "action": "left_click",
+        "point": [
+          732,
+          513
+        ]
+      },
+      {
+        "case": 16,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4908546680017025,
+        "action": "left_click",
+        "point": [
+          239,
+          746
+        ]
+      },
+      {
+        "case": 17,
+        "present": true,
+        "pass": true,
+        "seconds": 1.5194414430006873,
+        "action": "left_click",
+        "point": [
+          257,
+          441
+        ]
+      },
+      {
+        "case": 18,
+        "present": true,
+        "pass": true,
+        "seconds": 1.3657132759981323,
+        "action": "left_click",
+        "point": [
+          757,
+          758
+        ]
+      },
+      {
+        "case": 19,
+        "present": false,
+        "pass": false,
+        "seconds": 1.696552695997525,
+        "action": "left_click",
+        "point": [
+          619,
+          730
+        ]
+      },
+      {
+        "case": 20,
+        "present": true,
+        "pass": true,
+        "seconds": 1.3979009409958962,
+        "action": "left_click",
+        "point": [
+          267,
+          250
+        ]
+      },
+      {
+        "case": 21,
+        "present": true,
+        "pass": true,
+        "seconds": 1.673234103996947,
+        "action": "left_click",
+        "point": [
+          256,
+          745
+        ]
+      },
+      {
+        "case": 22,
+        "present": true,
+        "pass": true,
+        "seconds": 1.5184218989961664,
+        "action": "left_click",
+        "point": [
+          746,
+          151
+        ]
+      },
+      {
+        "case": 23,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2689779559950694,
+        "action": "left_click",
+        "point": [
+          742,
+          256
+        ]
+      },
+      {
+        "case": 24,
+        "present": false,
+        "pass": false,
+        "seconds": 1.7327836509939516,
+        "action": "left_click",
+        "point": [
+          500,
+          376
+        ]
+      },
+      {
+        "case": 25,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4037660530011635,
+        "action": "left_click",
+        "point": [
+          746,
+          521
+        ]
+      },
+      {
+        "case": 26,
+        "present": true,
+        "pass": true,
+        "seconds": 1.6450554560069577,
+        "action": "left_click",
+        "point": [
+          738,
+          494
+        ]
+      },
+      {
+        "case": 27,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4843305600006715,
+        "action": "left_click",
+        "point": [
+          754,
+          733
+        ]
+      },
+      {
+        "case": 28,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2352067380052176,
+        "action": "left_click",
+        "point": [
+          238,
+          776
+        ]
+      },
+      {
+        "case": 29,
+        "present": false,
+        "pass": false,
+        "seconds": 1.7023422790007317,
+        "action": "left_click",
+        "point": [
+          238,
+          747
+        ]
+      },
+      {
+        "case": 30,
+        "present": true,
+        "pass": true,
+        "seconds": 1.3919303520015092,
+        "action": "left_click",
+        "point": [
+          254,
+          491
+        ]
+      },
+      {
+        "case": 31,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4254333849967225,
+        "action": "left_click",
+        "point": [
+          68,
+          481
+        ]
+      },
+      {
+        "case": 32,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4583209510019515,
+        "action": "left_click",
+        "point": [
+          750,
+          148
+        ]
+      },
+      {
+        "case": 33,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4122268490027636,
+        "action": "left_click",
+        "point": [
+          252,
+          250
+        ]
+      },
+      {
+        "case": 34,
+        "present": false,
+        "pass": false,
+        "seconds": 1.7857488539957558,
+        "action": "left_click",
+        "point": [
+          500,
+          389
+        ]
+      },
+      {
+        "case": 35,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4069971529970644,
+        "action": "left_click",
+        "point": [
+          732,
+          236
+        ]
+      },
+      {
+        "case": 36,
+        "present": true,
+        "pass": true,
+        "seconds": 1.6210256229969673,
+        "action": "left_click",
+        "point": [
+          261,
+          742
+        ]
+      },
+      {
+        "case": 37,
+        "present": true,
+        "pass": true,
+        "seconds": 1.5176093600020977,
+        "action": "left_click",
+        "point": [
+          761,
+          150
+        ]
+      },
+      {
+        "case": 38,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2562683950018254,
+        "action": "left_click",
+        "point": [
+          236,
+          236
+        ]
+      },
+      {
+        "case": 39,
+        "present": false,
+        "pass": false,
+        "seconds": 1.5808494390003034,
+        "action": "left_click",
+        "point": [
+          756,
+          748
+        ]
+      },
+      {
+        "case": 40,
+        "present": true,
+        "pass": true,
+        "seconds": 1.3109853509959066,
+        "action": "left_click",
+        "point": [
+          261,
+          491
+        ]
+      },
+      {
+        "case": 41,
+        "present": true,
+        "pass": true,
+        "seconds": 1.619452093000291,
+        "action": "left_click",
+        "point": [
+          256,
+          230
+        ]
+      },
+      {
+        "case": 42,
+        "present": true,
+        "pass": true,
+        "seconds": 1.5281064250011696,
+        "action": "left_click",
+        "point": [
+          742,
+          720
+        ]
+      },
+      {
+        "case": 43,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2127972490052343,
+        "action": "left_click",
+        "point": [
+          252,
+          776
+        ]
+      },
+      {
+        "case": 44,
+        "present": false,
+        "pass": false,
+        "seconds": 1.5740595989991562,
+        "action": "left_click",
+        "point": [
+          746,
+          454
+        ]
+      },
+      {
+        "case": 45,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2874107559982804,
+        "action": "left_click",
+        "point": [
+          238,
+          758
+        ]
+      },
+      {
+        "case": 46,
+        "present": true,
+        "pass": true,
+        "seconds": 1.570852188000572,
+        "action": "left_click",
+        "point": [
+          757,
+          218
+        ]
+      },
+      {
+        "case": 47,
+        "present": true,
+        "pass": true,
+        "seconds": 1.4551242150046164,
+        "action": "left_click",
+        "point": [
+          234,
+          436
+        ]
+      },
+      {
+        "case": 48,
+        "present": true,
+        "pass": true,
+        "seconds": 1.2557407170024817,
+        "action": "left_click",
+        "point": [
+          753,
+          755
+        ]
+      },
+      {
+        "case": 49,
+        "present": false,
+        "pass": false,
+        "seconds": 1.521825962998264,
+        "action": "left_click",
+        "point": [
+          604,
+          745
+        ]
+      }
+    ],
+    "peak_sampled_rss_bytes": 4453810176,
+    "peak_sampled_vram_mib": 8306
+  },
+  "regression": {
+    "python": {
+      "run": 1204,
+      "skipped": 8,
+      "failures": 0,
+      "errors": 0,
+      "seconds": 137.887
+    },
+    "connect": {
+      "run": 241,
+      "failures": 0,
+      "errors": 0,
+      "seconds": 88.894
+    },
+    "frontend": {
+      "tests_passed": 96,
+      "files_passed": 18
+    },
+    "typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "repository_compilation": {
+      "python_files": 718,
+      "passed": true
+    },
+    "literal_compileall": {
+      "exit_code": 1,
+      "reason": "Ignored third-party PySide6 Android Jinja __init__.tmpl.py is not valid Python; repository sources compile."
+    },
+    "scoped_freeze": {
+      "changed_paths": 11,
+      "passed": true,
+      "historical_manifests_unchanged": true
+    },
+    "historical_freeze": "Expected failure: 11 owner-authorized former-frozen paths changed; historical checker not weakened",
+    "electron": {
+      "passed": 55,
+      "skipped": 16,
+      "failed": 0,
+      "reported_duration": "7.5 minutes",
+      "environment": "Native Linux Electron, serial isolated profiles, provisioned SDK/JDK on PATH; opt-in live tests separate"
+    }
+  },
+  "implementation_commit": "416f35d2e31775cb412b902fa4b3f3bf36e067f0",
+  "portal_identity": {
+    "app_id": "local.dmdo.desktop",
+    "backend": "org.freedesktop.impl.portal.desktop.kde",
+    "observed_Start_sender": ":1.38",
+    "observed_Start_destination": ":1.49",
+    "same_connection_registry": true,
+    "final_named_permission": [
+      "yes"
+    ],
+    "anonymous_entry": "Pre-existing; unchanged",
+    "provision_transport": "flatpak",
+    "fallback": "PermissionStore SetPermission implemented; boundary-tested, not used for live write"
+  },
+  "regression_log_sha256": {
+    "connect-final.log": "532d1a5c4a4e48bc296084527b4a0b6d38a3f40be7b454bbffe70bc5591fc1ab",
+    "frontend-final.log": "91e33f7bab02fd931fa541fea75fafc9cb3b07d3f1829e7a8ae39d02efb97d72",
+    "typecheck-final.log": "a4ce7926c4ce5dc17dd916709abd5a65ecea8f3899e05ad63b79972ae80a3f52",
+    "lint-final.log": "fe0272f6063dedf809c162128b30b6564e4f615ce850bf853f29ab431f1a3211",
+    "build.log": "18085dc37e794514642c348a90500fd322bc93487bb6950c6e6bfbea9fc6d3eb",
+    "source-compile.json": "084068c03d7916ebf8ba896d527c7d10727fd726b34429f87c7d0a202ec91deb",
+    "compileall.log": "e8f79a0ca3af447a709c369be8cff8fac701d07b7cc16dd7dc5e925651d4f7b9",
+    "python-final-1204.log": "b62d24ce78dc6c09d8102e971982dbad96d9761d3304c1de2787607890bb283a",
+    "electron-final-freeform.log": "83e9c7448154b2b20c6413419ef8756202bade77f37ba6a2f604104220b3637b"
+  },
+  "freeform_chat": {
+    "production_ui": true,
+    "model": "qwen3:8b",
+    "interpretation_metrics": [
+      {
+        "stage": "speech_act",
+        "mode": "action",
+        "domains": [
+          "application",
+          "browser"
+        ]
+      },
+      {
+        "model": "qwen3:8b",
+        "duration_ms": 2194.9489760008873,
+        "done_reason": "stop",
+        "prompt_tokens": 3410,
+        "valid": true
+      }
+    ],
+    "proposed_intents": [
+      "application.launch",
+      "application.search"
+    ],
+    "same_request_application_inheritance": true,
+    "seconds": 14.312,
+    "task_id": "8764c213f5a84204b0b5bb557c9a2ad3",
+    "application": "Firefox",
+    "status": "completed",
+    "verification": "The requested search is visible in the browser title and the rendered results page was read from a fresh desktop frame.",
+    "history": [
+      {
+        "operation": "new_tab",
+        "status": "dispatched; fresh scoped frame observed"
+      },
+      {
+        "operation": "address",
+        "status": "dispatched; fresh scoped frame observed"
+      },
+      {
+        "operation": "type_query",
+        "status": "dispatched; fresh scoped frame observed"
+      },
+      {
+        "operation": "submit",
+        "status": "dispatched; fresh scoped frame observed"
+      }
+    ],
+    "last_session_evidence": {
+      "streams": [
+        [
+          90,
+          {
+            "mapping_id": "HDMI-A-5",
+            "position": [
+              0,
+              0
+            ],
+            "size": [
+              1920,
+              1080
+            ],
+            "source_type": 1
+          }
+        ]
+      ],
+      "devices": 3,
+      "backend": "libei",
+      "identity": {
+        "app_id": "local.dmdo.desktop",
+        "peer": ":1.9916",
+        "registered_on_portal_connection": true,
+        "permission": [
+          "yes"
+        ],
+        "remote_session": true,
+        "streams": [
+          [
+            90,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ]
+      },
+      "frame": {
+        "width": 1280,
+        "height": 720,
+        "original_width": 1920,
+        "original_height": 1080,
+        "pts": 13421899
+      }
+    },
+    "earlier_failure": "Search omitted application already named in preceding launch step; validator rejected before input. Fixed same-request inheritance; no cross-task or observation authority."
+  },
+  "cleanup": {
+    "owned_messenger": "closed; owned desktop entry archived with acceptance artifacts",
+    "portal_monitor": "closed",
+    "input_helper": "none after normal application exit",
+    "gui_server": "none after normal application exit",
+    "user_applications": "preserved"
+  },
+  "final_code_commit": "63a24d625590e3fc3f1ca29312afa59a66880ef5"
+}
