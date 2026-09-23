@@ -122,3 +122,37 @@ class MeasuredAnswerTests(unittest.IsolatedAsyncioTestCase):
         release.set()
         with self.assertRaises(RuntimeError): await task
         self.assertFalse(service.residency.lock.locked())
+
+class BoundedStreamTests(unittest.IsolatedAsyncioTestCase):
+    async def test_inactivity_closes_owned_stream_and_next_request_works(self):
+        import asyncio
+        from olive.services.ollama_service import StreamBudgets
+        closed = asyncio.Event()
+        async def stalled():
+            try:
+                yield {'message': {'thinking': 'private'}}
+                await asyncio.Event().wait()
+            finally:
+                closed.set()
+        async def healthy():
+            yield {'message': {'content': 'Recovered'}, 'done': True}
+        service = OllamaService()
+        service.stream_budgets = StreamBudgets(1, .02, 1)
+        service.client = SimpleNamespace(chat=AsyncMock(side_effect=[stalled(), healthy()]))
+        with self.assertRaises(TimeoutError):
+            await service.chat_measured('fixture', [], stream=True)
+        self.assertTrue(closed.is_set())
+        self.assertEqual((await service.chat_measured('fixture', [], stream=True))['content'], 'Recovered')
+
+    async def test_sdk_reassembles_fragmented_utf8_without_reasoning_leak(self):
+        import httpx
+        import ollama
+        import json
+        raw = (json.dumps({'message': {'role':'assistant','content':'café ✓','thinking':'hidden'},'done':True},ensure_ascii=False)+'\n').encode()
+        class Bytes(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                for byte in raw:
+                    yield bytes([byte])
+        service = OllamaService()
+        service.client = ollama.AsyncClient(host='http://fixture.invalid',transport=httpx.MockTransport(lambda _:httpx.Response(200,stream=Bytes())))
+        self.assertEqual([s async for s in service.chat_stream('fixture',[])], ['café ✓'])

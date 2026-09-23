@@ -16,6 +16,18 @@ class GenerationOutputLimit(RuntimeError):
     """Provider ended at its requested token limit; visible text is incomplete."""
 
 
+@dataclass(frozen=True, slots=True)
+class StreamBudgets:
+    startup_seconds: float = 90
+    inactivity_seconds: float = 45
+    total_seconds: float = 300
+
+    def __post_init__(self):
+        import math
+        if any(not math.isfinite(v) or v <= 0 for v in (self.startup_seconds, self.inactivity_seconds, self.total_seconds)):
+            raise ValueError("Stream budgets must be finite and positive")
+
+
 @dataclass(slots=True)
 class ModelInfo:
     name: str
@@ -47,6 +59,33 @@ class OllamaService:
         self._digests: dict[str, str] = {}
         self.residency = None
         self.metrics = None
+        self.stream_budgets = StreamBudgets()
+
+    async def _bounded_stream(self, **kwargs):
+        """Reasoning chunks count as activity but are never visible answers.
+
+        Existing caller deadlines (including C7) still take precedence. Cleanup
+        is awaited inside the lease; a timeout is not proof of provider release.
+        """
+        budget = self.stream_budgets
+        deadline = time.monotonic() + budget.total_seconds
+        parts = await asyncio.wait_for(self.client.chat(**kwargs, stream=True),
+                                       min(budget.startup_seconds, budget.total_seconds))
+        received = False
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("The local model exceeded the whole-request stream budget")
+                try:
+                    part = await asyncio.wait_for(anext(parts), min(remaining, budget.inactivity_seconds if received else budget.startup_seconds))
+                except StopAsyncIteration:
+                    return
+                received = True
+                yield part
+        finally:
+            if hasattr(parts, "aclose"):
+                await parts.aclose()
 
     async def loaded_models(self):
         response = await self.client.ps()
@@ -208,7 +247,7 @@ class OllamaService:
         finish_reason = ""
         async with self._lease(model) as keep_alive:
             try:
-                stream = await self.client.chat(model=model, messages=messages, stream=True,
+                stream = self._bounded_stream(model=model, messages=messages,
                     options=await self._options(model, options), tools=tools or [], keep_alive=keep_alive,
                     **self._thinking(model, think))
                 try:
@@ -262,7 +301,7 @@ class OllamaService:
                 first_thinking = last_thinking = None
                 thinking_characters = 0
                 if stream:
-                    parts = await self.client.chat(**kwargs, stream=True)
+                    parts = self._bounded_stream(**kwargs)
                     content, calls, response = [], [], {}
                     try:
                         async for part in parts:
