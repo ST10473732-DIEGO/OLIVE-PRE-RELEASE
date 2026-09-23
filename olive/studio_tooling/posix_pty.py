@@ -12,6 +12,7 @@ import struct
 import subprocess
 import sys
 import termios
+import threading
 import time
 
 
@@ -24,6 +25,7 @@ class PosixPTY:
             if not executable:
                 raise FileNotFoundError(shell)
             command = [executable, '--noprofile', '--norc', '-i'] if shell == 'bash' else [executable, '-i']
+        self.fd_lock = threading.RLock()
         self.master, slave = pty.openpty()
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.process = None
@@ -58,20 +60,26 @@ class PosixPTY:
                 os.close(ready_write)
 
     def set_size(self, columns, rows):
-        fcntl.ioctl(self.master, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
+        with self.fd_lock:
+            if self.master < 0:
+                raise ValueError('The terminal is closed')
+            fcntl.ioctl(self.master, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
 
     def isalive(self):
         return self.process.poll() is None
 
     def read(self, blocking=False):
-        try:
-            if not select.select([self.master], [], [], .05 if blocking else 0)[0]:
+        with self.fd_lock:
+            if self.master < 0:
                 return ''
-            return self.decoder.decode(os.read(self.master, 65536))
-        except OSError as error:
-            if error.errno in (errno.EIO, errno.EAGAIN, errno.EBADF):
-                return ''
-            raise
+            try:
+                if not select.select([self.master], [], [], .05 if blocking else 0)[0]:
+                    return ''
+                return self.decoder.decode(os.read(self.master, 65536))
+            except OSError as error:
+                if error.errno in (errno.EIO, errno.EAGAIN):
+                    return ''
+                raise
 
     def write(self, data):
         payload = memoryview(data.encode('utf-8'))
@@ -81,11 +89,14 @@ class PosixPTY:
                 raise ValueError('The terminal is not running')
             if time.monotonic() >= deadline:
                 raise TimeoutError('Terminal input timed out')
-            if select.select([], [self.master], [], .05)[1]:
-                try:
-                    payload = payload[os.write(self.master, payload):]
-                except BlockingIOError:
-                    pass
+            with self.fd_lock:
+                if self.master < 0:
+                    raise ValueError('The terminal is closed')
+                if select.select([], [self.master], [], .05)[1]:
+                    try:
+                        payload = payload[os.write(self.master, payload):]
+                    except BlockingIOError:
+                        pass
 
     def get_exitstatus(self):
         code = self.process.wait(timeout=5)
@@ -104,6 +115,9 @@ class PosixPTY:
         self.close()
 
     def close(self):
-        if self.master >= 0:
-            os.close(self.master)
-            self.master = -1
+        # Natural reader exit and user Stop can arrive concurrently. Transfer
+        # ownership before close, and exclude I/O until the descriptor is gone.
+        with self.fd_lock:
+            descriptor, self.master = self.master, -1
+            if descriptor >= 0:
+                os.close(descriptor)

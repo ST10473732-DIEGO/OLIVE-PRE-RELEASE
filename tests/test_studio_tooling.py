@@ -13,7 +13,7 @@ import time
 import unittest
 
 from olive.studio_tooling import dotnet, run_config, web
-from olive.studio_tooling.toolchain import PINNED, dotnet_executable, module_available
+from olive.studio_tooling.toolchain import PINNED, developer_environment, dotnet_executable, module_available
 
 ROOT = Path(__file__).resolve().parents[1]
 HAVE_DOTNET = dotnet_executable() is not None
@@ -187,7 +187,7 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
 
 
 def _dotnet_solution(root: Path):
-    env = dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1", DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE="true")
+    env = developer_environment(dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1", DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE="true"))
     def run(*args):
         completed = subprocess.run(["dotnet", *args], cwd=str(root), capture_output=True, text=True, timeout=300, env=env)
         if completed.returncode != 0:
