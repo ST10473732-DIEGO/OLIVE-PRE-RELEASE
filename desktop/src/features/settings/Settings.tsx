@@ -1,6 +1,24 @@
 import { LayoutControls } from "./LayoutControls";
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import {
+  Activity,
+  BookOpen,
+  Brain,
+  Code2,
+  Cpu,
+  Database,
+  Globe,
+  Mail,
+  MessageSquare,
+  Monitor,
+  MonitorSmartphone,
+  Palette,
+  ScanText,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Telescope,
+} from "lucide-react";
 import { call } from "../../services/api";
 import { useResource } from "../../services/useResource";
 import { WorkspacePage, Details } from "../../components/WorkspacePage";
@@ -28,7 +46,10 @@ export default function Settings({
   setReduced,
   diagnosticsRequest = 0,
   browserRequest = 0,
+  navigate,
 }: {
+  /** Opens another space (Devices lives in its own workspace). */
+  navigate?: (id: string) => void;
   interfaceScale: number;
   setInterfaceScale: (value: number) => void;
   resetLayout: () => void;
@@ -72,24 +93,46 @@ export default function Settings({
   );
   const value = draft || resource.data?.value;
   const schema = resource.data?.schema;
-  const categories = [
-    "General",
-    "Appearance",
-    "Chat",
-    "Models",
-    "Permissions",
-    "Connections",
-    "Browser",
-    "Memory",
-    "Knowledge",
-    "Research",
-    "Desktop Control",
-    "OCR",
-    "Studio",
-    "Backup & Data",
-    "Diagnostics",
+  // V2 grouping over the existing categories; ids are unchanged.
+  const groups: { label: string; items: { id: string; label: string; icon: typeof Search }[] }[] = [
+    { label: "", items: [{ id: "General", label: "General", icon: SlidersHorizontal }, { id: "Appearance", label: "Appearance", icon: Palette }] },
+    {
+      label: "AI",
+      items: [
+        { id: "Models", label: "Models", icon: Cpu },
+        { id: "Chat", label: "Chat", icon: MessageSquare },
+        { id: "Memory", label: "Memory", icon: Brain },
+        { id: "Knowledge", label: "Knowledge", icon: BookOpen },
+        { id: "Research", label: "Research", icon: Telescope },
+        { id: "OCR", label: "OCR", icon: ScanText },
+      ],
+    },
+    {
+      label: "Workspaces",
+      items: [
+        { id: "Studio", label: "Studio", icon: Code2 },
+        { id: "Browser", label: "OLIVE GO", icon: Globe },
+        { id: "Desktop Control", label: "Desktop Control", icon: Monitor },
+      ],
+    },
+    {
+      label: "Connect & accounts",
+      items: [
+        { id: "Devices", label: "Devices", icon: MonitorSmartphone },
+        { id: "Connections", label: "Mail connections", icon: Mail },
+      ],
+    },
+    { label: "Privacy & Security", items: [{ id: "Permissions", label: "Permissions", icon: ShieldCheck }] },
+    {
+      label: "Data",
+      items: [
+        { id: "Backup & Data", label: "Backup & Data", icon: Database },
+        { id: "Diagnostics", label: "Diagnostics", icon: Activity },
+      ],
+    },
   ];
   const categoryKeywords: Record<string, string> = {
+    Devices: "devices connect pair paired permissions",
     Appearance:
       "theme dark light reduce motion animations welcome home startup developer navigation text size scale layout",
     Models: "ollama aliases roles default benchmark download inference",
@@ -107,6 +150,9 @@ export default function Settings({
             .includes(search.toLowerCase())
         : f.category === category,
     ) || [];
+  // The unsaved-changes bar appears only while the draft differs from what
+  // the runtime last returned.
+  const dirty = Boolean(draft && resource.data && JSON.stringify(draft) !== JSON.stringify(resource.data.value));
   const edit = (f: Field, next: Value) => {
     if (!value) return;
     if (f.target === "params")
@@ -135,7 +181,8 @@ export default function Settings({
         system_prompt: value.system_prompt,
         alias: value.alias,
       });
-      setDraft(saved);
+      setDraft(undefined);
+      resource.setData((current) => (current ? { ...current, value: saved } : current));
       setNotice("Settings saved to the shared runtime.");
     } catch (e) {
       report(e);
@@ -143,141 +190,162 @@ export default function Settings({
       setSaving(false);
     }
   };
+  const categoryLabel = groups.flatMap((g) => g.items).find((i) => i.id === category)?.label || category;
   return (
     <WorkspacePage
+      layout="fill"
+      className="settings-v2"
       title="Settings"
       description="Your preferences, local services and permissions."
-      actions={
-        <button
-          className="primary"
-          hidden={
-            !search &&
-            [
-              "Permissions",
-              "Desktop Control",
-              "Backup & Data",
-              "Diagnostics",
-            ].includes(category)
-          }
-          disabled={!value || saving}
-          onClick={() => void save()}
-        >
-          {saving ? "Saving…" : "Save settings"}
-        </button>
+      rail={
+        <aside className="ws-rail settings-rail" aria-label="Settings navigation">
+          <label className="search settings-search">
+            <Search size={14} aria-hidden="true" />
+            <input
+              aria-label="Search settings"
+              placeholder="Find a setting"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+          <nav aria-label="Settings categories" className="settings-nav">
+            {groups.map((group) => {
+              const items = group.items.filter(
+                (c) =>
+                  !search ||
+                  (c.id + " " + c.label + " " + (categoryKeywords[c.id] || ""))
+                    .toLowerCase()
+                    .includes(search.toLowerCase()) ||
+                  fields.some((f) => f.category === c.id),
+              );
+              if (!items.length) return null;
+              return (
+                <div className="settings-nav-group" key={group.label || "top"}>
+                  {group.label && <span className="settings-nav-label">{group.label}</span>}
+                  {items.map((c) => (
+                    <button
+                      key={c.id}
+                      className={category === c.id ? "selected" : ""}
+                      aria-current={category === c.id ? "page" : undefined}
+                      onClick={() => {
+                        if (c.id === "Devices") {
+                          navigate?.("devices");
+                          return;
+                        }
+                        setCategory(c.id);
+                        setSearch("");
+                      }}
+                    >
+                      <c.icon size={15} aria-hidden="true" />
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </nav>
+        </aside>
       }
     >
-      <label className="search settings-search">
-        <Search size={15} aria-hidden="true" />
-        <input
-          aria-label="Search settings"
-          placeholder="Find a setting or category…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </label>
+      <section className="ws-main scroll settings-main" aria-label={categoryLabel}>
       {resource.error && (
-        <p role="alert">
+        <p role="alert" className="notice" data-tone="error">
           {resource.error}
-          <button onClick={() => void resource.refresh()}>Retry</button>
+          <button className="compact" onClick={() => void resource.refresh()}>Retry</button>
         </p>
       )}
       <div className="settings-layout">
-        <nav aria-label="Settings categories">
-          {categories
-            .filter(
-              (c) =>
-                !search ||
-                (c + " " + (categoryKeywords[c] || ""))
-                  .toLowerCase()
-                  .includes(search.toLowerCase()) ||
-                fields.some((f) => f.category === c),
-            )
-            .map((c) => (
-              <button
-                key={c}
-                className={category === c ? "selected" : ""}
-                aria-current={category === c ? "page" : undefined}
-                onClick={() => {
-                  setCategory(c);
-                  setSearch("");
-                }}
-              >
-                {c}
-              </button>
-            ))}
-        </nav>
         <div className="settings-content">
           {category === "Connections" && !search && <MailConnections/>}
           {category === "Browser" && !search && <BrowserSettings report={report}/>}
-          {search && <p>Select a matching category to open its controls.</p>}
+          {search && <p className="side-note">Select a matching category to open its controls.</p>}
           {category === "Appearance" && !search && (
-            <section>
-              <h2>Appearance</h2>
-              <label className="field">
-                Text and interface size
-                <select
-                  aria-label="Text and interface size"
-                  value={interfaceScale}
-                  onChange={(e) => setInterfaceScale(Number(e.target.value))}
-                >
-                  {[1, 1.1, 1.25, 1.5].map((factor) => (
-                    <option key={factor} value={factor}>
-                      {Math.round(factor * 100)}%
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <LayoutControls resetNavigation={resetLayout} />
-              <label className="check-field">
-                <input
-                  type="checkbox"
-                  checked={developer}
-                  onChange={(e) => setDeveloper(e.target.checked)}
-                />
-                Developer Mode
-              </label>
-              <p className="small muted">
-                Adds a Diagnostics shortcut to navigation. Permissions,
-                approvals and safety information stay the same.
-              </p>
-              <label className="field">
-                Theme
-                <select
-                  value={theme}
-                  onChange={(e) => setTheme(e.target.value)}
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
-              </label>
-              <label className="check-field">
-                <input
-                  type="checkbox"
-                  checked={reduced}
-                  onChange={(e) => setReduced(e.target.checked)}
-                />
-                Reduce motion
-              </label>
-              <label className="check-field">
-                <input
-                  type="checkbox"
-                  checked={skip}
-                  onChange={(e) => {
-                    setSkip(e.target.checked);
-                    localStorage.setItem(
-                      "skipWelcome",
-                      String(e.target.checked),
-                    );
-                  }}
-                />
-                Start on Home
-              </label>
+            <section className="settings-section">
+              <header className="settings-head">
+                <h2>Appearance</h2>
+                <p>How OLIVE looks on this device.</p>
+              </header>
+              <h3 className="settings-group-title">Theme and text</h3>
+              <div className="settings-group">
+                <div className="setting-row">
+                  <span className="setting-text">
+                    <strong>Theme</strong>
+                    <span>Dark is the default. Light is a native palette, not an inversion.</span>
+                  </span>
+                  <div className="segmented" role="group" aria-label="Theme">
+                    {(["dark", "light"] as const).map((t) => (
+                      <button key={t} aria-pressed={theme === t} onClick={() => setTheme(t)}>
+                        {t === "dark" ? "Dark" : "Light"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="setting-row">
+                  <span className="setting-text">
+                    <strong>Text and interface size</strong>
+                    <span>Scales every workspace, including Studio chrome.</span>
+                  </span>
+                  <select
+                    aria-label="Text and interface size"
+                    value={interfaceScale}
+                    onChange={(e) => setInterfaceScale(Number(e.target.value))}
+                  >
+                    {[1, 1.1, 1.25, 1.5].map((factor) => (
+                      <option key={factor} value={factor}>
+                        {Math.round(factor * 100)}%
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <h3 className="settings-group-title">Motion</h3>
+              <div className="settings-group">
+                <label className="setting-row">
+                  <span className="setting-text">
+                    <strong>Reduce motion</strong>
+                    <span>Removes transitions and stops the compact Core from animating.</span>
+                  </span>
+                  <input type="checkbox" role="switch" className="switch" aria-label="Reduce motion" checked={reduced} onChange={(e) => setReduced(e.target.checked)} />
+                </label>
+              </div>
+              <h3 className="settings-group-title">Startup and layout</h3>
+              <div className="settings-group">
+                <label className="setting-row">
+                  <span className="setting-text">
+                    <strong>Start on Home</strong>
+                    <span>Skip the Welcome screen when OLIVE opens.</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    className="switch"
+                    aria-label="Start on Home"
+                    checked={skip}
+                    onChange={(e) => {
+                      setSkip(e.target.checked);
+                      localStorage.setItem("skipWelcome", String(e.target.checked));
+                    }}
+                  />
+                </label>
+                <label className="setting-row">
+                  <span className="setting-text">
+                    <strong>Developer Mode</strong>
+                    <span>Adds a Diagnostics shortcut to navigation. Permissions, approvals and safety information stay the same.</span>
+                  </span>
+                  <input type="checkbox" role="switch" className="switch" aria-label="Developer Mode" checked={developer} onChange={(e) => setDeveloper(e.target.checked)} />
+                </label>
+                <div className="setting-row setting-row-block">
+                  <LayoutControls resetNavigation={resetLayout} />
+                </div>
+              </div>
             </section>
           )}
           {fields.length > 0 && value && (
-            <section>
-              <h2>{search ? "Matching settings" : category}</h2>
-              <div className="settings-fields">
+            <section className="settings-section">
+              <header className="settings-head">
+                <h2>{search ? "Matching settings" : categoryLabel}</h2>
+              </header>
+              <div className="settings-group">
                 {fields.map((f) => {
                   const current =
                     f.target === "params"
@@ -289,18 +357,18 @@ export default function Settings({
                         : (value.settings[f.key] as Value);
                   return (
                     <label
-                      className={f.kind === "bool" ? "check-field" : "field"}
+                      className="setting-row"
                       key={`${f.target}.${f.key}`}
                     >
-                      <span>
-                        {f.label}
-                        {search && (
-                          <small className="muted"> · {f.category}</small>
-                        )}
+                      <span className="setting-text">
+                        <strong>{f.label}</strong>
+                        {search && <span>{f.category}</span>}
                       </span>
                       {f.kind === "bool" ? (
                         <input
                           type="checkbox"
+                          role="switch"
+                          className="switch"
                           checked={Boolean(current)}
                           onChange={(e) => edit(f, e.target.checked)}
                         />
@@ -500,9 +568,21 @@ export default function Settings({
           {search && !fields.length && (
             <p>Choose a matching category, or try another search.</p>
           )}
-          <p role="status">{notice}</p>
+          <p role="status" className="settings-notice">{notice}</p>
         </div>
       </div>
+      </section>
+      {dirty && (
+        <div className="settings-savebar" role="region" aria-label="Unsaved settings">
+          <span>Unsaved changes</span>
+          <button className="compact quiet" disabled={saving} onClick={() => setDraft(undefined)}>
+            Revert
+          </button>
+          <button className="compact primary" disabled={!value || saving} onClick={() => void save()}>
+            {saving ? "Saving…" : "Save settings"}
+          </button>
+        </div>
+      )}
     </WorkspacePage>
   );
 }

@@ -752,6 +752,7 @@ export default function App() {
                       setReduced={setReduced}
                       diagnosticsRequest={diagnosticsRequest}
                       browserRequest={browserSettingsRequest}
+                      navigate={navigate}
                     />
                   </Suspense>
                 </div>

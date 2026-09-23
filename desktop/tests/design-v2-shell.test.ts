@@ -11,6 +11,7 @@ import {
   type PaletteProvider,
 } from "../src/app/commands";
 import { Navigation, navModeFor } from "../src/app/Navigation";
+import { PaletteRow } from "../src/app/CommandPalette";
 import { TitleBar } from "../src/app/TitleBar";
 import { connectSummary, modelStatus, runtimeState } from "../src/services/runtimeState";
 import { corePaletteMode } from "../src/components/olive-core/geometry";
@@ -66,6 +67,25 @@ describe("command registry", () => {
     ] };
     const result = await collectItems("task", [mixed]);
     expect(result.items.map((i) => i.group)).toEqual(["Start", "Start", "Go to"]);
+  });
+});
+
+describe("command palette rows", () => {
+  it("names each row by its command only; detail, keys and reasons are descriptions", () => {
+    const html = renderToStaticMarkup(createElement(PaletteRow, {
+      item: { id: "s", title: "Open Settings", detail: "Appearance, models and data.", keys: "Ctrl+,", group: "Go to", run },
+      index: 0, active: true, query: "set", onHover: run, onRun: run,
+    }));
+    expect(html).toContain('aria-label="Open Settings"');
+    expect(html).toContain('aria-description="Appearance, models and data. · Ctrl+,"');
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain("<mark>Set</mark>");
+    const disabled = renderToStaticMarkup(createElement(PaletteRow, {
+      item: { id: "r", title: "Run: Run Project", unavailable: "A program is already running", group: "Run", run },
+      index: 1, active: false, query: "", onHover: run, onRun: run,
+    }));
+    expect(disabled).toContain('aria-disabled="true"');
+    expect(disabled).toContain("A program is already running");
   });
 });
 

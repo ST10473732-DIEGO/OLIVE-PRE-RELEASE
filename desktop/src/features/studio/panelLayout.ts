@@ -4,7 +4,9 @@
 export const panelDefaults = { explorer: 256, assistant: 340, output: 236 };
 export type PanelLayout = typeof panelDefaults;
 export const panelBounds = {
-  explorer: [200, 480],
+  // The sidebar keeps its pre-V2 150 px minimum (V2 suggests 200); saved
+  // layouts and the keyboard slider in Settings keep their meaning.
+  explorer: [150, 480],
   assistant: [300, 520],
   output: [100, 900],
 } as const;

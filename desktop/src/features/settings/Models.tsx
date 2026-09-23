@@ -41,17 +41,38 @@ export function Models({ report }: { report: (e: unknown) => void }) {
     }
   };
   if (!data || !policy)
-    return <p role="status">{resource.error || "Loading model rolesâ€¦"}</p>;
+    return <p role="status">{resource.error || "Loading model roles…"}</p>;
   return (
     <section>
-      <h3>OLIVE presets</h3>
-      <p className="muted">Presets choose local models and pipelines. Provider weights retain their original identity.</p>
-      {data.presets.map(p => <details key={p.id}>
-        <summary>{p.name} · {p.status}</summary>
-        <p>{p.description}</p>
-        <p>{p.runtime} · {p.model || "No media engine configured"} · {p.pipeline}</p>
-        <p className="muted">Digest: {p.digest || "Unavailable"}<br />{p.resource_policy}</p>
-      </details>)}
+      <h3 className="settings-group-title">OLIVE presets</h3>
+      <p className="muted small">Presets choose local models and pipelines. Provider weights retain their original identity. Availability is read from the local model service.</p>
+      <div className="settings-group presets-table" role="table" aria-label="OLIVE presets">
+        <div className="presets-row presets-header" role="row">
+          <span role="columnheader">Preset</span>
+          <span role="columnheader">Installed model</span>
+          <span role="columnheader">Purpose</span>
+          <span role="columnheader">Status</span>
+        </div>
+        {data.presets.map((p) => {
+          const ready = p.status === "Ready" || p.status.startsWith("Image edits ready");
+          return (
+            <details key={p.id} className="presets-item">
+              <summary className="presets-row" role="row">
+                <span role="cell" className="presets-name">
+                  {p.name}
+                  {p.id === "normal" && <span className="ws-pill" data-tone="accent">Default</span>}
+                </span>
+                <span role="cell" className="mono presets-model">{p.model || "No media engine configured"}</span>
+                <span role="cell" className="presets-purpose">{p.description}</span>
+                <span role="cell">
+                  <span className="ws-pill" data-tone={ready ? "success" : "warning"}>{p.status}</span>
+                </span>
+              </summary>
+              <p className="presets-more">{p.runtime} · {p.pipeline} · Digest: {p.digest || "Unavailable"} · {p.resource_policy}</p>
+            </details>
+          );
+        })}
+      </div>
       <h3>Advanced provider selection</h3>
       <label className="field">Current conversation model
         <select value={data.conversation.model} onChange={e => void operation(() => call("chat.model", {chat_id: data.conversation.chat_id, model: e.target.value}), "Explicit provider selected for this conversation")}>
@@ -78,7 +99,7 @@ export function Models({ report }: { report: (e: unknown) => void }) {
       {data.assignments.map((a) => (
         <div className="scope-row" key={a.role}>
           <label className="field">
-            {a.role} Â· {a.model}
+            {a.role} · {a.model}
             <select
               aria-label={`${a.role} model override`}
               value={policy.overrides[a.role] || ""}
@@ -137,7 +158,7 @@ export function Models({ report }: { report: (e: unknown) => void }) {
           Refresh models
         </button>
         <button onClick={() => setInstall(true)}>
-          Install an Ollama modelâ€¦
+          Install an Ollama model…
         </button>
       </div>
       <Details

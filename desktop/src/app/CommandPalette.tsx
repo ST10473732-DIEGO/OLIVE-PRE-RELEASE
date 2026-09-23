@@ -90,7 +90,6 @@ export function CommandPalette({
           </label>
           <div className="palette-results" id="palette-results" ref={list}>
             {items.map((item, index) => {
-              const range = highlightRange(item.title, text);
               return (
                 <Fragment key={item.id}>
                   {(index === 0 || items[index - 1].group !== item.group) && (
@@ -98,36 +97,7 @@ export function CommandPalette({
                       {item.group}
                     </span>
                   )}
-                  <button
-                    id={`palette-item-${index}`}
-                    data-index={index}
-                    className="palette-row"
-                    data-active={index === active || undefined}
-                    aria-current={index === active ? "true" : undefined}
-                    aria-disabled={item.unavailable ? "true" : undefined}
-                    title={item.unavailable || item.detail || undefined}
-                    tabIndex={-1}
-                    onMouseMove={() => setActive(index)}
-                    onClick={() => run(item)}
-                  >
-                    <span className="palette-title">
-                      {range ? (
-                        <>
-                          {item.title.slice(0, range[0])}
-                          <mark>{item.title.slice(range[0], range[1])}</mark>
-                          {item.title.slice(range[1])}
-                        </>
-                      ) : (
-                        item.title
-                      )}
-                    </span>
-                    {item.unavailable ? (
-                      <span className="palette-detail">{item.unavailable}</span>
-                    ) : (
-                      item.detail && <span className="palette-detail">{item.detail}</span>
-                    )}
-                    {item.keys && <kbd className="kbd">{item.keys}</kbd>}
-                  </button>
+                  <PaletteRow item={item} index={index} active={index === active} query={text} onHover={() => setActive(index)} onRun={() => run(item)} />
                 </Fragment>
               );
             })}
@@ -150,5 +120,59 @@ export function CommandPalette({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/** One palette row. Its accessible name is the command alone; the detail,
+ *  keybinding and any unavailability reason are its description. */
+export function PaletteRow({
+  item,
+  index,
+  active,
+  query,
+  onHover,
+  onRun,
+}: {
+  item: PaletteItem;
+  index: number;
+  active: boolean;
+  query: string;
+  onHover: () => void;
+  onRun: () => void;
+}) {
+  const range = highlightRange(item.title, query);
+  return (
+    <button
+      id={`palette-item-${index}`}
+      data-index={index}
+      className="palette-row"
+      data-active={active || undefined}
+      aria-current={active ? "true" : undefined}
+      aria-label={item.title}
+      aria-description={[item.unavailable, item.detail, item.keys].filter(Boolean).join(" · ") || undefined}
+      aria-disabled={item.unavailable ? "true" : undefined}
+      title={item.unavailable || item.detail || undefined}
+      tabIndex={-1}
+      onMouseMove={onHover}
+      onClick={onRun}
+    >
+      <span className="palette-title">
+        {range ? (
+          <>
+            {item.title.slice(0, range[0])}
+            <mark>{item.title.slice(range[0], range[1])}</mark>
+            {item.title.slice(range[1])}
+          </>
+        ) : (
+          item.title
+        )}
+      </span>
+      {item.unavailable ? (
+        <span className="palette-detail">{item.unavailable}</span>
+      ) : (
+        item.detail && <span className="palette-detail">{item.detail}</span>
+      )}
+      {item.keys && <kbd className="kbd">{item.keys}</kbd>}
+    </button>
   );
 }

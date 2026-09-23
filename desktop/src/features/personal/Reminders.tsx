@@ -1,7 +1,7 @@
 import { personalDate } from "./format";
 import { useState } from "react";
-import { Bell, BellRing, BellOff, CalendarClock, Plus, History, Pencil, Trash2, X } from "lucide-react";
-import { WorkspacePage, Panel, EmptyState, Pill, Notice } from "../../components/WorkspacePage";
+import { Bell, BellRing, BellOff, CalendarClock, Info, Plus, History, Pencil, Trash2, X } from "lucide-react";
+import { WorkspacePage, Panel, EmptyState, Pill } from "../../components/WorkspacePage";
 import { call } from "../../services/api";
 import { useResource } from "../../services/useResource";
 import { Field, Feedback, useOperation } from "./shared";
@@ -96,7 +96,9 @@ export default function Reminders({
     setOffset(30);
     setAdding(!adding);
   };
-  const pending = r.data?.items.filter((item) => ["delivered", "snoozed"].includes(item.state)).length || 0;
+  const dueNow = r.data?.items.filter((item) => ["delivered", "snoozed"].includes(item.state)) || [];
+  const pastItems = r.data?.items.filter((item) => !["delivered", "snoozed"].includes(item.state)) || [];
+  const pending = dueNow.length;
   return (
     <WorkspacePage
       layout="flow"
@@ -124,8 +126,64 @@ export default function Reminders({
         }
         notice={op.notice}
       />
-      <div className="ws-grid main-side reminders-grid">
+      <div className={`reminders-grid ${adding ? "ws-grid main-side" : "reminders-single"}`}>
         <div className="reminders-column">
+          {dueNow.length > 0 && (
+            <section className="reminders-due" aria-label="Due now">
+              <h2 className="reminders-heading" data-tone="due">
+                Due now <span className="count" data-tone="warning" aria-hidden="true">{dueNow.length}</span>
+              </h2>
+              {dueNow.map((item) => (
+                <article className="reminder-due" key={item.id} data-state={item.state}>
+                  <BellRing size={15} aria-hidden="true" />
+                  <div className="personal-task-title">
+                    <strong>{item.title}</strong>
+                    <span className="muted">
+                      {item.target_kind === "event" ? "Event" : "Task"} · due {personalDate(item.due_at, records.data?.profile)}
+                      {item.state === "snoozed" ? " · snoozed" : ""}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      void op.run(
+                        () =>
+                          call("reminders.snooze", {
+                            delivery_id: item.id,
+                            minutes: 10,
+                          }),
+                        "Snoozed for ten minutes.",
+                      )
+                    }
+                  >
+                    Snooze 10 min
+                  </button>
+                  <button
+                    onClick={() =>
+                      void op.run(
+                        () => call("reminders.dismiss", { delivery_id: item.id }),
+                        "Reminder dismissed. The linked task remains unchanged.",
+                      )
+                    }
+                  >
+                    Dismiss
+                  </button>
+                  {item.target_kind === "task" && item.target_id && (
+                    <button
+                      className="primary"
+                      onClick={() =>
+                        void op.run(async () => {
+                          const task = await call<{ id: string; revision: number }>("tasks.get", { record_id: item.target_id });
+                          await call("tasks.complete", { record_id: task.id, revision: task.revision });
+                        }, "Task completed. Future pending reminders cancelled.")
+                      }
+                    >
+                      Mark task done
+                    </button>
+                  )}
+                </article>
+              ))}
+            </section>
+          )}
           <Panel
             title="Upcoming"
             sub={scheduleCount ? `${scheduleCount} scheduled reminder${scheduleCount === 1 ? "" : "s"}` : "Scheduled reminders, before or at a set time"}
@@ -231,22 +289,19 @@ export default function Reminders({
             )}
           </Panel>
           <Panel
-            title="Notification history"
-            sub={r.data?.items.length ? `${r.data.items.length}${r.data.has_more ? "+" : ""} delivered, snoozed or dismissed` : "What has fired, and what you did with it"}
+            title="History"
+            sub={pastItems.length ? "What has fired, and what you did with it" : "Past reminders and their outcomes"}
             icon={<History size={15} />}
             label="Notification history"
-            tight={!!r.data?.items.length}
+            tight={pastItems.length > 0}
           >
             {r.loading && <p role="status" className="muted">Loading local records…</p>}
-            {!r.loading && !r.data?.items.length && (
-              <EmptyState compact icon={<BellRing size={20} />} title="No reminder history yet" headingLevel={3}>
-                Create a reminder for an event or task. Due reminders appear here and
-                in the activity centre.
-              </EmptyState>
+            {!r.loading && !pastItems.length && (
+              <p className="side-note reminders-empty-line">No reminder history yet. Due reminders appear under Due now and in the activity centre.</p>
             )}
-            {!!r.data?.items.length && (
+            {pastItems.length > 0 && (
               <div className="personal-task-list reminders-list">
-                {r.data?.items.map((item) => (
+                {pastItems.map((item) => (
                   <article className="personal-task" key={item.id} data-state={item.state}>
                     <span className="ws-row-icon" aria-hidden="true">
                       {item.state === "delivered" ? <BellRing size={15} /> : item.state === "dismissed" ? <BellOff size={15} /> : <Bell size={15} />}
@@ -255,39 +310,11 @@ export default function Reminders({
                       <strong>{item.title}</strong>
                       <span className="muted">
                         {personalDate(item.due_at, records.data?.profile)} ·{" "}
-                        <Pill tone={item.state === "delivered" ? "warning" : item.state === "snoozed" ? "accent" : undefined}>
+                        <Pill tone={item.state === "dismissed" ? undefined : item.state === "completed" ? "success" : "accent"}>
                           {item.state}
                         </Pill>
                       </span>
                     </div>
-                    {["delivered", "snoozed"].includes(item.state) && (
-                      <>
-                        <button
-                          onClick={() =>
-                            void op.run(
-                              () =>
-                                call("reminders.snooze", {
-                                  delivery_id: item.id,
-                                  minutes: 10,
-                                }),
-                              "Snoozed for ten minutes.",
-                            )
-                          }
-                        >
-                          Snooze 10 min
-                        </button>
-                        <button
-                          onClick={() =>
-                            void op.run(
-                              () => call("reminders.dismiss", { delivery_id: item.id }),
-                              "Reminder dismissed. The linked task remains unchanged.",
-                            )
-                          }
-                        >
-                          Dismiss
-                        </button>
-                      </>
-                    )}
                     {item.target_id && (
                       <button
                         className="quiet"
@@ -428,17 +455,12 @@ export default function Reminders({
                 </div>
               </form>
             </Panel>
-          ) : (
-            <Panel title="How reminders work" icon={<Bell size={15} />} label="About reminders">
-              <ul className="reminders-notes">
-                <li>A reminder belongs to one calendar event or one task, either a number of minutes before it or at an explicit time.</li>
-                <li>It fires inside OLIVE and in the activity centre. Nothing leaves this device and nothing fires while the app is closed.</li>
-                <li>Snoozing or dismissing a reminder never changes the linked record.</li>
-              </ul>
-              <Notice tone="accent" icon={<CalendarClock size={15} />} role="note">
-                Completing a task cancels its pending reminders.
-              </Notice>
-            </Panel>
+          ) : null}
+          {!adding && (
+            <p className="reminders-footnote">
+              <Info size={13} aria-hidden="true" />
+              Reminders fire only while OLIVE is running; nothing fires while the app or PC is off. Snoozing or dismissing never changes the linked task or event. Completing a task cancels its pending reminders.
+            </p>
           )}
         </div>
       </div>

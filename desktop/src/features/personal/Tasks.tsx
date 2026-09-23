@@ -23,7 +23,6 @@ import {
   Seg,
   Panel,
   EmptyState,
-  SectionHead,
   Pill,
   Facts,
   Pager,
@@ -104,7 +103,10 @@ export default function Tasks({
     [schedule, setSchedule] = useState<PersonalTask>(),
     [slot, setSlot] = useState<{ start: string; end: string }>(),
     [duration, setDuration] = useState(60),
-    [selectedId, setSelectedId] = useState("");
+    [selectedId, setSelectedId] = useState(""),
+    [quick, setQuick] = useState("");
+  const quickInput = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const r = useResource(
     () =>
       call<Page<PersonalTask>>("tasks.search", {
@@ -207,6 +209,54 @@ export default function Tasks({
     setSlot(undefined);
   };
   const count = rows.length;
+  // Inline add (V2 §14.6): a title and Enter creates the task through the
+  // ordinary tasks.create path; in Today it is due today, otherwise undated.
+  const addQuick = () => {
+    const title = quick.trim();
+    if (!title) return;
+    const zone = profile.data?.timezone || empty.timezone;
+    let today = "";
+    try {
+      today = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    } catch {
+      today = new Date().toISOString().slice(0, 10);
+    }
+    void op.run(async () => {
+      await call("tasks.create", { body: body({ ...empty, title, timezone: zone, due: view === "Today" ? today : "", due_kind: "date" }) });
+      setQuick("");
+    }, "Task saved locally.");
+  };
+  const ordered = grouped.flatMap(([, tasks]) => tasks);
+  const focusRow = (id: string) =>
+    requestAnimationFrame(() =>
+      listRef.current?.querySelector<HTMLButtonElement>(`[data-task-id="${CSS.escape(id)}"] .personal-task-title`)?.focus(),
+    );
+  // Keyboard model: N new, ↑/↓ move, Space complete, Enter edit, Del delete.
+  const onListKey = (event: React.KeyboardEvent) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select") || event.ctrlKey || event.metaKey || event.altKey) return;
+    const index = ordered.findIndex((t) => t.id === selectedId);
+    if (event.key === "n" || event.key === "N") {
+      event.preventDefault();
+      quickInput.current?.focus();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const next = ordered[Math.max(0, Math.min(ordered.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
+      if (next) {
+        setSelectedId(next.id);
+        focusRow(next.id);
+      }
+    } else if (event.key === " " && ordered[index] && target.classList.contains("personal-task-title")) {
+      event.preventDefault();
+      toggle(ordered[index]);
+    } else if (event.key === "Enter" && ordered[index] && target.classList.contains("personal-task-title")) {
+      event.preventDefault();
+      setEdit(ordered[index]);
+    } else if (event.key === "Delete" && ordered[index]) {
+      event.preventDefault();
+      remove(ordered[index]);
+    }
+  };
   return (
     <WorkspacePage
       layout="fill"
@@ -325,19 +375,48 @@ export default function Tasks({
           error={targetError || op.error || r.error}
           notice={op.notice}
         />
-        <div className="personal-task-list tasks-groups">
+        {view !== "Completed" && (
+          <form
+            className="tasks-quick"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addQuick();
+            }}
+          >
+            <Plus size={14} aria-hidden="true" />
+            <input
+              ref={quickInput}
+              aria-label="Add a task"
+              placeholder={view === "Today" ? "Add a task to Today…" : "Add a task…"}
+              value={quick}
+              maxLength={500}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setQuick("");
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+            <kbd className="kbd" aria-hidden="true">N</kbd>
+          </form>
+        )}
+        <div className="personal-task-list tasks-groups" ref={listRef} onKeyDown={onListKey}>
           {rows.length ? (
             grouped.map(([group, tasks]) => (
               <section className="tasks-group" key={group} aria-label={group}>
-                <SectionHead>
-                  {group} · {tasks.length}
-                </SectionHead>
+                <h3 className="tasks-group-head" data-group={group}>
+                  {group} <span className="count" data-tone="neutral" aria-hidden="true">{tasks.length}</span>
+                  <span className="sr-only">{tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>
+                </h3>
                 <Panel tight>
                   {tasks.map((t) => (
                     <article
                       className={`personal-task ${t.id === selectedId ? "selected" : ""}`}
                       key={t.id}
                       data-group={group}
+                      data-task-id={t.id}
+                      data-done={t.status === "completed" || undefined}
                     >
                       <button
                         aria-label={`${t.status === "completed" ? "Reopen" : "Complete"} ${t.title}`}
@@ -434,6 +513,13 @@ export default function Tasks({
           onPrevious={() => setPage(page - 1)}
           onNext={() => setPage(page + 1)}
         />
+        <p className="tasks-keys" aria-label="Keyboard shortcuts">
+          <span><kbd className="kbd">N</kbd> new</span>
+          <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> move</span>
+          <span><kbd className="kbd">Space</kbd> complete</span>
+          <span><kbd className="kbd">Enter</kbd> edit</span>
+          <span><kbd className="kbd">Del</kbd> delete</span>
+        </p>
       </Main>
       <Sheet
         open={!!edit}

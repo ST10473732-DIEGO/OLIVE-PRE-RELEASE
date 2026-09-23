@@ -1247,9 +1247,10 @@ function LocalStudio({
             <OliveMark size={20} />
             <h1>Studio</h1>
           </div>
+          <h2 className="studio-empty-tagline">Your next idea starts here.</h2>
           <div className="studio-empty-columns">
             <section aria-label="Start">
-              <h2>Start</h2>
+              <h3>Start</h3>
               <button
                 className="studio-start-row"
                 aria-label="Open Workspace"
@@ -1276,7 +1277,7 @@ function LocalStudio({
               </button>
             </section>
             <section aria-label="Recent">
-              <h2>Recent</h2>
+              <h3>Recent</h3>
               {workspaces.length === 0 && <p className="side-note">No approved folders yet.</p>}
               <div className="studio-recent">
                 {workspaces.map((w) => (
