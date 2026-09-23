@@ -611,13 +611,6 @@ p[role="status"]:not(:empty) {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
-  .navigation:not(.compact):not(.overlay) {
-    width: 200px;
-  }
-  /* Narrow: the assistant takes the Files pane's place when both are open. */
-  .studio[data-assistant="true"] .explorer {
-    display: none;
-  }
   .conversation-list {
     width: 220px;
   }
@@ -732,21 +725,6 @@ p[role="status"]:not(:empty) {
     flex-wrap: wrap;
   }
 }
-/* Narrow: navigation becomes an overlay and a slim bar keeps the Core visible.
-   This width is the same number the shell uses to decide to render the slim bar
-   (App's `narrow`): if the two disagree, the band between them has neither a
-   navigation pane nor a way to open one. */
-@media (max-width: 939px) {
-  .app {
-    flex-direction: column;
-  }
-  .navigation:not(.nav-overlay) {
-    display: none;
-  }
-  .narrow-bar {
-    display: flex;
-  }
-}
 @media (max-width: 680px) {
   .settings-layout {
     grid-template-columns: 1fr;
@@ -763,15 +741,6 @@ p[role="status"]:not(:empty) {
 @media (max-height: 740px) {
   :root {
     --bar: 42px;
-  }
-  .identity,
-  .core-anchor {
-    height: 32px;
-    min-height: 32px;
-  }
-  .core-anchor {
-    width: 30px;
-    height: 30px;
   }
   .editor-host {
     min-height: 68px;

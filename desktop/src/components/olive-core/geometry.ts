@@ -144,3 +144,10 @@ export class MotionState {
     return true;
   }
 }
+
+/** Which V2 palette the compact Core uses for a runtime state: the olive at
+ *  rest, cyan only while real work runs, amber while waiting on the person. */
+export function corePaletteMode(state: string): "rest" | "compute" | "attention" {
+  if (["Approval required", "Paused", "Pausing"].includes(state)) return "attention";
+  return activeState(state) ? "compute" : "rest";
+}

@@ -149,6 +149,14 @@
 .core[data-state="Error"] .olive-core-status {
   color: var(--error);
 }
+/* V2: the compact Core's fallback follows its palette state too. */
+.core.core-active:not(.core-large) {
+  color: var(--accent-cyan);
+}
+.core[data-state="Approval required"]:not(.core-large),
+.core[data-state="Paused"]:not(.core-large) {
+  color: var(--status-ask);
+}
 .core-large .olive-core-canvas {
   filter: drop-shadow(0 0 1.5px #249be338);
 }
@@ -167,88 +175,294 @@
   inset: 0;
   pointer-events: none;
   overflow: clip;
-  z-index: 4;
+  /* Above the title bar (20), below overlays, menus and the palette. */
+  z-index: 21;
 }
 .core-transit-stage .core {
   width: 100%;
   height: 100%;
 }
 
-/* ---------- Navigation ----------
-   A restrained labelled pane. Labels stay readable by default; compact mode is
-   the user's choice, and narrow windows get the same pane as an overlay. */
+/* ---------- Title bar (V2 §13) ----------
+   One 34 px bar for every space: identity, where you are, the command centre
+   and a status cluster that reports only real state. */
+.app {
+  flex-direction: column;
+}
+.titlebar {
+  height: var(--titlebar);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 8px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12.5px;
+  position: relative;
+  z-index: 20;
+  min-width: 0;
+}
+.titlebar button {
+  min-height: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  font-weight: 500;
+  font-size: 12px;
+  gap: 6px;
+}
+.titlebar button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 0;
+}
+.titlebar button:disabled {
+  background: transparent;
+}
+.tb-brand {
+  padding: 0 6px 0 4px !important;
+}
+.tb-wordmark {
+  font: 600 12.5px/1 var(--font-display);
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+}
+.olive-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  position: relative;
+  border-radius: 50% 50% 48% 52% / 58% 58% 42% 42%;
+  background: radial-gradient(circle at 34% 30%, #c3d85a 0, #9ab534 40%, #6a851d 100%);
+  transform: rotate(-14deg);
+}
+.olive-mark::after {
+  content: "";
+  position: absolute;
+  top: 9%;
+  left: 50%;
+  width: 42%;
+  height: 24%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #c0232a;
+  box-shadow: 0 0 0 1px #5f7a1b;
+}
+.tb-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border-default);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+.tb-space {
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.tb-space.static {
+  padding: 0 6px;
+}
+.tb-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.tb-crumb {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  padding-left: 2px;
+}
+.tb-crumb::before {
+  content: "·";
+  margin-right: 6px;
+}
+.tb-grow {
+  flex: 1;
+  min-width: 4px;
+}
+.titlebar .tb-command {
+  width: clamp(180px, 30vw, 420px);
+  justify-content: flex-start;
+  border: 1px solid var(--border-default);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  border-radius: var(--r-md);
+  padding: 0 4px 0 8px;
+  flex-shrink: 1;
+  min-width: 120px;
+}
+.titlebar .tb-command:hover:not(:disabled) {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+}
+.tb-command-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.tb-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.tb-actions:empty {
+  display: none;
+}
+.tb-status {
+  white-space: nowrap;
+}
+.tb-status[data-tone="ok"] > svg {
+  color: var(--status-success);
+}
+.tb-status[data-tone="warning"],
+.tb-status[data-tone="attention"] {
+  color: var(--status-warning) !important;
+}
+.tb-status[data-tone="error"] {
+  color: var(--status-error) !important;
+}
+.tb-status[data-tone="working"] .tb-status-text {
+  color: var(--accent-cyan);
+}
+.tb-activity .core-anchor {
+  width: 18px;
+  height: 18px;
+}
+.tb-icon {
+  width: 28px;
+  padding: 0 !important;
+  position: relative;
+}
+.tb-bell .count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(25%, -10%);
+  min-width: 14px;
+  height: 14px;
+  font-size: 9.5px;
+}
+.menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  min-width: 200px;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.menu[data-align="end"] {
+  left: auto;
+  right: 0;
+}
+.menu .menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 400;
+  width: 100%;
+  text-align: left;
+}
+.menu .menu-item:hover:not([aria-disabled="true"]),
+.menu .menu-item:focus-visible {
+  background: var(--bg-selected);
+  border: 0;
+  outline: none;
+}
+.menu .menu-item[aria-current="true"] {
+  font-weight: 600;
+}
+.menu .menu-item[aria-disabled="true"] {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+.menu .menu-item > svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-detail {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.app-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+
+/* ---------- Navigation (V2 §13) ----------
+   216 px, grouped, 30 px rows, olive 2 px active indicator; a 48 px rail when
+   collapsed; an overlay under the title bar on narrow windows and in Studio. */
 .navigation {
   width: var(--nav);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  padding: 10px 10px 8px;
-  gap: 2px;
+  background: var(--bg-base);
+  border-right: 1px solid var(--border-subtle);
+  padding: 8px 8px 6px;
+  gap: 1px;
   min-height: 0;
+  font-size: 13px;
 }
 .navigation.compact {
   width: var(--nav-compact);
-  padding: 10px 8px 8px;
+  padding: 6px 6px 6px;
   align-items: stretch;
 }
 .nav-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  padding: 2px 2px 6px;
-}
-.nav-identity {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  border-radius: 10px;
-  padding: 4px 6px 4px 2px;
-  color: var(--text);
-  text-align: left;
-  min-height: 40px;
-}
-.nav-identity:hover:not(:disabled) {
-  background: var(--hover);
-  border: 0;
-}
-.nav-identity-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.25;
-}
-.navigation.compact .nav-identity-text {
-  display: none;
-}
-.nav-identity-text strong {
-  font-family: var(--font-display);
-  font-size: 14px;
-  letter-spacing: 2.4px;
-  font-weight: 600;
-}
-.nav-state {
-  font-size: 11.5px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
-}
-.nav-state[data-state="Approval required"],
-.nav-state[data-state="Paused"],
-.nav-state[data-state="Degraded"] {
-  color: var(--warning);
-}
-.nav-state[data-state="Error"],
-.nav-state[data-state="Disconnected"] {
-  color: var(--error);
+  padding: 0 0 4px 8px;
 }
 .nav-scroll {
   flex: 1;
@@ -264,56 +478,79 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding-top: 9px;
+  padding-top: 6px;
 }
 .nav-group-label {
   font-size: 10.5px;
   font-weight: 650;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--faint);
-  padding: 0 10px 3px;
+  color: var(--text-muted);
+  padding: 6px 8px 4px;
 }
 .navigation.compact .nav-group-label {
   /* Keep the grouping as a rule rather than a label with no room for text. */
   height: 1px;
   padding: 0;
-  margin: 6px 8px;
+  margin: 5px 8px;
   overflow: hidden;
   color: transparent;
-  background: var(--line);
+  background: var(--border-default);
 }
 .nav-row {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 9px;
   width: 100%;
-  min-height: 33px;
-  padding: 0 10px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   background: transparent;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
   justify-content: flex-start;
   text-align: left;
+  position: relative;
 }
 .nav-row > svg {
   flex-shrink: 0;
 }
 .nav-row:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--text);
+  background: var(--bg-hover);
+  color: var(--text-primary);
   border: 0;
 }
 .nav-row.selected {
-  background: var(--accent-soft);
-  color: var(--text);
+  background: var(--bg-active);
+  color: var(--text-primary);
   font-weight: 600;
 }
-.nav-row.selected > svg {
-  color: var(--accent);
+.nav-row.selected::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent-green);
+}
+.navigation.compact .nav-row.selected::before {
+  left: -6px;
+}
+.nav-row .count {
+  margin-left: auto;
+}
+.navigation.compact .nav-row .count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  font-size: 9.5px;
 }
 .nav-label {
   white-space: nowrap;
@@ -324,65 +561,176 @@
   justify-content: center;
   padding: 0;
   gap: 0;
+  height: 34px;
 }
-.navigation.compact .nav-label,
-.navigation.compact .nav-kbd {
-  display: none;
-}
-.nav-kbd {
+.navigation.compact .nav-label {
   display: none;
 }
 .nav-foot {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-.narrow-bar {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-  flex-shrink: 0;
-}
-.narrow-route {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.narrow-identity {
-  border: 0;
-  background: transparent;
-  padding: 2px;
-  min-height: 36px;
-  flex-shrink: 0;
-}
-.narrow-identity:hover:not(:disabled) {
-  background: var(--hover);
-  border: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
 }
 .nav-scrim {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar) 0 0 0;
   z-index: 18;
-  background: rgba(2, 6, 12, 0.45);
+  background: rgba(3, 6, 10, 0.45);
 }
 /* Not `.overlay`: that class is the modal scrim, and its translucent
    background would show the page straight through the navigation pane. */
 .navigation.nav-overlay {
   position: fixed;
-  inset: 0 auto 0 0;
+  top: var(--titlebar);
+  bottom: 0;
+  left: 0;
   z-index: 19;
-  width: min(268px, 84vw);
-  box-shadow: var(--shadow);
+  width: 240px;
+  box-shadow: var(--shadow-overlay);
+  border-right: 1px solid var(--border-strong);
+}
+
+/* ---------- Command palette (V2 §10) ---------- */
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(3, 6, 10, 0.35);
+}
+.palette {
+  position: fixed;
+  z-index: 71;
+  top: calc(var(--titlebar) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 80px));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  animation: palette-in var(--dur-sheet) var(--ease);
+}
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -4px);
+  }
+}
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 40px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.palette-input input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  font-size: 13.5px;
+}
+.palette-input input:focus-visible {
+  box-shadow: none;
+}
+.palette-results {
+  overflow: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+}
+.palette-group {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 8px 3px;
+}
+.palette-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 400;
+  text-align: left;
+  width: 100%;
+}
+.palette-row:hover:not(:disabled) {
+  background: transparent;
+  border: 0;
+}
+.palette-row[data-active] {
+  background: var(--bg-selected);
+}
+.palette-row[aria-disabled="true"] {
+  color: var(--text-disabled);
+}
+.palette-title {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-title mark {
+  background: none;
+  color: var(--accent-blue);
+  font-weight: 650;
+}
+.palette-detail {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-row .kbd {
+  margin-left: auto;
+}
+.palette-empty {
+  padding: 14px 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+.palette-foot {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.palette-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 /* ---------- Page frame ---------- */
@@ -393,7 +741,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  background: var(--bg);
+  background: var(--bg-panel);
 }
 .page > .route-host:not([hidden]) > .studio {
   height: 100%;

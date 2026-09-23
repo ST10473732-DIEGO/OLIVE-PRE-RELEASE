@@ -2,7 +2,6 @@ import type { RecordTarget } from "../services/handoff";
 import { HomePage } from "../features/Home";
 import { Welcome } from "../features/Welcome";
 import {
-  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -12,10 +11,12 @@ import {
   useReducer,
 } from "react";
 import { MotionConfig } from "motion/react";
-import { ArrowRight, Moon, Plug, Search, Square, Sun, X } from "lucide-react";
-import { Navigation } from "./Navigation";
-import { NarrowBar } from "./NarrowBar";
-import { featureById, features, searchFeatures } from "../navigation/features";
+import { Moon, Plug, Square, Sun, X } from "lucide-react";
+import { Navigation, navModeFor } from "./Navigation";
+import { TitleBar, TitleBarSlotContext } from "./TitleBar";
+import { CommandPalette } from "./CommandPalette";
+import { usePaletteProvider, type PaletteItem } from "./commands";
+import { featureById, features } from "../navigation/features";
 import {
   outputReducer,
   validationChannel,
@@ -26,7 +27,13 @@ import {
   type Validation,
 } from "../services/studioOutput";
 import { ApprovalSummary } from "../components/ApprovalSummary";
-import { runtimeState as describeRuntime } from "../services/runtimeState";
+import {
+  runtimeState as describeRuntime,
+  modelStatus,
+  connectSummary,
+  type ConnectSnapshotLike,
+} from "../services/runtimeState";
+import { useResource } from "../services/useResource";
 import { tooling } from "../features/studio/tooling";
 import { loadActiveWorkspace, saveActiveWorkspace } from "../features/studio/sessions";
 import { Core } from "../components/Core";
@@ -86,18 +93,15 @@ export default function App() {
     localStorage.setItem("navigationCompact", String(navCompact));
   }, [navCompact]);
   const [navOverlay, setNavOverlay] = useState(false);
-  // Narrow windows use the same pane as a dismissable overlay.
-  // Keep this in step with the narrow shell media query in workspaces.css.
-  const [narrow, setNarrow] = useState(() => window.innerWidth < 940);
+  // V2 §15: the pane is expanded, a 48 px rail, or hidden (an overlay opened
+  // from the title bar) depending on the window width and the space.
+  const [width, setWidth] = useState(() => window.innerWidth);
   useEffect(() => {
-    const measure = () => setNarrow(window.innerWidth < 940);
+    const measure = () => setWidth(window.innerWidth);
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, []);
-  useEffect(() => {
-    if (!narrow) setNavOverlay(false);
-  }, [narrow]);
   const [projectCreate, setProjectCreate] = useState(0);
   // Studio requests: select a workspace, or open the New project wizard.
   const [studioRequest, setStudioRequest] = useState({ id: "", revision: 0 });
@@ -143,12 +147,15 @@ export default function App() {
     });
   const [activity, setActivity] = useState(false);
   const [palette, setPalette] = useState(false);
-  // The palette query is its own state and starts empty every time it opens.
+  // The palette query is its own state and starts fresh every time it opens:
+  // empty for "Find anything", ">" for Ctrl+Shift+P (commands).
   const [paletteQuery, setPaletteQuery] = useState("");
-  const openPalette = useCallback((open: boolean) => {
-    if (open) setPaletteQuery("");
+  const openPalette = useCallback((open: boolean, prefix = "") => {
+    if (open) setPaletteQuery(prefix);
     setPalette(open);
   }, []);
+  const [contextSlot, setContextSlot] = useState<HTMLElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [developer, setDeveloper] = useState(
     localStorage.getItem("developerMode") === "true",
   );
@@ -322,7 +329,7 @@ export default function App() {
       ) {
         e.preventDefault();
         if (palette) setPalette(false);
-        else openPalette(true);
+        else openPalette(true, ">");
       }
       if (
         (e.ctrlKey || e.metaKey) &&
@@ -330,13 +337,14 @@ export default function App() {
         e.key.toLowerCase() === "o"
       ) {
         e.preventDefault();
-        setNavOverlay((value) => !value);
+        if (window.innerWidth < 1100 || route === "studio") setNavOverlay((value) => !value);
+        else setNavCompact((value) => !value);
       }
       if (!entered && e.key === "Enter") setEntered(true);
     };
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
-  }, [entered, palette, openPalette]);
+  }, [entered, palette, openPalette, route]);
   const openChat = useCallback((record: ChatRecord) => {
     setChat(record);
     setRoute("chat");
@@ -431,6 +439,101 @@ export default function App() {
   };
   const runtimeState = describeRuntime(state, snapshot, approvals.length, busy);
   const currentApproval = approvals[0];
+  // Title-bar Connect status: the real Connect snapshot, polled gently. It is
+  // display only; Devices remains the place where anything changes.
+  const [connectState, setConnectState] = useState<ConnectSnapshotLike | null>(null);
+  useEffect(() => {
+    if (!entered) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const value = await call<typeof connectState>("connect.snapshot", {});
+        if (!stopped) setConnectState(value);
+      } catch {
+        if (!stopped) setConnectState(null);
+      }
+      if (!stopped) timer = setTimeout(() => void poll(), 5000);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [entered]);
+  const today = useResource(
+    () => call<{ reminders: unknown[] }>("personal.today", {}),
+    ["personal.changed", "personal.reminders"],
+  );
+  const dueReminders = today.data?.reminders.length || 0;
+  const connectApprovals = approvals.filter((a) => a.tool_name === "connect.request").length;
+  const runOnName = connectState?.devices?.find((d) => d.device_id === chat?.run_on)?.display_name || "";
+  const navMode = navModeFor(width, route, navCompact);
+  const navHidden = navMode === "hidden";
+  useEffect(() => {
+    if (!navHidden) setNavOverlay(false);
+  }, [navHidden]);
+  const titleContext =
+    route === "chat" && chat?.title ? chat.title : undefined;
+  const startCommands: PaletteItem[] = [
+    { id: "new-chat", title: "New conversation", group: "Start", run: () => void call<ChatRecord>("chat.new", {}).then(openChat).catch(report) },
+    { id: "new-project", title: "New code project (Studio)", group: "Start", keys: "Ctrl+Alt+N", run: () => { setNewProjectRequest((value) => value + 1); navigate("studio"); } },
+    { id: "new-olive-project", title: "New OLIVE Project (group related work)", group: "Start", run: () => { setProjectCreate(Date.now()); navigate("projects"); } },
+    { id: "new-event", title: "New calendar event", group: "Start", run: () => { setNativeCreate((current) => ({ ...current, calendar: (current.calendar || 0) + 1 })); navigate("calendar"); } },
+    { id: "new-personal-task", title: "New task", group: "Start", run: () => { setNativeCreate((current) => ({ ...current, tasks: (current.tasks || 0) + 1 })); navigate("tasks"); } },
+    {
+      id: "compose-mail",
+      title: "Compose mail",
+      group: "Start",
+      run: () =>
+        void call<{ id: string }>("mail.save_draft", { body: { to: [], subject: "", text: "" } })
+          .then((value) => {
+            setHandoffs((current) => ({ ...current, mail: { id: value.id, revision: (current.mail?.revision || 0) + 1 } }));
+            navigate("mail");
+          })
+          .catch(report),
+    },
+    {
+      id: "open-workspace",
+      title: "Open an existing folder in Studio",
+      group: "Start",
+      run: () =>
+        void window.olive
+          .openWorkspace()
+          .then((value) => {
+            if (value) openStudio(value.id);
+          })
+          .catch(report),
+    },
+  ];
+  usePaletteProvider("olive.start", "", () => startCommands, entered, 10);
+  usePaletteProvider(
+    "olive.spaces",
+    "",
+    () =>
+      features.map((f) => ({
+        id: `space:${f.id}`,
+        title: `Open ${f.label}`,
+        group: "Go to",
+        detail: f.description,
+        aliases: [f.label, ...(f.aliases || [])],
+        run: () => navigate(f.id),
+      })),
+    entered,
+    20,
+  );
+  usePaletteProvider(
+    "olive.view",
+    ">",
+    () => [
+      { id: "view-theme", title: theme === "dark" ? "View: Use Light Theme" : "View: Use Dark Theme", group: "View", aliases: ["theme", "appearance"], run: () => setTheme(theme === "dark" ? "light" : "dark") },
+      { id: "view-nav", title: "View: Toggle Navigation", group: "View", keys: "Ctrl+Shift+O", run: () => (navHidden ? setNavOverlay((value) => !value) : setNavCompact((value) => !value)) },
+      { id: "view-activity", title: "View: Show OLIVE Activity", group: "View", aliases: ["approvals", "core", "status"], run: () => setActivity(true) },
+      { id: "view-motion", title: reduced ? "View: Allow Motion" : "View: Reduce Motion", group: "View", run: () => setReduced(!reduced) },
+    ],
+    entered,
+    90,
+  );
   return (
     <MotionConfig reducedMotion={reduced ? "always" : "user"}>
       <div className="app">
@@ -442,32 +545,37 @@ export default function App() {
             enter={() => setEntered(true)}
           />
         ) : (
-          <>
-            {narrow && (
-              <NarrowBar
-                route={route}
-                activity={state}
-                state={runtimeState.label}
-                detail={runtimeState.detail}
-                openNavigation={() => setNavOverlay(true)}
-                openActivity={() => setActivity(true)}
-              />
-            )}
-            {(!narrow || navOverlay) && (
+          <TitleBarSlotContext.Provider value={{ context: contextSlot, actions: actionsSlot }}>
+            <TitleBar
+              route={route}
+              navigate={navigate}
+              navHidden={navHidden}
+              openNavigation={() => setNavOverlay(true)}
+              context={titleContext}
+              openPalette={() => openPalette(true)}
+              activity={state}
+              runtime={runtimeState}
+              openActivity={() => setActivity(true)}
+              model={modelStatus(snapshot, runOnName)}
+              connect={connectSummary(connectState)}
+              attention={approvals.length + dueReminders}
+              developer={developer}
+              compactStatus={route === "studio" || width < 1180}
+              setContextSlot={setContextSlot}
+              setActionsSlot={setActionsSlot}
+            />
+            <div className="app-body" data-nav={navMode}>
+            {(!navHidden || navOverlay) && (
               <Navigation
                 route={route}
                 navigate={navigate}
-                activity={state}
-                state={runtimeState.label}
-                detail={runtimeState.detail}
-                approvals={approvals.length}
-                compact={navCompact}
+                badges={{ reminders: dueReminders, devices: connectApprovals }}
+                compact={navMode === "rail"}
                 setCompact={setNavCompact}
+                canExpand={navMode !== "hidden" && width >= 1280 && route !== "studio"}
                 developer={developer}
-                overlay={narrow && navOverlay}
+                overlay={navHidden && navOverlay}
                 closeOverlay={() => setNavOverlay(false)}
-                openPalette={() => openPalette(true)}
-                openActivity={() => setActivity(true)}
               />
             )}
             <div className="page">
@@ -669,7 +777,8 @@ export default function App() {
                 </div>
               )}
             </div>
-          </>
+            </div>
+          </TitleBarSlotContext.Provider>
         )}
         <Connections
           open={connections}
@@ -847,88 +956,12 @@ export default function App() {
             </section>
           </div>
         </Sheet>
-        <Sheet
+        <CommandPalette
           open={palette}
-          onOpenChange={openPalette}
-          title="Commands"
-          description="Go somewhere or start something. Ctrl+Shift+P opens this anywhere."
-        >
-          <label className="search">
-            <Search size={17} aria-hidden="true" />
-            <input
-              aria-label="Search commands"
-              value={paletteQuery}
-              onChange={(e) => setPaletteQuery(e.target.value)}
-              placeholder="Find a command…"
-              autoFocus
-            />
-          </label>
-          <div className="palette-list">
-          {[
-            { id: "new-chat", name: "New conversation", group: "Start" },
-            { id: "new-project", name: "New code project (Studio)", group: "Start" },
-            { id: "new-olive-project", name: "New OLIVE Project (group related work)", group: "Start" },
-            { id: "new-event", name: "New calendar event", group: "Start" },
-            { id: "new-personal-task", name: "New task", group: "Start" },
-            { id: "compose-mail", name: "Compose mail", group: "Start" },
-            { id: "open-workspace", name: "Open an existing folder in Studio", group: "Start" },
-            ...searchFeatures(paletteQuery, features).map((f) => ({
-              id: f.id,
-              name: `Open ${f.label}`,
-              group: "Go to",
-            })),
-          ]
-            .filter((c) => c.group !== "Start" || c.name.toLowerCase().includes(paletteQuery.toLowerCase()))
-            .map((c, index, list) => (
-              <Fragment key={c.id}>
-              {(index === 0 || list[index - 1].group !== c.group) && (
-                <span className="palette-group" aria-hidden="true">
-                  {c.group}
-                </span>
-              )}
-              <button
-                className="recent-row"
-                title={featureById(c.id)?.description}
-                onClick={() => {
-                  if (c.id === "new-chat") {
-                    void call<ChatRecord>("chat.new", {})
-                      .then(openChat)
-                      .catch(report);
-                  } else if (c.id === "compose-mail") {
-                    setPalette(false);
-                    void call<{id:string}>("mail.save_draft",{body:{to:[],subject:"",text:""}})
-                      .then(value=>{setHandoffs(current=>({...current,mail:{id:value.id,revision:(current.mail?.revision||0)+1}}));navigate("mail");})
-                      .catch(report);
-                  } else if (c.id === "new-project") {
-                    // A code project on disk, created by the Studio wizard.
-                    setNewProjectRequest((value) => value + 1);
-                    navigate("studio");
-                  } else if (c.id === "new-olive-project") {
-                    // An organisational grouping of chats, files and records.
-                    setProjectCreate(Date.now());
-                    navigate("projects");
-                  } else if(c.id==='new-event'||c.id==='new-personal-task'){
-                    const feature=c.id==='new-event'?'calendar':'tasks';
-                    setNativeCreate(current=>({...current,[feature]:(current[feature]||0)+1}));
-                    navigate(feature);
-                  } else if (c.id === "open-workspace") {
-                    setPalette(false);
-                    void window.olive
-                      .openWorkspace()
-                      .then((value) => {
-                        if (value) openStudio(value.id);
-                      })
-                      .catch(report);
-                  } else navigate(c.id);
-                }}
-              >
-                {c.name}
-                <ArrowRight size={15} aria-hidden="true" />
-              </button>
-              </Fragment>
-            ))}
-          </div>
-        </Sheet>
+          onOpenChange={(open) => openPalette(open)}
+          query={paletteQuery}
+          setQuery={setPaletteQuery}
+        />
         <Sheet
           centered={currentApproval?.tool_name === "connect.request"}
           open={Boolean(currentApproval)}

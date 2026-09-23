@@ -75,3 +75,56 @@ export function runtimeState(
     return { label: "Starting", detail: "", tone: "working", full: "OLIVE is starting." };
   return { label: "Idle", detail: model.detail, tone: "idle", full: model.full };
 }
+
+export type StatusTone = "ok" | "warning" | "error" | "neutral" | "computing";
+export interface StatusSummary {
+  /** Short title-bar text, always a word, never colour alone. */
+  label: string;
+  tone: StatusTone;
+  /** Tooltip / accessible description. */
+  full: string;
+}
+
+/** Title-bar model status. It names the current conversation's preset and
+ *  says whether it can run here, from the real preset catalogue and the real
+ *  Ollama reachability. A conversation set to run on a paired device says so. */
+export function modelStatus(snapshot: Snapshot | null, runOnName = ""): StatusSummary {
+  if (!snapshot) return { label: "Starting", tone: "neutral", full: "OLIVE is starting." };
+  const model = describeModel(snapshot.home.status.ollama);
+  const preset = snapshot.presets?.find((p) => p.id === snapshot.chat?.preset);
+  const short = preset ? preset.name.replace(/^OLIVE\s+/, "") : "";
+  if (snapshot.chat?.run_on)
+    return {
+      label: short ? `${short} · ${runOnName || "paired device"}` : `Runs on ${runOnName || "a paired device"}`,
+      tone: "neutral",
+      full: `This conversation runs on ${runOnName || "a paired device"}; answers are attributed to that device.`,
+    };
+  if (!model.available)
+    return {
+      label: model.detail === "checking AI" ? "Checking AI" : model.detail === "AI offline" ? "AI offline" : "No model",
+      tone: model.detail === "checking AI" ? "neutral" : "warning",
+      full: model.full,
+    };
+  if (preset && preset.status !== "Ready" && preset.id !== "reimagine")
+    return { label: `${short} needs setup`, tone: "warning", full: `${preset.name}: ${preset.status}. Open Settings › Models.` };
+  return { label: short ? `${short} ready` : "AI ready", tone: "ok", full: preset ? `${preset.name} is available on this device.` : model.full };
+}
+
+export interface ConnectSnapshotLike {
+  network?: { state?: string };
+  devices?: { device_id?: string; display_name?: string; trust_state?: string; live?: { state?: string } | null }[];
+}
+/** Title-bar Connect status from the real Connect snapshot. Paired is not the
+ *  same as online, and neither implies any permission. */
+export function connectSummary(value: ConnectSnapshotLike | null): StatusSummary {
+  if (!value || !value.network) return { label: "Connect", tone: "neutral", full: "Connect status is not available yet." };
+  if (value.network.state !== "on") return { label: "Connect off", tone: "neutral", full: "OLIVE Connect is off. Open Devices to turn it on." };
+  const paired = (value.devices || []).filter((d) => d.trust_state === "paired");
+  const online = paired.filter((d) => d.live?.state === "online").length;
+  if (!paired.length) return { label: "No devices", tone: "neutral", full: "Connect is on. No device is paired." };
+  return {
+    label: online === 1 ? "1 device online" : `${online} devices online`,
+    tone: online ? "ok" : "neutral",
+    full: `${paired.length} paired ${paired.length === 1 ? "device" : "devices"}, ${online} online. Pairing grants no access by itself.`,
+  };
+}

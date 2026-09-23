@@ -1,4 +1,4 @@
-import { geometry, MotionState, rotate, activeState } from "./geometry";
+import { geometry, MotionState, rotate, activeState, corePaletteMode } from "./geometry";
 export interface CoreMetrics {
   frames: number;
   drawMs: number;
@@ -46,6 +46,24 @@ export class OliveRenderer {
   private pimentoLight = Array.from(
     { length: 32 },
     (_, i) => `hsl(${356 + i * 0.3} 72% ${32 + i * 0.6}%)`,
+  );
+  // V2 compact Core: cyan compute lighting only while real work runs, amber
+  // while OLIVE waits for an approval. The Welcome Core keeps the olive.
+  private computeDark = Array.from(
+    { length: 32 },
+    (_, i) => `hsl(${188 - i * 0.2} ${58 - i * 0.2}% ${24 + i * 1.3}%)`,
+  );
+  private computeLight = Array.from(
+    { length: 32 },
+    (_, i) => `hsl(${190 - i * 0.2} 70% ${18 + i * 0.6}%)`,
+  );
+  private attentionDark = Array.from(
+    { length: 32 },
+    (_, i) => `hsl(${38 + i * 0.2} ${70 - i * 0.2}% ${26 + i * 1.3}%)`,
+  );
+  private attentionLight = Array.from(
+    { length: 32 },
+    (_, i) => `hsl(${36 + i * 0.2} 80% ${18 + i * 0.6}%)`,
   );
   readonly metrics: CoreMetrics = {
     frames: 0,
@@ -190,7 +208,13 @@ export class OliveRenderer {
       const x = rotate({ x: 1, y: 0, z: 0 }, angle),
         y = rotate({ x: 0, y: 1, z: 0 }, angle),
         z = rotate({ x: 0, y: 0, z: 1 }, angle);
-      const palette = this.light ? this.lightPalette : this.darkPalette;
+      const mode = this.welcome ? "rest" : corePaletteMode(this.state);
+      const palette =
+        mode === "compute"
+          ? this.light ? this.computeLight : this.computeDark
+          : mode === "attention"
+            ? this.light ? this.attentionLight : this.attentionDark
+            : this.light ? this.lightPalette : this.darkPalette;
       const brightness = activeState(this.state) ? 1 : 0.83;
       const pointSize = this.welcome ? s / 225 : Math.max(0.62, s / 62);
       const project = (px: number, py: number, pz: number) => {
