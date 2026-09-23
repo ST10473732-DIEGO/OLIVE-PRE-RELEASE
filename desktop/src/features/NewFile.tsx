@@ -27,6 +27,7 @@ export function NewFile({
         <FilePlus size={13} aria-hidden="true" />
       </button>
       <Sheet
+        centered
         open={open}
         onOpenChange={setOpen}
         title="New source file"

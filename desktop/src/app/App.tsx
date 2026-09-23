@@ -976,7 +976,7 @@ export default function App() {
           setQuery={setPaletteQuery}
         />
         <Sheet
-          centered={currentApproval?.tool_name === "connect.request"}
+          centered
           open={Boolean(currentApproval)}
           onOpenChange={(open) => {
             if (!open && currentApproval)

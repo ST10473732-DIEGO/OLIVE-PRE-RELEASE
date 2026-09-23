@@ -321,6 +321,10 @@ function LocalStudio({
     return () => window.removeEventListener("resize", measure);
   }, []);
   const layout = studioLayout(width);
+  useEffect(() => {
+    // The minimap is shown only on wide windows, re-evaluated as the window resizes.
+    editor.current?.updateOptions({ minimap: { enabled: layout.minimap } });
+  }, [layout.minimap]);
   const [sizes, setSizes] = useState(() => readPanelLayout());
   const setSize = useCallback((key: "explorer" | "assistant" | "output", value: number) => {
     setSizes((current) => {
@@ -1360,9 +1364,9 @@ function LocalStudio({
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", stop);
   };
-  const section = (open: boolean, toggle: () => void, title: string, actions?: ReactNode) => (
+  const section = (open: boolean, toggle: () => void, title: string, actions?: ReactNode, label?: string) => (
     <div className="side-section-head">
-      <button className="side-section-toggle" aria-expanded={open} onClick={toggle}>
+      <button className="side-section-toggle" aria-expanded={open} aria-label={label} onClick={toggle}>
         {open ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
         <span>{title}</span>
       </button>
@@ -1552,7 +1556,7 @@ function LocalStudio({
                         <ChevronsDownUp size={13} aria-hidden="true" />
                       </button>
                     </span>
-                  ))}
+                  ), `Files in ${workspace.title}`)}
                   {treeOpen && (
                     <Explorer entries={entries} active={active} open={(path) => void open(path).catch(report)} decorations={treeDecorations} collapseSignal={collapseSignal} />
                   )}
@@ -1867,7 +1871,9 @@ function LocalStudio({
               if (event.key === "ArrowRight") setSize("assistant", assistantWidth - 16);
             }}
           />
-          {chat && (
+          {/* Mounted only while open: drafts and threads live outside the
+              component, and a hidden assistant should not poll the editor. */}
+          {chat && assistantOpen && (
             <StudioAssistant
               key={workspaceId}
               workspaceId={workspaceId}
@@ -2037,6 +2043,7 @@ function LocalStudio({
         </div>
       </Sheet>
       <Sheet
+        centered
         open={Boolean(closing)}
         onOpenChange={(value) => {
           if (!value) setClosing(null);
@@ -2071,6 +2078,7 @@ function LocalStudio({
         </div>
       </Sheet>
       <Sheet
+        centered
         open={Boolean(renaming)}
         onOpenChange={(value) => {
           if (!value) setRenaming(null);
@@ -2123,6 +2131,7 @@ function LocalStudio({
         openCode={async path => {await refreshTree(); await open(path);}}
         run={() => runJob("Native app started", async () => {await saveAll(); await call("project.run", {workspace_id: workspaceId});}, "output")} />
       <Sheet
+        centered
         open={Boolean(closingWorkspace)}
         onOpenChange={(value) => {
           if (!value) setClosingWorkspace(null);

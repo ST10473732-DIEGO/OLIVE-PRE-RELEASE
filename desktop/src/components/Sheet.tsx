@@ -20,8 +20,10 @@ export function Sheet({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="overlay" />
+        {/* V2: decisions and short confirmations are a centred 440 px
+            dialog; longer tools and lists stay a drawer. */}
         <Dialog.Content
-          className={centered ? "sheet connect-approval-modal" : "sheet"}
+          className={centered ? "sheet sheet-dialog connect-approval-modal" : "sheet"}
         >
           <div className="row spread">
             <Dialog.Title>{title}</Dialog.Title>
