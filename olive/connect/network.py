@@ -581,18 +581,30 @@ class LocalNetwork:
                     return self.channels[peer]
                 if self.stopping.is_set() or (_automatic and peer not in self.targets):
                     raise ConnectError('connection_closed')
-                if len(self.workers) >= MAX_CONNECTIONS or not self.attempts.take():
-                    raise ConnectError('backpressure')
-                self.states[peer] = dict(state='connecting', error=None)
-                sock = socket.socket(self.listener.family)
-                channel = Channel(self, sock, peer, (address, port))
-                self.workers.add(channel)
-                try:
-                    channel.thread.start()
-                except Exception:
-                    self.workers.discard(channel)
-                    sock.close()
-                    raise
+                # An explicit retry may race the reconnect worker before either
+                # handshake is adopted. Share that exact in-flight connection:
+                # two same-direction sockets can otherwise win in opposite order
+                # at the endpoints and retire each other's selected channel.
+                pending = [candidate for candidate in self.workers if candidate.outbound
+                           and candidate.expected == peer and not candidate.stop.is_set()
+                           and not candidate.ready.done()]
+                if pending:
+                    if len(pending) != 1 or pending[0].endpoint != (address, port):
+                        raise ConnectError('backpressure')
+                    channel = pending[0]
+                else:
+                    if len(self.workers) >= MAX_CONNECTIONS or not self.attempts.take():
+                        raise ConnectError('backpressure')
+                    self.states[peer] = dict(state='connecting', error=None)
+                    sock = socket.socket(self.listener.family)
+                    channel = Channel(self, sock, peer, (address, port))
+                    self.workers.add(channel)
+                    try:
+                        channel.thread.start()
+                    except Exception:
+                        self.workers.discard(channel)
+                        sock.close()
+                        raise
             try:
                 result = channel.ready.result(timeout=CONNECT_TIMEOUT + 2 * HANDSHAKE_TIMEOUT + 1)
                 if not _automatic:

@@ -717,6 +717,38 @@ class NetworkTests(unittest.TestCase):
         self.allow()
         self.assertTrue(self.na.channels[self.b.local_id].request(canonical(request(self.a, self.b)))['result']['pong'])
 
+    def test_same_peer_concurrent_connects_share_one_handshake(self):
+        from concurrent.futures import Future
+        entered, both_waiting, release = threading.Event(), threading.Event(), threading.Event()
+        audit, result = self.na.audit, Future.result
+        callers = []
+        def hold_audit(peer, event):
+            if event == 'connection_started':
+                entered.set()
+                if not release.wait(4):
+                    raise AssertionError('Handshake gate was not released')
+            return audit(peer, event)
+        def wait_result(future, *args, **kwargs):
+            with self.na.lock:
+                if any(channel.ready is future for channel in self.na.workers):
+                    callers.append(future)
+                    if len(callers) == 2:
+                        both_waiting.set()
+            return result(future, *args, **kwargs)
+        with patch.object(self.na, 'audit', hold_audit), patch.object(Future, 'result', wait_result), ThreadPoolExecutor(2) as pool:
+            first = pool.submit(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
+            try:
+                self.assertTrue(entered.wait(3))
+                second = pool.submit(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
+                self.assertTrue(both_waiting.wait(3))
+                with self.na.lock:
+                    self.assertEqual(len(self.na.workers), 1, 'Duplicate outbound handshakes can select different sockets at each end')
+            finally:
+                release.set()
+            self.assertIs(first.result(4), second.result(4))
+        self.allow()
+        self.assertTrue(first.result().request(canonical(request(self.a, self.b)))['result']['pong'])
+
     def test_listener_collision_and_connection_ceiling(self):
         with self.assertRaises(OSError):
             self.c.enable_network('127.0.0.1', port=self.nb.port, discovery=False)
