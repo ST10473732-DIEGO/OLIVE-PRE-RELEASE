@@ -98,7 +98,7 @@ test("wip csharp solution workflow", async () => {
     // C: build the solution, then run the structured tests through the Tests dock.
     await page.getByRole("button", { name: "Build", exact: true }).first().click();
     await page.waitForTimeout(2500);
-    await page.getByRole("button", { name: "Show Tests", exact: true }).click();
+    await page.getByRole("button", { name: /^Testing/ }).click();
     await page.getByRole("button", { name: "Run all", exact: true }).click();
     await expect(page.locator(".test-summary")).toBeVisible({ timeout: 300000 });
     await expect(page.locator('.test-item[data-state="passed"]')).toHaveCount(1, { timeout: 15000 });

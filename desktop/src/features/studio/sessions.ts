@@ -10,12 +10,15 @@ export interface SessionUi {
   dock: string;
   explorerOpen: boolean;
   assistantOpen: boolean;
+  /** Studio V2 primary sidebar view (explorer, search, scm, debug, testing). */
+  view: string;
 }
 const DEFAULTS: SessionUi = {
   activePath: "",
   dock: "",
   explorerOpen: true,
   assistantOpen: false,
+  view: "explorer",
 };
 const sessions = new Map<string, SessionUi>();
 

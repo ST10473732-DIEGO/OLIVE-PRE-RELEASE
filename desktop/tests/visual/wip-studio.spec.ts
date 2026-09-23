@@ -52,7 +52,7 @@ test("wip studio python workflows", async () => {
     await page.waitForTimeout(1200);
     await shot("02-hover");
     // Terminal.
-    await page.getByRole("button", { name: "Show Terminal", exact: true }).click();
+    await page.keyboard.press("Control+`");
     await page.getByRole("button", { name: "New terminal", exact: true }).click();
     await page.getByRole("button", { name: "Open PowerShell", exact: true }).click();
     await expect(page.locator(".terminal-foot")).toContainText("Native powershell", { timeout: 30000 });
@@ -62,7 +62,7 @@ test("wip studio python workflows", async () => {
     await expect(page.locator(".terminal-view .xterm-rows")).toContainText("olive-terminal-ok", { timeout: 30000 });
     await shot("03-terminal");
     // Structured tests.
-    await page.getByRole("button", { name: "Show Tests", exact: true }).click();
+    await page.getByRole("button", { name: /^Testing/ }).click();
     await page.getByRole("button", { name: "Run all", exact: true }).click();
     await expect(page.locator(".test-summary")).toBeVisible({ timeout: 90000 });
     await shot("04-tests");
@@ -83,7 +83,7 @@ test("wip studio python workflows", async () => {
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(page.locator(".debug-state")).toContainText(/Ended|Stopped/, { timeout: 60000 });
     await shot("07-debug-ended");
-    await page.getByRole("button", { name: "Show Problems", exact: true }).click();
+    await page.keyboard.press("Control+Shift+M");
     await shot("08-problems");
     await page.getByRole("button", { name: "Ask OLIVE", exact: true }).click();
     await shot("09-assistant");

@@ -58,7 +58,7 @@ test('M2 direct Studio tools preserve actual output and Monaco across navigation
     expect(await page.evaluate(async()=>(await window.olive.call('runtime.snapshot',{}) as {validations:unknown[]}).validations)).toEqual(validationBefore);
     await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1366,768));
     await page.waitForTimeout(500);
-    await expect(page.getByRole('button',{name:'Show Tests',exact:true})).toBeInViewport();
+    await expect(page.getByRole('button',{name:/^Testing/})).toBeInViewport();
     await page.screenshot({path:path.join(evidence,'studio-retained-1366.png')});
     await finish();
   } finally {await app.close();}

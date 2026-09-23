@@ -1,13 +1,12 @@
-import { useEffect, useRef } from "react";
-
-// "output" is the tool dock's height (Terminal, Problems, Tests, Output, Git,
-// Debug); the key is kept so saved layouts keep working.
-export const panelDefaults = { explorer: 230, assistant: 300, output: 240 };
+// Studio V2 sizes: "explorer" is the primary sidebar width, "assistant" the
+// OLIVE sidebar width and "output" the bottom panel height. The key names are
+// kept so layouts saved before V2 keep working.
+export const panelDefaults = { explorer: 256, assistant: 340, output: 236 };
 export type PanelLayout = typeof panelDefaults;
 export const panelBounds = {
-  explorer: [150, 480],
-  assistant: [220, 520],
-  output: [110, 600],
+  explorer: [200, 480],
+  assistant: [300, 520],
+  output: [100, 900],
 } as const;
 const storageKey = "studioPanelLayout";
 export function readPanelLayout(): PanelLayout {
@@ -32,36 +31,4 @@ export function readPanelLayout(): PanelLayout {
 }
 export function savePanelLayout(value: PanelLayout) {
   localStorage.setItem(storageKey, JSON.stringify(value));
-}
-export function usePanelLayout(open: boolean) {
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!root.current || !open) return;
-    const saved = readPanelLayout();
-    const panels = [
-      ["explorer", ".explorer", "width"],
-      ["assistant", ".studio-assistant", "width"],
-      ["output", ".studio-dock", "height"],
-    ] as const;
-    const elements = panels.map(([key, selector, dimension]) => {
-      const element = root.current!.querySelector<HTMLElement>(selector);
-      if (element) element.style[dimension] = `${saved[key]}px`;
-      return { key, dimension, element };
-    });
-    const observer = new ResizeObserver(() => {
-      const next = readPanelLayout();
-      for (const { key, dimension, element } of elements) {
-        const value = Number.parseFloat(element?.style[dimension] || "");
-        if (Number.isFinite(value))
-          next[key] = Math.max(
-            panelBounds[key][0],
-            Math.min(panelBounds[key][1], value),
-          );
-      }
-      savePanelLayout(next);
-    });
-    for (const { element } of elements) if (element) observer.observe(element);
-    return () => observer.disconnect();
-  }, [open]);
-  return root;
 }

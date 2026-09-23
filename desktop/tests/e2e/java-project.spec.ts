@@ -3,7 +3,7 @@ import path from "node:path";
 import { mkdtemp, readFile, mkdir, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { openSpace } from "./shell";
+import { openSpace, showPanel } from "./shell";
 
 test("new named Java project saves and runs in its OLIVE projects folder", async () => {
   const profile = await mkdtemp(path.join(tmpdir(), "olive-electron-java-"));
@@ -84,7 +84,7 @@ test("new named Java project saves and runs in its OLIVE projects folder", async
       })
       .toContain("Java compile");
     await page.getByRole("button", { name: "Run", exact: true }).click();
-    await page.getByRole("button", { name: "Show Output", exact: true }).click();
+    await showPanel(page, "Output");
     await expect
       .poll(() => page.locator(".output-terminal").innerText(), {
         timeout: 30000,

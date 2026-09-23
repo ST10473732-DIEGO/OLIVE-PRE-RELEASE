@@ -96,9 +96,9 @@ test("design walkthrough recording", async () => {
     await page.getByRole("treeitem", { name: "main.py", exact: true }).click();
     await expect(page.locator(".monaco-editor").first()).toBeVisible({ timeout: 30000 });
     await say("Studio", "An editor-first IDE: Files and solution, the editor, and an on-demand tool dock.", 3600);
-    await page.getByRole("button", { name: "Show Terminal", exact: true }).click();
+    await page.keyboard.press("Control+`");
     await say("Bottom dock", "Terminal, Problems, Tests, Output, Git and Debug — opened on request, never empty.", 3400);
-    await page.getByRole("button", { name: "Show Problems", exact: true }).click();
+    await page.keyboard.press("Control+Shift+M");
     await page.waitForTimeout(1500);
     await page.locator("button.assistant-toggle").click();
     await say("Ask OLIVE", "The assistant is opened on request — resizable, closable, pinnable.", 3200);

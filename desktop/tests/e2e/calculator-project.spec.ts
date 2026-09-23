@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { openSpace } from "./shell";
+import { openSpace, showPanel } from "./shell";
 
 test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approvals", async () => {
   test.skip(process.env.OLIVE_LIVE_AI !== "1", "Requires local Ollama inference");
@@ -93,11 +93,7 @@ test("LIVE LOCAL Chat creates and runs a calculator with scoped fixture approval
     const run = created.runs.find((r) => r.accepts_input && r.state === "running");
     expect(run).toBeTruthy();
     await openSpace(page, "Studio");
-    const showOutput = async () => {
-      await expect(page.getByRole("button", { name: /^(Show|Hide) Output$/ })).toBeVisible();
-      const button = page.getByRole("button", { name: "Show Output", exact: true });
-      if (await button.isVisible()) await button.click();
-    };
+    const showOutput = () => showPanel(page, "Output");
     await showOutput();
     await page.getByRole("combobox", { name: "Output channel" }).selectOption(run!.id);
     await page.getByRole("textbox", { name: "Program input" }).fill("2 + 3");

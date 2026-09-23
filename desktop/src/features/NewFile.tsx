@@ -1,22 +1,31 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { FilePlus } from "lucide-react";
 import { Sheet } from "../components/Sheet";
 import { call } from "../services/api";
 export function NewFile({
   workspaceId,
   created,
   report,
+  openSignal = 0,
 }: {
   workspaceId: string;
   created: (path: string) => Promise<void>;
   report: (e: unknown) => void;
+  /** Bumped by the command palette to open the dialog. */
+  openSignal?: number;
 }) {
   const [open, setOpen] = useState(false),
     [path, setPath] = useState(""),
     [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  useEffect(() => {
+    if (openSignal) setOpen(true);
+  }, [openSignal]);
   return (
     <>
-      <button onClick={() => setOpen(true)}>New File</button>
+      <button className="icon-button" aria-label="New File" title="New file" onClick={() => setOpen(true)}>
+        <FilePlus size={13} aria-hidden="true" />
+      </button>
       <Sheet
         open={open}
         onOpenChange={setOpen}

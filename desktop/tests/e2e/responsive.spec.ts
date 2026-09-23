@@ -3,7 +3,7 @@ import path from "node:path";
 import { mkdtemp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { openSpace } from "./shell";
+import { openSpace, showPanel } from "./shell";
 
 test("window resizing reflows Home Chat and Studio while retaining editor content", async () => {
   const root = path.resolve("..");
@@ -64,7 +64,7 @@ test("window resizing reflows Home Chat and Studio while retaining editor conten
     await editor.press("Enter");
     await editor.pressSequentially("# Preserved through resizing");
     // The tool dock is on-demand; open Output so it reflows with the window.
-    await page.getByRole("button", { name: "Show Output", exact: true }).click();
+    await showPanel(page, "Output");
     for (const [width, height] of [
       [1920, 1080],
       [1366, 768],

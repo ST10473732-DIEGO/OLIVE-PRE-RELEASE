@@ -1,5 +1,8 @@
 import { useState, useRef } from "react";
-import { ChevronDown, ChevronRight, FileCode2, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight, FileCode2 } from "lucide-react";
+
+const gitWord = (letter: string) =>
+  ({ M: "modified", A: "added", D: "deleted", U: "untracked", R: "renamed", C: "copied", "!": "conflict", "•": "contains changes" } as Record<string, string>)[letter] || "changed";
 
 export interface Entry {
   path: string;
@@ -20,16 +23,45 @@ export function visibleEntries(entries: Entry[], collapsed: Set<string>) {
     })
     .filter((e) => ![...collapsed].some((p) => e.path.startsWith(p + "/")));
 }
+/** Spoken form of a row's decorations, so they are never colour or glyph only. */
+function describe(path: string, decorations: ExplorerDecorations): string {
+  const parts: string[] = [];
+  const git = decorations.git?.get(path);
+  if (git) parts.push(gitWord(git));
+  const counts = decorations.problems?.get(path);
+  if (counts?.errors) parts.push(`${counts.errors} ${counts.errors === 1 ? "error" : "errors"}`);
+  if (counts?.warnings) parts.push(`${counts.warnings} ${counts.warnings === 1 ? "warning" : "warnings"}`);
+  if (decorations.dirty?.has(path)) parts.push("unsaved changes");
+  return parts.join(", ");
+}
+export interface ExplorerDecorations {
+  /** Git letter per path (M, A, D, U, !) or "•" for a folder with changes. */
+  git?: Map<string, string>;
+  /** Diagnostic counts per file path from the Problems store. */
+  problems?: Map<string, { errors: number; warnings: number }>;
+  /** Paths with unsaved editor changes. */
+  dirty?: Set<string>;
+}
 export function Explorer({
   entries,
   active,
   open,
+  decorations = {},
+  collapseSignal = 0,
 }: {
   entries: Entry[];
   active: string;
   open: (path: string) => void;
+  decorations?: ExplorerDecorations;
+  /** Bumped by "Collapse folders"; every folder collapses. */
+  collapseSignal?: number;
 }) {
   const [collapsed, setCollapsed] = useState(new Set<string>());
+  const [signal, setSignal] = useState(collapseSignal);
+  if (signal !== collapseSignal) {
+    setSignal(collapseSignal);
+    setCollapsed(new Set(entries.filter((e) => e.directory).map((e) => e.path)));
+  }
   const [focused, setFocused] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const rows = visibleEntries(entries, collapsed);
@@ -56,6 +88,7 @@ export function Explorer({
           key={entry.path}
           role="treeitem"
           aria-label={entry.path.split("/").pop()}
+          aria-description={describe(entry.path, decorations) || undefined}
           title={entry.path}
           aria-level={entry.path.split("/").length}
           aria-expanded={
@@ -69,11 +102,19 @@ export function Explorer({
               : -1
           }
           className={active === entry.path ? "selected" : ""}
-          // Indentation stops growing after six levels so deep paths stay readable;
-          // the title carries the full path and the explorer is resizable.
+          data-git={decorations.git?.get(entry.path)}
+          data-problems={
+            decorations.problems?.get(entry.path)?.errors
+              ? "error"
+              : decorations.problems?.get(entry.path)?.warnings
+                ? "warning"
+                : undefined
+          }
+          // Indentation stops growing after eight levels so deep paths stay readable;
+          // the title carries the full path and the sidebar is resizable.
           style={{
             paddingLeft:
-              8 + Math.min(entry.path.split("/").length - 1, 6) * 14,
+              6 + Math.min(entry.path.split("/").length - 1, 8) * 12 + (entry.directory ? 0 : 14),
           }}
           onFocus={() => setFocused(entry.path)}
           onClick={() =>
@@ -117,16 +158,32 @@ export function Explorer({
           {entry.directory ? (
             <>
               {collapsed.has(entry.path) ? (
-                <ChevronRight size={12} />
+                <ChevronRight size={12} aria-hidden="true" />
               ) : (
-                <ChevronDown size={12} />
+                <ChevronDown size={12} aria-hidden="true" />
               )}
-              <Folder size={15} />
             </>
           ) : (
-            <FileCode2 size={15} />
+            <FileCode2 size={14} aria-hidden="true" />
           )}
-          <span>{entry.path.split("/").pop()}</span>
+          <span className="tree-name">{entry.path.split("/").pop()}</span>
+          {decorations.dirty?.has(entry.path) && (
+            <span className="tree-dirty" title="Unsaved changes" aria-hidden="true">●</span>
+          )}
+          {(() => {
+            const counts = decorations.problems?.get(entry.path);
+            const total = (counts?.errors || 0) + (counts?.warnings || 0);
+            return total ? (
+              <span className="tree-problems" title={`${counts!.errors} errors, ${counts!.warnings} warnings`} aria-hidden="true">
+                {total}
+              </span>
+            ) : null;
+          })()}
+          {decorations.git?.get(entry.path) && (
+            <span className="tree-git" aria-hidden="true" title={gitWord(decorations.git.get(entry.path)!)}>
+              {decorations.git.get(entry.path)}
+            </span>
+          )}
         </button>
       ))}
     </div>

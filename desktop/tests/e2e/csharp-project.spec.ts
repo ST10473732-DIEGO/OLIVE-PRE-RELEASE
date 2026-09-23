@@ -2,7 +2,7 @@ import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdtemp, readFile, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { openSpace } from "./shell";
+import { openSpace, showPanel } from "./shell";
 
 test("C# starter edits and runs through Studio and presentation omits implementation captions", async () => {
   test.setTimeout(120000);
@@ -77,7 +77,7 @@ test("C# starter edits and runs through Studio and presentation omits implementa
       page.getByText("Workspace access controlled by Python", { exact: true }),
     ).toHaveCount(0);
     await page.getByRole("button", { name: "Run", exact: true }).click();
-    await page.getByRole("button", { name: "Show Output", exact: true }).click();
+    await showPanel(page, "Output");
     const runs = () =>
       page.evaluate(
         async () =>

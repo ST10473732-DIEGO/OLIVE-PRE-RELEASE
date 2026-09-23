@@ -134,10 +134,13 @@ export function TerminalPanel({
   workspaceId,
   visible,
   report,
+  newSignal = 0,
 }: {
   workspaceId: string;
   visible: boolean;
   report: (error: unknown) => void;
+  /** Bumped by Ctrl+Shift+` or the palette: show the shell choice. */
+  newSignal?: number;
 }) {
   const slice = useTooling(workspaceId);
   const sessions = Object.values(slice.terminals).sort((a, b) => a.created_at - b.created_at);
@@ -152,6 +155,9 @@ export function TerminalPanel({
     }).catch(report);
     return () => { active = false; };
   }, [report]);
+  useEffect(() => {
+    if (newSignal) setChoosing(true);
+  }, [newSignal]);
   const latestProgram = sessions.filter((s) => s.shell === "program").at(-1)?.session_id;
   useEffect(() => {
     if (latestProgram) setSelected(latestProgram);

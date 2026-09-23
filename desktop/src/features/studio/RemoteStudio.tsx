@@ -1,16 +1,29 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import * as monaco from "monaco-editor";
+import { AlertTriangle, CheckCircle2, CircleSlash, FileCode2, FlaskConical, Hammer, Info, Loader2, MonitorSmartphone, Play, RefreshCw, Save, Square, XCircle } from "lucide-react";
 import { call } from "../../services/api";
 import type { DevicesState } from "../devices/types";
 import type { StudioShare } from "../devices/StudioShares";
 import { languageFor } from "./languageClient";
+import { TitleBarPortal } from "../../app/TitleBar";
+import { ActivityBar } from "./ActivityBar";
+import { activityAvailability } from "./studioModel";
 
 type Operation = "workspaces" | "tree" | "read" | "save" | "build" | "test" | "run" | "run_status" | "run_cancel";
 type Reply<T> = {result: T | null; error: string | null};
 type Target = {device_id: string; name: string; online: boolean};
 type Buffer = {path: string; text: string; saved: string; revision: string};
 type Job = {diagnostics?: {path: string; line: number; severity: string; message: string}[]; job_id: string; state: string; output?: string; truncated?: boolean; exit_code?: number; error?: string; tests?: {passed: number; failed: number; skipped: number}};
-export function RemoteStudio({theme, visible}: {theme: string; visible: boolean}) {
+const PERMISSIONS: [string, string][] = [["studio.view", "Read"], ["studio.edit", "Save"], ["studio.build", "Build"], ["studio.test", "Test"], ["studio.run", "Run"]];
+const DECISION: Record<string, string> = { deny: "Off", ask: "Ask", allow: "Allow" };
+
+// Remote Studio is Connect C8 and deliberately bounded: shared workspaces,
+// tree, read, revision-checked save, build, test, run, run status and run
+// cancel. It has no terminal, interactive input, debugger, code intelligence,
+// search, Git, packages or project creation, so the same IDE frame shows
+// those surfaces disabled with the reason. Everything is attributed to the
+// device that owns the files.
+export function RemoteStudio({theme, visible, location, openSettings}: {theme: string; visible: boolean; location: ReactNode; openSettings: () => void}) {
   const [targets, setTargets] = useState<Target[]>([]), [peer, setPeer] = useState("");
   const [shares, setShares] = useState<StudioShare[]>([]), [reference, setReference] = useState("");
   const [tree, setTree] = useState<{path: string; directory: boolean}[]>([]);
@@ -18,6 +31,7 @@ export function RemoteStudio({theme, visible}: {theme: string; visible: boolean}
   const [buffers, setBuffers] = useState<Record<string, Buffer>>({});
   const [message, setMessage] = useState("Select a paired device and load its shared workspaces.");
   const [busy, setBusy] = useState(false), [job, setJob] = useState<Job | null>(null);
+  const [lastOperation, setLastOperation] = useState("");
   const element = useRef<HTMLDivElement>(null), editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const current = useRef("");
   const target = targets.find(t => t.device_id === peer);
@@ -47,7 +61,9 @@ export function RemoteStudio({theme, visible}: {theme: string; visible: boolean}
   }, []);
   useEffect(() => {
     if (!element.current) return;
-    const instance = monaco.editor.create(element.current, {ariaLabel: "Remote source editor", automaticLayout: true, minimap: {enabled: false}, readOnly: true});
+    const instance = monaco.editor.create(element.current, {ariaLabel: "Remote source editor", automaticLayout: true, minimap: {enabled: false}, readOnly: true,
+      fontSize: 13, lineHeight: 20, renderLineHighlight: "all", padding: {top: 8},
+      fontFamily: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", "Fira Code", Consolas, "DejaVu Sans Mono", monospace'});
     editor.current = instance;
     const change = instance.onDidChangeModelContent(() => {
       const key = current.current;
@@ -65,7 +81,8 @@ export function RemoteStudio({theme, visible}: {theme: string; visible: boolean}
     return () => { instance.setModel(null); model.dispose(); };
     // Buffer keystrokes must not recreate the editor model.
   }, [bufferKey, !!buffer]);
-  useEffect(() => { monaco.editor.setTheme(theme === "light" ? "vs" : "vs-dark"); editor.current?.layout(); }, [theme, visible]);
+  // Local Studio defines the shared "olive" theme; fall back to Monaco's own.
+  useEffect(() => { try { monaco.editor.setTheme("olive"); } catch { monaco.editor.setTheme(theme === "light" ? "vs" : "vs-dark"); } editor.current?.layout(); }, [theme, visible]);
   useEffect(() => {
     const prevent = (event: BeforeUnloadEvent) => {
       if (Object.values(buffers).some(b => b.text !== b.saved)) { event.preventDefault(); event.returnValue = ""; }
@@ -103,6 +120,7 @@ export function RemoteStudio({theme, visible}: {theme: string; visible: boolean}
   const save = async () => {
     if (!buffer) return;
     const text = buffer.text;
+    setMessage(share?.permissions["studio.edit"] === "ask" ? `Waiting for ${target?.name} to approve save.` : "Saving on the target…");
     const value = await exchange<{revision: string}>("save", {path: active, expected_hash: buffer.revision, text});
     setBuffers(previous => ({...previous, [bufferKey]: {...previous[bufferKey], saved: text, revision: value.revision}}));
     setMessage("Saved remotely.");
@@ -114,34 +132,113 @@ export function RemoteStudio({theme, visible}: {theme: string; visible: boolean}
     editor.current?.setValue(value.text); setMessage("Reloaded remote revision.");
   };
   const running = job && ["starting", "running", "cancelling"].includes(job.state);
-  return <div className="studio" style={{height: "100%", display: "flex", flexDirection: "column"}} aria-label="Remote Studio workspace">
-    <header className="studio-bar">
-      <strong>Remote · {target?.name || "Select device"} · {target?.online ? "Online" : "Offline"}</strong>
-      <select aria-label="Remote Studio device" disabled={busy || !!running} value={peer} onChange={e => {setPeer(e.target.value); setShares([]); setReference(""); setTree([]); setActive(""); setJob(null);}}>
-        <option value="">Select paired device</option>{targets.map(t => <option key={t.device_id} value={t.device_id}>{t.name} · {t.online ? "Online" : "Offline"}</option>)}
-      </select>
-      <button disabled={!target?.online || busy || !!running} onClick={() => void act(load)}>Load shared workspaces</button>
-      <select aria-label="Remote workspace" disabled={busy || !!running} value={reference} onChange={e => {setReference(e.target.value); setTree([]); setActive(""); setJob(null);}}>
-        <option value="">Select shared workspace</option>{shares.map(s => <option key={s.workspace_id} value={s.workspace_id}>{s.display_name} · {target?.name}</option>)}
-      </select>
-    </header>
-    <div className="studio-bar">
-      <button disabled={!share || busy || !target?.online} onClick={() => void act(async () => {const value = await exchange<{entries: typeof tree; truncated: boolean}>("tree"); setTree(value.entries); setMessage(value.truncated ? "Showing bounded file tree." : "Remote files loaded.");})}>Files</button>
-      <button disabled={!dirty || busy || !target?.online} onClick={() => void act(save)}>Save remotely</button>
-      <button disabled={!buffer || busy || !target?.online} onClick={() => void act(reload)}>Reload</button>
-      {(["build", "test", "run"] as const).map(op => <button key={op} disabled={!share || busy || !!running || !target?.online || share.permissions[`studio.${op}`] === "deny"} onClick={() => void act(async () => {setJob(await exchange<Job>(op)); setMessage(`${op} on ${target?.name}`);})}>{op[0].toUpperCase() + op.slice(1)} remotely</button>)}
-      <button disabled={!running} onClick={() => void act(async () => {setJob(await exchange<Job>("run_cancel", {job_id: job?.job_id}));})}>Stop</button>
-      <span>{active}{dirty ? " · Unsaved local draft" : buffer ? " · Saved remote revision" : ""}</span>
+  const online = Boolean(target?.online);
+  const files = tree.filter(f => !f.directory);
+  const jobTone = !job ? "" : running ? "running" : job.state === "completed" && (job.exit_code ?? 0) === 0 ? "success" : ["failed", "connection_lost", "error"].includes(job.state) || (job.exit_code ?? 0) !== 0 ? "error" : "neutral";
+  return <div className="studio studio-v2 remote-studio" aria-label="Remote Studio workspace" data-online={online || undefined}>
+    {visible && <TitleBarPortal slot="context">
+      {location}
+      {target && <span className="tb-remote" title={`Files live on ${target.name}`}>
+        <MonitorSmartphone size={13} aria-hidden="true" />{share ? `${share.display_name} · ${target.name}` : target.name}
+      </span>}
+    </TitleBarPortal>}
+    <div className="studio-body">
+      <ActivityBar view="explorer" sidebarOpen select={() => undefined} availability={activityAvailability(true)} badges={{}} openSettings={openSettings} />
+      <aside className="studio-sidebar remote-sidebar" aria-label="Shared workspace explorer" style={{width: 260}}>
+        <div className="sidebar-view">
+          <div className="side-head"><h2>Remote workspace</h2></div>
+          <div className="side-scroll side-pad remote-connection">
+            <p className="remote-target"><strong>Remote · {target?.name || "Select device"} · {target?.online ? "Online" : "Offline"}</strong></p>
+            <label className="side-field"><span>Paired device</span>
+              <select aria-label="Remote Studio device" disabled={busy || !!running} value={peer} onChange={e => {setPeer(e.target.value); setShares([]); setReference(""); setTree([]); setActive(""); setJob(null);}}>
+                <option value="">Select paired device</option>{targets.map(t => <option key={t.device_id} value={t.device_id}>{t.name} · {t.online ? "Online" : "Offline"}</option>)}
+              </select>
+            </label>
+            <button className="compact" disabled={!target?.online || busy || !!running} onClick={() => void act(load)}>Load shared workspaces</button>
+            <label className="side-field"><span>Shared workspace</span>
+              <select aria-label="Remote workspace" disabled={busy || !!running} value={reference} onChange={e => {setReference(e.target.value); setTree([]); setActive(""); setJob(null);}}>
+                <option value="">Select shared workspace</option>{shares.map(s => <option key={s.workspace_id} value={s.workspace_id}>{s.display_name} · {target?.name}</option>)}
+              </select>
+            </label>
+            {share && <div className="remote-permissions" aria-label={`Permissions ${target?.name} granted`}>
+              {PERMISSIONS.map(([capability, label]) => {
+                const decision = share.permissions[capability] || "deny";
+                return <span key={capability} className="ws-pill" data-tone={decision === "allow" ? "success" : decision === "ask" ? "warning" : undefined}>{label} · {DECISION[decision] || decision}</span>;
+              })}
+            </div>}
+            <div className="side-section-head remote-files-head">
+              <span className="side-section-title">Files</span>
+              <button aria-label="Files" title="Load the shared file tree" className="icon-button" disabled={!share || busy || !target?.online} onClick={() => void act(async () => {const value = await exchange<{entries: typeof tree; truncated: boolean}>("tree"); setTree(value.entries); setMessage(value.truncated ? "Showing bounded file tree." : "Remote files loaded.");})}>
+                <RefreshCw size={13} aria-hidden="true" />
+              </button>
+            </div>
+            <nav aria-label="Remote files" className="remote-tree">
+              {files.length === 0 && <p className="side-note">{share ? "Load the file tree to browse this shared workspace." : "Select a shared workspace first."}</p>}
+              {files.map(f => <button className={f.path === active ? "selected" : ""} key={f.path} disabled={busy || !target?.online} onClick={() => void act(() => open(f.path))} title={f.path}>
+                <FileCode2 size={13} aria-hidden="true" />{f.path}
+              </button>)}
+            </nav>
+          </div>
+        </div>
+      </aside>
+      <section className="editor-stack">
+        <div className="editor-tabs-row">
+          <div className="file-tabs">
+            {active && <div className="file-tab active" data-dirty={dirty || undefined}><button title={active}><FileCode2 size={13} aria-hidden="true" />{active.split("/").pop()}{dirty && <span className="dirty" aria-label="unsaved changes">●</span>}</button></div>}
+          </div>
+          <div className="editor-actions remote-actions" role="group" aria-label="Remote operations">
+            <button className="compact quiet" disabled={!dirty || busy || !target?.online} onClick={() => void act(save)}><Save size={13} aria-hidden="true" />Save remotely</button>
+            <button className="compact quiet" disabled={!buffer || busy || !target?.online} onClick={() => void act(reload)}><RefreshCw size={13} aria-hidden="true" />Reload</button>
+            <span className="tb-sep" aria-hidden="true" />
+            {(["build", "test", "run"] as const).map(op => <button key={op} className="compact quiet" disabled={!share || busy || !!running || !target?.online || share.permissions[`studio.${op}`] === "deny"}
+              title={share?.permissions[`studio.${op}`] === "deny" ? `${op[0].toUpperCase() + op.slice(1)} is Off for this share` : `${op[0].toUpperCase() + op.slice(1)} on ${target?.name || "the target"}`}
+              onClick={() => void act(async () => {setLastOperation(op); setJob(await exchange<Job>(op)); setMessage(`${op} on ${target?.name}`);})}>
+              {op === "build" ? <Hammer size={13} aria-hidden="true" /> : op === "test" ? <FlaskConical size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}
+              {op[0].toUpperCase() + op.slice(1)} remotely
+            </button>)}
+            <button className="compact quiet danger-action" disabled={!running} onClick={() => void act(async () => {setJob(await exchange<Job>("run_cancel", {job_id: job?.job_id}));})}><Square size={11} aria-hidden="true" />Stop</button>
+          </div>
+        </div>
+        <div className="notice editor-notice" data-tone={online || !peer ? "accent" : "error"} role="note">
+          {online || !peer ? <Info size={14} aria-hidden="true" /> : <AlertTriangle size={14} aria-hidden="true" />}
+          <span className="grow">
+            {!peer ? "Remote Studio opens a workspace another paired device has shared with this PC." :
+              online ? `Files live on ${target?.name}. Build, test and run happen there. Code intelligence, debugging, Git and terminals are local-only.` :
+              `${target?.name || "The device"} is offline. Your edits stay in this buffer; nothing was saved or retried elsewhere.`}
+          </span>
+        </div>
+        <div className="editor-area">
+          <div className="editor-host" ref={element} />
+          {!active && <div className="editor-empty" role="note"><FileCode2 size={20} aria-hidden="true" /><strong>No remote file open</strong><p className="muted">Choose a device, load its shared workspaces, then open a file from the tree.</p></div>}
+        </div>
+        {job && <section className="studio-dock studio-panel remote-output" aria-label="Output · Remote" style={{height: 200}}>
+          <div className="panel-head"><div className="panel-tabs"><span className="panel-tab" aria-selected="true">Output · Remote</span></div></div>
+          <div className="panel-body">
+            <div className="job-header" data-tone={jobTone}>
+              {jobTone === "running" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : jobTone === "success" ? <CheckCircle2 size={15} aria-hidden="true" /> : jobTone === "error" ? <XCircle size={15} aria-hidden="true" /> : <CircleSlash size={15} aria-hidden="true" />}
+              <strong>{job.state} · exit {job.exit_code ?? "pending"}</strong>
+              {lastOperation && <span className="ws-pill">{lastOperation} on {target?.name}</span>}
+              {job.tests && <span className="ws-pill" data-tone={job.tests.failed ? "error" : "success"}>{job.tests.passed} passed · {job.tests.failed} failed · {job.tests.skipped} skipped</span>}
+              {running && <span className="progress-line" aria-hidden="true" />}
+            </div>
+            {job.diagnostics?.map((d, i) => <p className="remote-diagnostic" key={i} data-severity={d.severity}>{d.path}{d.line ? `:${d.line}` : ""} · {d.severity} · {d.message}</p>)}
+            <pre className="remote-log">{job.output}</pre>
+            {job.truncated && <small>Recent output only; earlier output truncated.</small>}
+            <p className="side-note">Remote runs are not interactive: there is no terminal or input on the target.</p>
+          </div>
+        </section>}
+      </section>
     </div>
-    <p role="status">{message}</p>
-    <div style={{display: "flex", flex: 1, minHeight: 220}}>
-      <nav style={{width: 220, overflow: "auto"}} aria-label="Remote files">{tree.filter(f => !f.directory).map(f => <button style={{display: "block"}} key={f.path} disabled={busy || !target?.online} onClick={() => void act(() => open(f.path))}>{f.path}</button>)}</nav>
-      <div ref={element} style={{flex: 1, minWidth: 0}} />
-    </div>
-    {job && <div className="ws-panel"><strong>{job.state} · exit {job.exit_code ?? "pending"}</strong>
-      {job.tests && <p>{job.tests.passed} passed · {job.tests.failed} failed · {job.tests.skipped} skipped</p>}
-      {job.diagnostics?.map((d, i) => <p key={i}>{d.path}{d.line ? `:${d.line}` : ""} · {d.severity} · {d.message}</p>)}
-      <pre style={{maxHeight: 180, overflow: "auto"}}>{job.output}</pre>{job.truncated && <small>Recent output only; earlier output truncated.</small>}</div>}
-    <small>Remote terminal, interactive input, debug, LSP, package installation and project creation are unavailable.</small>
+    <footer className="studio-status" aria-label="Remote Studio status">
+      <div className="status-left">
+        <span className="status-item status-remote" data-online={online || undefined}>
+          <MonitorSmartphone size={12} aria-hidden="true" />{target ? `${target.name}${online ? "" : " · offline"}` : "Remote"}
+        </span>
+        <span className="status-item remote-message" role="status">{message}</span>
+      </div>
+      <div className="status-right">
+        <span className="status-item">{active}{dirty ? " · Unsaved local draft" : buffer ? " · Saved remote revision" : ""}</span>
+      </div>
+    </footer>
   </div>;
 }

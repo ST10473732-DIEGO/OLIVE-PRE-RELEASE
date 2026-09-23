@@ -219,7 +219,7 @@ test("clarity visual QA across widths, themes and states", async () => {
     await shot("studio-workspace");
     await measure("Studio with a workspace");
     await crowding("Studio with a workspace");
-    await page.getByRole("button", { name: "Show Terminal", exact: true }).click();
+    await page.keyboard.press("Control+`");
     await page.waitForTimeout(600);
     await shot("studio-tools-open");
     await measure("Studio with the tools open");

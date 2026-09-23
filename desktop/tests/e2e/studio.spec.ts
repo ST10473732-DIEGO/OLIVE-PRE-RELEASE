@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { record } from "./recording";
-import { goHome, openSpace } from "./shell";
+import { goHome, openSpace, showPanel } from "./shell";
 
 test("direct Monaco save and test need no duplicate approval and retain conflict checks", async () => {
   const root = path.resolve("..");
@@ -114,7 +114,7 @@ test("direct Monaco save and test need no duplicate approval and retain conflict
       const recording = await finishRecording();
       await page.getByRole("button", { name: "Run", exact: true }).click();
       await expect(page.locator('.terminal-view:not([hidden])')).toContainText("Hello, OLIVE!", { timeout: 15000 });
-      await page.getByRole("button", { name: "Show Output", exact: true }).click();
+      await showPanel(page, "Output");
       await expect
         .poll(() => page.locator(".output-terminal").innerText(), {
           timeout: 15000,

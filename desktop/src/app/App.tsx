@@ -343,7 +343,13 @@ export default function App() {
       if (!entered && e.key === "Enter") setEntered(true);
     };
     window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
+    // Workspaces (Studio's Ctrl+P, Ctrl+T) open the palette in a given mode.
+    const request = (event: Event) => openPalette(true, String((event as CustomEvent).detail ?? ""));
+    window.addEventListener("olive:palette", request);
+    return () => {
+      window.removeEventListener("keydown", listener);
+      window.removeEventListener("olive:palette", request);
+    };
   }, [entered, palette, openPalette, route]);
   const openChat = useCallback((record: ChatRecord) => {
     setChat(record);
@@ -775,6 +781,9 @@ export default function App() {
                       setOutput={setOutput}
                       report={report}
                       theme={theme}
+                      snapshot={snapshot}
+                      cancel={cancel}
+                      openSettings={() => navigate("settings")}
                     />
                   </Suspense>
                 </div>

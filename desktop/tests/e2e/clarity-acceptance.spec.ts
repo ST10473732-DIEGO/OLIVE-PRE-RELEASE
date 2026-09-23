@@ -1,6 +1,6 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import path from "node:path";
-import { openSpace } from "./shell";
+import { openSpace, showPanel } from "./shell";
 import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -192,7 +192,7 @@ test("clarity acceptance journey: navigation, two independent projects, run, ter
     record.run = run;
     expect(run, run.stderr).toMatchObject({ state: "completed", exit_code: 0 });
     expect(run.stdout).toContain("Hello, OLIVE!");
-    await page.getByRole("button", { name: "Show Output", exact: true }).click();
+    await showPanel(page, "Output");
     await expect.poll(() => page.locator(".output-terminal").innerText(), { timeout: 60000 })
       .toContain("Hello, OLIVE!");
     await shot("F-run-output");
@@ -200,12 +200,7 @@ test("clarity acceptance journey: navigation, two independent projects, run, ter
     // ---- I: a terminal belongs to the workspace it was opened in --------
     const terminalTabs = () =>
       page.getByRole("tablist", { name: "Terminal sessions" }).getByRole("tab");
-    const showPanel = async (label: string) => {
-      const hide = page.getByRole("button", { name: `Hide ${label}`, exact: true });
-      if (!(await hide.isVisible().catch(() => false)))
-        await page.getByRole("button", { name: `Show ${label}`, exact: true }).click();
-    };
-    const showTerminal = () => showPanel("Terminal");
+    const showTerminal = () => showPanel(page, "Terminal");
     await showTerminal();
     await page.getByRole("button", { name: "New terminal", exact: true }).click();
     await page.getByRole("button", { name: "Open PowerShell", exact: true }).click();
@@ -227,7 +222,7 @@ test("clarity acceptance journey: navigation, two independent projects, run, ter
     await showTerminal();
     await expect(terminalTabs()).toHaveCount(2);
     // B's own output channel still holds B's run, unchanged by the visit to A.
-    await showPanel("Output");
+    await showPanel(page, "Output");
     await expect
       .poll(() => page.locator(".output-terminal").innerText(), { timeout: 30000 })
       .toContain("Hello, OLIVE!");

@@ -3,7 +3,7 @@ import path from "node:path";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { openSpace } from "./shell";
+import { openSpace, showPanel } from "./shell";
 test("Local preview is bound to a real run and has no application bridge", async () => {
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-preview-"));
@@ -46,7 +46,7 @@ server.serve_forever()
     await page.getByRole("treeitem", { name: "main.py", exact: true }).click();
     await page.getByRole("button", { name: "Run", exact: true }).click();
     await expect(page.locator('.terminal-view:not([hidden])')).toContainText("http://127.0.0.1", { timeout: 15000 });
-    await page.getByRole("button", { name: "Show Output", exact: true }).click();
+    await showPanel(page, "Output");
     await expect(page.locator(".output-terminal")).toContainText(
       "http://127.0.0.1",
     );

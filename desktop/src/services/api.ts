@@ -52,6 +52,8 @@ export interface Workspace {
   id: string;
   title: string;
   root_path: string;
+  /** Recorded when the folder was approved: it had a .git directory. */
+  git_repository?: boolean;
 }
 export interface Approval {
   id: string;
