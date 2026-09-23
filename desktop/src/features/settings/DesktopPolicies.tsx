@@ -13,9 +13,9 @@ export function DesktopPolicies({ report }: { report: (e: unknown) => void }) {
     <section>
       <h2>Desktop Control policies</h2>
       <p>
-        Focus guards, user takeover and action permissions remain active.
-        Emergency stop is also available through Ctrl+Alt+Escape when Windows
-        accepts the shortcut.
+        Focus guards and action permissions remain active. Linux cannot detect all
+        physical input; use emergency Stop before taking over. Bind and test the
+        global Stop shortcut shown by the runtime before Linux desktop input.
       </p>
       {resource.error && <p role="alert">{resource.error}</p>}
       {values && (

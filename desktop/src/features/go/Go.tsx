@@ -73,9 +73,7 @@ export function Go({ask, openSettings, report}:{ask:(text:string)=>void; openSet
 
   useEffect(()=>{
     let frame=0, previous='';
-    const update=()=>{
-      cancelAnimationFrame(frame);
-      frame=requestAnimationFrame(()=>{
+    const measure=()=>{
         const element=holder.current; if(!element) return;
         const rect=element.getBoundingClientRect();
         const top=rect.top;
@@ -85,13 +83,13 @@ export function Go({ask, openSettings, report}:{ask:(text:string)=>void; openSet
         const visible=!!active && !blank && !active.error && !appDialog && !frozenNow && document.visibilityState==='visible' && rect.bottom-top>4 && rect.width>4;
         const value={action:'layout' as const,bounds,visible};const key=JSON.stringify(value);
         if(key!==previous){previous=key;lastBounds.current=bounds;void window.olive.browser(value).catch(error=>report(error));}
-      });
     };
+    const update=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(measure);};
     relayout.current=update;
     const resize=new ResizeObserver(update), mutation=new MutationObserver(update);
     if(holder.current) resize.observe(holder.current);
     mutation.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','style','data-state','open']});
-    window.addEventListener('resize',update);document.addEventListener('visibilitychange',update);update();
+    window.addEventListener('resize',update);document.addEventListener('visibilitychange',update);measure();
     return()=>{
       resize.disconnect();mutation.disconnect();cancelAnimationFrame(frame);
       window.removeEventListener('resize',update);document.removeEventListener('visibilitychange',update);

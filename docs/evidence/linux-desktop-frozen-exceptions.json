@@ -5,6 +5,16 @@
       "path": "desktop/src/features/Studio.tsx",
       "approval": "User approved the specific three-line responsive state fix on 2026-09-23. Close Explorer when a panel opens in overlay mode. No CSS or ordinary desktop layout changes.",
       "sha256": "cf2adad4f82f853df40e1ff6c0a72df07b519e18990b40e0f044a7bd2485fced"
+    },
+    {
+      "path": "desktop/src/features/go/Go.tsx",
+      "approval": "User approved the exact proposed-go-layout.diff on 2026-09-23: measure initial native bounds immediately, retain frame scheduling thereafter. No design or IPC change.",
+      "sha256": "91b2922d8d947b12c7858ecfe805986381e05e462e54ec50258c7bb2e76ac083"
+    },
+    {
+      "path": "desktop/src/features/settings/DesktopPolicies.tsx",
+      "approval": "User approved the exact three-line proposed-stop-wording.diff on 2026-09-23: truthful Linux physical-takeover limitation and runtime-assigned global Stop instructions.",
+      "sha256": "c91175cbd7c4c4ff354deff9730e7d6ffd7d27f9bb6ef387e6acf18fd50f9ed4"
     }
   ]
 }
