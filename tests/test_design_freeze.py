@@ -25,3 +25,12 @@ class DesignFreezeTests(unittest.TestCase):
             self.assertEqual(result['added'],['desktop/src/new.ts'])
             self.assertEqual(result['deleted'],['desktop/src/delete.ts'])
             self.assertEqual(result['changed'],['desktop/src/edit.ts'])
+            replacement = root/'replacement'
+            frozen.rename(replacement)
+            try:
+                frozen.symlink_to(replacement, target_is_directory=True)
+            except OSError:
+                return  # Windows without symlink privilege; byte checks above still ran.
+            result=verify(root,manifest)
+            self.assertEqual(result['added'],['desktop/src'])
+            self.assertEqual(result['deleted'],['desktop/src/delete.ts','desktop/src/edit.ts'])

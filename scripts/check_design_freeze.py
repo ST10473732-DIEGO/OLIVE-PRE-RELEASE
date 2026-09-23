@@ -14,7 +14,7 @@ def verify(root=ROOT, manifest=MANIFEST):
     current = {}
     for name in baseline["roots"]:
         path = root / name
-        for file in (path.rglob("*") if path.is_dir() else [path]):
+        for file in (path.rglob("*") if path.is_dir() and not path.is_symlink() else [path]):
             if file.is_symlink():
                 current[file.relative_to(root).as_posix()] = "symlink:" + hashlib.sha256(os.readlink(file).encode()).hexdigest()
             elif file.is_file():

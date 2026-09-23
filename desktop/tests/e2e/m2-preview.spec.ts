@@ -1,9 +1,10 @@
-﻿import { test, expect, _electron as electron } from "@playwright/test";
+import { test, expect, _electron as electron } from "@playwright/test";
 import path from "node:path";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { openSpace, showPanel } from "./shell";
+import { captureMail } from "./m4-capture";
 test("Local preview is bound to a real run and has no application bridge", async () => {
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-preview-"));
@@ -89,26 +90,7 @@ server.serve_forever()
     expect(observed.external).toBe(true);
     const evidence = path.join(root, "artifacts/ui-review/M2");
     await mkdir(evidence, { recursive: true });
-    await page.waitForTimeout(400);
-    const capture = await app.evaluate(
-      async ({ BrowserWindow, desktopCapturer }) => {
-        const window = BrowserWindow.getAllWindows()[0];
-        const [width, height] = window.getSize();
-        const sources = await desktopCapturer.getSources({
-          types: ["window"],
-          thumbnailSize: { width, height },
-        });
-        const source = sources.find(
-          (source) => source.id === window.getMediaSourceId(),
-        );
-        if (!source) throw new Error("OLIVE window capture unavailable");
-        return source.thumbnail.toPNG().toString("base64");
-      },
-    );
-    await writeFile(
-      path.join(evidence, "studio-isolated-live-local-preview.png"),
-      Buffer.from(capture, "base64"),
-    );
+    await captureMail(page, app, path.join(evidence, "studio-isolated-live-local-preview.png"));
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Close", exact: true })
