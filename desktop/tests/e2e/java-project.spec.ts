@@ -52,7 +52,7 @@ test("new named Java project saves and runs in its OLIVE projects folder", async
     });
     expect(compiled.status, compiled.stderr).toBe(0);
     const packed = spawnSync(
-      path.resolve("../.venv/Scripts/python.exe"),
+      path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"),
       [
         "-c",
         'import sys,zipfile; z=zipfile.ZipFile(sys.argv[1],"w"); z.write("Greeting.class","Greeting.class"); z.close()',

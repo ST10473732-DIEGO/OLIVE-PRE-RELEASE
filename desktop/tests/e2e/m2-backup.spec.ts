@@ -11,7 +11,7 @@ test("Settings backup export and isolated restore retain records and require res
   const archive = path.join(target, "fixture-backup.zip");
   const exported = path.join(target, "fixture-memory-export.json");
   const seed = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_m2_handoff_fixture.py"), source],
     { cwd: root, encoding: "utf8", windowsHide: true },
   );
@@ -77,7 +77,7 @@ test("Settings backup export and isolated restore retain records and require res
     await first.close();
   }
   const inspect = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [
       "-c",
       "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert not any('credential' in n or 'vault' in n for n in z.namelist()); print('Credential files excluded')",

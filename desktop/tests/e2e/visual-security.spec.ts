@@ -149,7 +149,7 @@ test("isolated responsive appearance, keyboard, sandbox and reload evidence", as
         .map((m) => ({ type: m.type, memory: m.memory, cpu: m.cpu })),
     );
     const rss = spawnSync(
-      path.resolve("../.venv/Scripts/python.exe"),
+      path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"),
       [
         "-c",
         'import psutil,json,sys; p=psutil.Process(int(sys.argv[1])); rows=[p,*p.children(recursive=True)]; print(json.dumps({"rssMiB":sum(x.memory_info().rss for x in rows if x.is_running())/1048576,"processCount":len(rows)}))',

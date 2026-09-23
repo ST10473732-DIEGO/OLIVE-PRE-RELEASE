@@ -8,7 +8,7 @@ import {record} from './recording';
 test('M2 direct Studio tools preserve actual output and Monaco across navigation',async()=>{
   const root=path.resolve('..');
   const profile=await mkdtemp(path.join(tmpdir(),'olive-m2-closeout-'));
-  const seed=spawnSync(path.join(root,'.venv/Scripts/python.exe'),[path.join(root,'scripts/seed_m2_live_workspace.py'),profile],{cwd:root,encoding:'utf8'});
+  const seed=spawnSync(path.join(root, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python'),[path.join(root,'scripts/seed_m2_live_workspace.py'),profile],{cwd:root,encoding:'utf8'});
   expect(seed.status,seed.stderr).toBe(0);
   const evidence=path.join(root,'artifacts/ui-review/M2-closeout');
   await mkdir(evidence,{recursive:true});

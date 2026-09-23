@@ -193,7 +193,7 @@ for (const nativeDialog of [false, true]) test(`M3/M4 ${nativeDialog ? "native d
       ),
     }));
     const helper = spawn(
-      path.resolve("../.venv/Scripts/python.exe"),
+      path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"),
       [
         path.resolve("../scripts/m3_native_restore_approval.py"),
         "--pid",

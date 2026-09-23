@@ -9,7 +9,7 @@ test('M2 close-out actual Agent front door and bounded public Research', async (
   test.setTimeout(420000);
   const root = path.resolve('..');
   const profile = await mkdtemp(path.join(tmpdir(), 'olive-m2-live-'));
-  const seed = spawnSync(path.join(root,'.venv/Scripts/python.exe'), [path.join(root,'scripts/seed_m2_live_workspace.py'), profile], {cwd:root,encoding:'utf8'});
+  const seed = spawnSync(path.join(root, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python'), [path.join(root,'scripts/seed_m2_live_workspace.py'), profile], {cwd:root,encoding:'utf8'});
   expect(seed.status, seed.stderr).toBe(0);
   const evidence = path.join(root,'artifacts/ui-review/M2-closeout');
   await mkdir(evidence,{recursive:true});

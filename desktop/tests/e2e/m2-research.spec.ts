@@ -10,7 +10,7 @@ test("Research retains evidence, denies source saving and reads inert fixture do
   const root = path.resolve("..");
   expect(
     spawnSync(
-      path.join(root, ".venv/Scripts/python.exe"),
+      path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
       [path.join(root, "scripts/seed_m2_research_fixture.py"), profile],
       { cwd: root },
     ).status,

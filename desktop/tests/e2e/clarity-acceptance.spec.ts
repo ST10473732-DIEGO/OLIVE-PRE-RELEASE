@@ -407,10 +407,9 @@ test("closing OLIVE leaves no language server running", async () => {
   // OmniSharp is unambiguous: nothing else on the machine starts it.
   const omnisharp = () =>
     Number(
-      spawnSync("powershell", [
-        "-NoProfile",
-        "-Command",
-        "@(Get-Process -Name OmniSharp -ErrorAction SilentlyContinue).Count",
+      spawnSync(path.resolve(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python"), [
+        "-c",
+        "import psutil; print(sum('omnisharp' in (p.info['name'] or '').lower() for p in psutil.process_iter(['name'])))",
       ], { encoding: "utf8" }).stdout.trim() || "0",
     );
   const baseline = omnisharp();

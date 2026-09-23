@@ -8,7 +8,7 @@ test("Local preview is bound to a real run and has no application bridge", async
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-preview-"));
   const seed = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_electron_fixture.py"), profile],
     { cwd: root, encoding: "utf8", windowsHide: true },
   );

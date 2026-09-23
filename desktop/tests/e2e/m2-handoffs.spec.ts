@@ -8,7 +8,7 @@ test("Projects open actual linked contexts and Developer Mode changes only prese
   const root = path.resolve("..");
   const profile = await mkdtemp(path.join(tmpdir(), "olive-m2-handoff-"));
   const seed = spawnSync(
-    path.join(root, ".venv/Scripts/python.exe"),
+    path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_m2_handoff_fixture.py"), profile],
     { cwd: root, encoding: "utf8", windowsHide: true },
   );

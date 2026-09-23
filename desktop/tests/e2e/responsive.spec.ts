@@ -10,7 +10,7 @@ test("window resizing reflows Home Chat and Studio while retaining editor conten
   const profile = await mkdtemp(path.join(tmpdir(), "olive-responsive-"));
   expect(
     spawnSync(
-      path.join(root, ".venv/Scripts/python.exe"),
+      path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
       [path.join(root, "scripts/seed_electron_fixture.py"), profile],
       { cwd: root },
     ).status,
