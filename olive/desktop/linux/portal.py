@@ -123,33 +123,48 @@ class Portal:
         if self.shortcut:
             raise ValueError('Shortcut session already exists')
         self.shortcut = self.create('GlobalShortcuts')
-        result = self.request('GlobalShortcuts', 'BindShortcuts', '(oa(sa{sv})sa{sv})',
-            (self.shortcut, [('stop', {'description': GLib.Variant('s', 'Stop OLIVE desktop control'),
-              'preferred_trigger': GLib.Variant('s', 'CTRL+ALT+Escape')})], '', {}))
-        shortcuts = result.get('shortcuts', [])
-        bindings = [value for key, value in shortcuts if key == 'stop']
-        if len(bindings) != 1:
-            raise PermissionError('Global emergency shortcut was not registered')
-        trigger = bindings[0].get('trigger_description', '')
-        return {'shortcuts': shortcuts, 'trigger': trigger, 'verified': False}
+        try:
+            result = self.request('GlobalShortcuts', 'BindShortcuts', '(oa(sa{sv})sa{sv})',
+                (self.shortcut, [('stop', {'description': GLib.Variant('s', 'Stop OLIVE desktop control'),
+                  'preferred_trigger': GLib.Variant('s', 'CTRL+ALT+Escape')})], '', {}))
+            shortcuts = result.get('shortcuts', [])
+            bindings = [value for key, value in shortcuts if key == 'stop']
+            if len(bindings) != 1:
+                raise PermissionError('Global emergency shortcut was not registered')
+            trigger = bindings[0].get('trigger_description', '')
+            if not isinstance(trigger, str) or not trigger.strip():
+                raise PermissionError('KDE did not assign a Stop key; assign a free shortcut when present')
+            return {'shortcuts': shortcuts, 'trigger': trigger, 'verified': False}
+        except BaseException:
+            path, self.shortcut = self.shortcut, None
+            self.stop_verified = False
+            if path:
+                self.sessions.discard(path)
+                self.close_path('Session', path)
+            raise
 
     def start(self):
+        if self.remote:
+            raise ValueError('A control session already exists')
         if not self.stop_verified:
             raise PermissionError('Test the global emergency shortcut before starting control')
         if self.stopped.is_set():
             raise InterruptedError('Reset Stop explicitly before a new control session')
         self.remote = self.create('RemoteDesktop')
-        self.request('RemoteDesktop', 'SelectDevices', '(oa{sv})',
-            (self.remote, {'types': GLib.Variant('u', 3), 'persist_mode': GLib.Variant('u', 0)}))
-        self.request('ScreenCast', 'SelectSources', '(oa{sv})',
-            (self.remote, {'types': GLib.Variant('u', 1), 'multiple': GLib.Variant('b', False),
-                           'cursor_mode': GLib.Variant('u', 1)}))
-        result = self.request('RemoteDesktop', 'Start', '(osa{sv})', (self.remote, '', {}))
-        self.streams = result.get('streams', [])
-        if result.get('devices', 0) & 3 != 3 or len(self.streams) != 1:
+        try:
+            self.request('RemoteDesktop', 'SelectDevices', '(oa{sv})',
+                (self.remote, {'types': GLib.Variant('u', 3), 'persist_mode': GLib.Variant('u', 0)}))
+            self.request('ScreenCast', 'SelectSources', '(oa{sv})',
+                (self.remote, {'types': GLib.Variant('u', 1), 'multiple': GLib.Variant('b', False),
+                               'cursor_mode': GLib.Variant('u', 1)}))
+            result = self.request('RemoteDesktop', 'Start', '(osa{sv})', (self.remote, '', {}))
+            self.streams = result.get('streams', [])
+            if result.get('devices', 0) & 3 != 3 or len(self.streams) != 1:
+                raise PermissionError('One approved display and keyboard/pointer are required')
+            return result
+        except BaseException:
             self.close_control()
-            raise PermissionError('One approved display and keyboard/pointer are required')
-        return result
+            raise
 
     def fd(self, interface, method):
         if not self.remote or self.stopped.is_set():
