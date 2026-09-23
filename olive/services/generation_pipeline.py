@@ -5,7 +5,7 @@ from typing import Any, AsyncIterator
 
 from ..memory import Memory
 from ..models import Chat, Message
-from .context_service import ContextPlan, ContextService
+from .context_service import ContextPlan, ContextService, estimate_tokens
 from .prompt_service import PromptBuilder
 from .rag_service import RAGResult
 
@@ -65,9 +65,6 @@ class GenerationPipeline:
             response_reserve=int(chat.params.get("max_tokens", 4096)),
             summarizer=lambda older: self._summarize_messages(chat.model, older),
         )
-        if plan.older_messages_summarized:
-            chat.summary = plan.summary
-            chat.summary_message_count += plan.older_messages_summarized
         preferred_name = self.preferences().get("preferred_name", "")
         preference_context = ("\nThe user's preferred name is " + __import__("json").dumps(str(preferred_name)[:120]) +
                               ". Use it naturally when relevant; do not repeat it in every answer.") if preferred_name else ""
@@ -86,6 +83,16 @@ class GenerationPipeline:
             user_text=user_text,
             images=images,
         )
+        # Include framing added by PromptBuilder and a conservative image
+        # allowance. These remain estimates, not architecture token counts.
+        estimated = sum(estimate_tokens(m["content"]) + 4 + 2048 * len(m.get("images", [])) for m in messages)
+        plan.estimated_input_tokens = estimated
+        plan.over_budget = estimated + plan.response_reserve > plan.context_window
+        if plan.over_budget:
+            raise ValueError("Insufficient context for the original request, constraints and evidence. Narrow the selected context or start a new conversation; nothing was silently truncated.")
+        if plan.older_messages_summarized:
+            chat.summary = plan.summary
+            chat.summary_message_count += plan.older_messages_summarized
         return PreparedGeneration(messages, rag_results, memories, plan)
 
     async def stream(self, chat: Chat, user_text: str, images=None, selected_document_id=None) -> tuple[AsyncIterator[str], PreparedGeneration]:
@@ -93,7 +100,8 @@ class GenerationPipeline:
         options = {
             "temperature": float(chat.params.get("temperature", 0.7)),
             "top_p": float(chat.params.get("top_p", 0.9)),
-            "num_predict": int(chat.params.get("max_tokens", 4096)),
+            "num_predict": prepared.context.response_reserve,
+            "num_ctx": prepared.context.context_window,
             "repeat_penalty": float(chat.params.get("repeat_penalty", 1.08)),
         }
         thinking = ({"think": False} if chat.preset in {"fast", "max"} else
@@ -108,10 +116,13 @@ class GenerationPipeline:
         transcript = "\n\n".join(
             f"{'User' if message.role == 'user' else 'Assistant'}: {message.content}" for message in messages
         )
+        window = await self._context_window(model)
+        if estimate_tokens(transcript) + 1024 > window:
+            raise ValueError("Insufficient context to summarize history safely. Start a new conversation with the required constraints.")
         response = await self.ollama.chat_once(
             model,
             [{"role": "system", "content": "Create a compact, faithful context summary."},
              {"role": "user", "content": "Preserve decisions, facts, constraints, and open work.\n\n" + transcript}],
-            options={"temperature": 0.1, "num_predict": 900},
+            options={"temperature": 0.1, "num_predict": 900, "num_ctx": window},
         )
         return response.strip()

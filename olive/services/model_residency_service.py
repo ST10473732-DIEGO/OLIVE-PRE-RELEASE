@@ -7,6 +7,7 @@ from .model_policy import validated_policy
 
 
 class ModelResidencyService:
+    MAX_WAITING = 4
     def __init__(self, ollama, settings=lambda: {}):
         self.ollama, self.settings = ollama, settings
         self.lock = asyncio.Lock()
@@ -28,6 +29,8 @@ class ModelResidencyService:
 
     @asynccontextmanager
     async def lease(self, model):
+        if self.waiting >= self.MAX_WAITING:
+            raise RuntimeError("The local model queue is full. Wait for an active request to finish.")
         self.waiting += 1
         try:
             await self.lock.acquire()

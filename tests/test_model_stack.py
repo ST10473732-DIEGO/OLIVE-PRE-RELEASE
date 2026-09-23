@@ -143,3 +143,13 @@ class ModelStackTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await service.run(["not-installed"])
         ollama.chat_measured.assert_not_awaited()
+
+class BoundedQueueTests(unittest.IsolatedAsyncioTestCase):
+    async def test_full_queue_rejects_without_stealing_active_slot(self):
+        service = ModelResidencyService(SimpleNamespace(unload_model=AsyncMock()))
+        service.waiting = service.MAX_WAITING
+        with self.assertRaisesRegex(RuntimeError, 'queue is full'):
+            async with service.lease('fixture'):
+                self.fail('Queue admission must fail')
+        self.assertFalse(service.lock.locked())
+        self.assertIsNone(service.current)

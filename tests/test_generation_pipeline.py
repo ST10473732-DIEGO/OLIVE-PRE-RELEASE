@@ -48,3 +48,24 @@ class GenerationPipelineTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class BudgetRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_oversize_request_fails_before_inference_and_summary_mutation(self):
+        chat = Chat(model='local')
+        chat.summary = 'Existing summary'
+        with self.assertRaisesRegex(ValueError, 'Insufficient context'):
+            await GenerationPipeline(FakeOllama(), FakeRAG()).prepare(chat, 'x' * 40000)
+        self.assertEqual(chat.summary, 'Existing summary')
+        self.assertEqual(chat.summary_message_count, 0)
+
+    async def test_lossy_summary_cannot_erase_user_scope(self):
+        from olive.models import Message
+        from olive.services.context_service import ContextService
+        original = 'Do not edit. Answer only. Selected workspace Alpha, device Local.'
+        history = [Message('user', original), Message('assistant', 'x' * 4000)]
+        history += [Message('user', 'next'), Message('assistant', 'answer')]
+        async def summarize(_):
+            return 'User wants editing.'
+        plan = await ContextService(2).plan(history, context_window=2048, response_reserve=1024, summarizer=summarize)
+        # An oversized summarization request is rejected instead of losing scope.
+        self.assertTrue(original in plan.summary or original in [m.content for m in plan.history])

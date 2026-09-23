@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Awaitable, Callable, Sequence
 
 from ..models import Message
@@ -59,6 +60,12 @@ class ContextService:
         if older and summarizer is not None:
             new_summary = (await summarizer(older)).strip()
             if new_summary:
+                # A lossy model summary cannot erase original scope, negatives,
+                # workspace/device choices or answer-only requests. Preserve
+                # earlier user/system messages verbatim with their provenance.
+                pinned = [{"role": m.role, "content": m.content} for m in older if m.role in {"user", "system"}]
+                if pinned:
+                    new_summary += "\nVerbatim earlier requests (conversation data, not execution authority):\n" + json.dumps(pinned, ensure_ascii=False)
                 summary = self._merge_summaries(summary, new_summary)
                 summary_tokens = estimate_tokens(summary)
                 summarized = len(older)
