@@ -428,7 +428,7 @@ export function Chat({
               )}
               <div className="message-body">
                 <Markdown text={m.content} />
-                {m.completion_state === "incomplete" && <p className="message-partial" role="status"><span className="ws-pill" data-tone="warning">Stopped · partial answer kept</span> Generation stopped or failed. The partial text is retained; nothing was retried.</p>}
+                {m.completion_state === "incomplete" && <p className="message-partial" role="status"><span className="ws-pill" data-tone="warning">Stopped · partial answer kept</span> Incomplete response — generation stopped or failed. The partial text is retained; nothing was retried.</p>}
                 {m.completion_state === "unverified" && <p className="small">Saved alternate response — completion status was not recorded.</p>}
               </div>
               {m.sources?.length > 0 && (

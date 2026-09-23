@@ -367,6 +367,10 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       [1440, 900],
       [1366, 768],
       [1100, 760],
+      // Design System V2 collapses global navigation to a 48 px rail at
+      // 1100–1279 px, so Devices keeps both panes there; its single-pane
+      // list/detail mode is exercised at a genuinely narrow window.
+      [900, 700],
     ]) {
       await size(w, h);
       await page

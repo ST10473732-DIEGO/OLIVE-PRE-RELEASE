@@ -2,11 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
+  Check,
+  Hand,
+  Info,
   Laptop,
+  Lock,
   Monitor,
   Plus,
   Radio,
   ShieldCheck,
+  Smartphone,
   Wifi,
 } from "lucide-react";
 import { call } from "../../services/api";
@@ -112,7 +117,7 @@ export function Devices() {
       onClick={() => select(local ? "this" : d.device_id)}
     >
       <span className="devices-icon">
-        <Monitor size={18} />
+        {d.device_class === "phone" || d.device_class === "tablet" ? <Smartphone size={15} aria-hidden="true" /> : d.device_class === "laptop" ? <Laptop size={15} aria-hidden="true" /> : <Monitor size={15} aria-hidden="true" />}
       </span>
       <span>
         <strong>{d.display_name}</strong>
@@ -122,20 +127,25 @@ export function Devices() {
             : deviceStatus(d)}
         </small>
       </span>
+      {!local && (
+        <span
+          className="status-dot"
+          data-tone={d.trust_state === "revoked" ? "error" : d.live?.state === "online" ? "online" : "offline"}
+          aria-hidden="true"
+        />
+      )}
     </button>
   );
   const on = data?.network.state === "on";
   return (
     <section className="devices-workspace" aria-label="Devices workspace">
       <header className="devices-head">
-        <span className="devices-icon accent">
-          <Radio size={20} />
-        </span>
         <div>
           <h1>Devices</h1>
           <p>OLIVE Connect · local pairing and permissions</p>
         </div>
-        <span className="devices-pill">
+        <span className="devices-pill" data-tone={data?.network.state === "on" ? "on" : undefined}>
+          <span className="status-dot" data-tone={data?.network.state === "on" ? "online" : "offline"} aria-hidden="true" />
           Connect {data?.network.state || "unavailable"}
         </span>
       </header>
@@ -286,17 +296,57 @@ export function Devices() {
                             {device.public_identity_metadata?.os ||
                               device.platform}
                           </span>
-                          {device.live?.encrypted &&
-                            device.live.state === "online" &&
-                            device.trust_state === "paired" && (
-                              <span className="devices-tls">
-                                <ShieldCheck size={14} />
-                                Encrypted · TLS 1.3
-                              </span>
-                            )}
+                          {device.paired_at ? <span>paired {new Date(device.paired_at * 1000).toLocaleDateString()}</span> : null}
                         </div>
                       </div>
                     </div>
+                    {selected !== "this" && (
+                      <>
+                        <dl className="devices-facts" aria-label="Connection, trust and encryption">
+                          <div>
+                            <dt>Connection</dt>
+                            <dd>
+                              <span className="status-dot" data-tone={device.trust_state === "revoked" ? "error" : device.live?.state === "online" ? "online" : "offline"} aria-hidden="true" />
+                              {deviceStatus(device)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Trust</dt>
+                            <dd>
+                              {device.trust_state === "revoked" ? (
+                                "Revoked"
+                              ) : (
+                                <>
+                                  <ShieldCheck size={13} aria-hidden="true" />
+                                  Paired · code compared
+                                </>
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Encryption</dt>
+                            <dd>
+                              {device.live?.encrypted && device.live.state === "online" && device.trust_state === "paired" ? (
+                                <span className="devices-tls">
+                                  <Lock size={13} aria-hidden="true" />
+                                  Encrypted · TLS 1.3
+                                </span>
+                              ) : (
+                                "No active connection"
+                              )}
+                            </dd>
+                          </div>
+                        </dl>
+                        {device.trust_state === "paired" && (
+                          <p className="notice devices-trust" role="note">
+                            <Info size={14} aria-hidden="true" />
+                            <span>
+                              Pairing proves this is {device.display_name}. <strong>It grants no access.</strong> Each capability starts Off and applies to what {device.display_name} can do on <strong>this PC</strong>. What this PC can do on {device.display_name} is set on {device.display_name}.
+                            </span>
+                          </p>
+                        )}
+                      </>
+                    )}
                     {selected === "this" ? (
                       <>
                         <div className="devices-panel">
@@ -635,19 +685,6 @@ export function Devices() {
                                 </>
                               )}
                             </div>
-                            {device.trust_state !== "revoked" && (
-                              <footer>
-                                <span>
-                                  Removing access takes effect immediately.
-                                </span>
-                                <button
-                                  className="danger"
-                                  onClick={() => setRevoke(true)}
-                                >
-                                  Revoke device
-                                </button>
-                              </footer>
-                            )}
                           </div>
                         )}
                         {tab === "status" &&
@@ -679,13 +716,20 @@ export function Devices() {
                                 device.
                               </p>
                             )}
-                            {permissionGroups.map(([group, items]) => (
+                            {permissionGroups.map(([group, items]) => {
+                              const shown = items.filter(([cap]) => {
+                                const metadata = data.capabilities.find((c) => c.capability === cap);
+                                return metadata && metadata.supported && !metadata.policy_disabled &&
+                                  ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read"].includes(cap);
+                              });
+                              if (!shown.length) return null;
+                              return (
                               <section
                                 className="devices-permission-group"
                                 key={group}
                               >
                                 <h3 className="devices-eyebrow">{group}</h3>
-                                {items.map(([cap, label]) => {
+                                {shown.map(([cap, label]) => {
                                   const metadata = data.capabilities.find(
                                     (c) => c.capability === cap,
                                   );
@@ -725,7 +769,7 @@ export function Devices() {
                                           aria-label={label}
                                         >
                                           {(
-                                            ["allow", "ask", "deny"] as const
+                                            ["deny", "ask", "allow"] as const
                                           ).map((v) => (
                                             <button
                                               data-value={v}
@@ -746,6 +790,8 @@ export function Devices() {
                                                 )
                                               }
                                             >
+                                              {v === decision && v === "ask" && <Hand size={12} aria-hidden="true" />}
+                                              {v === decision && v === "allow" && <Check size={12} aria-hidden="true" />}
                                               {v === "deny"
                                                 ? "Off"
                                                 : v === "ask"
@@ -763,7 +809,22 @@ export function Devices() {
                                   );
                                 })}
                               </section>
-                            ))}
+                              );
+                            })}
+                            {(() => {
+                              const all: (readonly [string, string])[] = permissionGroups.flatMap(([, items]) => [...items] as (readonly [string, string])[]);
+                              const unavailable = all.filter(([cap]) => {
+                                const metadata = data.capabilities.find((c) => c.capability === cap);
+                                return metadata && !(metadata.supported && !metadata.policy_disabled &&
+                                  ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read"].includes(cap));
+                              });
+                              return unavailable.length ? (
+                                <p className="devices-unavailable-line">
+                                  <span className="devices-unavailable">Unavailable</span> in this version:{" "}
+                                  {unavailable.map(([, label]) => label).join(", ")}. They are not offered as controls.
+                                </p>
+                              ) : null;
+                            })()}
                           </div>
                         )}
                         {tab === "activity" && (
@@ -803,6 +864,17 @@ export function Devices() {
                               or file content.
                             </footer>
                           </div>
+                        )}
+                        {tab === "status" && device.trust_state !== "revoked" && (
+                          <section className="devices-danger" aria-label="Revoke pairing">
+                            <div>
+                              <strong>Revoke pairing</strong>
+                              <p>{device.display_name} loses every capability immediately and must pair again with a new code.</p>
+                            </div>
+                            <button className="danger" onClick={() => setRevoke(true)}>
+                              Revoke device
+                            </button>
+                          </section>
                         )}
                       </>
                     )}
