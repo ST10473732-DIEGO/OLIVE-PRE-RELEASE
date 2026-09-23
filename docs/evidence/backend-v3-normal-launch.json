@@ -1,0 +1,86 @@
+[
+  {
+    "trial": 0,
+    "languages": [
+      {
+        "id": "csharp",
+        "availability": "ready",
+        "detail": ".NET SDK 10.0.401"
+      },
+      {
+        "id": "python",
+        "availability": "ready",
+        "detail": "OLIVE runtime interpreter 3.14.7"
+      },
+      {
+        "id": "javascript",
+        "availability": "ready",
+        "detail": "Node v24.21.0"
+      },
+      {
+        "id": "typescript",
+        "availability": "ready",
+        "detail": "Node v24.21.0"
+      },
+      {
+        "id": "java",
+        "availability": "ready",
+        "detail": "javac 21.0.12.1"
+      },
+      {
+        "id": "empty",
+        "availability": "ready",
+        "detail": "A folder with a README, for files you bring yourself."
+      }
+    ],
+    "spaces": [
+      "Studio",
+      "Devices",
+      "OLIVE GO",
+      "Chat",
+      "REIMAGINE"
+    ]
+  },
+  {
+    "trial": 1,
+    "languages": [
+      {
+        "id": "csharp",
+        "availability": "ready",
+        "detail": ".NET SDK 10.0.401"
+      },
+      {
+        "id": "python",
+        "availability": "ready",
+        "detail": "OLIVE runtime interpreter 3.14.7"
+      },
+      {
+        "id": "javascript",
+        "availability": "ready",
+        "detail": "Node v24.21.0"
+      },
+      {
+        "id": "typescript",
+        "availability": "ready",
+        "detail": "Node v24.21.0"
+      },
+      {
+        "id": "java",
+        "availability": "ready",
+        "detail": "javac 21.0.12.1"
+      },
+      {
+        "id": "empty",
+        "availability": "ready",
+        "detail": "A folder with a README, for files you bring yourself."
+      }
+    ],
+    "spaces": [
+      "Studio",
+      "Devices",
+      "OLIVE GO",
+      "Chat",
+      "REIMAGINE"
+    ]
+  }
+]

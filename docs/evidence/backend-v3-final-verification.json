@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-23",
+  "source_compileall": {
+    "files": 665,
+    "exit_code": 0
+  },
+  "whole_tree_compileall": "Known ignored PySide6 Jinja template error; not repository source",
+  "python": {
+    "tests": 1114,
+    "skipped": 8,
+    "passed": 1106
+  },
+  "connect": {
+    "passed": 240
+  },
+  "frontend": {
+    "passed": 96,
+    "files": 18
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "build": "passed",
+  "electron_last_aggregate": {
+    "passed": 47,
+    "skipped": 14,
+    "failed": 7
+  },
+  "electron_postfix_preview": {
+    "passed": 1
+  },
+  "electron_live": {
+    "passed": 4
+  },
+  "hosted_ci": "not run; no push authorized",
+  "freeze": {
+    "design_base": "50003790c42aff620d63d664dff89c0338347cab",
+    "files": 225,
+    "added": [],
+    "deleted": [],
+    "changed": [],
+    "approved_changes": [
+      "desktop/src/features/studio/NewProjectWizard.tsx"
+    ]
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-23",
+  "live_electron": {
+    "n": 4,
+    "passed": 4,
+    "elapsed_minutes": 2.0,
+    "cases": [
+      "C7 live target Stop and local Chat recovery",
+      "DEEP actual scanned PDF page and native metadata",
+      "SDXL generation edit cancel new generation and Chat GPU handoff",
+      "FAST NORMAL MAX DEEP FAST with correct attribution and one resident model"
+    ]
+  },
+  "mode_completion_ms": [
+    {
+      "preset": "fast",
+      "ms": 1957,
+      "n": 1
+    },
+    {
+      "preset": "normal",
+      "ms": 4956,
+      "n": 1
+    },
+    {
+      "preset": "max",
+      "ms": 9001,
+      "n": 1
+    },
+    {
+      "preset": "deep",
+      "ms": 9028,
+      "n": 1
+    },
+    {
+      "preset": "fast",
+      "ms": 3960,
+      "n": 1
+    }
+  ],
+  "image": {
+    "engine": "ComfyUI 0.35.0",
+    "artifact": {
+      "checkpoint": "sd_xl_base_1.0.safetensors",
+      "bytes": 6938078334,
+      "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b",
+      "stored_tensor_dtypes": {
+        "F16": 2515
+      },
+      "execution_precision": "ComfyUI automatic selection; kernel/allocator precision not independently instrumented"
+    },
+    "settings": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 7,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "generation_denoise": 1,
+      "edit_denoise": 0.65
+    },
+    "timings": {
+      "generatedSampledTorchVramBytes": 10596909056,
+      "generatedSampledSystemRamUsedBytes": 13822529536,
+      "generated": 14286,
+      "editedSampledTorchVramBytes": 10697572352,
+      "editedSampledSystemRamUsedBytes": 14662828032,
+      "edited": 12182,
+      "cancellation": 1326,
+      "restarted-after-cancelSampledTorchVramBytes": 7864320000,
+      "restarted-after-cancelSampledSystemRamUsedBytes": 15800360960,
+      "restarted-after-cancel": 12428
+    },
+    "sample_note": "Image jobs polled once per second; torch reserved memory is not total device allocation. n=1 per operation; not cold/warm repeated benchmark. Engine was configured before timing began.",
+    "released_torch_bytes": 20971520,
+    "after_chat_torch_bytes": 20971520,
+    "outputs": [
+      {
+        "case": "generated",
+        "sha256": "8e90edeee21c4af0c18099bc20995590284ee55a172d59fa9e2c3f9de9526fa7",
+        "width": 1024,
+        "height": 1024,
+        "format": "PNG",
+        "mode": "RGB",
+        "has_alpha": false
+      },
+      {
+        "case": "edited",
+        "sha256": "7c58b80787e87b312258d82400239d3c83c09bbfcdf96192ec7aaa7434946451",
+        "width": 1024,
+        "height": 1024,
+        "format": "PNG",
+        "mode": "RGB",
+        "has_alpha": false
+      },
+      {
+        "case": "restarted-after-cancel",
+        "sha256": "7f59bd3a3e51eab1e6828ed9df718c77321382749f11326739c7f015d68b08cb",
+        "width": 1024,
+        "height": 1024,
+        "format": "PNG",
+        "mode": "RGB",
+        "has_alpha": false
+      }
+    ],
+    "original_preserved": true,
+    "cancelled_artifact_created": false,
+    "qualitative_review": {
+      "generation": "Natural still life, but four olives instead of requested three. Count constraint failed.",
+      "edit": "Composition preserved, but olives remain largely green and plate not clearly blue. Requested purple/blue edit failed.",
+      "transparency": "All outputs RGB without alpha; transparency not tested or claimed."
+    },
+    "default": "unchanged SDXL",
+    "qwen_image": "not downloaded, activated or benchmarked"
+  },
+  "offline_client": {
+    "non_loopback_tcp_denied": true,
+    "local_answer_correct": true,
+    "cloud_fallback": false,
+    "scope": "Python client transport blocked; existing Ollama owns local weights and OLLAMA_NO_CLOUD=1. Not a kernel-wide airgap."
+  },
+  "owned_cleanup": {
+    "remaining_owned_workers": [],
+    "normal_window_closed": true,
+    "stdin_closed_cleanup": "Verified owned Electron CDP window close, then idle harness stop"
+  },
+  "final_host": {
+    "gpu_used_mib": 115,
+    "gpu_total_mib": 16384,
+    "free_disk_GB": 382
+  }
+}
