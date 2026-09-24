@@ -15,7 +15,18 @@ def next_step(scope, observation, submitted):
         candidates = [c for c in controls if same_control_label(c.get('name', ''), scope.content)]
         if len(candidates) != 1:
             return None
-        return dict(action='click', target=candidates[0]['id'], value='', revision=observation['revision'],
+        from .target_region import semantic_target, TargetState
+        evidence = semantic_target(observation, candidates[0]['name'])
+        if evidence.state != TargetState.FOUND:
+            return None
+        target = candidates[0]
+        # Standard button keyboard activation avoids guessing a point when native
+        # Chromium wrappers cannot provide a reliable cross-tree hit-test.
+        if target.get('role') in {'button', 'push button'}:
+            return dict(action='key' if target.get('focused') else 'focus', target=target['id'],
+                        value='Space' if target.get('focused') else '', revision=observation['revision'],
+                        expected='Activate the uniquely focused requested button')
+        return dict(action='click', target=target['id'], value='', revision=observation['revision'],
                     expected='Observe the requested control after the click')
     if scope.effect == 'search':
         candidates = [c for c in controls if is_search_control(c)]

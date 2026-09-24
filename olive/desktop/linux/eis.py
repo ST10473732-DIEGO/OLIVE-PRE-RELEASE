@@ -143,7 +143,7 @@ class EIS:
             self.held.discard((device, kind, code))
 
     def key(self, name):
-        keys = {'Tab': 15, 'Escape': 1, 'Enter': 28, 'Backspace': 14,
+        keys = {'Space': 57, 'Tab': 15, 'Escape': 1, 'Enter': 28, 'Backspace': 14,
                 'Down': 108, 'Up': 103, 'Left': 105, 'Right': 106}
         if name not in keys:
             raise ValueError('Unsupported key; commands and arbitrary chords are not accepted')

@@ -115,10 +115,12 @@ class LinuxRuntime:
         self.session = await self.native.call('start', timeout=15)
         self.last_session_evidence = self.session
 
-    async def run(self, request, message_id, interpretation=None):
+    async def run(self, request, message_id, interpretation=None, continuation_epoch=None):
         d = self.desktop
         if self.owner or d.busy():
             raise ValueError('A desktop task is already active')
+        if continuation_epoch is not None and (self.authority.epoch != continuation_epoch or d.stop_event.is_set()):
+            raise InterruptedError('The combined task was stopped; remaining steps were discarded')
         # Only a NEW explicit request can clear transient cancellation. Persistent
         # policy and the named KDE grant are checked again, never recreated.
         self.authority.cancel()
@@ -171,12 +173,12 @@ class LinuxRuntime:
                     d.gateway.require_not_denied(permissions_session, 'filesystem.write', grant.scope.content)
                 from .file_task import transfer
                 return await transfer(self, grant, app, processes)
-            if grant.scope.effect == 'edit_save':
+            if grant.scope.effect in {'edit_save', 'paste_save'}:
                 for permission in ('desktop.keyboard_input', 'desktop.mouse_input', 'filesystem.write'):
                     d.gateway.require_not_denied(permissions_session, permission, grant.scope.path if permission == 'filesystem.write' else None)
                 from .editor_task import save_note
                 return await save_note(self, grant, app, processes)
-            if grant.scope.effect == 'search' and hasattr(app, 'entry'):
+            if grant.scope.effect in {'search', 'visit'} and hasattr(app, 'entry'):
                 import configparser
                 config = configparser.ConfigParser(interpolation=None)
                 config.read(app.entry)
@@ -283,7 +285,7 @@ class LinuxRuntime:
                 observation = await self.observe_app(app, processes)
                 observation['destination'] = messaging_destination(grant.scope, observation)
                 d.record.history.append({'operation': proposal['action'], 'status': 'dispatched; re-observed'})
-                if grant.scope.effect == 'click':
+                if grant.scope.effect == 'click' and proposal['action'] != 'focus':
                     if observation['controls'] == fresh['controls']:
                         raise ValueError('Click dispatched once; no visible change verified')
                     d.record.status = 'completed'

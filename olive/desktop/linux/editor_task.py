@@ -27,7 +27,13 @@ async def save_note(runtime, grant, app, processes):
     await runtime.native.call('editor_key', {'step': 'new_document'})
     observation = await observe()
     editors = [c for c in observation['controls'] if c.get('editable') and c.get('role') in {'text', 'entry', 'document text'} and not c.get('value')]
-    if len(editors) == 1:
+    if grant.scope.effect == 'paste_save':
+        # Explicit clipboard use, normal Ctrl+V into a fresh untitled document.
+        # No clipboard read service is exposed to a model or remote peer.
+        await runtime.native.call('editor_paste', {})
+        observation = await observe()
+        verified_text = True  # Exact saved contents are verified below; not claimed yet.
+    elif len(editors) == 1:
         if not editors[0].get('focused'):
             await act('focus', editors[0])
             observation = await observe()
@@ -84,11 +90,16 @@ async def save_note(runtime, grant, app, processes):
     for _ in range(15):
         runtime.check_task(grant)
         if path.is_file():
-            if path.read_text() not in {grant.scope.content, grant.scope.content+'\n'}:
+            if path.stat().st_size > 8_000_000:
+                raise ValueError('Saved document exceeds the verification budget')
+            saved = path.read_text()
+            if grant.scope.effect == 'paste_save' and not saved:
+                raise ValueError('Clipboard paste produced an empty document')
+            if grant.scope.effect != 'paste_save' and saved not in {grant.scope.content, grant.scope.content+'\n'}:
                 raise ValueError('The GUI-created document differs from the requested text')
             await asyncio.to_thread(ledger.verified, grant)
             d.record.status = 'completed'
-            d.record.verification = 'The visible editor saved the requested new file; its contents were read back and verified.'
+            d.record.verification = ('The visible editor pasted the system clipboard into a new document and saved the requested file; the saved text was read back. Exact clipboard equality is not independently known.' if grant.scope.effect == 'paste_save' else 'The visible editor saved the requested new file; its contents were read back and verified.')
             return d.record.verification
         await asyncio.sleep(.2)
     raise TimeoutError('Save was requested once; the new file was not observed')

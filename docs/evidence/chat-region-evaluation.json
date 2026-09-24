@@ -1,0 +1,1718 @@
+{
+  "classification": "synthetic raster, zero input",
+  "model": "GUI-Owl-1.5-8B-Instruct-Q5_K_M",
+  "seed": 73140851,
+  "cases": [
+    {
+      "case": 0,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.32697856599406805,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          738,
+          509
+        ]
+      },
+      "model_seconds": 1.7546571610000683,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 1,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.29034658799355384,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          735,
+          501
+        ]
+      },
+      "model_seconds": 1.3480132880067686,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 2,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3743317960033892,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          740,
+          750
+        ]
+      },
+      "model_seconds": 1.6065815379988635,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 3,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.27634030699846335,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          740,
+          500
+        ]
+      },
+      "model_seconds": 1.399516240999219,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 4,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.2977651209948817,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          738,
+          255
+        ]
+      },
+      "model_seconds": 1.3915115370036801,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 5,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3426622759870952,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          753,
+          735
+        ]
+      },
+      "model_seconds": 1.6272070350096328,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 6,
+      "category": "present",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19174118200317025,
+      "verifier_correct": false,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          239,
+          481
+        ]
+      },
+      "model_seconds": 1.675745316009852,
+      "raw_correct": true,
+      "combined_admitted": false,
+      "combined_correct": false
+    },
+    {
+      "case": 7,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3170883160055382,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          245,
+          508
+        ]
+      },
+      "model_seconds": 1.4038407429907238,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 8,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.28347773700079415,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          238,
+          251
+        ]
+      },
+      "model_seconds": 1.3350625059974845,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 9,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31127254699822515,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          744,
+          754
+        ]
+      },
+      "model_seconds": 1.429053362007835,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 10,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.2827809779992094,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          249
+        ]
+      },
+      "model_seconds": 1.3685310770088108,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 11,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.35237139801029116,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          740,
+          224
+        ]
+      },
+      "model_seconds": 1.6211259300034726,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 12,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.317657623993,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          236,
+          511
+        ]
+      },
+      "model_seconds": 1.4106172930041794,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 13,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31573210199712776,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          738,
+          747
+        ]
+      },
+      "model_seconds": 1.4309639729908668,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 14,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.2909273419936653,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          231,
+          253
+        ]
+      },
+      "model_seconds": 1.351643669011537,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 15,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3028536619967781,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          238,
+          738
+        ]
+      },
+      "model_seconds": 1.418756263999967,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 16,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.34088507600245066,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          754,
+          468
+        ]
+      },
+      "model_seconds": 1.5659438650036464,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 17,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31107624499418307,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          738,
+          264
+        ]
+      },
+      "model_seconds": 1.4683323789940914,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 18,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3404327309981454,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          744,
+          261
+        ]
+      },
+      "model_seconds": 1.3985346620029304,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 19,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.28218787199875806,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          754,
+          192
+        ]
+      },
+      "model_seconds": 1.4594989140023245,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 20,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.33973774399782997,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          757,
+          511
+        ]
+      },
+      "model_seconds": 1.423323501003324,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 21,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.29494447199977003,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          242,
+          742
+        ]
+      },
+      "model_seconds": 1.293104766999022,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 22,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.28871683300531004,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          739,
+          457
+        ]
+      },
+      "model_seconds": 1.4192188029992394,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 23,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.27657387100043707,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          738,
+          240
+        ]
+      },
+      "model_seconds": 1.312566242995672,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 24,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31573653599480167,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          258
+        ]
+      },
+      "model_seconds": 1.3542997629992897,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 25,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.29540243800147437,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          259,
+          738
+        ]
+      },
+      "model_seconds": 1.3482270180102205,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 26,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.27439291699556634,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          251,
+          181
+        ]
+      },
+      "model_seconds": 1.4657214879989624,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 27,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.326247909993981,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          249,
+          748
+        ]
+      },
+      "model_seconds": 1.367643832010799,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 28,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31286264200753067,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          745,
+          738
+        ]
+      },
+      "model_seconds": 1.4181123269954696,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 29,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.35434899099345785,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          757,
+          516
+        ]
+      },
+      "model_seconds": 1.4002310970099643,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 30,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.38530068199906964,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          260,
+          745
+        ]
+      },
+      "model_seconds": 1.6487164959980873,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 31,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.36724689800757915,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          750,
+          760
+        ]
+      },
+      "model_seconds": 1.5021875999955228,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 32,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.29659354900650214,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          236,
+          728
+        ]
+      },
+      "model_seconds": 1.5116295850020833,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 33,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.347616813989589,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          736,
+          481
+        ]
+      },
+      "model_seconds": 1.594238232995849,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 34,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3245912050042534,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          238,
+          740
+        ]
+      },
+      "model_seconds": 1.4062883680016967,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 35,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.30310738999105524,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          737,
+          468
+        ]
+      },
+      "model_seconds": 1.4064096399961272,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 36,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.2995707619993482,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          742,
+          255
+        ]
+      },
+      "model_seconds": 1.413549899996724,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 37,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.28440065000904724,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          245
+        ]
+      },
+      "model_seconds": 1.4059716939955251,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 38,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3664495629927842,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          734
+        ]
+      },
+      "model_seconds": 1.6089085249986965,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 39,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.300337110995315,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          242,
+          511
+        ]
+      },
+      "model_seconds": 1.4371261390042491,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 40,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3180681630037725,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          732,
+          192
+        ]
+      },
+      "model_seconds": 1.480056668006,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 41,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3144624899869086,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          742,
+          750
+        ]
+      },
+      "model_seconds": 1.4061678649886744,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 42,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.32483591500204057,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          259,
+          189
+        ]
+      },
+      "model_seconds": 1.5485760459996527,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 43,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31803404199308716,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          738,
+          498
+        ]
+      },
+      "model_seconds": 1.3134195819875458,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 44,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.31751487699511927,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          731,
+          747
+        ]
+      },
+      "model_seconds": 1.3507615710113896,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 45,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3726034880091902,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          246,
+          482
+        ]
+      },
+      "model_seconds": 1.6265957770083332,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 46,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3170297940087039,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          245,
+          259
+        ]
+      },
+      "model_seconds": 1.418081933996291,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 47,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.3065534320048755,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          739,
+          454
+        ]
+      },
+      "model_seconds": 1.412575893002213,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 48,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.2843055789999198,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          756,
+          189
+        ]
+      },
+      "model_seconds": 1.4158114010060672,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 49,
+      "category": "present",
+      "verifier_state": "FOUND",
+      "verifier_seconds": 0.29590149800060317,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          495
+        ]
+      },
+      "model_seconds": 1.3392438079899875,
+      "raw_correct": true,
+      "combined_admitted": true,
+      "combined_correct": true
+    },
+    {
+      "case": 50,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.1950093100022059,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          505,
+          352
+        ]
+      },
+      "model_seconds": 1.3263912459951825,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 51,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.1772717780113453,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          744,
+          748
+        ]
+      },
+      "model_seconds": 1.4756479200004833,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 52,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19455238999216817,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          505,
+          272
+        ]
+      },
+      "model_seconds": 1.4209621119953226,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 53,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.1893316759960726,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          241,
+          744
+        ]
+      },
+      "model_seconds": 1.8430883649998577,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 54,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.18595310700766277,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          739,
+          501
+        ]
+      },
+      "model_seconds": 1.3971545709937345,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 55,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17046681999636348,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          955,
+          557
+        ]
+      },
+      "model_seconds": 1.438571974998922,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 56,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19559442200988997,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          751,
+          740
+        ]
+      },
+      "model_seconds": 1.56679575900489,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 57,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17930970698944293,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          261,
+          350
+        ]
+      },
+      "model_seconds": 1.4666465849877568,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 58,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.18482806799875107,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          500,
+          556
+        ]
+      },
+      "model_seconds": 1.505463900990435,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 59,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19239427499996964,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          256,
+          747
+        ]
+      },
+      "model_seconds": 1.714295754005434,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 60,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19621801799803507,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          753,
+          505
+        ]
+      },
+      "model_seconds": 1.3707313850027276,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 61,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19113960799586494,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          462
+        ]
+      },
+      "model_seconds": 1.5806670170131838,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 62,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.1814323899889132,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          753,
+          755
+        ]
+      },
+      "model_seconds": 1.3625835359998746,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 63,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.18061709900212009,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          242,
+          731
+        ]
+      },
+      "model_seconds": 1.4954129660036415,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 64,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.18696355899737682,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          982,
+          13
+        ]
+      },
+      "model_seconds": 1.4753616959933424,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 65,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17890366700885352,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          742
+        ]
+      },
+      "model_seconds": 1.425649060998694,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 66,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19246228599513415,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          735,
+          726
+        ]
+      },
+      "model_seconds": 1.5168679100024747,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 67,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17957409999507945,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          246,
+          265
+        ]
+      },
+      "model_seconds": 1.4294696760043735,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 68,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19648108699766453,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          138,
+          402
+        ]
+      },
+      "model_seconds": 1.5299375189933926,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 69,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17908007799996994,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          236,
+          728
+        ]
+      },
+      "model_seconds": 1.4628967129974626,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 70,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.1899849089968484,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          238,
+          752
+        ]
+      },
+      "model_seconds": 1.408066324001993,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 71,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17888527001196053,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          500,
+          500
+        ]
+      },
+      "model_seconds": 1.4121799400018062,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 72,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.18912129999080207,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          739,
+          255
+        ]
+      },
+      "model_seconds": 1.3773850040015532,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 73,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.170673300002818,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          185,
+          950
+        ]
+      },
+      "model_seconds": 1.4104805730021326,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 74,
+      "category": "missing",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19161703099962324,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          234,
+          724
+        ]
+      },
+      "model_seconds": 1.5144725120044313,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 75,
+      "category": "ambiguous",
+      "verifier_state": "AMBIGUOUS",
+      "verifier_seconds": 0.18018531501002144,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          242,
+          261
+        ]
+      },
+      "model_seconds": 1.4502315419958904,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 76,
+      "category": "ambiguous",
+      "verifier_state": "AMBIGUOUS",
+      "verifier_seconds": 0.20052543099154718,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          750,
+          234
+        ]
+      },
+      "model_seconds": 1.633814450004138,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 77,
+      "category": "ambiguous",
+      "verifier_state": "AMBIGUOUS",
+      "verifier_seconds": 0.17485233199840877,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          739,
+          268
+        ]
+      },
+      "model_seconds": 1.5187383110023802,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 78,
+      "category": "ambiguous",
+      "verifier_state": "AMBIGUOUS",
+      "verifier_seconds": 0.175854683999205,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          254,
+          257
+        ]
+      },
+      "model_seconds": 1.4698831720015733,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 79,
+      "category": "ambiguous",
+      "verifier_state": "AMBIGUOUS",
+      "verifier_seconds": 0.17939555199700408,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          753,
+          502
+        ]
+      },
+      "model_seconds": 1.3555420999909984,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 80,
+      "category": "disabled",
+      "verifier_state": "UNSUPPORTED",
+      "verifier_seconds": 0.19942400000581983,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          746,
+          481
+        ]
+      },
+      "model_seconds": 1.5777791739965323,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 81,
+      "category": "disabled",
+      "verifier_state": "UNSUPPORTED",
+      "verifier_seconds": 0.1910003439988941,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          750,
+          742
+        ]
+      },
+      "model_seconds": 1.6278779380081687,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 82,
+      "category": "disabled",
+      "verifier_state": "UNSUPPORTED",
+      "verifier_seconds": 0.18929822399513796,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          744,
+          457
+        ]
+      },
+      "model_seconds": 1.510300826994353,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 83,
+      "category": "disabled",
+      "verifier_state": "UNSUPPORTED",
+      "verifier_seconds": 0.18936591398960445,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          234,
+          721
+        ]
+      },
+      "model_seconds": 1.4016610249964288,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 84,
+      "category": "disabled",
+      "verifier_state": "UNSUPPORTED",
+      "verifier_seconds": 0.1935695310094161,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          236,
+          498
+        ]
+      },
+      "model_seconds": 1.3225523400033126,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 85,
+      "category": "occluded",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17187256198667455,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          253,
+          250
+        ]
+      },
+      "model_seconds": 1.5022595530026592,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 86,
+      "category": "occluded",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.18687828299880493,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          252,
+          740
+        ]
+      },
+      "model_seconds": 1.4097380349994637,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 87,
+      "category": "occluded",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.16905269199924078,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          256,
+          720
+        ]
+      },
+      "model_seconds": 1.583383044009679,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 88,
+      "category": "occluded",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.19061373300792184,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "left_click",
+        "coordinate": [
+          238,
+          730
+        ]
+      },
+      "model_seconds": 1.5858206489938311,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    },
+    {
+      "case": 89,
+      "category": "occluded",
+      "verifier_state": "NOT_VISIBLE_HERE",
+      "verifier_seconds": 0.17406645500159357,
+      "verifier_correct": true,
+      "actual_actions": 0,
+      "raw_action": {
+        "action": "terminate",
+        "status": "success"
+      },
+      "model_seconds": 1.2401024020073237,
+      "raw_correct": false,
+      "combined_admitted": false,
+      "combined_correct": true
+    }
+  ],
+  "limitations": [
+    "Synthetic coloured filled controls; no desktop actions",
+    "Icon-only visual identity, real menus and scrolling are not certified by this set"
+  ]
+}

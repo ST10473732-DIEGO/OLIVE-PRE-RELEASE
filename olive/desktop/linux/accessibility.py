@@ -135,7 +135,7 @@ class Accessibility:
         text_budget = 12000
         queue = [(app, 0, '', '', False)]
         visited = 0
-        while queue and visited < 300 and time.monotonic() < deadline and text_budget > 0:
+        while queue and visited < 800 and time.monotonic() < deadline and text_budget > 0:
             node, depth, window, parent, in_document = queue.pop(0)
             visited += 1
             try:
@@ -186,7 +186,7 @@ class Accessibility:
                         'focused': states.contains(Atspi.StateType.FOCUSED),
                         'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names, 'labels': labels})
                     self.targets[key] = node
-                if depth < 16:
+                if depth < 28:
                     for index in range(min(node.get_child_count(), 80)):
                         child = node.get_child_at_index(index)
                         if child:
@@ -203,7 +203,11 @@ class Accessibility:
         states = node.get_state_set()
         if node.get_process_id() != self.application or not all(states.contains(s) for s in
                 (Atspi.StateType.SHOWING, Atspi.StateType.VISIBLE, Atspi.StateType.ENABLED)):
-            raise ValueError('Target disappeared or is not enabled')
+            raise ValueError('STALE: target state changed (' + ','.join(
+                name for name, ok in [('application', node.get_process_id() == self.application),
+                    ('showing', states.contains(Atspi.StateType.SHOWING)),
+                    ('visible', states.contains(Atspi.StateType.VISIBLE)),
+                    ('enabled', states.contains(Atspi.StateType.ENABLED))] if not ok) + '); no input')
         if states.contains(Atspi.StateType.DEFUNCT) or node.get_role() == Atspi.Role.PASSWORD_TEXT:
             raise PermissionError('Target is unavailable or secret')
         component = node.get_component_iface()
@@ -228,6 +232,51 @@ class Accessibility:
     def clear(self):
         self.targets.clear()
         self.revision, self.application = '', None
+
+    def hit_test(self, node, x, y):
+        """Require the observed control or its descendant at the actual point."""
+        parent = node
+        for _ in range(20):
+            if parent.get_role() in (Atspi.Role.FRAME, Atspi.Role.WINDOW, Atspi.Role.DIALOG):
+                break
+            parent = parent.get_parent()
+            if not parent:
+                raise ValueError('Target has no current accessible window')
+        hit = parent.get_component_iface().get_accessible_at_point(
+            int(x-self.offset[0]), int(y-self.offset[1]), Atspi.CoordType.SCREEN)
+        for _ in range(32):
+            if hit == node:
+                return
+            if not hit:
+                break
+            component = hit.get_component_iface()
+            child = component.get_accessible_at_point(
+                int(x-self.offset[0]), int(y-self.offset[1]), Atspi.CoordType.SCREEN)
+            if child == hit:
+                # Chromium's native wrapper may hit itself rather than delegate
+                # to its web root. Descend only one visible child containing the
+                # point. Overlapping siblings remain ambiguous, never first-match.
+                children = []
+                for index in range(min(hit.get_child_count(), 80)):
+                    candidate = hit.get_child_at_index(index)
+                    state = candidate.get_state_set() if candidate else None
+                    part = candidate.get_component_iface() if candidate else None
+                    if state and part and all(state.contains(s) for s in
+                            (Atspi.StateType.SHOWING, Atspi.StateType.VISIBLE)) and part.contains(
+                            int(x-self.offset[0]), int(y-self.offset[1]), Atspi.CoordType.SCREEN):
+                        children.append(candidate)
+                child = children[0] if len(children) == 1 else None
+            if not child:
+                # The deepest hit may be text belonging to the target.
+                for _ in range(32):
+                    if hit == node:
+                        return
+                    hit = hit.get_parent() if hit else None
+                    if not hit:
+                        break
+                break
+            hit = child
+        raise ValueError('Target is occluded or accessibility hit-testing is unsupported')
 
     @staticmethod
     def labels(node):

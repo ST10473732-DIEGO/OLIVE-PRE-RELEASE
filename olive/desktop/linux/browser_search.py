@@ -33,7 +33,9 @@ async def search(runtime, grant, app, processes):
     d = runtime.desktop
     runtime.check_task(grant)
     pid = processes[0][0]
-    await runtime.native.call('browser_begin', {'pid': pid, 'query': grant.scope.content})
+    visiting = grant.scope.effect == 'visit'
+    await runtime.native.call('browser_visit' if visiting else 'browser_begin',
+                              {'pid': pid, 'url' if visiting else 'query': grant.scope.content})
     history = []
     for step, label in [('new_tab', 'Opening a new browser tab'), ('address', 'Focusing the search field'),
                         ('type_query', 'Entering the requested search'), ('submit', 'Searching')]:
@@ -66,7 +68,20 @@ async def search(runtime, grant, app, processes):
         title = frame['window'].get('title', '').casefold()
         if any(term in text for term in ('unusual traffic', 'captcha', 'verify you are human', 'problem loading page')):
             raise PermissionError('The browser requires human attention; search was not retried')
-        if grant.scope.content.casefold() in title and len(text) > 200 and any(term in text for term in ('search', 'results', 'images', 'videos')):
+        if visiting:
+            from urllib.parse import urlsplit
+            wanted = urlsplit(grant.scope.content)
+            try:
+                observation = await runtime.native.call('observe', {'pid': pid})
+                urls = [urlsplit(doc['uri']) for doc in observation.get('documents', [])]
+                matched = any((u.scheme,u.netloc,u.path.rstrip('/'),u.query)==(wanted.scheme,wanted.netloc,wanted.path.rstrip('/'),wanted.query) for u in urls)
+            except RuntimeError:
+                matched = False
+            if matched and len(text.strip()) > 20:
+                d.record.status = 'completed'
+                d.record.verification = 'The requested URL is exposed by the visible browser document and a fresh rendered page was read.'
+                return d.record.verification
+        elif grant.scope.content.casefold() in title and len(text) > 200 and any(term in text for term in ('search', 'results', 'images', 'videos')):
             d.record.status = 'completed'
             d.record.verification = 'The requested search is visible in the browser title and the rendered results page was read from a fresh desktop frame.'
             return d.record.verification

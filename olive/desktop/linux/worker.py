@@ -226,6 +226,12 @@ class Worker:
             point = pixel_point(self.window['bounds'], [frame['width'], frame['height']], args['point'])
             self.eis.click(*point)
             return {'dispatched': True}
+        if method == 'browser_visit' and set(args) == {'pid', 'url'}:
+            from olive.desktop.browser_url import validated_url
+            if not self.window or self.window['pid'] != args['pid']:
+                raise PermissionError('Browser window is not bound')
+            self.browser_search = {'query': validated_url(args['url']), 'stage': 0, 'visit': True}
+            return {'ready': True}
         if method == 'browser_begin' and set(args) == {'pid', 'query'}:
             if not self.window or self.window['pid'] != args['pid'] or not isinstance(args['query'], str) or not 1 <= len(args['query']) <= 2000 or any(ord(c) < 32 for c in args['query']):
                 raise ValueError('Invalid browser search scope')
@@ -257,7 +263,7 @@ class Worker:
                 raise PermissionError('Browser focus or geometry changed')
             search['stage'] += 1  # Never replay a partially dispatched effect.
             if args['step'] == 'type_query':
-                self.eis.text('? ' + search['query'])
+                self.eis.text(('' if search.get('visit') else '? ') + search['query'])
             else:
                 self.eis.browser_key(args['step'])
             return {'dispatched': True}
@@ -279,6 +285,16 @@ class Worker:
                 raise PermissionError('Editor focus changed')
             self.editor_stage = step
             self.eis.editor_key(step)
+            return {'dispatched': True}
+        if method == 'editor_paste' and not args:
+            from olive.desktop.linux.kwin import windows
+            if self.editor_stage != 'new_document':
+                raise PermissionError('Paste requires a fresh new document')
+            current = [w for w in windows(self.portal.bus, self.window['pid'], self.stopped) if w['active']]
+            if len(current) != 1 or current[0]['id'] != self.window['id'] or 'untitled' not in current[0]['title'].casefold():
+                raise PermissionError('The new untitled editor is not active')
+            self.editor_stage = 'text_entered'
+            self.eis.chord_codes([29, 47])  # Ctrl+V; regular clipboard, never PRIMARY.
             return {'dispatched': True}
         if method == 'editor_text' and set(args) == {'value'}:
             from olive.desktop.linux.kwin import windows
@@ -361,6 +377,7 @@ class Worker:
                     origin[0] <= x and origin[1] <= y and
                     x + width <= origin[0] + size[0] and y + height <= origin[1] + size[1]):
                 raise PermissionError('Target is outside the approved display or coordinates are unavailable')
+            self.accessibility.hit_test(node, x + width / 2, y + height / 2)
             self.eis.click(x + width / 2, y + height / 2)
         elif method == 'key':
             self.eis.key(args['value'])

@@ -75,6 +75,17 @@ def direct_scope(request):
     if match:
         _, scroll, tab, app = match.groups()
         return TaskScope(app, 'scroll' if scroll else 'tab' if tab else 'read', (scroll or tab or '').lower())
+    match = re.fullmatch(r'(?:Open|Visit) (https?://\S+) in ([\w .+-]{1,80})', text, re.I)
+    if match:
+        from .browser_url import validated_url
+        url, app = match.groups()
+        return TaskScope(app, 'visit', validated_url(url))
+    match = re.fullmatch(r'Paste (?:the )?(?:copied (?:text|code)|clipboard) in ([\w .+-]{1,80}) and save as (.+)', text, re.I)
+    if match:
+        app, path = match.groups()
+        if '\n' in path or '\x00' in path:
+            raise ValueError('Provide one owned destination path')
+        return TaskScope(app, 'paste_save', path=path)
     match = re.fullmatch(r'(Copy|Move) (.+?) to (.+?) in ([\w .+-]{1,80})', text, re.I)
     if match:
         operation, source, destination, app = match.groups()
@@ -126,6 +137,7 @@ class TaskGrant:
     epoch: int
     expires: float
     request_digest: str
+    authorized_by: str = "direct_user_request"
 
 
 class TaskAuthority:
@@ -141,11 +153,12 @@ class TaskAuthority:
         if self.stopped.is_set():
             raise InterruptedError('Desktop control stopped')
         scope = interpreted_scope(request, interpretation) if interpretation is not None else direct_scope(request)
-        if scope.effect != 'open' and any(policy.get(key) != 'allow' for key in ('keyboard_policy', 'mouse_policy')):
+        if scope.effect != 'open' and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
             raise PermissionError('Trusted input requires keyboard and mouse Allow; stricter policies are preserved')
         with self.lock:
             grant = TaskGrant(uuid.uuid4().hex, message_id, scope, self.epoch,
-                              self.clock() + 300, hashlib.sha256(request.encode()).hexdigest())
+                              self.clock() + 300, hashlib.sha256(request.encode()).hexdigest(),
+                              'owner_task_policy' if policy.get('owner_mode') else 'direct_user_request')
             self.grants[grant.id] = grant
             return grant
 
@@ -155,9 +168,11 @@ class TaskAuthority:
                 raise InterruptedError('Task grant was cancelled or replaced')
             if self.clock() >= grant.expires:
                 raise PermissionError('Task lifetime expired; renewed scope is required')
+            if grant.authorized_by == 'owner_task_policy' and not policy.get('owner_mode'):
+                raise PermissionError('Owner Mode was revoked')
             if not policy.get('enabled') or not policy.get('trusted_tasks'):
                 raise PermissionError('Trusted task policy was removed')
-            if grant.scope.effect != 'open' and any(policy.get(key) != 'allow' for key in ('keyboard_policy', 'mouse_policy')):
+            if grant.scope.effect != 'open' and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
                 raise PermissionError('Input policy was restricted')
 
     def cancel(self):
@@ -281,7 +296,10 @@ def validate_effect(grant, proposal, observation):
         exact_click = scope.effect == 'click' and same_control_label(name, scope.content)
         if not exact_click and name not in navigation | {scope.destination.casefold(), scope.server.casefold()}:
             raise PermissionError('The effect of this control is not established by the task')
-    if proposal['action'] == 'key' and proposal['value'] not in {'Enter', 'Tab', 'Escape', 'Down', 'Up', 'Left', 'Right'}:
+    if proposal['action'] == 'key' and proposal['value'] == 'Space':
+        if scope.effect != 'click' or not same_control_label(name, scope.content) or target.get('role') not in {'button','push button'} or not target.get('focused'):
+            raise PermissionError('Space requires the exact requested focused button')
+    if proposal['action'] == 'key' and proposal['value'] not in {'Space', 'Enter', 'Tab', 'Escape', 'Down', 'Up', 'Left', 'Right'}:
         raise PermissionError('Unsupported key')
     return target, submitting
 

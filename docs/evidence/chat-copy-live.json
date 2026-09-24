@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-24",
+  "launch": "installed desktop entry through gio; OLIVE-only temporary inspection endpoint removed after test",
+  "route": "production Chat generation; production native task focuses the actual Copy button and activates it with EIS Space; production Chat Paste in Kate and save",
+  "expected_sha256": "db637743cccf3fe75fe009193059cba1b740470f91cc12c2b3b4d8873ea91118",
+  "saved_sha256": "db637743cccf3fe75fe009193059cba1b740470f91cc12c2b3b4d8873ea91118",
+  "characters": 237,
+  "exact": true,
+  "app_id": "local.dmdo.desktop",
+  "consent_dialogs": 0,
+  "approval_prompts": 0,
+  "notes": [
+    "Includes Unicode and final newline",
+    "No clipboard monitor or routine clipboard reads",
+    "CDP-only clicks previously read back an Electron-local value without proving Wayland publication; not counted as paste success"
+  ]
+}
