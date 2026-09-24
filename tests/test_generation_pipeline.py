@@ -69,3 +69,19 @@ class BudgetRegressionTests(unittest.IsolatedAsyncioTestCase):
         plan = await ContextService(2).plan(history, context_window=2048, response_reserve=1024, summarizer=summarize)
         # An oversized summarization request is rejected instead of losing scope.
         self.assertTrue(original in plan.summary or original in [m.content for m in plan.history])
+
+class LocalGenerationProfileTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_thinking_control_is_separate_from_public_presets(self):
+        from unittest.mock import Mock
+        provider=FakeOllama();provider.chat_stream=Mock(return_value='stream')
+        pipeline=GenerationPipeline(provider,FakeRAG())
+        chat=Chat(model='owned-candidate');chat.preset='';chat.params['thinking']=False
+        await pipeline.stream(chat,'Give me Python code')
+        self.assertIs(provider.chat_stream.call_args.kwargs['think'],False)
+        self.assertNotIn('format',provider.chat_stream.call_args.kwargs)
+        chat.preset='normal'
+        await pipeline.stream(chat,'Explain a loop')
+        self.assertEqual(provider.chat_stream.call_args.kwargs['think'],'low')
+        chat.preset='';chat.params['thinking']=['invalid']
+        with self.assertRaisesRegex(ValueError,'thinking control'):
+            await pipeline.stream(chat,'Explain a loop')

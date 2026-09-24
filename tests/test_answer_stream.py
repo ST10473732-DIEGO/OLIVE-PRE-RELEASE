@@ -32,6 +32,16 @@ class AnswerStreamTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "output limit"):
             await self.collect([{"message": {"content": "partial"}, "done_reason": "length"}])
 
+    async def test_thinking_exhaustion_has_specific_content_free_error(self):
+        from olive.services.ollama_service import GenerationOutputLimit
+        from olive.bridge.public_errors import public_error
+        with self.assertRaises(GenerationOutputLimit) as caught:
+            await self.collect([{'message':{'thinking':'private trace'},'done':True,'done_reason':'length'}])
+        self.assertFalse(caught.exception.visible)
+        message=public_error(caught.exception)['message']
+        self.assertIn('before producing a visible answer',message)
+        self.assertNotIn('private trace',message)
+
     async def test_final_content_is_retained_and_reasoning_never_rendered(self):
         self.assertEqual(await self.collect([
             {"message": {"thinking": "private"}},

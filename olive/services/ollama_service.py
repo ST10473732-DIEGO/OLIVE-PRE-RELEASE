@@ -14,6 +14,9 @@ from ..config import EMBEDDING_NAME_HINTS, OLLAMA_HOST, VISION_NAME_HINTS
 
 class GenerationOutputLimit(RuntimeError):
     """Provider ended at its requested token limit; visible text is incomplete."""
+    def __init__(self, message="Model output limit reached", *, visible=True):
+        super().__init__(message)
+        self.visible = bool(visible)
 
 
 class EmptyModelAnswer(RuntimeError):
@@ -260,7 +263,7 @@ class OllamaService:
         completed = False
         finish_reason = ""
         from ..interaction.trace import model_request, event as trace_event
-        answer_digest, answer_characters = hashlib.sha256(), 0
+        answer_digest, answer_characters, thinking_characters = hashlib.sha256(), 0, 0
         async with self._lease(model) as keep_alive:
             try:
                 resolved_options = await self._options(model, options)
@@ -272,6 +275,7 @@ class OllamaService:
                     async for part in stream:
                         completed = completed or _field(part, "done", False) is True
                         finish_reason = _field(part, "done_reason", "") or finish_reason
+                        thinking_characters += len(_field(_field(part, "message", {}), "thinking", "") or "")
                         content = _field(_field(part, "message", {}), "content", "") or ""
                         if content:
                             answer_digest.update(content.encode('utf-8'))
@@ -280,10 +284,10 @@ class OllamaService:
                             if content.strip():
                                 first = first or time.perf_counter()
                             yield content
-                    if not has_content:
-                        raise RuntimeError("The model returned no answer content. Retry the request or select another installed model.")
                     if finish_reason == "length":
-                        raise GenerationOutputLimit("The response reached the model output limit. The partial answer is retained; ask to continue or retry with a larger response budget.")
+                        raise GenerationOutputLimit(visible=has_content)
+                    if not has_content:
+                        raise EmptyModelAnswer(done_reason=finish_reason)
                     if not completed:
                         raise RuntimeError("The model stopped before completing its response. The partial answer is retained; retry when the local model is ready.")
                     success = True
@@ -292,7 +296,7 @@ class OllamaService:
                         await stream.aclose()
             finally:
                 trace_event('model_visible_response', model=model, characters=answer_characters,
-                            sha256=answer_digest.hexdigest(), complete=completed, finish_reason=finish_reason if finish_reason in {"stop", "length", None} else "other")
+                            sha256=answer_digest.hexdigest(), thinking_characters=thinking_characters, complete=completed, finish_reason=finish_reason if finish_reason in {"stop", "length", None} else "other")
                 if self.metrics:
                     from .model_policy import REQUEST_ROLE
                     self.metrics.record(model, REQUEST_ROLE.get(), started, success, first)

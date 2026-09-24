@@ -106,6 +106,13 @@ class GenerationPipeline:
         }
         thinking = ({"think": False} if chat.preset in {"fast", "max"} else
                     {"think": "low"} if chat.preset in {"normal", "deep"} else {})
+        # An explicitly configured local model profile can select a runtime's
+        # supported thinking control without changing a public preset or prompt.
+        if not chat.preset and 'thinking' in chat.params:
+            value = chat.params['thinking']
+            if type(value) is not bool and not (isinstance(value, str) and value in {'low', 'medium', 'high'}):
+                raise ValueError('Invalid model thinking control')
+            thinking = {'think': value}
         return self.ollama.chat_stream(chat.model, prepared.messages, options=options, **thinking), prepared
 
     async def _context_window(self, model: str) -> int:

@@ -46,6 +46,12 @@ for _message in (
  _MESSAGES[_message] = _message
 
 def public_error(error):
+ from ..services.ollama_service import GenerationOutputLimit, EmptyModelAnswer
+ if isinstance(error,GenerationOutputLimit):
+  return {'code':'GenerationOutputLimit','message':
+      'The model reached its output limit. The partial answer is retained; ask to continue.' if error.visible else
+      'The model exhausted its output budget before producing a visible answer. Use a larger response budget or a supported lower-thinking configuration.'}
+ if isinstance(error,EmptyModelAnswer):return {'code':'EmptyModelAnswer','message':'The selected model returned no visible answer. No alternative model or canned answer was substituted.'}
  from ..platform_support import PlatformUnavailable
  if isinstance(error,PlatformUnavailable):return {'code':'PlatformUnavailable','message':str(error)}
  from ..personal.errors import PersonalOperationError
