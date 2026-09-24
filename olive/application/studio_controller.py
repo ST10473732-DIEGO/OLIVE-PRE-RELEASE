@@ -204,8 +204,11 @@ class StudioController:
         commands = [asdict(c) for c in BuildAndTestService().detect(workspace.root_path) if c.source == "known_standard"]
         identity = str(uuid.uuid4())
         cancellation = asyncio.Event()
-        record = {"id": identity, "workspace_id": workspace.id, "state": "running" if direct_user_action else "awaiting_approval",
-                  "summary": "Running project checks" if direct_user_action else "Waiting for permission to run project checks", "results": []}
+        owner = getattr(self.s, 'owner_policy', None)
+        task_authorized = direct_user_action or bool(owner and owner.authorize('workspace.run_validation',
+            {'workspace': workspace.root_path, 'commands': commands}))
+        record = {"id": identity, "workspace_id": workspace.id, "state": "running" if task_authorized else "awaiting_approval",
+                  "summary": "Running project checks" if task_authorized else "Waiting for permission to run project checks", "results": []}
         self.validations[identity] = record
         self.validation_cancellations[identity] = cancellation
         for key in list(self.validations):

@@ -7,6 +7,7 @@ from .interpreter import SemanticInterpreter
 from .router import CapabilityRouter
 from ..desktop.errors import ObservationUnavailable
 from .request_consent import actual_user_request
+from ..authority.owner import owner_request
 from .trace import traced_request, event as trace_event
 
 
@@ -80,6 +81,7 @@ class NaturalLanguageOrchestrator:
 
     @actual_user_request
     @traced_request
+    @owner_request
     async def submit(self, text, chat_id=None, research_mode=""):
         if research_mode not in {"", "Quick", "Deep"}:
             raise ValueError("Unknown research mode")
@@ -92,6 +94,10 @@ class NaturalLanguageOrchestrator:
             not self.selected_workspace and not getattr(self.s.chat, 'targets', {}).get(chat_id) and
             self.s.desktop.configuration().get('trusted_tasks'))
         if native_allowed:
+            from ..desktop.task_plan import explicit_plan
+            plan = explicit_plan(text)
+            if plan is not None:
+                return await self._native_submit(text, chat_id, plan=plan)
             from ..desktop.task_authority import direct_scope
             try:
                 direct_scope(text)
@@ -267,7 +273,7 @@ class NaturalLanguageOrchestrator:
             steps = deepcopy(context.last_steps)
         return await self._execute_steps(text, chat_id, steps)
 
-    async def _native_submit(self, text, chat_id, interpretation=None):
+    async def _native_submit(self, text, chat_id, interpretation=None, plan=None):
         trace_event("desktop_attempt")
         if chat_id in self.active or chat_id in self.s.chat.generations:
             return self.reply(chat_id, text, 'Stop the current request before replacing it.')
@@ -282,7 +288,32 @@ class NaturalLanguageOrchestrator:
         native = self.s.desktop.linux
         native.chat_id = chat_id
         try:
-            result = await native.run(text, message.id, interpretation=interpretation)
+            if plan is None:
+                result = await native.run(text, message.id, interpretation=interpretation)
+            else:
+                # Resolve all scopes before the first effect, not halfway through.
+                from ..desktop.task_authority import direct_scope, interpreted_scope
+                proposals = []
+                for clause in plan.clauses:
+                    try:
+                        direct_scope(clause)
+                        proposals.append(None)
+                    except ValueError:
+                        proposal = await self.interpreter.interpret(clause, {})
+                        if proposal['clarification'] or proposal['confidence'] < .75:
+                            raise ValueError('The combined request needs clarification before any effect')
+                        interpreted_scope(clause, proposal['steps'])
+                        proposals.append(proposal['steps'])
+                results, epoch = [], None
+                async with asyncio.timeout(600):
+                    for index, (clause, proposal) in enumerate(zip(plan.clauses, proposals)):
+                        result = await native.run(clause, message.id, interpretation=proposal, continuation_epoch=epoch)
+                        results.append(result)
+                        if self.s.desktop.record.status != 'completed':
+                            break
+                        epoch = native.authority.epoch
+                        trace_event('subgoal_verified', index=index)
+                result = '\n\n'.join(f'{i+1}. {value}' for i,value in enumerate(results))
             return self.reply(chat_id, text, result, append_user=False)
         except (ValueError, PermissionError, InterruptedError) as error:
             return self.reply(chat_id, text, str(error), append_user=False)
@@ -354,6 +385,8 @@ class NaturalLanguageOrchestrator:
         return self.reply(chat_id, text, "\n\n".join(messages), append_user=False)
 
     def cancel(self, chat_id):
+        if getattr(self.s, 'owner_policy', None):
+            self.s.owner_policy.cancel(chat_id)
         native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
         if native and native.owner is not None and native.owner is self.active.get(chat_id):
             native.stop()  # Signal and epoch first; never wait on inference/SQLite.

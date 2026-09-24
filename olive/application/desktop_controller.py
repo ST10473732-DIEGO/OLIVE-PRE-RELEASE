@@ -166,7 +166,10 @@ class DesktopController:
         return {"alias": alias, "application_id": application_id}
 
     def configuration(self):
-        return validate(self.s.settings.get("desktop_control"))
+        policy = validate(self.s.settings.get("desktop_control"))
+        owner = getattr(self.s, 'owner_policy', None)
+        policy['owner_mode'] = bool(owner and owner.enabled())
+        return policy
 
     def configure(self, settings):
         if self.linux:
@@ -195,7 +198,7 @@ class DesktopController:
         return {"available": available,
                 "unavailable_reason": '' if available else linux.get('reason', 'Desktop Control is unavailable on this platform.'),
                 "platform_capabilities": linux,
-                "settings": self.configuration(), "stopped": self.stop_event.is_set(),
+                "settings": validate(self.s.settings.get("desktop_control")), "stopped": self.stop_event.is_set(),
                 "session": self.record.to_dict() if self.record else None,
                 "observation": self.observation, "capabilities": capability_map(self.observation),
                 "provider": "Linux portal / AT-SPI" if self.linux and available else self.provider.name if available else "linux_unavailable", "active": self.operation is not None or self.universal.owner is not None or bool(self.linux and self.linux.owner),

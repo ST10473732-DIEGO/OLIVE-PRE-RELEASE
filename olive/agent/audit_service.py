@@ -18,7 +18,8 @@ class AuditService:
         record = {"time": datetime.now().astimezone().isoformat(timespec="seconds"), "task_id": task_id,
                   "tool": tool, "requested_action": _SECRET.sub(r"\1=[REDACTED]", requested_action)[:500],
                   "result_status": result_status, "permission_decision": permission_decision,
-                  "confirmation_result": confirmation_result}
+                  "confirmation_result": confirmation_result,
+                  "authorized_by": "owner_task_policy" if confirmation_result == "owner_task_policy" else confirmation_result}
         with self._lock, self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 

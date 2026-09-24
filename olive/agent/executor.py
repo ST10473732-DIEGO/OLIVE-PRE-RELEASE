@@ -25,6 +25,10 @@ class ToolExecutor:
         target = _target_from(action.arguments)
         evaluations = [self.permissions.evaluate(permission, _target_for_permission(permission, action.arguments))
                        for permission in definition.required_permissions]
+        if action.tool_name == "filesystem.move":
+            # Moving also changes the source directory; a source restriction must
+            # not disappear merely because the destination is writable.
+            evaluations.append(self.permissions.evaluate("filesystem.write", action.arguments.get("path")))
         if action.tool_name == "terminal.run":
             from ..tools.terminal import TerminalRunTool
             if TerminalRunTool.requires_admin(str(action.arguments.get("command", ""))):
@@ -36,7 +40,13 @@ class ToolExecutor:
         from .direct_action import DirectAction
         direct = (isinstance(context.direct_action, DirectAction)
                   and context.direct_action.consume(task.id, action.tool_name, action.arguments))
-        trusted = direct or self.permissions.is_action_trusted(action.tool_name, target)
+        owner_policy = getattr(self, 'owner_policy', None)
+        rejection = owner_policy.rejection(action.tool_name, action.arguments) if owner_policy else ''
+        if rejection:
+            result = ToolResult.failure(rejection, 'OwnerTaskScopeDenied')
+            self._audit(task, action, result, 'deny', 'owner_task_policy'); return result
+        owner = bool(owner_policy and owner_policy.consume(action.tool_name, action.arguments))
+        trusted = owner or direct or self.permissions.is_action_trusted(action.tool_name, target)
         asks = [] if trusted else [item for item in evaluations if item.decision == PermissionDecision.ASK]
         confirmation = None
         if asks or (definition.confirmation_required and not trusted):
@@ -79,7 +89,7 @@ class ToolExecutor:
             result = ToolResult.failure(str(exc) or type(exc).__name__, type(exc).__name__)
         result.elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         decision = "ask" if asks else "allow"
-        self._audit(task, action, result, decision, "direct_user_action" if direct else "approved" if confirmation else None)
+        self._audit(task, action, result, decision, "owner_task_policy" if owner else "direct_user_action" if direct else "approved" if confirmation else None)
         return result
 
     def _audit(self, task, action, result, decision, confirmation):

@@ -97,6 +97,8 @@ class ServiceContainer:
             self.settings["theme"] = DEFAULT_THEME
         self.colors = get_theme(self.theme_name)
 
+        from ..authority.owner import OwnerPolicy
+        self.owner_policy = OwnerPolicy(lambda: self.settings)
         self.ollama = OllamaService()
         from ..services.local_ollama_runtime import LocalOllamaRuntime
         self.local_ollama_runtime = LocalOllamaRuntime(self.ollama.host)
@@ -193,6 +195,7 @@ class ServiceContainer:
         self.agent_executor = ToolExecutor(
             self.tool_registry, self.permissions, self.confirmations, self.agent_audit
         )
+        self.agent_executor.owner_policy = self.owner_policy
         from ..personal.controller import PersonalController
         self.personal = PersonalController(self)
         self.connect.attach_sync(self.personal.records)

@@ -9,6 +9,7 @@ def field(key, label, category, kind, default, minimum=None, maximum=None, choic
 
 
 FIELDS = [
+    field('owner_mode', 'Owner Mode — ordinary explicit local tasks', 'Permissions', 'bool', False),
     field('preferred_name', 'Preferred name', 'General', 'text', 'Diego'),
     field('embedding_model', 'Embedding model', 'Models', 'text', 'nomic-embed-text'),
     field('auto_rag', 'Retrieve relevant documents automatically', 'Knowledge', 'bool', True),
@@ -91,4 +92,10 @@ def save(services, chat_id, settings, params, system_prompt, alias=''):
                 and (kind != 'integer' or value == int(value)))
             if not valid or (f['choices'] and value not in f['choices']):
                 raise ValueError(f"Invalid {f['label']}")
+    if settings.get('owner_mode') is False:
+        owner = getattr(services, 'owner_policy', None)
+        if owner and owner.enabled():
+            owner.revoke()
+            # Stop is independent of the following settings/history write.
+            services.desktop.stop()
     return visible(services.data.save_settings(chat_id, settings, params, system_prompt, alias))
