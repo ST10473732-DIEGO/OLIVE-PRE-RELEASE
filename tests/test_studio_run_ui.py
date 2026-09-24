@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from olive.agent.permission_service import PermissionService
 from olive.desktop.adapters import ApplicationAdapterRegistry
@@ -31,6 +31,40 @@ class Provider:
 
 class StudioRunTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name);self.workspace=Workspace("Test",str(self.root))
+
+    async def test_terminal_status_waits_for_exit_code_and_output_drain(self):
+        native = Mock(spec=NativeExecutionProvider)
+        process = Mock(pid=123, returncode=0)
+        process.stdout = asyncio.StreamReader()
+        process.stderr = asyncio.StreamReader()
+        process.stdout.feed_data(b'owned output\n')
+        process.stdout.feed_eof()
+        process.stderr.feed_eof()
+        process.wait = AsyncMock(return_value=0)
+        native.start = AsyncMock(return_value=process)
+        service = RunService(ExecutionProviderRegistry(native=native))
+        draining, release = asyncio.Event(), asyncio.Event()
+        original_wait = asyncio.wait_for
+
+        async def held_drain(awaitable, timeout):
+            if isinstance(awaitable, asyncio.Future):
+                draining.set()
+                await release.wait()
+            return await original_wait(awaitable, timeout)
+
+        with patch('olive.services.run_service.asyncio.wait_for', held_drain):
+            session = await service.start(self.workspace, ['python', 'main.py'])
+            try:
+                await original_wait(draining.wait(), 2)
+                self.assertEqual(session.state, 'running')
+                self.assertIsNone(session.exit_code)
+                self.assertIn(session.id, service._processes)
+            finally:
+                release.set()
+                await service.wait(session.id)
+        self.assertEqual((session.state, session.exit_code), ('completed', 0))
+        self.assertEqual(session.stdout, 'owned output\n')
+        self.assertNotIn(session.id, service._processes)
 
     async def test_run_lifecycle_stdout_stderr_exit_and_url(self):
         service=RunService();session=await service.start(self.workspace,[sys.executable,"-c","import sys;print('http://localhost:8123');print('warning',file=sys.stderr)"],"local_web",ExecutionPolicy(max_runtime_seconds=5))

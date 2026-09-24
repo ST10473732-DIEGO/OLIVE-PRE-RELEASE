@@ -184,19 +184,20 @@ class RunService:
 
         readers = [asyncio.create_task(drain(process.stdout, "stdout")),
                    asyncio.create_task(drain(process.stderr, "stderr"))]
+        final_state = "failed"
         try:
             await asyncio.wait_for(process.wait(), timeout=timeout)
-            session.state = "completed" if process.returncode == 0 else "failed"
+            final_state = "completed" if process.returncode == 0 else "failed"
         except asyncio.TimeoutError:
             if process.returncode is None:
                 process.kill()
             await process.wait()
-            session.state = "timed_out"
+            final_state = "timed_out"
         except asyncio.CancelledError:
             if process.returncode is None:
                 process.kill()
             await process.wait()
-            session.state = "stopped"
+            final_state = "stopped"
         finally:
             try:
                 await asyncio.wait_for(asyncio.gather(*readers), timeout=2)
@@ -208,6 +209,9 @@ class RunService:
             session.accepts_input = False
             session.ended_at = now_iso()
             self._processes.pop(session.id, None)
+            # Publish terminal state only with its exit code and drained output.
+            # Remote/local status readers must never see completed + exit_code=None.
+            session.state = final_state
 
     async def wait(self,session_id:str) -> RunSession:
         task=self._tasks.get(session_id)
