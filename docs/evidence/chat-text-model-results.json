@@ -1,0 +1,725 @@
+{
+  "environment": {
+    "runtime": "Ollama 0.34.2",
+    "context": 4096,
+    "thinking": false,
+    "num_predict": 2048,
+    "route": "production Electron Chat, isolated evaluation profile",
+    "comparison_limit": "Existing four text presets; no equivalent base/precision causal comparison"
+  },
+  "candidates": {
+    "A": {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "manifest": "022de4bfdd9d4c16141f8c30846f155c51cf7a5b91090a24dcb63a7dbeddec07",
+      "cases": 32,
+      "coding_cases": 24,
+      "coding_languages": [
+        "C#",
+        "Go",
+        "Java",
+        "JavaScript",
+        "Python",
+        "Rust",
+        "Swift",
+        "TypeScript"
+      ],
+      "complete": 32,
+      "fenced_code": 24,
+      "effect_attempts": 0,
+      "first_visible_median_seconds": 0.4395,
+      "total_median_seconds": 6.6395,
+      "first_case_total_seconds": 8.597,
+      "peak_gpu_mib": 6837,
+      "peak_whole_system_used_kib": 11451328,
+      "compiled_cases": [
+        {
+          "language": "Python",
+          "passed": true
+        },
+        {
+          "language": "C#",
+          "passed": true
+        },
+        {
+          "language": "Java",
+          "passed": true
+        },
+        {
+          "language": "JavaScript",
+          "passed": true
+        },
+        {
+          "language": "TypeScript",
+          "passed": true
+        }
+      ],
+      "cases_metadata": [
+        {
+          "language": "Python",
+          "request_sha256": "323d5e641c35171ad25692e601e27bb9d64da793b85d01291e49ca9c36c3d04b",
+          "answer_sha256": "0ce747365934befbc43f83077744e72447d36124ff9bd340db2c934ad0b36b32",
+          "visible_characters": 1256,
+          "first_visible_seconds": 2.665,
+          "total_seconds": 8.597,
+          "lines": 39
+        },
+        {
+          "language": "Python",
+          "request_sha256": "a1e85881499bae8baddd093dcf1077440dce29380a6aca498711bead0f0105fc",
+          "answer_sha256": "71211479b6b1b7a5cc95a108384ba51486d9a2efc4238d6ca0189b1090bba247",
+          "visible_characters": 844,
+          "first_visible_seconds": 0.444,
+          "total_seconds": 4.257,
+          "lines": 28
+        },
+        {
+          "language": "Python",
+          "request_sha256": "1dc2ac356dc69e1730aa20b4e8f9c45a9e1ad1cc80585598f3dae096187c7396",
+          "answer_sha256": "f3a9fe1fc8f4f0e6afe3eef8cb80f6b32c2ec7865ea3abfc7935caceacf7e6f4",
+          "visible_characters": 930,
+          "first_visible_seconds": 0.337,
+          "total_seconds": 4.795,
+          "lines": 32
+        },
+        {
+          "language": "C#",
+          "request_sha256": "b8df587541473bf4b82dfd2cfac5c65dcdd49b5d6b11556de41ca4c55a40f38b",
+          "answer_sha256": "c9acae01668e88063dcd6a80fdd1713db7fc5c0f778aff619c15946099881140",
+          "visible_characters": 3944,
+          "first_visible_seconds": 0.337,
+          "total_seconds": 15.778,
+          "lines": 100
+        },
+        {
+          "language": "C#",
+          "request_sha256": "c6c2f9a6799334364bf8fb854abf39b6922a45c41c9a707193729ed0ddb6da2e",
+          "answer_sha256": "33f3efa46020bfe9d225a7ace17aae9a6819527d88953c9cdc5b57326764d6b4",
+          "visible_characters": 953,
+          "first_visible_seconds": 0.449,
+          "total_seconds": 4.915,
+          "lines": 39
+        },
+        {
+          "language": "C#",
+          "request_sha256": "d628f89d8f31e19116c92367e32f4c19da8a4efe60092a177a24185b884091db",
+          "answer_sha256": "3158d671f0be5de58f3c7b07061e55cb0776224fe8b1b3fe71283cfe2f0693b0",
+          "visible_characters": 1668,
+          "first_visible_seconds": 0.339,
+          "total_seconds": 8.517,
+          "lines": 49
+        },
+        {
+          "language": "Java",
+          "request_sha256": "bbb6077834a570fe94accde80d56acd0fa330be01a965f7e489d6a0e02812c0d",
+          "answer_sha256": "dc9635cd9b357869171031d15bf4460d5d5fafe31becee11edcbce328f704aff",
+          "visible_characters": 1677,
+          "first_visible_seconds": 0.441,
+          "total_seconds": 8.106,
+          "lines": 40
+        },
+        {
+          "language": "Java",
+          "request_sha256": "3b2a3a69b64e0cc78302b71f33116c5a652c8f162ea3723b9f48338e103c4766",
+          "answer_sha256": "03b9a6c00a64df131bf3511d0f78b285de28ff937ee430d3850a91e042337b01",
+          "visible_characters": 1738,
+          "first_visible_seconds": 0.443,
+          "total_seconds": 8.203,
+          "lines": 53
+        },
+        {
+          "language": "Java",
+          "request_sha256": "d8e92065b6b75988bb667655255723093136e5c832326b4cd50bf1bf802effe9",
+          "answer_sha256": "98c4570bed7844f9ee2313113f474e3d201ae1a578e4c57862534df98129ee82",
+          "visible_characters": 1744,
+          "first_visible_seconds": 0.441,
+          "total_seconds": 8.943,
+          "lines": 54
+        },
+        {
+          "language": "JavaScript",
+          "request_sha256": "96e982621d7e3bf725505fc981ef2e17bedd7d0440558172c172d69c53883cab",
+          "answer_sha256": "66d25253813dce59b2ba0d137e7bdcfad9e3ea48cef3cdae24714a4c47f47653",
+          "visible_characters": 1063,
+          "first_visible_seconds": 0.442,
+          "total_seconds": 6.611,
+          "lines": 33
+        },
+        {
+          "language": "JavaScript",
+          "request_sha256": "0f9b4d0810727622050abfe49bf94c412f360eef1d8ec8d4f42aa4e598639303",
+          "answer_sha256": "3396f35ebad4828b1727d0d444d0c41f49a6a760507ff84032c41e901e2b5502",
+          "visible_characters": 683,
+          "first_visible_seconds": 0.443,
+          "total_seconds": 3.846,
+          "lines": 23
+        },
+        {
+          "language": "JavaScript",
+          "request_sha256": "fc383d3fb1f7cb088895a04d63fddf191e3db01434da4b184e425e331b7a25ff",
+          "answer_sha256": "52b4642cafecc0c1af66927cd111a842f96ea84585460cf0a69a2e9a30c30499",
+          "visible_characters": 1697,
+          "first_visible_seconds": 0.339,
+          "total_seconds": 9.485,
+          "lines": 41
+        },
+        {
+          "language": "TypeScript",
+          "request_sha256": "5e8042fb10bb0565942cda34b1a19b6d5f47abe6b3abdd3376afa08098d4153b",
+          "answer_sha256": "be08e23273899b65e2e40c342b91b03de15bd65d19395a358b73e2f98c7e8861",
+          "visible_characters": 1098,
+          "first_visible_seconds": 0.441,
+          "total_seconds": 5.875,
+          "lines": 34
+        },
+        {
+          "language": "TypeScript",
+          "request_sha256": "bf88da361e1683bb2e825ce824e680e6d27001ca83eed30aa420ffac96e4d950",
+          "answer_sha256": "18a519116dc374be91cf961fb5896e7302ac1bcd4ce07f8610e0d5cc27b828d3",
+          "visible_characters": 593,
+          "first_visible_seconds": 0.338,
+          "total_seconds": 3.113,
+          "lines": 18
+        },
+        {
+          "language": "TypeScript",
+          "request_sha256": "a18730939044c9fa5c6fb429ee0df2fc8161955e9be2f0809da10958dcac36aa",
+          "answer_sha256": "05d8c2d95f98ad9e422ca3ee4f24863edcfee9ad742595ce0f29a10e9f18ad89",
+          "visible_characters": 816,
+          "first_visible_seconds": 0.333,
+          "total_seconds": 5.013,
+          "lines": 36
+        },
+        {
+          "language": "Rust",
+          "request_sha256": "b4d214681b2b580615ed53d2698b66a83b292d5b0492a3bed732fd658b4aed7c",
+          "answer_sha256": "24984b911b2086128cf15bd6fd0924ef551d03ae5bec236cb699c2c68ffbb5bf",
+          "visible_characters": 1595,
+          "first_visible_seconds": 0.338,
+          "total_seconds": 9.6,
+          "lines": 49
+        },
+        {
+          "language": "Rust",
+          "request_sha256": "853cac39fdad534ed563b15695ced0b41d1be273e6f89378d52d7a8e0c6bba5e",
+          "answer_sha256": "2d1a42902f73168e8e3d63795a72048cd978f7b09628ba5c4f943b765d59ff08",
+          "visible_characters": 1232,
+          "first_visible_seconds": 0.442,
+          "total_seconds": 6.644,
+          "lines": 36
+        },
+        {
+          "language": "Rust",
+          "request_sha256": "0de293c6fb09942e3972f9cca71b33650cbd115038e4c68bb93d987093eee182",
+          "answer_sha256": "87468cb6519add40897f6c785186cf0071f992c21ba468c6ba11afef7b629c49",
+          "visible_characters": 783,
+          "first_visible_seconds": 0.451,
+          "total_seconds": 4.729,
+          "lines": 34
+        },
+        {
+          "language": "Go",
+          "request_sha256": "0a91d1ecd6983198d93c750a6828489df4a33e7d37a8ab465e8412bd5bab8b8f",
+          "answer_sha256": "3562cc8ea4ff2f9c1fe109affc6db7e4dd7f06f6409d00b57a3c8855bd127f58",
+          "visible_characters": 993,
+          "first_visible_seconds": 0.336,
+          "total_seconds": 6.74,
+          "lines": 41
+        },
+        {
+          "language": "Go",
+          "request_sha256": "742aa8422614a27dfe4631657f8cd05331a32c42c2d35df345d6e7c4bc497d4c",
+          "answer_sha256": "80a8ef0ff68831b6090f2616fcd1fcca742d32bc17a5a5713fe19bbf52d6bf21",
+          "visible_characters": 541,
+          "first_visible_seconds": 0.438,
+          "total_seconds": 3.435,
+          "lines": 23
+        },
+        {
+          "language": "Go",
+          "request_sha256": "83d6e6d0fd5b1bbd0e0e93471aa238de33730997035f374840f53107e3526097",
+          "answer_sha256": "36cbe3c2c04c768a9dbd811b9c0096d6be9374b7d4e945186759fed49ea0d97f",
+          "visible_characters": 742,
+          "first_visible_seconds": 0.338,
+          "total_seconds": 5.036,
+          "lines": 36
+        },
+        {
+          "language": "Swift",
+          "request_sha256": "1f93a71b493d7b6c96e224cff479763aee4e5508c218c1028bc75884c63d9935",
+          "answer_sha256": "30f5c91858a8e4a904b388290dd1a998b0308857c12d9e63de78ec8bdb8d4e6b",
+          "visible_characters": 1272,
+          "first_visible_seconds": 0.335,
+          "total_seconds": 6.635,
+          "lines": 34
+        },
+        {
+          "language": "Swift",
+          "request_sha256": "ac9b52302cc9679dde59cca8d7f890f022feabd8f9c4accd891d3fc45e2c4fb9",
+          "answer_sha256": "7581d4f05dc5c1d491b79764fbcbc85fc31c6041ae0fca73071c08a7b2f41665",
+          "visible_characters": 804,
+          "first_visible_seconds": 0.443,
+          "total_seconds": 4.176,
+          "lines": 29
+        },
+        {
+          "language": "Swift",
+          "request_sha256": "a28dc966a84ae35a809bf4a5fb9a9cd3cf453233176c282fc25b1d2a606f9a07",
+          "answer_sha256": "4aa6c3016d8c8ff0fa4b9e7cbc55c95cf9876b0909a7c7990e96f508e911ddb7",
+          "visible_characters": 972,
+          "first_visible_seconds": 0.339,
+          "total_seconds": 4.938,
+          "lines": 31
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "3fd6304afd33d8925dd72ae45fde3bdb9af7819c8cdb7bf15a6e8867821f5204",
+          "answer_sha256": "d845028796ef0cd9d6da035d7ecd5e1cca6f6c40a7674ce9a881e8857751b709",
+          "visible_characters": 2801,
+          "first_visible_seconds": 0.345,
+          "total_seconds": 15.739,
+          "lines": 43
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "656c7d0f95622a9423a91e853aaeeb47ebc4caa46e269c17ab5bf5079c6c6984",
+          "answer_sha256": "77f88dea07aba3e7967541dce4a1527e4ea18ac0e342c5ce539d650a59c9a282",
+          "visible_characters": 1813,
+          "first_visible_seconds": 0.445,
+          "total_seconds": 7.728,
+          "lines": 10
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "c617f378b0e499db5213cbf7cceb06a3d51cfd1e4a60b83507711ad9c174c5a3",
+          "answer_sha256": "19afdb4de57c5d6477be58869689e1069fe751cc06f70c8ebe140fb442661fa4",
+          "visible_characters": 3889,
+          "first_visible_seconds": 6.396,
+          "total_seconds": 21.382,
+          "lines": 34
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "4a752d8a54682090315a74ab9ecbe797556d0ca33db6bc8a80e92b79f1142840",
+          "answer_sha256": "001b449d725b446161ad01a1cabe876a65e0633f0bc37d95319a18089d813886",
+          "visible_characters": 979,
+          "first_visible_seconds": 5.356,
+          "total_seconds": 10.278,
+          "lines": 24
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "acd50c1188620cc974db05b399b83bec3c148605ff532aa6e108705c793794b8",
+          "answer_sha256": "2f67dfd99373a679d765013d4ed41db50e63ee811e3baded5f83ed9bb627ac63",
+          "visible_characters": 4916,
+          "first_visible_seconds": 0.332,
+          "total_seconds": 19.52,
+          "lines": 60
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "a64adac14ee83bf5d10102540bde67baeed78c18b5c24babfe975dc3a24aab85",
+          "answer_sha256": "6c9f0ef9c29c8e44870434fab3fd8e22473a6e45141000cdd2d65ee98c4d342e",
+          "visible_characters": 278,
+          "first_visible_seconds": 5.465,
+          "total_seconds": 6.646,
+          "lines": 5
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "50341e5cf647d037d2f7220795003f21231fe5c0e1e21f36b308f11e40238fb9",
+          "answer_sha256": "1abb8d8696360c33d1d608afa73a9702d4dbc21c2190f40d42d2fd7e94d196c2",
+          "visible_characters": 709,
+          "first_visible_seconds": 0.348,
+          "total_seconds": 3.56,
+          "lines": 15
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "fc609fa8d07f1597e835edcecedbf4dce45e84a0d9c8649cdcfc20707ff81b6a",
+          "answer_sha256": "5bfd91102184d86aa5273c25abf4520cddd4d89ff5cd9377699fba3dcced6469",
+          "visible_characters": 521,
+          "first_visible_seconds": 0.343,
+          "total_seconds": 2.693,
+          "lines": 14
+        }
+      ],
+      "limitations": [
+        "Rust/Go/Swift generation only; compilers unavailable",
+        "No planner, visual, MTP or DFlash qualification",
+        "No public preset promotion"
+      ]
+    },
+    "B": {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "manifest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+      "cases": 32,
+      "coding_cases": 24,
+      "coding_languages": [
+        "C#",
+        "Go",
+        "Java",
+        "JavaScript",
+        "Python",
+        "Rust",
+        "Swift",
+        "TypeScript"
+      ],
+      "complete": 32,
+      "fenced_code": 24,
+      "effect_attempts": 0,
+      "first_visible_median_seconds": 0.878,
+      "total_median_seconds": 10.7305,
+      "first_case_total_seconds": 19.986,
+      "peak_gpu_mib": 14188,
+      "peak_whole_system_used_kib": 10424052,
+      "compiled_cases": [
+        {
+          "language": "Python",
+          "passed": true
+        },
+        {
+          "language": "C#",
+          "passed": true
+        },
+        {
+          "language": "Java",
+          "passed": true
+        },
+        {
+          "language": "JavaScript",
+          "passed": true
+        },
+        {
+          "language": "TypeScript",
+          "passed": true
+        }
+      ],
+      "cases_metadata": [
+        {
+          "language": "Python",
+          "request_sha256": "323d5e641c35171ad25692e601e27bb9d64da793b85d01291e49ca9c36c3d04b",
+          "answer_sha256": "6a29525e353df9b1e34f47a79424a12c873b1543ec84c0ec247c19845e93ce21",
+          "visible_characters": 491,
+          "first_visible_seconds": 13.769,
+          "total_seconds": 19.986,
+          "lines": 14
+        },
+        {
+          "language": "Python",
+          "request_sha256": "a1e85881499bae8baddd093dcf1077440dce29380a6aca498711bead0f0105fc",
+          "answer_sha256": "470509545673d7159e343a1a04791998730b5cb988739a3c01e8688df0846b59",
+          "visible_characters": 139,
+          "first_visible_seconds": 0.876,
+          "total_seconds": 2.696,
+          "lines": 5
+        },
+        {
+          "language": "Python",
+          "request_sha256": "1dc2ac356dc69e1730aa20b4e8f9c45a9e1ad1cc80585598f3dae096187c7396",
+          "answer_sha256": "560b025331682440d01625e79a61edcb8cb387e173ec3ed51ab74ac842590879",
+          "visible_characters": 744,
+          "first_visible_seconds": 0.865,
+          "total_seconds": 9.863,
+          "lines": 28
+        },
+        {
+          "language": "C#",
+          "request_sha256": "b8df587541473bf4b82dfd2cfac5c65dcdd49b5d6b11556de41ca4c55a40f38b",
+          "answer_sha256": "61b2047d1952bcef22604d1ecd202d412e79eb5915803d7362e8652d0f1d64bd",
+          "visible_characters": 1311,
+          "first_visible_seconds": 0.866,
+          "total_seconds": 15.903,
+          "lines": 33
+        },
+        {
+          "language": "C#",
+          "request_sha256": "c6c2f9a6799334364bf8fb854abf39b6922a45c41c9a707193729ed0ddb6da2e",
+          "answer_sha256": "c108bd1ecf194d5a73b2c0a047577b2bc8bef8a378fbbf42dbca5a386aad632e",
+          "visible_characters": 654,
+          "first_visible_seconds": 0.996,
+          "total_seconds": 8.84,
+          "lines": 29
+        },
+        {
+          "language": "C#",
+          "request_sha256": "d628f89d8f31e19116c92367e32f4c19da8a4efe60092a177a24185b884091db",
+          "answer_sha256": "212cdfd2ef969f6c33ef964b63781a468e1cb041154db0f5b92e0567140e950f",
+          "visible_characters": 770,
+          "first_visible_seconds": 0.867,
+          "total_seconds": 11.272,
+          "lines": 34
+        },
+        {
+          "language": "Java",
+          "request_sha256": "bbb6077834a570fe94accde80d56acd0fa330be01a965f7e489d6a0e02812c0d",
+          "answer_sha256": "3c554424b691cedee604dfbb15bb3449ea8ba7f6fc9eef8ab5d70a69fbb62b6f",
+          "visible_characters": 1407,
+          "first_visible_seconds": 0.869,
+          "total_seconds": 18.801,
+          "lines": 45
+        },
+        {
+          "language": "Java",
+          "request_sha256": "3b2a3a69b64e0cc78302b71f33116c5a652c8f162ea3723b9f48338e103c4766",
+          "answer_sha256": "c1a68baa5f97e6e087918c552bdfed71fc1e819bdbaf76ed424a59a030879281",
+          "visible_characters": 923,
+          "first_visible_seconds": 0.989,
+          "total_seconds": 12.05,
+          "lines": 35
+        },
+        {
+          "language": "Java",
+          "request_sha256": "d8e92065b6b75988bb667655255723093136e5c832326b4cd50bf1bf802effe9",
+          "answer_sha256": "cf735118ace937c3229e0e7381f76dd6758015085567879359fa816c298b80a0",
+          "visible_characters": 712,
+          "first_visible_seconds": 0.88,
+          "total_seconds": 10.319,
+          "lines": 28
+        },
+        {
+          "language": "JavaScript",
+          "request_sha256": "96e982621d7e3bf725505fc981ef2e17bedd7d0440558172c172d69c53883cab",
+          "answer_sha256": "69a18f7e554c04df64d5f962a8cf58ad1e0f02280932a6b5265d3c7f0ce04bc4",
+          "visible_characters": 942,
+          "first_visible_seconds": 0.877,
+          "total_seconds": 14.095,
+          "lines": 27
+        },
+        {
+          "language": "JavaScript",
+          "request_sha256": "0f9b4d0810727622050abfe49bf94c412f360eef1d8ec8d4f42aa4e598639303",
+          "answer_sha256": "afb25709f9850248f4fbb2c53bf21a108873c1367ac539bb7d2ac42f747aa572",
+          "visible_characters": 321,
+          "first_visible_seconds": 0.87,
+          "total_seconds": 5.827,
+          "lines": 15
+        },
+        {
+          "language": "JavaScript",
+          "request_sha256": "fc383d3fb1f7cb088895a04d63fddf191e3db01434da4b184e425e331b7a25ff",
+          "answer_sha256": "f14c6128a12e3cc2d278b777fbb23d35235d79b0584e34cb18cac2ecfb552e7d",
+          "visible_characters": 400,
+          "first_visible_seconds": 0.867,
+          "total_seconds": 6.788,
+          "lines": 13
+        },
+        {
+          "language": "TypeScript",
+          "request_sha256": "5e8042fb10bb0565942cda34b1a19b6d5f47abe6b3abdd3376afa08098d4153b",
+          "answer_sha256": "7e29925522edb93ea116576519ed881f791e5821457c4d698c7340830cc47821",
+          "visible_characters": 873,
+          "first_visible_seconds": 0.872,
+          "total_seconds": 12.922,
+          "lines": 27
+        },
+        {
+          "language": "TypeScript",
+          "request_sha256": "bf88da361e1683bb2e825ce824e680e6d27001ca83eed30aa420ffac96e4d950",
+          "answer_sha256": "d0891ade669f4a03682c62ce6a421fb85c9163b8689a01782af8be1d0e79c776",
+          "visible_characters": 112,
+          "first_visible_seconds": 0.884,
+          "total_seconds": 2.283,
+          "lines": 5
+        },
+        {
+          "language": "TypeScript",
+          "request_sha256": "a18730939044c9fa5c6fb429ee0df2fc8161955e9be2f0809da10958dcac36aa",
+          "answer_sha256": "56082e6da0b908c43fd92fac12a3cb6d16248f27f6f47ea2c7cd322185d02ac9",
+          "visible_characters": 598,
+          "first_visible_seconds": 0.873,
+          "total_seconds": 9.387,
+          "lines": 23
+        },
+        {
+          "language": "Rust",
+          "request_sha256": "b4d214681b2b580615ed53d2698b66a83b292d5b0492a3bed732fd658b4aed7c",
+          "answer_sha256": "e63087e3df7458d08f78f685e75e3a694f7fa09cc77794d4d8f4fda390b50f34",
+          "visible_characters": 695,
+          "first_visible_seconds": 0.882,
+          "total_seconds": 13.053,
+          "lines": 27
+        },
+        {
+          "language": "Rust",
+          "request_sha256": "853cac39fdad534ed563b15695ced0b41d1be273e6f89378d52d7a8e0c6bba5e",
+          "answer_sha256": "0eb359617c736685eaddd826bcad0b4e9a9595b36a45b0502d55435a322413a2",
+          "visible_characters": 258,
+          "first_visible_seconds": 0.877,
+          "total_seconds": 4.55,
+          "lines": 12
+        },
+        {
+          "language": "Rust",
+          "request_sha256": "0de293c6fb09942e3972f9cca71b33650cbd115038e4c68bb93d987093eee182",
+          "answer_sha256": "41d31c403fdd5bb1b0f5fc971a606ed09f9ae64d55007918f44c9cd7aa023f1a",
+          "visible_characters": 444,
+          "first_visible_seconds": 0.871,
+          "total_seconds": 7.657,
+          "lines": 25
+        },
+        {
+          "language": "Go",
+          "request_sha256": "0a91d1ecd6983198d93c750a6828489df4a33e7d37a8ab465e8412bd5bab8b8f",
+          "answer_sha256": "6d3c88b1c4ceff6e44cf88edda188994540c82e431e3930d35656269dc37c97a",
+          "visible_characters": 586,
+          "first_visible_seconds": 0.89,
+          "total_seconds": 11.142,
+          "lines": 26
+        },
+        {
+          "language": "Go",
+          "request_sha256": "742aa8422614a27dfe4631657f8cd05331a32c42c2d35df345d6e7c4bc497d4c",
+          "answer_sha256": "e5644be4faebae6606bcf0ffd428f7832d34a20e4e3cda875aa350d36dd53771",
+          "visible_characters": 506,
+          "first_visible_seconds": 0.885,
+          "total_seconds": 9.183,
+          "lines": 21
+        },
+        {
+          "language": "Go",
+          "request_sha256": "83d6e6d0fd5b1bbd0e0e93471aa238de33730997035f374840f53107e3526097",
+          "answer_sha256": "c3c04611e47ab5a8a4fb4163f824b9c91d7f866e3a0194c9bd1e1d1387047626",
+          "visible_characters": 592,
+          "first_visible_seconds": 0.872,
+          "total_seconds": 11.339,
+          "lines": 37
+        },
+        {
+          "language": "Swift",
+          "request_sha256": "1f93a71b493d7b6c96e224cff479763aee4e5508c218c1028bc75884c63d9935",
+          "answer_sha256": "67694e754dfcc8704200dd82928c4e25e6c3e8f38ef40353f216080dd71025df",
+          "visible_characters": 917,
+          "first_visible_seconds": 0.881,
+          "total_seconds": 13.065,
+          "lines": 26
+        },
+        {
+          "language": "Swift",
+          "request_sha256": "ac9b52302cc9679dde59cca8d7f890f022feabd8f9c4accd891d3fc45e2c4fb9",
+          "answer_sha256": "d9cf717184dbd2dcb5baa029999301a4aebb3790fa15700e812767882085493e",
+          "visible_characters": 298,
+          "first_visible_seconds": 0.887,
+          "total_seconds": 4.236,
+          "lines": 7
+        },
+        {
+          "language": "Swift",
+          "request_sha256": "a28dc966a84ae35a809bf4a5fb9a9cd3cf453233176c282fc25b1d2a606f9a07",
+          "answer_sha256": "c0a1980aa0a2bb2c283700783d94e0a257ce2bdd0e4a921ff108a00ab4e0fd2a",
+          "visible_characters": 595,
+          "first_visible_seconds": 0.876,
+          "total_seconds": 8.86,
+          "lines": 24
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "3fd6304afd33d8925dd72ae45fde3bdb9af7819c8cdb7bf15a6e8867821f5204",
+          "answer_sha256": "02461f97c54fa34fe020cbea2f0b71b09c49349ae69c2525b7783f0a1676e45d",
+          "visible_characters": 3048,
+          "first_visible_seconds": 0.879,
+          "total_seconds": 42.905,
+          "lines": 42
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "656c7d0f95622a9423a91e853aaeeb47ebc4caa46e269c17ab5bf5079c6c6984",
+          "answer_sha256": "4fc3e2f6326ca38b1edc8b8f9fa0bf2c430d1d5ce3270b61a966d18ccc36a5fc",
+          "visible_characters": 2128,
+          "first_visible_seconds": 0.988,
+          "total_seconds": 24.013,
+          "lines": 24
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "c617f378b0e499db5213cbf7cceb06a3d51cfd1e4a60b83507711ad9c174c5a3",
+          "answer_sha256": "7a7269d7b7abcde661b37d6303eb511e98e0278d2fa2175f89382f066aba8b95",
+          "visible_characters": 4124,
+          "first_visible_seconds": 6.571,
+          "total_seconds": 49.035,
+          "lines": 38
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "4a752d8a54682090315a74ab9ecbe797556d0ca33db6bc8a80e92b79f1142840",
+          "answer_sha256": "54a4142fb9a5bd7f730b8564370cd1c2fa11bc7beca63fb5b576f7f77f3559b9",
+          "visible_characters": 989,
+          "first_visible_seconds": 6.576,
+          "total_seconds": 19.65,
+          "lines": 29
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "acd50c1188620cc974db05b399b83bec3c148605ff532aa6e108705c793794b8",
+          "answer_sha256": "5ae6cb1a8a451a8def447a53f2b3f19d1cf1185e274e6b28ff397b0908c03d86",
+          "visible_characters": 4822,
+          "first_visible_seconds": 0.876,
+          "total_seconds": 49.235,
+          "lines": 50
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "a64adac14ee83bf5d10102540bde67baeed78c18b5c24babfe975dc3a24aab85",
+          "answer_sha256": "ac72a2a115dee2d7449abce628f85abe50210ecabd11c6563a4c2696d933e314",
+          "visible_characters": 182,
+          "first_visible_seconds": 6.575,
+          "total_seconds": 8.736,
+          "lines": 1
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "50341e5cf647d037d2f7220795003f21231fe5c0e1e21f36b308f11e40238fb9",
+          "answer_sha256": "8cb99a484b0dff1bb54ade5a9c73ed55a2355963392d0345efda6e28c2bac0a4",
+          "visible_characters": 215,
+          "first_visible_seconds": 0.873,
+          "total_seconds": 3.906,
+          "lines": 8
+        },
+        {
+          "language": "explanation/constraint",
+          "request_sha256": "fc609fa8d07f1597e835edcecedbf4dce45e84a0d9c8649cdcfc20707ff81b6a",
+          "answer_sha256": "e45215ecf8e3c09020a7e0154aaa793ba07cbfa9e3d322c4ceb3d65402a25357",
+          "visible_characters": 89,
+          "first_visible_seconds": 0.883,
+          "total_seconds": 2.074,
+          "lines": 5
+        }
+      ],
+      "limitations": [
+        "Rust/Go/Swift generation only; compilers unavailable",
+        "No planner, visual, MTP or DFlash qualification",
+        "No public preset promotion"
+      ]
+    }
+  },
+  "baseline_compilation": [
+    {
+      "language": "Python",
+      "passed": false
+    },
+    {
+      "language": "C#",
+      "passed": true
+    },
+    {
+      "language": "Java",
+      "passed": true
+    },
+    {
+      "language": "JavaScript",
+      "passed": true
+    },
+    {
+      "language": "TypeScript",
+      "passed": true
+    }
+  ],
+  "manual_findings": {
+    "A": [
+      "C# finite-number answer exceeded under-80-line instruction",
+      "Missing-image question initially invented a triangle count instead of abstaining"
+    ],
+    "B": [
+      "No equivalent installed base comparison; slower median than A; broader correctness/context and C7 promotion gates remain incomplete"
+    ]
+  }
+}

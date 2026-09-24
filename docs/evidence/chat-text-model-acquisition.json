@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-24T11:23:31.211015+00:00",
+  "purpose": "internal answer/code evaluation; no preset promotion",
+  "download_budget_bytes": 30000000000,
+  "disk_free_before": 400109363200,
+  "candidates": [
+    {
+      "id": "A",
+      "repository": "HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive",
+      "revision": "0a41c68809d375475f954be12ba7c40efa56c2a9",
+      "filename": "Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-Q6_K.gguf",
+      "size": 7359259008,
+      "sha256": "c0ba7beb68fd3fe47891bd549486d38dcf62d00817296ea314ad37017f5a4986",
+      "license": "Apache-2.0 model metadata; base Qwen3.5-9B",
+      "url": "https://huggingface.co/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive/resolve/0a41c68809d375475f954be12ba7c40efa56c2a9/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-Q6_K.gguf"
+    },
+    {
+      "id": "B",
+      "repository": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "manifest_sha256": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+      "layers": [
+        {
+          "mediaType": "application/vnd.docker.container.image.v1+json",
+          "digest": "sha256:7484451b4b9a9524bc842f5b197103da76c51db1883f725f9dde56ef2c0bbc23",
+          "size": 214
+        },
+        {
+          "mediaType": "application/vnd.ollama.image.model",
+          "digest": "sha256:2bdecffabba9fedd93f383ce834b2d185db32a7fa0cc6cddbbadcf56097cd4ae",
+          "size": 13500736896
+        },
+        {
+          "mediaType": "application/vnd.ollama.image.projector",
+          "digest": "sha256:add205b7bfdb3f71f6da36b0a82aa20928dd829a920878c602628cdfbebc5288",
+          "size": 931145984,
+          "from": "mmproj-Qwen3.8-27B-Uncensored-f16.gguf"
+        },
+        {
+          "mediaType": "application/vnd.ollama.image.license",
+          "digest": "sha256:2af71558e438db0b73a20beab92dc278a94e1bbe974c00c1a33e3ab62d53a608",
+          "size": 10
+        },
+        {
+          "mediaType": "application/vnd.ollama.image.params",
+          "digest": "sha256:f6417cb1e26962991f8e875a93f3cb0f92bc9b4955e004881251ccbf934a19d2",
+          "size": 42
+        }
+      ],
+      "size": 14431883146,
+      "license": "Apache-2.0; publisher research-use disclaimer reviewed, benign evaluation only"
+    }
+  ],
+  "total_bytes": 21791142154
+}

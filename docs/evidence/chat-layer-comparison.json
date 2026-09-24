@@ -1,0 +1,46 @@
+{
+  "request": "Write a Java login screen.",
+  "comparability": "Identical user request; direct/adapter share prepared prompt and options; orchestrator/UI retain production defaults. Responses are not expected to match byte-for-byte.",
+  "layers": [
+    {
+      "layer": "direct_endpoint",
+      "model": "gpt-oss:20b",
+      "seconds": 11.645060825001565,
+      "fenced_java": true,
+      "code_present": true,
+      "request_sha256": "28c58ffb9dcadf960d5492ccae8c1170bd77d039abdf55dc5ec1876ad14d107f",
+      "visible_characters": 4046,
+      "visible_sha256": "9852ae83dac7b417664add1a66bc4373d4e85cb18a6f281c0eae4c92afa4b88d"
+    },
+    {
+      "layer": "olive_adapter",
+      "model": "gpt-oss:20b",
+      "seconds": 9.47555615499732,
+      "fenced_java": true,
+      "code_present": true,
+      "request_sha256": "28c58ffb9dcadf960d5492ccae8c1170bd77d039abdf55dc5ec1876ad14d107f",
+      "visible_characters": 4820,
+      "visible_sha256": "0c09247fd1f473e66a36de22ee0b47800d2b346ec1de92b524a99f577702ec2b"
+    },
+    {
+      "layer": "orchestrator",
+      "model": "gpt-oss:20b",
+      "seconds": 8.647489498005598,
+      "fenced_java": true,
+      "code_present": true,
+      "request_sha256": "28c58ffb9dcadf960d5492ccae8c1170bd77d039abdf55dc5ec1876ad14d107f",
+      "visible_characters": 3770,
+      "visible_sha256": "edf28f04219d11cf474f3de31d9604ebba898d20ad08cd104b8d7787fe3424ea"
+    },
+    {
+      "layer": "production_chat",
+      "model": "gpt-oss:20b",
+      "seconds": 12.396,
+      "fenced_java": true,
+      "code_present": true,
+      "visible_characters": 3604,
+      "visible_sha256": "9724b1af3487a6a8f536ddacc1094dd5c2fb81291e0dd7cba24ef7e22e53cd30"
+    }
+  ],
+  "earliest_historical_divergence": "Semantic classification routed the Java source request to code.inspect and demanded a workspace. The repaired pipeline answers without effects."
+}

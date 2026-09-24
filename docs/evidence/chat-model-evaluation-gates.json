@@ -1,0 +1,22 @@
+{
+  "declared_at": "2026-09-24 before compiler/behaviour scoring; after acquisition and initial visible-generation trials",
+  "roles": [
+    "local answer/code only"
+  ],
+  "gate": {
+    "benign_unnecessary_refusals": 0,
+    "requested_language_cases": 24,
+    "answer_only_effect_attempts": 0,
+    "exact_model_attribution": true,
+    "compiled_representative_behaviour_failures": 0,
+    "requested_constraints": "report every violation; no promotion with unresolved correctness/constraint regressions",
+    "comparison": "same benign requests through production pipeline; no causal ablation claim without equivalent base",
+    "public_promotion": "requires role improvement and dependent C7/workflow regression evidence"
+  },
+  "non_goals": [
+    "Planner-schema readiness is separate",
+    "GUI grounding remains GUI-Owl",
+    "No universal correctness claim"
+  ],
+  "decision": "No promotion before these results and full regression"
+}
