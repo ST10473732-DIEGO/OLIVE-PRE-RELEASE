@@ -121,9 +121,11 @@ class Host:
 
     async def handle(self, request):
         validate(request)
-        # A bounded read-only live snapshot must not consume the durable-action
-        # deduplication budget every 1.5 seconds while Devices is open.
-        if (request['method'] in ('connect.snapshot', 'connect.model_targets', 'connect.studio_local_workspaces')
+        # Read-only snapshots (including per-token Chat refreshes) must not fill
+        # the non-evicting action replay ledger. Effects retain their identities.
+        if (request['method'] in ('runtime.snapshot', 'chat.get', 'chat.search',
+                                 'interaction.inspect', 'desktop.status',
+                                 'connect.snapshot', 'connect.model_targets', 'connect.studio_local_workspaces')
                 or request['method'] == 'connect.studio_request' and request['args']['operation'] in ('workspaces', 'tree', 'read', 'run_status')):
             if self.closed:
                 raise RuntimeError('Runtime is shutting down')
