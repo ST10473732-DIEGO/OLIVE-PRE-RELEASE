@@ -152,12 +152,19 @@ class TaskAuthority:
         self.grants = {}
         self.lock = threading.Lock()
 
-    def issue(self, request, message_id, policy, *, local_user=False, interpretation=None):
+    def issue(self, request, message_id, policy, *, local_user=False, interpretation=None,
+              bound_step=None, results=None):
         if not local_user or not policy.get('enabled') or not policy.get('trusted_tasks'):
             raise PermissionError('Enable trusted local tasks in Settings first')
         if self.stopped.is_set():
             raise InterruptedError('Desktop control stopped')
-        scope = interpreted_scope(request, interpretation) if interpretation is not None else direct_scope(request)
+        if bound_step is not None:
+            from .freeform_plan import BoundStep
+            if type(bound_step) is not BoundStep or interpretation is not None:
+                raise PermissionError('Invalid internal task binding')
+            scope = bound_step.resolve(request, results, results.epoch if results else None)
+        else:
+            scope = interpreted_scope(request, interpretation) if interpretation is not None else direct_scope(request)
         if scope.effect != 'open' and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
             raise PermissionError('Trusted input requires keyboard and mouse Allow; stricter policies are preserved')
         with self.lock:
@@ -263,7 +270,9 @@ def validate_effect(grant, proposal, observation):
             raise PermissionError('A generic click cannot authorize a consequential confirmation')
     if proposal['action'] == 'scroll':
         scroll_amount(proposal['value'])
-    if proposal['action'] == 'invoke' and proposal['value'].casefold() not in {'click', 'press', 'activate', 'select', 'invoke'}:
+    link_jump = (scope.effect == 'click' and target.get('role') == 'link' and
+                 same_control_label(target.get('name',''), scope.content) and proposal['value'] == 'jump')
+    if proposal['action'] == 'invoke' and proposal['value'].casefold() not in {'click', 'press', 'activate', 'select', 'invoke'} and not link_jump:
         raise PermissionError('Unsupported accessible action effect')
     if proposal['action'] == 'type':
         allowed = {scope.content, scope.destination, scope.server}
@@ -303,6 +312,11 @@ def validate_effect(grant, proposal, observation):
     elif proposal['action'] in {'click', 'invoke'}:
         navigation = {'search', 'new tab', 'back', 'forward', 'menu', 'search messages', 'search channels'}
         exact_click = scope.effect == 'click' and same_control_label(name, scope.content)
+        if scope.effect in {'send','draft'} and name == scope.destination.casefold():
+            choices = [c for c in observation['controls'] if c.get('name','').casefold() == name
+                       and c.get('role') != 'heading' and c.get('enabled')]
+            if len(choices) != 1:
+                raise PermissionError('The recipient is ambiguous; no destination was selected')
         if not exact_click and name not in navigation | {scope.destination.casefold(), scope.server.casefold()}:
             raise PermissionError('The effect of this control is not established by the task')
     if proposal['action'] == 'key' and proposal['value'] == 'Space':

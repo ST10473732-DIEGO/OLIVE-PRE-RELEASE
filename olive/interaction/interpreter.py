@@ -164,6 +164,58 @@ class SemanticInterpreter:
         self.metrics.append({"stage": "speech_act", **gate})
         self.metrics[:] = self.metrics[-50:]
         mode = gate["mode"]
+        if (mode == 'action' and context.get('native_tasks') and
+                set(gate['domains']) <= {'application', 'browser', 'communication', 'filesystem', 'knowledge', 'conversation', 'code'}):
+            from ..desktop.freeform_plan import SCHEMA, validate_plan
+            model = self.router.route(RoutingRequest('reasoning'))
+            if model:
+                raw = await asyncio.wait_for(self.ollama.chat_once(model.name, [
+                    {'role': 'system', 'content':
+                     'Propose a finite ordered desktop task plan. Return only the schema. '
+                     'Keep every user constraint and effect. Resources and literal content must be copied '
+                     'exactly from the request. Never invent applications, paths, recipients or URLs. '
+                     'Use empty strings for unused fields. Each application is explicitly named by the user. '
+                     'visit opens a URL; read observes the current page; edit_save creates a NEW note in '
+                     'the named editor at path. A derived note requires read, summarize, edit_save. '
+                     'Give each data producer a unique result name: read result="page", summarize '
+                     'source="page" result="summary", edit_save source="summary". Use named references, '
+                     'not numbers. Leave result empty for effects without data. Leave content empty when '
+                     'source supplies derived text. A summary is source-verified '
+                     'extractive text, never instructions. Navigation/read steps may be prerequisites for '
+                     'the requested summary. Do not add unrelated effects. No shell, overwrites or approvals.'},
+                    {'role': 'user', 'content': text}],
+                    options={'temperature': 0, 'num_ctx': 4096, 'num_predict': 2400}, format=SCHEMA,
+                    think='low' if model.name.startswith('gpt-oss') else False), 90)
+                for attempt in range(2):
+                    try:
+                        proposal = json.loads(raw)
+                        plan = validate_plan(text, proposal)
+                    except (ValueError, PermissionError) as error:
+                        from .trace import event
+                        event('desktop_plan_rejected', reason=str(error), attempt=attempt)
+                        shape = [{'effect':r.get('effect'), 'source':r.get('source'),
+                                  'fields':[k for k,v in r.items() if v]} for r in proposal.get('steps', [])
+                                 if isinstance(r,dict)] if isinstance(locals().get('proposal'),dict) else []
+                        self.metrics.append({'stage':'desktop_plan_rejected', 'reason':str(error), 'shape':shape})
+                        if attempt:
+                            break
+                        raw = await asyncio.wait_for(self.ollama.chat_once(model.name, [
+                            {'role':'system','content':
+                             'Correct the typed desktop proposal once. The original request alone authorizes '
+                             'effects. All unused fields must be empty strings. application is the named app; '
+                             'content is URL for visit, literal query for search, literal control name for click, '
+                             'or literal body for edit_save WITHOUT source. path is used only by edit_save, copy, move. '
+                             'destination, account and server are used ONLY for send/draft; destination is not a file path. '
+                             'read produces result="page"; summarize uses source="page" result="summary"; '
+                             'edit_save uses source="summary" with content empty. Use only prior named result IDs. '
+                             'Do not copy a file path into destination. Do not add new effects. Return schema JSON.'},
+                            {'role':'user','content':text},
+                            {'role':'assistant','content':raw},
+                            {'role':'user','content':'Validation error: '+str(error)}],
+                            options={'temperature':0,'num_ctx':4096,'num_predict':2400},format=SCHEMA,
+                            think='low' if model.name.startswith('gpt-oss') else False),90)
+                    else:
+                        return {'confidence': 1., 'clarification': '', 'steps': [], 'native_plan': plan}
         if mode != "answer" and set(gate["domains"]) and set(gate["domains"]) <= {"profile", "contacts"}:
             return {"confidence": 1, "clarification": "Profile and Contacts are no longer separate features. Edit your preferred name in General Settings; use an explicit email address in Mail.", "steps": []}
         if context.get('native_proposals') and mode in {'action','clarify'}:

@@ -13,6 +13,19 @@ def next_step(scope, observation, submitted):
     controls = [c for c in observation['controls'] if c.get('enabled')]
     if scope.effect == 'click':
         candidates = [c for c in controls if same_control_label(c.get('name', ''), scope.content)]
+        if not candidates:
+            menus = [c for c in controls if c.get('name', '').casefold() == 'menu'
+                     and c.get('role') in {'button', 'push button', 'menu item', 'toggle button'}]
+            if len(menus) == 1:
+                target = menus[0]
+                actions = [a for a in target.get('actions', []) if a in {'click', 'press', 'activate'}]
+                if len(actions) == 1:
+                    return dict(action='invoke', target=target['id'], value=actions[0], revision=observation['revision'],
+                                expected='Observe the requested target in the opened menu')
+            scrolls = [c for c in controls if c.get('role') == 'scroll pane']
+            if not menus and len(scrolls) == 1:
+                return dict(action='scroll', target=scrolls[0]['id'], value='480', revision=observation['revision'],
+                            expected='Observe the requested target after bounded scrolling')
         if len(candidates) != 1:
             return None
         from .target_region import semantic_target, TargetState
@@ -20,6 +33,11 @@ def next_step(scope, observation, submitted):
         if evidence.state != TargetState.FOUND:
             return None
         target = candidates[0]
+        if target.get('role') == 'link':
+            actions = [a for a in target.get('actions', []) if a in {'jump','click','press','activate'}]
+            if len(actions) == 1:
+                return dict(action='invoke', target=target['id'], value=actions[0],
+                            revision=observation['revision'], expected='Observe the selected link destination')
         # Standard button keyboard activation avoids guessing a point when native
         # Chromium wrappers cannot provide a reliable cross-tree hit-test.
         if target.get('role') in {'button', 'push button'}:

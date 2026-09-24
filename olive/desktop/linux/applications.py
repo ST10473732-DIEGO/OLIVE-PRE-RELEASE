@@ -144,6 +144,21 @@ class Applications:
         self.launches.append(process)
         return self.processes(app)
 
+    def launch_editor_session(self, app):
+        """Kate's documented anonymous session, isolated from existing documents."""
+        if app.id != 'org.kde.kate.desktop' or app.executable.name != 'kate':
+            return None
+        if self.values.get(app.id) is not app or hashlib.sha256(app.entry.read_bytes()).hexdigest() != app.digest:
+            raise PermissionError('Application entry changed')
+        existing = {pid for pid, _ in self.processes(app)}
+        started = time.time()
+        environment = dict(os.environ)
+        environment.pop('NO_AT_BRIDGE', None)
+        process = subprocess.Popen([str(app.executable), '--startanon'], shell=False, env=environment,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.launches.append(process)
+        return existing, started
+
     async def wait_for_processes(self, app, stopped, *, timeout=3, clock=time.monotonic, wait=asyncio.sleep, discover=None):
         """Bounded discovery after one launch, not a retry of launching the app.
 

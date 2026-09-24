@@ -1,8 +1,15 @@
 import unittest
-from olive.desktop.linux.geometry import approved_region, contains, pixel_point
+from olive.desktop.linux.geometry import approved_region, contains, pixel_point, intersection
 
 
 class GeometryTests(unittest.TestCase):
+    def test_scroll_children_remain_inside_the_observed_viewport(self):
+        clip = intersection([1920,0,1920,1080],[2500,400,700,200])
+        self.assertTrue(contains(clip,[2510,500,100,30]))
+        self.assertFalse(contains(clip,[2510,700,100,30]))
+        self.assertIsNone(intersection(clip,[-2147483648,-2147483648,700,200]))
+        with self.assertRaises(ValueError):
+            intersection(clip,[0,0,float('nan'),200])
     def test_fractional_display_and_negative_origin(self):
         region = approved_region({'position': (-2048, -100), 'size': (2048, 1280)})
         self.assertEqual(pixel_point(region, (1280, 800), (640, 400)), (-1024, 540))

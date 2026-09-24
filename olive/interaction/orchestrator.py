@@ -99,7 +99,14 @@ class NaturalLanguageOrchestrator:
             from ..desktop.task_plan import explicit_plan
             plan = explicit_plan(text)
             if plan is not None:
-                return await self._native_submit(text, chat_id, plan=plan)
+                from ..desktop.task_authority import direct_scope
+                try:
+                    for clause in plan.clauses:
+                        direct_scope(clause)
+                except ValueError:
+                    pass  # Dependent/freeform clauses use the same typed task loop below.
+                else:
+                    return await self._native_submit(text, chat_id, plan=plan)
             from ..desktop.task_authority import direct_scope
             try:
                 direct_scope(text)
@@ -121,6 +128,7 @@ class NaturalLanguageOrchestrator:
         self.s.publish("interaction_activity", {"chat_id": chat_id, "message": "Understanding your request…"})
         try:
             snapshot = context.snapshot()
+            snapshot['native_tasks'] = native_allowed
             snapshot['attached_documents'] = [{'attachment_id':ref.id,'name':ref.name,'kind':ref.kind}
                 for ref in self.s.chats[chat_id].documents][:50]
             if hasattr(self.s,'personal'):
@@ -147,7 +155,7 @@ class NaturalLanguageOrchestrator:
                     from .ordinary_requests import file_transfer
                     transfer = file_transfer(text)
                     interpretation = transfer or await self.interpreter.interpret(text, snapshot)
-            context.last_interpretation = deepcopy(interpretation)
+            context.last_interpretation = deepcopy({k:v for k,v in interpretation.items() if k != 'native_plan'})
             if chat_id not in self.active:
                 context.resolved_steps = []
         except TimeoutError:
@@ -166,6 +174,8 @@ class NaturalLanguageOrchestrator:
             context.remember_user(text)
             return self.reply(chat_id, text, question)
         steps = interpretation["steps"]
+        if native_allowed and interpretation.get('native_plan'):
+            return await self._native_submit(text, chat_id, plan=interpretation['native_plan'])
         trace_event('interpreted', intents=[step['intent'] for step in steps],
                     confidence=interpretation['confidence'])
         if getattr(self.s.chat, 'targets', {}).get(chat_id) and (
@@ -300,6 +310,37 @@ class NaturalLanguageOrchestrator:
         try:
             if plan is None:
                 result = await native.run(text, message.id, interpretation=interpretation)
+            elif hasattr(plan, 'steps'):
+                from ..desktop.task_results import TaskResults
+                from ..desktop.freeform_plan import summarize_result
+                results, epoch = [], None
+                bindings = TaskResults(text, native.authority.epoch)
+                try:
+                    async with asyncio.timeout(600):
+                        for index, step in enumerate(plan.steps):
+                            if epoch is not None and (epoch != native.authority.epoch or self.s.desktop.stop_event.is_set()):
+                                raise InterruptedError('Task stopped; remaining effects discarded')
+                            bindings.epoch = native.authority.epoch
+                            if step.scope.effect == 'summarize':
+                                result = await summarize_result(self.s, text, step, bindings, str(index))
+                            else:
+                                result = await native.run(text, message.id, continuation_epoch=epoch,
+                                    bound_step=step, results=bindings)
+                                if self.s.desktop.record.status != 'completed':
+                                    results.append(result)
+                                    break
+                                bindings.epoch = native.authority.epoch
+                                if step.scope.effect == 'visit':
+                                    bindings.location(str(index), step.scope.content, step.scope.application,
+                                        self.s.desktop.record.window.get('window_id'), bindings.epoch)
+                                if step.scope.effect == 'read':
+                                    bindings.observation(str(index), result, bindings.epoch, step.source)
+                            results.append(result)
+                            epoch = native.authority.epoch
+                            trace_event('subgoal_verified', index=index, remaining=len(plan.steps)-index-1)
+                    result = '\n\n'.join(f'{i+1}. {value}' for i, value in enumerate(results))
+                finally:
+                    bindings.close()
             else:
                 # Resolve all scopes before the first effect, not halfway through.
                 from ..desktop.task_authority import direct_scope, interpreted_scope
@@ -331,10 +372,15 @@ class NaturalLanguageOrchestrator:
                                                   existing_user_message_id=message.id)
                 result = '\n\n'.join(f'{i+1}. {value}' for i,value in enumerate(results))
             return self.reply(chat_id, text, result, append_user=False)
-        except (ValueError, PermissionError, InterruptedError) as error:
-            return self.reply(chat_id, text, str(error), append_user=False)
+        except (ValueError, PermissionError, InterruptedError, TimeoutError, RuntimeError) as error:
+            completed = locals().get('results', [])
+            prefix = '\n\n'.join(f'{i+1}. {value}' for i, value in enumerate(completed))
+            return self.reply(chat_id, text, (prefix + '\n\n' if prefix else '') +
+                              'Task incomplete: ' + str(error), append_user=False)
         except asyncio.CancelledError:
-            return self.reply(chat_id, text, 'Stopped. Inspect any uncertain effect before requesting it again.', append_user=False)
+            prefix = '\n\n'.join(f'{i+1}. {value}' for i,value in enumerate(locals().get('results', [])))
+            return self.reply(chat_id, text, (prefix + '\n\n' if prefix else '') +
+                'Stopped. Inspect any uncertain effect before requesting it again.', append_user=False)
         finally:
             native.chat_id = None
             self.active.pop(chat_id, None)

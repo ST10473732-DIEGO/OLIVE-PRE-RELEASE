@@ -4,6 +4,13 @@ from olive.desktop.gui_evidence import messaging_destination, delivery, search_r
 
 
 class GuiEvidenceTests(unittest.TestCase):
+    def test_native_composer_key_contract_needs_current_named_send_action(self):
+        from olive.desktop.gui_evidence import enter_sends
+        control = {'actions':['send message'], 'key_bindings':{'send message':'Return'}}
+        self.assertTrue(enter_sends(control))
+        self.assertFalse(enter_sends({'actions':['activate'],'key_bindings':{'activate':'Return'}}))
+        self.assertFalse(enter_sends({**control,'key_bindings':{'send message':'Ctrl+Return'}}))
+        self.assertFalse(enter_sends({**control,'labels':['Enter inserts a newline']}))
     def setUp(self):
         self.scope = TaskScope('Owned messenger', 'send', 'Exact synthetic text.', 'A new person', 'Test account')
         self.controls = [dict(id='account', name='Account: Test account', role='label'),

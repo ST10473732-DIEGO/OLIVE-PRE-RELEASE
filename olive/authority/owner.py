@@ -20,6 +20,7 @@ _current = ContextVar('olive_owner_task', default=None)
 FORBIDDEN_FIELDS = {'approved','owner_mode','permission','ignore_user_policy','disable_stop','grant_root','extra_recipient'}
 SCOPED_EFFECTS = {'filesystem.copy','filesystem.move','filesystem.write_text','filesystem.trash','filesystem.delete','code.apply_patch',
                   'studio.run','workspace.run_validation','studio.new_project'}
+READ_TOOLS = {'filesystem.stat', 'filesystem.read_text', 'git.status', 'git.diff', 'git.log', 'git.branch_list'}
 
 
 def starter_request(text):
@@ -114,6 +115,13 @@ class OwnerPolicy:
             if effect in {'edit', 'fix', 'save', 'create_file', 'delete', 'trash'} and len(paths) != 1:
                 capabilities.clear()  # A typed single-file operation needs one target.
             if capabilities:capabilities.update({'filesystem.stat','filesystem.read_text'})
+            # Existing read-only Git controllers stay bound to one selected,
+            # approved repository. A model cannot turn this into Git mutation.
+            if workspace and not forbidden_verbs and re.search(r'\bgit\b', instruction):
+                for word, capability in {'status':'git.status', 'diff':'git.diff',
+                                         'log':'git.log', 'branches':'git.branch_list'}.items():
+                    if re.search(r'\b'+word+r'\b', instruction) and re.search(r'\b(?:show|read|check|inspect|list)\b', instruction):
+                        capabilities.add(capability)
             project_spec = ()
             from ..interaction.ordinary_requests import file_transfer
             literal = file_transfer(text)
@@ -173,7 +181,7 @@ class OwnerPolicy:
     def consume(self, tool, arguments):
         """Reserve one mutation before dispatch; uncertain effects never replay."""
         if not self.authorize(tool, arguments):return False
-        if tool in {'filesystem.stat', 'filesystem.read_text'}:return True
+        if tool in READ_TOOLS:return True
         grant = _current.get()[1]
         with self.lock:
             if grant.id in self.used:return False
@@ -186,8 +194,14 @@ class OwnerPolicy:
         grant=current[1]
         with self.lock:
             if self.active.get(grant.id) is not grant or self.epochs.get(grant.chat_id,0)!=grant.cancellation_epoch or self.clock()>=grant.expiry:return False
-        if tool not in {'filesystem.stat', 'filesystem.read_text'} and grant.id in self.used:return False
+        if tool not in READ_TOOLS and grant.id in self.used:return False
         if tool not in grant.capabilities or FORBIDDEN_FIELDS & arguments.keys():return False
+        if tool in {'git.status', 'git.diff', 'git.log', 'git.branch_list'}:
+            if not grant.workspace or str(Path(arguments.get('workspace','')).resolve()) != grant.workspace:return False
+            allowed = {'workspace'} | ({'staged'} if tool == 'git.diff' else {'limit'} if tool == 'git.log' else set())
+            return (set(arguments) <= allowed and
+                    ('staged' not in arguments or type(arguments['staged']) is bool) and
+                    ('limit' not in arguments or type(arguments['limit']) is int and 1 <= arguments['limit'] <= 100))
         if tool == 'filesystem.write_text' and grant.content_sha256:
             if not isinstance(arguments.get('text'),str) or hashlib.sha256(arguments['text'].encode()).hexdigest() != grant.content_sha256:return False
         if tool == 'studio.new_project':

@@ -22,6 +22,7 @@ if (ACTIVATE && targets.length === 1) {
 const result = windows.map(w => ({id:String(w.internalId), pid:w.pid,
     active:w.active, output:w.output.name, title:w.caption,
     normal:w.normalWindow, dialog:w.dialog, stacking:w.stackingOrder,
+    transient_for:w.transientFor ? String(w.transientFor.internalId) : '',
     desktop_file:String(w.desktopFileName), resource_class:String(w.resourceClass), resource_name:String(w.resourceName),
     bounds:[w.clientGeometry.x,w.clientGeometry.y,w.clientGeometry.width,w.clientGeometry.height],
     frame:[w.frameGeometry.x,w.frameGeometry.y,w.frameGeometry.width,w.frameGeometry.height]}));

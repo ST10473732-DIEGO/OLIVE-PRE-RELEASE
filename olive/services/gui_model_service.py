@@ -17,6 +17,20 @@ import httpx
 MODEL = 'GUI-Owl-1.5-8B-Instruct-Q5_K_M'
 
 
+async def wait_for_vram(query, *, clock=time.monotonic, wait=asyncio.sleep):
+    """Observe asynchronous GPU release; never evict an unrelated workload."""
+    deadline = clock() + 3
+    samples = []
+    while True:
+        free = await query()
+        samples.append(free)
+        if free >= 9000:
+            return samples
+        if clock() >= deadline:
+            raise MemoryError('GUI inference needs 9000 MiB of free GPU memory; other workloads were preserved')
+        await wait(min(.1, max(0, deadline-clock())))
+
+
 class GuiModelService:
     def __init__(self, residency, config=None):
         self.residency = residency
@@ -36,18 +50,21 @@ class GuiModelService:
             raise ValueError('GUI runtime/model paths must be directories')
         # The shared manager has already released OLIVE's previous model. Do not
         # evict another client's work or attempt a known over-budget allocation.
-        query = await asyncio.create_subprocess_exec('nvidia-smi', '--id=0',
-            '--query-gpu=memory.free', '--format=csv,noheader,nounits',
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        try:
-            available, _ = await asyncio.wait_for(query.communicate(), 5)
-        except BaseException:
-            if query.returncode is None:
-                query.kill()
-                await query.wait()
-            raise
-        if query.returncode or int(available.strip()) < 9000:
-            raise MemoryError('GUI inference needs 9000 MiB of free GPU memory; other workloads were preserved')
+        async def memory_available():
+            query = await asyncio.create_subprocess_exec('nvidia-smi', '--id=0',
+                '--query-gpu=memory.free', '--format=csv,noheader,nounits',
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            try:
+                available, _ = await asyncio.wait_for(query.communicate(), 5)
+            except BaseException:
+                if query.returncode is None:
+                    query.kill()
+                    await query.wait()
+                raise
+            if query.returncode:
+                raise MemoryError('GPU memory availability could not be verified')
+            return int(available.strip())
+        self.release_samples = await wait_for_vram(memory_available)
         import tempfile
         fd, filename = tempfile.mkstemp(prefix='olive-gui-key-', dir=os.environ['XDG_RUNTIME_DIR'])
         self.keyfile = Path(filename)

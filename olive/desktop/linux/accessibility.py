@@ -6,7 +6,7 @@ import gi
 
 gi.require_version('Atspi', '2.0')
 from gi.repository import Atspi, GLib
-from .geometry import contains
+from .geometry import contains, intersection
 
 
 class Accessibility:
@@ -136,10 +136,10 @@ class Accessibility:
         deadline = time.monotonic() + 3
         controls, windows, documents = [], [], []
         text_budget = 12000
-        queue = [(app, 0, '', '', False)]
+        queue = [(app, 0, '', '', False, region)]
         visited = 0
         while queue and visited < 800 and time.monotonic() < deadline and text_budget > 0:
-            node, depth, window, parent, in_document = queue.pop(0)
+            node, depth, window, parent, in_document, clip = queue.pop(0)
             visited += 1
             try:
                 states = node.get_state_set()
@@ -152,21 +152,33 @@ class Accessibility:
                 if role == Atspi.Role.PASSWORD_TEXT:
                     continue  # Neither name, value nor descendants enter an observation.
                 visible = states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE)
-                if depth > 0 and not visible:
-                    continue
-                if depth == 1 and not states.contains(Atspi.StateType.ACTIVE):
-                    continue
                 key = str(visited)
                 component = node.get_component_iface()
                 rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
                 bounds = self.mapped_bounds(rect) if rect else None
-                if depth > 0 and not contains(region, bounds):
-                    continue  # Do not read text outside the human-approved source.
+                # GTK may expose a non-rendered viewport wrapper with sentinel
+                # coordinates, while its visible children have real extents.
+                # Inherit only the already observed scroll pane's exact clip.
+                transparent_viewport = (role == Atspi.Role.VIEWPORT and rect and
+                    states.contains(Atspi.StateType.VISIBLE) and rect.x == rect.y == -2147483648 and
+                    [rect.width, rect.height] == list(clip[2:]))
+                if depth > 0 and not visible and not transparent_viewport:
+                    continue
+                if depth == 1 and not states.contains(Atspi.StateType.ACTIVE):
+                    continue
+                within_source = depth == 0 or contains(clip, bounds)
+                if not within_source:
+                    # A clipped scroll-content container can extend outside the
+                    # source while its children are visible inside it. Traverse
+                    # geometry only; never read the container's out-of-source text.
+                    if role not in (Atspi.Role.FILLER, Atspi.Role.PANEL, Atspi.Role.VIEWPORT,
+                                    Atspi.Role.LIST, Atspi.Role.SCROLL_PANE):
+                        continue
                 if role in (Atspi.Role.FRAME, Atspi.Role.DIALOG, Atspi.Role.WINDOW):
                     window = key
                     windows.append({'id': key, 'name': node.get_name()[:200], 'bounds': bounds,
                                     'active': states.contains(Atspi.StateType.ACTIVE)})
-                if visible and window:
+                if visible and window and within_source:
                     value = ''
                     text = node.get_text_iface()
                     if text:
@@ -178,6 +190,8 @@ class Accessibility:
                     labels = self.labels(node)
                     actions = node.get_action_iface()
                     action_names = [actions.get_action_name(i) for i in range(min(actions.get_n_actions(), 8))] if actions else []
+                    key_bindings = {actions.get_action_name(i): actions.get_key_binding(i)
+                                    for i in range(min(actions.get_n_actions(), 8))} if actions else {}
                     document = node.get_document_iface()
                     if document:
                         uri = document.get_document_attribute_value('DocURL') or ''
@@ -189,13 +203,17 @@ class Accessibility:
                         'enabled': states.contains(Atspi.StateType.ENABLED),
                         'selected': states.contains(Atspi.StateType.SELECTED),
                         'focused': states.contains(Atspi.StateType.FOCUSED),
-                        'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names, 'labels': labels})
+                        'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names,
+                        'key_bindings': key_bindings, 'labels': labels})
                     self.targets[key] = node
                 if depth < 28:
+                    child_clip = (clip if transparent_viewport else intersection(clip, bounds)) if role in (Atspi.Role.VIEWPORT, Atspi.Role.SCROLL_PANE) else clip
+                    if child_clip is None:
+                        continue
                     for index in range(min(node.get_child_count(), 80)):
                         child = node.get_child_at_index(index)
                         if child:
-                            queue.append((child, depth + 1, window, key, in_document))
+                            queue.append((child, depth + 1, window, key, in_document, child_clip))
             except Exception:
                 continue  # Incomplete accessibility is evidence of a gap, never a target.
         return {'pid': pid, 'revision': self.revision, 'windows': windows, 'controls': controls,

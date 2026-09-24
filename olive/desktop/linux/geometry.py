@@ -37,3 +37,13 @@ def pixel_point(region, image_size, point):
     if any(type(v) not in (int, float) or not math.isfinite(v) for v in point) or not (0 <= px < iw and 0 <= py < ih):
         raise ValueError('Point is outside the captured frame')
     return x + px * width / iw, y + py * height / ih
+
+
+def intersection(left, right):
+    """Visible intersection of two logical compositor rectangles."""
+    if not left or not right or len(left) != 4 or len(right) != 4:
+        return None
+    left, right = rectangle(left), rectangle(right)
+    x, y = max(left[0], right[0]), max(left[1], right[1])
+    end_x, end_y = min(left[0]+left[2], right[0]+right[2]), min(left[1]+left[3], right[1]+right[3])
+    return [x,y,end_x-x,end_y-y] if end_x > x and end_y > y else None

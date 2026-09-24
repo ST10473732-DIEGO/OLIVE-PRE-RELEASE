@@ -4,6 +4,14 @@ from olive.desktop.task_authority import TaskScope
 
 
 class GroundedStepTests(unittest.TestCase):
+    def test_absent_target_can_reveal_menu_then_scroll_without_claiming_completion(self):
+        scope = TaskScope('Owned', 'click', 'Amber')
+        menu = {'id':'menu','name':'Menu','role':'push button','enabled':True,'actions':['click']}
+        step = next_step(scope, {'revision':'r','controls':[menu]}, False)
+        self.assertEqual((step['action'],step['target']), ('invoke','menu'))
+        scroll = {'id':'scroll','name':'','role':'scroll pane','enabled':True}
+        step = next_step(scope, {'revision':'r2','controls':[scroll]}, False)
+        self.assertEqual((step['action'],step['target'],step['value']), ('scroll','scroll','480'))
     def test_enter_submission_needs_composer_semantics_and_exact_destination(self):
         from types import SimpleNamespace
         from olive.desktop.task_authority import validate_effect

@@ -36,6 +36,7 @@ class Worker:
         self.browser_search = None
         self.visual_frame = None
         self.editor_stage = None
+        self.editor_ownership = None
         self.file_input = None
         self.last_heartbeat = time.monotonic()
         self.stop_deadline = None
@@ -87,6 +88,7 @@ class Worker:
                 self.portal.close_control()
                 self.accessibility.clear()
                 self.window = None
+                self.editor_ownership = None
                 self.browser_search = None
                 self.visual_frame = None
                 self.editor_stage = None
@@ -288,6 +290,16 @@ class Worker:
             if method == 'document_locations':
                 return self.accessibility.document_locations(args['pid'], region)
             return self.accessibility.observe(args['pid'], region, chrome_only=method == 'browser_chrome')
+        if method == 'editor_session' and set(args) == {'pid', 'created'}:
+            import psutil
+            from olive.desktop.linux.editor_ownership import EditorOwnership
+            process = psutil.Process(args['pid'])
+            if (not self.window or self.window['pid'] != args['pid'] or
+                    process.create_time() != args['created'] or process.uids().real != os.getuid() or
+                    time.time() - args['created'] > 30 or self.editor_stage is not None):
+                raise PermissionError('Isolated editor process lifetime is not verified')
+            self.editor_ownership = EditorOwnership(args['pid'], args['created'], self.window['id'], True)
+            return {'bound': True}
         if method == 'editor_key' and set(args) == {'step'}:
             from olive.desktop.linux.kwin import windows
             step = args['step']
@@ -296,6 +308,8 @@ class Worker:
             current = [w for w in windows(self.portal.bus, self.window['pid'], self.stopped) if w['active']]
             if len(current) != 1 or current[0]['id'] != self.window['id']:
                 raise PermissionError('Editor focus changed')
+            if step == 'save_as' and self.editor_ownership:
+                self.editor_ownership.expect_save(windows(self.portal.bus, self.window['pid'], self.stopped))
             self.editor_stage = step
             self.eis.editor_key(step)
             return {'dispatched': True}
@@ -328,6 +342,10 @@ class Worker:
             active = [w for w in windows(self.portal.bus, self.window['pid'], self.stopped) if w['active']]
             if len(active) != 1 or any(active[0][k] != self.window[k] for k in ('id', 'bounds', 'output')):
                 raise PermissionError('Save dialog focus or geometry changed')
+            if self.editor_ownership:
+                import psutil
+                controls = self.accessibility.observe(self.window['pid'], approved_region(self.portal.streams[0][1]))['controls']
+                self.editor_ownership.admit(active[0], psutil.Process(self.window['pid']).create_time(), controls)
             if not any(label.strip().casefold().rstrip(':') in {'file name', 'filename', 'name'}
                        for label in [node.get_name(), *self.accessibility.labels(node)]):
                 raise PermissionError('Only the save dialog filename can be replaced')

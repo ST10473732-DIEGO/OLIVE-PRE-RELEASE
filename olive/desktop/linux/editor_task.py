@@ -4,6 +4,14 @@ import os
 from pathlib import Path
 
 
+def note_path(value):
+    path = Path(value).expanduser()
+    if (not path.is_absolute() or any(p.is_symlink() for p in (path,*path.parents)) or path.exists() or
+            not path.parent.is_dir() or path.parent.stat().st_uid != os.getuid()):
+        raise PermissionError('Choose an unused file in an existing owned directory; no file was replaced')
+    return path.parent.resolve() / path.name
+
+
 async def save_note(runtime, grant, app, processes):
     import configparser
     config = configparser.ConfigParser(interpolation=None)
@@ -11,10 +19,7 @@ async def save_note(runtime, grant, app, processes):
     if 'TextEditor' not in config['Desktop Entry'].get('Categories', '').split(';'):
         raise PermissionError('This new-document route requires an installed text editor')
     d = runtime.desktop
-    path = Path(grant.scope.path).expanduser()
-    if not path.is_absolute() or path.is_symlink() or path.exists() or not path.parent.is_dir() or path.parent.stat().st_uid != os.getuid():
-        raise PermissionError('Choose an unused file in an existing owned directory; no file was replaced')
-    path = path.parent.resolve() / path.name
+    path = note_path(grant.scope.path)
     async def observe():
         runtime.check_task(grant)
         return await runtime.observe_app(app, processes)
@@ -90,9 +95,13 @@ async def save_note(runtime, grant, app, processes):
     for _ in range(15):
         runtime.check_task(grant)
         if path.is_file():
+            if path.is_symlink():
+                raise PermissionError('The saved path became a symbolic link')
             if path.stat().st_size > 8_000_000:
                 raise ValueError('Saved document exceeds the verification budget')
             saved = path.read_text()
+            if grant.scope.content.endswith('\n') and path.read_bytes() != grant.scope.content.encode('utf-8'):
+                raise ValueError('The saved bytes differ from the bound note text')
             if grant.scope.effect == 'paste_save' and not saved:
                 raise ValueError('Clipboard paste produced an empty document')
             if grant.scope.effect != 'paste_save' and saved not in {grant.scope.content, grant.scope.content+'\n'}:

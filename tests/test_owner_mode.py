@@ -21,6 +21,21 @@ class OwnerModeTests(unittest.IsolatedAsyncioTestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
         self.settings={'owner_mode':True,'owner_installation':{'id':'owned-fixture','owner':owner_identity()}}
         self.policy=OwnerPolicy(lambda:self.settings)
+    def test_read_only_git_scope_does_not_authorize_mutations_or_another_workspace(self):
+        args = {'workspace': str(self.root)}
+        with self.policy.request('Show git status and diff for my project', 'chat', local=True, workspace=str(self.root)):
+            self.assertTrue(self.policy.consume('git.status', args))
+            self.assertTrue(self.policy.consume('git.diff', {**args, 'staged': True}))
+            self.assertFalse(self.policy.authorize('git.commit', {**args, 'message':'invented'}))
+            self.assertFalse(self.policy.authorize('git.status', {'workspace':str(self.root/'other')}))
+            self.assertFalse(self.policy.authorize('git.status', {**args, 'command':'git reset'}))
+            self.policy.cancel('chat')
+            self.assertFalse(self.policy.authorize('git.status', args))
+        for text in ('Explain "show git status"', 'Do not show git status'):
+            with self.policy.request(text, 'chat', local=True, workspace=str(self.root)):
+                self.assertFalse(self.policy.authorize('git.status', args))
+        with self.policy.request('Show git status', 'remote', local=False, workspace=str(self.root)):
+            self.assertFalse(self.policy.authorize('git.status', args))
     async def test_file_move_no_prompt_and_explicit_deny_wins(self):
         permissions=PermissionService(self.root/'permissions.json');registry=ToolRegistry()
         for tool in filesystem_tools():registry.register(tool)

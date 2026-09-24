@@ -13,7 +13,7 @@ import uuid
 from .client import NativeClient
 from .applications import Applications
 from ..models import DesktopControlSession
-from ..task_authority import decode_action, validate_effect, is_composer
+from ..task_authority import decode_action, validate_effect, is_composer, same_control_label
 from ..grounded_steps import next_step
 from ..effect_ledger import EffectLedger
 from ..gui_evidence import messaging_destination, delivery, delivery_rows, search_result
@@ -115,7 +115,8 @@ class LinuxRuntime:
         self.session = await self.native.call('start', timeout=15)
         self.last_session_evidence = self.session
 
-    async def run(self, request, message_id, interpretation=None, continuation_epoch=None):
+    async def run(self, request, message_id, interpretation=None, continuation_epoch=None,
+                  bound_step=None, results=None):
         d = self.desktop
         if self.owner or d.busy():
             raise ValueError('A desktop task is already active')
@@ -130,7 +131,8 @@ class LinuxRuntime:
             self.capabilities = None
             self.reconnect_required = False
         d.stop_event.clear()
-        grant = self.authority.issue(request, message_id, d.configuration(), local_user=True, interpretation=interpretation)
+        grant = self.authority.issue(request, message_id, d.configuration(), local_user=True,
+                                     interpretation=interpretation, bound_step=bound_step, results=results)
         self.owner = asyncio.current_task()
         self.effect_attempted = False
         d.record = DesktopControlSession('Local user-directed ' + grant.scope.effect, id=grant.id)
@@ -150,6 +152,9 @@ class LinuxRuntime:
             d.gateway.require_not_denied(permissions_session, 'system.open_application')
             d.gateway.require_not_denied(permissions_session, 'desktop.inspect_application')
             d.gateway.require_not_denied(permissions_session, 'desktop.control_application')
+            if grant.scope.effect in {'edit_save', 'paste_save'}:
+                from .editor_task import note_path
+                note_path(grant.scope.path)
             # Resolve missing/ambiguous apps and deliberate policy denies before
             # involving a human in any compositor dialog. No app is launched yet.
             preparation_started = True
@@ -158,7 +163,24 @@ class LinuxRuntime:
             async def window_processes():
                 found = await self.native.call('application_windows', {'desktop_id': app.id.removesuffix('.desktop')})
                 return await asyncio.to_thread(self.apps.bind_window_processes, app, found)
-            processes = await asyncio.to_thread(self.apps.processes, app)
+            isolated = None
+            if grant.scope.effect in {'edit_save', 'paste_save'}:
+                launched = await asyncio.to_thread(self.apps.launch_editor_session, app)
+                if launched:
+                    previous, started = launched
+                    deadline = time.monotonic() + 3
+                    while True:
+                        self.check_task(grant)
+                        found = await window_processes()
+                        isolated = [(pid, created) for pid, created in found if pid not in previous and created >= started - .1]
+                        if isolated:
+                            if len(isolated) != 1:
+                                raise ValueError('New editor session identity is ambiguous')
+                            break
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError('Isolated editor session did not expose its new window')
+                        await asyncio.sleep(.1)
+            processes = isolated or await asyncio.to_thread(self.apps.processes, app)
             if not processes:
                 processes = await window_processes()
             if not processes:
@@ -167,6 +189,12 @@ class LinuxRuntime:
                     processes = await self.apps.wait_for_processes(app, d.stop_event, discover=window_processes)
             purpose = 'new_document' if grant.scope.effect in {'edit_save','paste_save'} else 'open' if grant.scope.effect == 'open' else 'exact'
             await self.activate_app(app, processes, purpose=purpose)
+            if bound_step and bound_step.scope.effect == 'read' and bound_step.source:
+                location = results.source_location(bound_step.source, bound_step.scope.application, results.epoch)
+                if d.record.window.get('window_id') != location.window_id:
+                    raise PermissionError('The verified source window was replaced')
+            if isolated:
+                await self.native.call('editor_session', {'pid': processes[0][0], 'created': processes[0][1]})
             if grant.scope.effect == 'open' and d.record.window.get('accessible') is False:
                 await self.native.call('visual_observe', {'pid': processes[0][0]}, timeout=5)
                 self.check_task(grant)
@@ -205,14 +233,21 @@ class LinuxRuntime:
                 observation = await self.observe_app(app, processes)
             except (ValueError, LookupError):
                 if grant.scope.effect in {'send','draft'}:
-                    raise ValueError('MESSAGING_OBSERVATION_UNAVAILABLE: the client does not expose usable scoped controls, and visual account/destination resolution is not verified. No message text was entered.') from None
+                    from .messaging_observation import visual_candidates
+                    return await visual_candidates(self, grant, processes[0][0])
                 if grant.scope.effect != 'click':
                     raise
                 for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
                     d.gateway.require_not_denied(permissions_session, permission)
                 from .visual_task import click
                 return await click(self, grant, processes[0][0])
-            grant = self.authority.bind_account(grant, observation, d.configuration())
+            try:
+                grant = self.authority.bind_account(grant, observation, d.configuration())
+            except ValueError:
+                if grant.scope.effect not in {'send', 'draft'}:
+                    raise
+                from .messaging_observation import visual_candidates
+                return await visual_candidates(self, grant, processes[0][0])
             observation['destination'] = messaging_destination(grant.scope, observation)
             if grant.scope.effect == 'open':
                 d.record.status = 'completed'
@@ -301,7 +336,8 @@ class LinuxRuntime:
                 observation = await self.observe_app(app, processes)
                 observation['destination'] = messaging_destination(grant.scope, observation)
                 d.record.history.append({'operation': proposal['action'], 'status': 'dispatched; re-observed'})
-                if grant.scope.effect == 'click' and proposal['action'] != 'focus':
+                if (grant.scope.effect == 'click' and proposal['action'] in {'click','invoke','key'} and
+                        same_control_label(target['name'], grant.scope.content)):
                     if observation['controls'] == fresh['controls']:
                         raise ValueError('Click dispatched once; no visible change verified')
                     d.record.status = 'completed'
@@ -389,7 +425,17 @@ class LinuxRuntime:
         import psutil
         # Multiple browser helper PIDs/windows are not an invitation to choose one.
         if len(processes) != 1:
-            raise ValueError('NEEDS_USER_CLARIFICATION: application process identity is not unique')
+            if purpose != 'open':
+                raise ValueError('NEEDS_USER_CLARIFICATION: application process identity is not unique')
+            from .window_choice import choose_window
+            rows = await self.native.call('application_windows', {'desktop_id': app.id.removesuffix('.desktop')})
+            allowed = {pid for pid, _ in processes}
+            chosen = choose_window([row for row in rows if row['pid'] in allowed], 'open')
+            if not chosen:
+                raise ValueError('No verified application window')
+            processes = [(pid, created) for pid, created in processes if pid == chosen['pid']]
+            if len(processes) != 1:
+                raise ValueError('Application process lifetime is ambiguous')
         pid, created = processes[0]
         self.apps.verify_process(app, pid, created)
         activation = await self.native.call('activate', {'pid': pid, 'purpose': purpose}, timeout=10)

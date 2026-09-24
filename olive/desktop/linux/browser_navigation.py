@@ -44,6 +44,11 @@ async def navigate(runtime, grant, app, processes):
     d.record.current_action = 'Reading the visible page'
     d.publish()
     locations = await runtime.native.call('document_locations', {'pid':processes[0][0]})
+    if grant.scope.effect == 'read' and grant.scope.content:
+        from ..browser_url import validated_url
+        current = [d for d in locations.get('documents', []) if d.get('ready')]
+        if len(current) != 1 or validated_url(current[0].get('uri','')) != validated_url(grant.scope.content):
+            raise PermissionError('The current page differs from the verified task source')
     page = document_frame(after, locations.get('documents', []))
     text = await asyncio.to_thread(read_frame, page)
     if not text.strip():

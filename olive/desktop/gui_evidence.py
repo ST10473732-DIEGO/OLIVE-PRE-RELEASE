@@ -14,8 +14,15 @@ def enter_sends(control):
     they cannot create an account, destination, content or send grant.
     """
     labels = {str(value).strip().casefold().rstrip('.') for value in control.get('labels', [])}
-    return bool(labels & {'enter to send', 'press enter to send', 'enter sends; shift+enter inserts a newline'}) and not bool(
-        labels & {'enter inserts a newline', 'shift+enter to send', 'press shift+enter to send'})
+    if labels & {'enter inserts a newline', 'shift+enter to send', 'press shift+enter to send'}:
+        return False
+    # The current native action binding is a narrow input contract. It need
+    # not be a separate visible Send button or a literal instructional label.
+    # Generic activate/press names do not prove message submission semantics.
+    bindings = control.get('key_bindings', {})
+    native_send = [name for name in control.get('actions', []) if name.casefold() in {'send', 'send message'}]
+    contract = len(native_send) == 1 and bindings.get(native_send[0]) in {'Return', 'Enter', ';;Return', ';;Enter'}
+    return contract or bool(labels & {'enter to send', 'press enter to send', 'enter sends; shift+enter inserts a newline'})
 
 
 def current_account(observation):
@@ -31,6 +38,10 @@ def messaging_destination(scope, observation):
     accounts = [c for c in controls if c['name'] == 'Account: ' + scope.account
                 and c['role'] in {'label', 'heading', 'push button'}]
     headers = [c for c in controls if c['name'] == scope.destination and c['role'] == 'heading']
+    choices = [c for c in controls if c.get('name') == scope.destination and
+               c.get('role') in {'button','push button','list item','link'}]
+    if len(choices) > 1:
+        return None
     servers = [c for c in controls if c['name'] == scope.server and c.get('selected')]
     if len(accounts) == 1 and len(headers) == 1 and (not scope.server or len(servers) == 1):
         return {'account': scope.account, 'destination': scope.destination, 'server': scope.server}
