@@ -51,6 +51,19 @@ class CodingWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await self.s.coding.create('Denied', 'python', 'Create a timer', self.context)
         self.assertFalse((self.root / 'Denied').exists())
 
+    async def test_owner_starter_creation_has_no_approval_generation_or_run(self):
+        from olive.authority.owner import owner_identity
+        self.s.settings['owner_mode'] = True
+        self.s.settings['owner_installation'] = {'id':'fixture','owner':owner_identity()}
+        self.s.confirmations.handler = AsyncMock(side_effect=AssertionError('redundant approval'))
+        self.s.coding.modify = AsyncMock(side_effect=AssertionError('unrequested source generation'))
+        request = 'Create a Python project named Starter in Studio'
+        with self.s.owner_policy.request(request, self.context.chat_id, local=True, creation_root=str(self.root)):
+            result = await self.s.coding.create('Starter','python',request,self.context)
+        self.assertIn('console starter',result)
+        self.assertTrue((self.root/'Starter'/'main.py').is_file())
+        self.s.confirmations.handler.assert_not_awaited()
+
     async def test_pending_ai_save_preserves_new_editor_typing(self):
         folder = self.root / "project"
         folder.mkdir()

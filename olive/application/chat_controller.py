@@ -119,11 +119,16 @@ class ChatController:
         for task in list(self.generations.values()):
             task.cancel()
 
-    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None):
+    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None):
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
         remote = self.targets.get(chat_id)
+        if observed_text and remote:
+            raise PermissionError('Local screen evidence cannot be sent to Remote AI')
+        if existing_user_message_id and (regenerate or not chat.messages or chat.messages[-1].id != existing_user_message_id or
+                                        chat.messages[-1].role != 'user' or chat.messages[-1].content != text):
+            raise ValueError('The original user message changed before answer generation')
         images = [data for _, data in self.images.get(chat_id, [])]
         try:
             if remote and (images or chat.documents or selected_document_id):
@@ -139,7 +144,7 @@ class ChatController:
             if images and chat.preset != "deep" and not await self.s.ollama.is_vision_model(chat.model):
                 raise ValueError("Choose a vision-capable model before sending images")
         except ValueError:
-            if not regenerate and text.strip():
+            if not regenerate and not existing_user_message_id and text.strip():
                 chat.add_message("user", text.strip())
                 self.s.save_chats()
                 self.s.publish("chat", self.get(chat_id))
@@ -165,7 +170,8 @@ class ChatController:
                 raise ValueError("Enter a message")
             if not chat.messages:
                 chat.title = text[:48]
-            chat.add_message("user", text)
+            if not existing_user_message_id:
+                chat.add_message("user", text)
         user_index = len(chat.messages) - 1
         self.generations[chat_id] = asyncio.current_task()
         self.s.save_chats()
@@ -177,6 +183,7 @@ class ChatController:
         provider = None
         try:
             selection = {"selected_document_id": selected_document_id} if selected_document_id else {}
+            if observed_text:selection['observed_text'] = observed_text
             if remote:
                 stream, provider = self.s.remote_inference.prepare(remote, chat.preset, chat.messages)
                 self.remote_providers[chat_id] = provider

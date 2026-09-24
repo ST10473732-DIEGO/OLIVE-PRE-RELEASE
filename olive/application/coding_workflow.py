@@ -36,6 +36,9 @@ class CodingWorkflow:
         self.s.publish("studio.selection", {"workspace_id": result["id"], "chat_id": context.chat_id})
         self.s.chats[context.chat_id].project_id = result["project_id"]
         self.s.save_chats()
+        from ..authority.owner import starter_request
+        if starter_request(request) == (name, language):
+            return f"Created {name} in Studio using the {language} console starter. No generated changes or project run were requested."
         edited = await self.modify(result["id"], request)
         return f"Created {name} in Studio using {language}. {edited}"
 

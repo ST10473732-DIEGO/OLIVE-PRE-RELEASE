@@ -20,6 +20,14 @@ _current = ContextVar('olive_owner_task', default=None)
 FORBIDDEN_FIELDS = {'approved','owner_mode','permission','ignore_user_policy','disable_stop','grant_root','extra_recipient'}
 
 
+def starter_request(text):
+    match = re.fullmatch(r'(?:Please )?Create (?:a )?(Python|C#|CSharp|Java|JavaScript) project (?:named|called) ([A-Za-z][A-Za-z0-9_-]{0,79}) in Studio[.]?', text.strip(), re.I)
+    if not match:
+        return None
+    language, name = match.groups()
+    return name, {'c#': 'csharp'}.get(language.lower(), language.lower())
+
+
 def owner_identity():
     if hasattr(os,'getuid'):
         return 'uid:'+str(os.getuid())
@@ -42,6 +50,7 @@ class OwnerGrant:
     destination: str
     expiry: float
     cancellation_epoch: int
+    project_spec: tuple = ()
 
 
 class OwnerPolicy:
@@ -54,7 +63,7 @@ class OwnerPolicy:
         return settings.get('owner_mode') is True and identity.get('owner')==owner_identity() and bool(identity.get('id'))
 
     @contextmanager
-    def request(self, text, chat_id, *, local, selected_path='', workspace=''):
+    def request(self, text, chat_id, *, local, selected_path='', workspace='', creation_root=''):
         grant=None
         if local and self.enabled():
             from ..interaction.deliverable import instruction_text, direct_deliverable
@@ -101,11 +110,17 @@ class OwnerPolicy:
             if effect in {'edit', 'fix', 'save', 'create_file'} and len(paths) != 1:
                 capabilities.clear()  # A typed single-file operation needs one target.
             if capabilities:capabilities.update({'filesystem.stat','filesystem.read_text'})
+            project_spec = ()
+            starter = starter_request(text)
+            if starter and creation_root:
+                effect = 'create_project'
+                capabilities = {'studio.new_project'}
+                project_spec = (*starter, str(Path(creation_root).resolve()))
             with self.lock:
                 epoch=self.epochs.get(chat_id,0)
                 grant=OwnerGrant(uuid.uuid4().hex,chat_id,owner_identity(),self.settings()['owner_installation']['id'],
                     hashlib.sha256(text.encode()).hexdigest(),effect,frozenset(capabilities),paths,
-                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch)
+                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch,project_spec)
                 self.active[grant.id]=grant
             from ..interaction.trace import event
             event('owner_task_grant', task_id=grant.id, effect=effect, capabilities=sorted(capabilities),
@@ -162,6 +177,10 @@ class OwnerPolicy:
             if self.active.get(grant.id) is not grant or self.epochs.get(grant.chat_id,0)!=grant.cancellation_epoch or self.clock()>=grant.expiry:return False
         if tool not in {'filesystem.stat', 'filesystem.read_text'} and grant.id in self.used:return False
         if tool not in grant.capabilities or FORBIDDEN_FIELDS & arguments.keys():return False
+        if tool == 'studio.new_project':
+            if not grant.project_spec:return False
+            name, language, location = grant.project_spec
+            return arguments == {'name':name, 'language':language, 'template':'console', 'location':location} and not (Path(location)/name).exists()
         if tool in {'studio.run','workspace.run_validation'}:
             if not grant.workspace or str(Path(arguments.get('workspace','')).resolve())!=grant.workspace:return False
             # Validation commands must come from the existing controller's detector;
@@ -200,6 +219,7 @@ def owner_request(function):
         context=self.context(chat_id)
         workspace=self.s.workspace_repo.load_all().get(context.workspace_id or self.selected_workspace)
         with policy.request(text,chat_id,local=not getattr(self.s.chat,'targets',{}).get(chat_id),
-                            selected_path=self.selected_file or context.entities.get('path',''),workspace=workspace.root_path if workspace else ''):
+                            selected_path=self.selected_file or context.entities.get('path',''),workspace=workspace.root_path if workspace else '',
+                            creation_root=str(self.s.data_dir)):
             return await function(self,text,chat_id,*args,**kwargs)
     return invoke

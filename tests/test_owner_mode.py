@@ -81,12 +81,22 @@ class OwnerModeTests(unittest.IsolatedAsyncioTestCase):
         with self.policy.request('Run my project tests','chat',local=True,workspace=str(self.root)):
             self.assertTrue(self.policy.authorize('workspace.run_validation',args))
             self.assertFalse(self.policy.authorize('studio.run',{'workspace':str(self.root)}))
+
             self.assertFalse(self.policy.authorize('workspace.run_validation',{**args,'commands':[{'executable':'sh'}]}))
         now=[0];self.policy.clock=lambda:now[0]
         with self.policy.request('Run my project','chat',local=True,workspace=str(self.root)):
             self.assertTrue(self.policy.authorize('studio.run',{'workspace':str(self.root)}))
             now[0]=601
             self.assertFalse(self.policy.authorize('studio.run',{'workspace':str(self.root)}))
+
+
+    def test_starter_scope_binds_name_language_location_and_no_run(self):
+        args = {'name':'BudgetApp','language':'csharp','template':'console','location':str(self.root)}
+        with self.policy.request('Create a C# project named BudgetApp in Studio','chat',local=True,creation_root=str(self.root)):
+            self.assertTrue(self.policy.authorize('studio.new_project',args))
+            for key,value in [('name','Different'),('language','python'),('location','/tmp'),('template','web')]:
+                self.assertFalse(self.policy.authorize('studio.new_project',{**args,key:value}))
+            self.assertFalse(self.policy.authorize('studio.run',{'workspace':str(self.root/'BudgetApp')}))
 
     def test_code_payload_and_answer_requests_never_grant(self):
         path=self.root/'code.py'

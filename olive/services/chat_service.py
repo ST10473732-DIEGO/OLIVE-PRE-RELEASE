@@ -34,8 +34,9 @@ class ChatService:
         user_text: str,
         image_base64: list[str] | None = None,
         selected_document_id=None,
+        observed_text='',
     ) -> tuple[AsyncIterator[str], "PreparedGeneration"]:
-        return await self.pipeline.stream(chat, user_text, image_base64, selected_document_id)
+        return await self.pipeline.stream(chat, user_text, image_base64, selected_document_id, observed_text=observed_text)
 
     async def summarize(self, chat: Chat) -> str:
         if not chat.messages:

@@ -50,12 +50,12 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
     async def test_duplicate_request_executes_once_and_changed_arguments_rejected(self):
         host = Host(lambda event: None)
         host.execute = AsyncMock(return_value={'done':True})
-        request = dict(v=1,id='same',method='chat.get',args={'chat_id':'chat'})
+        request = dict(v=1,id='same',method='chat.draft',args={'chat_id':'chat','text':'owned'})
         results = await asyncio.gather(host.handle(request),host.handle(request))
         self.assertEqual(results,[{'done':True}]*2)
         host.execute.assert_awaited_once()
         with self.assertRaises(ValueError):
-            await host.handle(dict(request,args={'chat_id':'another'}))
+            await host.handle(dict(request,args={'chat_id':'another','text':'owned'}))
 
     async def test_approval_binds_arguments_and_cannot_be_reused(self):
         from olive.agent.confirmation_service import ConfirmationRequest

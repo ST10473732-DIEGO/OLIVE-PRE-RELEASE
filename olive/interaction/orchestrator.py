@@ -90,8 +90,8 @@ class NaturalLanguageOrchestrator:
         # Only literal local user input reaches native task authority. Remote targets
         # and Studio selection never acquire desktop scope through interpretation.
         native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
-        native_allowed = bool(native and not research_mode and not context.workspace_id and
-            not self.selected_workspace and not getattr(self.s.chat, 'targets', {}).get(chat_id) and
+        native_allowed = bool(native and not research_mode and
+            not getattr(self.s.chat, 'targets', {}).get(chat_id) and
             self.s.desktop.configuration().get('trusted_tasks'))
         if native_allowed:
             from ..desktop.task_plan import explicit_plan
@@ -136,7 +136,15 @@ class NaturalLanguageOrchestrator:
                     {"intent": "research.start", "entities": {"query": text}, "references": {}}]}
             else:
                 context.research_depth = None
-                interpretation = await self.interpreter.interpret(text, snapshot)
+                from ..authority.owner import starter_request
+                starter = starter_request(text)
+                if starter:
+                    interpretation = {'confidence':1, 'clarification':'', 'steps':[
+                        {'intent':'project.create', 'entities':{'project':starter[0], 'language':starter[1], 'query':text}, 'references':{}}]}
+                else:
+                    from .ordinary_requests import file_transfer
+                    transfer = file_transfer(text)
+                    interpretation = transfer or await self.interpreter.interpret(text, snapshot)
             context.last_interpretation = deepcopy(interpretation)
             if chat_id not in self.active:
                 context.resolved_steps = []
@@ -313,6 +321,12 @@ class NaturalLanguageOrchestrator:
                             break
                         epoch = native.authority.epoch
                         trace_event('subgoal_verified', index=index)
+                if plan.summarize and self.s.desktop.record.status == 'completed':
+                    self.s.publish('interaction_activity', {'chat_id':chat_id, 'message':'Summarising the verified visible page…'})
+                    # Evidence goes only to answer generation, never interpretation
+                    # or a tool planner. The original request remains the user turn.
+                    return await self.s.chat.send(chat_id, text, observed_text=results[-1],
+                                                  existing_user_message_id=message.id)
                 result = '\n\n'.join(f'{i+1}. {value}' for i,value in enumerate(results))
             return self.reply(chat_id, text, result, append_user=False)
         except (ValueError, PermissionError, InterruptedError) as error:
