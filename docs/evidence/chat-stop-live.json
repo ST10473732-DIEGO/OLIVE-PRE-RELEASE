@@ -1,0 +1,45 @@
+{
+  "launch": "normal desktop entry; native KDE Wayland",
+  "route": "actual Chat Stop response button handler, invoked programmatically while Firefox remains active",
+  "before_stop": {
+    "status": "running",
+    "task_id": "d665ae9df08a45c29ced9c1b555c071f",
+    "application": "Firefox",
+    "window_active": true,
+    "input_stopped": false,
+    "helper_cleanup_completed": false
+  },
+  "stopped": {
+    "status": "cancelled",
+    "task_id": "d665ae9df08a45c29ced9c1b555c071f",
+    "application": "Firefox",
+    "window_active": true,
+    "input_stopped": true,
+    "helper_cleanup_completed": false
+  },
+  "observed_stop_ms": 29.90169700000024,
+  "cleanup": {
+    "status": "cancelled",
+    "task_id": "d665ae9df08a45c29ced9c1b555c071f",
+    "application": "Firefox",
+    "window_active": true,
+    "input_stopped": true,
+    "helper_cleanup_completed": true
+  },
+  "fresh_task": "completed",
+  "watchdog": {
+    "helper_exited": true,
+    "observed_ms": 1728.7903629999983
+  },
+  "heartbeat_loss": "SIGSTOP only the owned OLIVE backend; SIGCONT in finally; independent native helper exited",
+  "before_watchdog": {
+    "status": "running",
+    "task_id": "544d3bddc2dc41028a2b29680b218688",
+    "application": "Firefox",
+    "window_active": true,
+    "input_stopped": false,
+    "helper_cleanup_completed": false
+  },
+  "after_watchdog": "completed",
+  "limitation": "Observed application stop flag and cleanup/helper exit; not a hardware latency bound or physical shortcut test"
+}

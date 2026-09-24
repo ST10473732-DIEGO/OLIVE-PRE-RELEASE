@@ -25,13 +25,29 @@ cannot extend its resources. Model fields such as `approved`, `owner_mode`,
 `extra_recipient` cannot confer authority.
 
 Implemented silent tool authorization covers resolved ordinary file copy/move,
-scoped single-file creation/editing and detected Studio run/validation. Other
+single-file Trash, scoped creation/editing, detected Studio run/validation and
+explicit named console starter creation in Python, C#, Java and JavaScript. Other
 capabilities retain their existing typed controllers and user-request contracts;
 this is not a claim that every listed OS capability is implemented. Unresolved
 relative paths still require target resolution. Overwrite on copy/move remains
 blocked, and security-credential directories use the separate high-impact path.
-Ordinary delete-to-Trash and broader OS settings need their own supported typed
-operations; no unrestricted terminal or root tool was introduced.
+Ordinary single-file deletion uses the typed `filesystem.trash` operation and
+Send2Trash; it never falls back to permanent deletion. Direct literal file
+contents are bound by a digest, so a model cannot change them. Broader OS settings
+remain limited to existing supported capabilities; no unrestricted terminal or
+root tool was introduced.
+
+| Capability | This milestone |
+|---|---|
+| App launch/focus, scoped observation/input, browser navigation/search | Existing unified task broker, explicit local task, no new per-click approval |
+| Copy/move/create/edit and single-file Trash | Owner task policy binds exact resources; no redundant Ask; collisions and Deny preserved |
+| Named Studio console starter, run and detected validation | Scoped existing controllers; no extra approval for the covered task; validation is not a claim that a starter contains a unit-test suite |
+| Explicit messaging | Existing finite send grant; owned visible client tested; native/web Discord account/composer integration incomplete |
+| Clipboard write / explicit paste | Trusted Copy IPC and existing task-scoped paste; no background clipboard read or remote exposure |
+| Git, package installation, Bluetooth and every other listed ordinary OS/app capability | No blanket Owner Mode coverage claimed. Existing supported workflows remain; a complete capability-by-capability automatic-Ask migration is NOT_IMPLEMENTED |
+
+Thus the setting is a first-class policy with live coverage for the rows above,
+not a declaration that all ordinary operations across all apps now auto-authorize.
 
 Explicit permission Deny is evaluated before Owner Mode. A move checks write
 restrictions on both source and destination. File targets must remain owned and
@@ -77,13 +93,40 @@ it preserves unrelated settings. The receipt stays outside Git.
 
 ## Acceptance status
 
-Policy fixtures currently pass actual owned-file move/edit with zero prompts,
-Deny, reverse/changed target, remote context, quoted/source injection,
-self-approval fields, symlink, expiry, Stop/fresh task, detected workspace commands,
-and migration idempotency/rollback checks. These are **FIXTURE_ONLY** authority
-checks until the production Chat acceptance matrix is completed. Native Copy and
-Kate paste live proof belongs to the Chat repair report; it is not itself proof
-of all Owner Mode effects.
+**IMPLEMENTED_AND_LIVE_TESTED:** normal installed-entry Chat created a Python
+file, edited its exact contents, moved it and sent it to the actual system Trash
+with **zero approval prompts**. The known Trash payload hash matched the original
+owned fixture. No private Trash contents were inspected. Production Chat also
+created Python and Java Studio starters, validated them and ran the Python
+starter without redundant approval. The final restart check also selected a
+workspace through Studio, opened a new Chat and ran that project with exit 0
+and expected stdout, using a typed scoped workspace reference. Answer-only,
+new-code/preview and remote requests cannot inherit that reference as authority.
+See `docs/evidence/chat-closing-live.json`. Native Firefox search, Dolphin transfer,
+owned GTK messenger sends and a generic KCalc control completed through the
+existing desktop task executor. See `docs/evidence/chat-owner-live.json` and
+`chat-combined-live.json`; fixture delivery is not external message delivery.
+
+The production Chat Stop handler was tested while Firefox retained focus:
+stopped state was observed in 29.90 ms, then cleanup completed. Suspending the
+owned backend's heartbeat made the independent helper exit in 1,728.79 ms.
+New explicit tasks recovered after both tests without old-task replay. These
+measurements do not claim physical shortcut testing or hardware release latency.
+See `docs/evidence/chat-stop-live.json`.
+
+**FIXTURE_ONLY** authority/adversarial checks cover explicit Deny, source-write
+Deny on move, reverse/changed target, remote context, quoted/source injection,
+all seven self-approval fields, symlinks, expiry, Stop/fresh grants, detected
+workspace commands and migration idempotency/rollback. These checks preserve
+Connect's independent Ask/Off/Allow behavior. User-requested delete grants Trash,
+never the critical permanent-delete operation. A file or workspace already
+selected in the UI does not grant an answer-only request modification rights.
+
+Send2Trash 2.1.0 (BSD-3-Clause) is a normal Python dependency. Its wheel and Linux
+implementation were inspected before installation into the existing venv;
+SHA-256 `0da2f112e6d6bb22de6aa6daa7e144831a4febf2a87261451c4ad849fe9a873c`.
+Rollback of the feature uses Git revert and the migration receipt. No system
+package manager, root privilege or shell interpolation handles file contents.
 
 The existing executor, permission service, desktop gateway and app controllers
 form the broker boundary for future separate apps. No root daemon, OLIVE OS,

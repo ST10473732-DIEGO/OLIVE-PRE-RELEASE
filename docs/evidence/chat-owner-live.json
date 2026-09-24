@@ -1,0 +1,331 @@
+{
+  "launch": "installed desktop entry on native KDE Wayland",
+  "owner_mode_enabled": true,
+  "permission_reprovisioned": false,
+  "attempts": [
+    {
+      "case": 1,
+      "kind": "file_create",
+      "request_sha256": "319c49f884c933dd8dc1f96d9f8514c6f8bb27f3d6d276935040088cabb7aeab",
+      "approval_prompts": 0,
+      "answer": "The requested file contents were saved and read back exactly.",
+      "desktop_session": null,
+      "identity": null
+    },
+    {
+      "case": 2,
+      "kind": "file_edit",
+      "request_sha256": "8cd43c3c9105e674ffaf35dbd39cd5f577eb60b877aaf629c31455ec197a840a",
+      "approval_prompts": 0,
+      "answer": "The requested file contents were saved and read back exactly.",
+      "desktop_session": null,
+      "identity": null
+    },
+    {
+      "case": 3,
+      "kind": "file_move",
+      "request_sha256": "705860eea48d1c2143ccd3900e0b37886eb474c2e7ef804a231d68cd6853b169",
+      "approval_prompts": 0,
+      "answer": "The file was moved.",
+      "desktop_session": null,
+      "identity": null
+    },
+    {
+      "case": 4,
+      "kind": "file_trash",
+      "request_sha256": "999599e87a25b2bb9072d54d9d5b09ca7f8feddf99e0bb8f9a3783904e7ec768",
+      "approval_prompts": 0,
+      "answer": "The requested file was moved to Trash. It was not permanently deleted.",
+      "desktop_session": null,
+      "identity": null
+    },
+    {
+      "case": 5,
+      "kind": "discord_firefox_visit",
+      "request_sha256": "83a24444658e01cf45e6f01e48de3a2cb0cf3395afbd0ebba5441a0dd2b00182",
+      "approval_prompts": 0,
+      "answer": "The requested URL is exposed by the active visible browser document after navigation; a fresh frame was captured without reading page content.",
+      "desktop_session": {
+        "task": "Local user-directed visit",
+        "application": "Firefox",
+        "window": {
+          "active": true,
+          "accessible": true,
+          "window_id": "{e7bcadfe-ee6e-4dc3-8915-577cd3009934}",
+          "bounds": [
+            1920,
+            0,
+            1920,
+            1080
+          ],
+          "output": "DP-4",
+          "input_region": [
+            1920,
+            0,
+            1920,
+            1080
+          ],
+          "mapping_id": "DP-4"
+        },
+        "id": "d3d1c4315def4e619531748001aaa662",
+        "status": "completed",
+        "started_at": "2026-09-24T12:45:50+00:00",
+        "last_activity": "2026-09-24T12:45:50+00:00",
+        "capabilities": [],
+        "current_action": "Verifying the visible results",
+        "verification": "The requested URL is exposed by the active visible browser document after navigation; a fresh frame was captured without reading page content.",
+        "history": [
+          {
+            "operation": "new_tab",
+            "status": "dispatched; fresh scoped frame observed"
+          },
+          {
+            "operation": "address",
+            "status": "dispatched; fresh scoped frame observed"
+          },
+          {
+            "operation": "type_query",
+            "status": "dispatched; fresh scoped frame observed"
+          },
+          {
+            "operation": "submit",
+            "status": "dispatched; fresh scoped frame observed"
+          }
+        ]
+      },
+      "identity": {
+        "app_id": "local.dmdo.desktop",
+        "peer": ":1.11990",
+        "registered_on_portal_connection": true,
+        "permission": [
+          "yes"
+        ],
+        "remote_session": true,
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "case": 6,
+      "kind": "owned_messenger_then_firefox",
+      "request_sha256": "3388b8e3fd001b239e8eb2c71d5adc6bd915e3c8098b90d7cb2eb8fdca8a9009",
+      "approval_prompts": 0,
+      "answer": "1. The intended destination shows the exact outgoing message with a Sent/Delivered indicator.\n\n2. The requested installed application has a visible accessible window.",
+      "desktop_session": {
+        "task": "Local user-directed open",
+        "application": "Firefox",
+        "window": {
+          "active": true,
+          "accessible": true,
+          "window_id": "{e7bcadfe-ee6e-4dc3-8915-577cd3009934}",
+          "bounds": [
+            1920,
+            0,
+            1920,
+            1080
+          ],
+          "output": "DP-4",
+          "input_region": [
+            1920,
+            0,
+            1920,
+            1080
+          ],
+          "mapping_id": "DP-4"
+        },
+        "id": "0feef06789ef42328947f22dda25db64",
+        "status": "completed",
+        "started_at": "2026-09-24T12:45:57+00:00",
+        "last_activity": "2026-09-24T12:45:57+00:00",
+        "capabilities": [],
+        "current_action": "Starting local desktop task",
+        "verification": "The requested installed application has a visible accessible window.",
+        "history": []
+      },
+      "identity": {
+        "app_id": "local.dmdo.desktop",
+        "peer": ":1.11990",
+        "registered_on_portal_connection": true,
+        "permission": [
+          "yes"
+        ],
+        "remote_session": true,
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "case": 7,
+      "kind": "owned_messenger_then_dolphin",
+      "request_sha256": "dc52303ca91a82cebd7a37ae4241db1abcfb9be9edab96c10fb734faa1c54259",
+      "approval_prompts": 0,
+      "answer": "1. The intended destination shows the exact outgoing message with a Sent/Delivered indicator.\n\n2. The requested installed application has a visible accessible window.",
+      "desktop_session": {
+        "task": "Local user-directed open",
+        "application": "Dolphin",
+        "window": {
+          "active": true,
+          "accessible": true,
+          "window_id": "{ea2e3961-f1a7-4fb0-b061-ddeef05303cf}",
+          "bounds": [
+            817.0725959058286,
+            224.56749694544965,
+            760,
+            630
+          ],
+          "output": "HDMI-A-5",
+          "input_region": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "mapping_id": "HDMI-A-5"
+        },
+        "id": "0558588bcba74d24a3f917c999819925",
+        "status": "completed",
+        "started_at": "2026-09-24T12:46:03+00:00",
+        "last_activity": "2026-09-24T12:46:03+00:00",
+        "capabilities": [],
+        "current_action": "Starting local desktop task",
+        "verification": "The requested installed application has a visible accessible window.",
+        "history": []
+      },
+      "identity": {
+        "app_id": "local.dmdo.desktop",
+        "peer": ":1.11990",
+        "registered_on_portal_connection": true,
+        "permission": [
+          "yes"
+        ],
+        "remote_session": true,
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "case": 8,
+      "kind": "kcalc_open_click",
+      "request_sha256": "84dc6d9aeb4d7501ffac005ef65f70e1908881a3a0ee0886da5c7be4027d7ac2",
+      "approval_prompts": 0,
+      "answer": "1. The requested installed application has a visible accessible window.\n\n2. Clicked the uniquely named control in the requested application and observed changed controls.",
+      "desktop_session": {
+        "task": "Local user-directed click",
+        "application": "KCalc",
+        "window": {
+          "active": true,
+          "accessible": true,
+          "window_id": "{5a238bfb-b489-4d02-8caf-04b0d916ed35}",
+          "bounds": [
+            640,
+            299,
+            640,
+            480
+          ],
+          "output": "HDMI-A-5",
+          "input_region": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "mapping_id": "HDMI-A-5"
+        },
+        "id": "8b10fc95206042f4af803c9c44891eaa",
+        "status": "completed",
+        "started_at": "2026-09-24T12:46:05+00:00",
+        "last_activity": "2026-09-24T12:46:05+00:00",
+        "capabilities": [],
+        "current_action": "Navigating the application",
+        "verification": "Clicked the uniquely named control in the requested application and observed changed controls.",
+        "history": [
+          {
+            "operation": "focus",
+            "status": "dispatched; re-observed"
+          },
+          {
+            "operation": "key",
+            "status": "dispatched; re-observed"
+          }
+        ]
+      },
+      "identity": {
+        "app_id": "local.dmdo.desktop",
+        "peer": ":1.11990",
+        "registered_on_portal_connection": true,
+        "permission": [
+          "yes"
+        ],
+        "remote_session": true,
+        "streams": [
+          [
+            116,
+            {
+              "mapping_id": "HDMI-A-5",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                1920,
+                1080
+              ],
+              "source_type": 1
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "trash_verification": {
+    "original_absent": true,
+    "trash_payload_sha256": "e2ebf91b64053606c4db5b77e55c3384691bc6d65a7a9a934e87307e813ded42",
+    "expected_sha256": "e2ebf91b64053606c4db5b77e55c3384691bc6d65a7a9a934e87307e813ded42",
+    "location": "same-filesystem freedesktop Trash"
+  }
+}

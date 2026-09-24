@@ -47,3 +47,15 @@ No control was removed merely because it resembled another control. A later
 separate-app design proposal can simplify navigation with usage evidence; this
 repair makes no broad layout, typography, icon or colour changes. Historical
 freeze manifests remain immutable; the repair scope ledger records actual edits.
+
+## Tested selected-workspace contract
+
+Normal Chat may carry a typed Studio workspace ID without copying app data.
+`olive/interaction/workspace_reference.py` binds it only for explicit local
+existing-project actions before owner grant construction. It rejects stale IDs
+and ignores the reference for answer-only code, new-code/preview requests and
+remote targets. Tests select workspace B while the conversation formerly held A
+and verify that only B runs, with no redundant approval. A real normal-launch
+Studio-selection → new Chat → “Run my project” check also completed with exit 0.
+This closes a concrete app/Core handoff without making selected UI state itself
+authority or starting another runtime. Evidence: `chat-closing-live.json`.

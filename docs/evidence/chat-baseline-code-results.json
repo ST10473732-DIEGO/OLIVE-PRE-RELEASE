@@ -1,0 +1,728 @@
+{
+  "route": "production Electron Chat, isolated owned profile",
+  "case_count": 24,
+  "language_count": 8,
+  "cases": [
+    {
+      "language": "Python",
+      "preset": "fast",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3:8b",
+        "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "preset": "fast"
+      },
+      "seconds": 4.322,
+      "request_sha256": "323d5e641c35171ad25692e601e27bb9d64da793b85d01291e49ca9c36c3d04b",
+      "prompt_sha256": "e670a91c0162a95583611652629d4d38aab11ade3423826426a35a1a3450c352",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "num_predict": 2048,
+        "num_ctx": 4096,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 459,
+      "answer_sha256": "854a3b1f3e670819b278c831a9a756143e21c800daf64ad2f4a0f74bdb32b2eb",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Python",
+      "preset": "fast",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3:8b",
+        "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "preset": "fast"
+      },
+      "seconds": 1.29,
+      "request_sha256": "a1e85881499bae8baddd093dcf1077440dce29380a6aca498711bead0f0105fc",
+      "prompt_sha256": "5d186f9cbbf471d36b981e9aa13b296b9b4be0e606f9161a1725a1202dc57330",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "num_predict": 2048,
+        "num_ctx": 4096,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 144,
+      "answer_sha256": "ba1fb74a61396c5f2098085eee81c38aa1189cd795dd92ee305e38bc70f3b4ef",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Python",
+      "preset": "fast",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3:8b",
+        "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "preset": "fast"
+      },
+      "seconds": 3.309,
+      "request_sha256": "1dc2ac356dc69e1730aa20b4e8f9c45a9e1ad1cc80585598f3dae096187c7396",
+      "prompt_sha256": "31977aab0e0e875301b764854e33910e2ade479a4b652e6a1a8e63ae9455cc13",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "num_predict": 2048,
+        "num_ctx": 4096,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 633,
+      "answer_sha256": "0908b3b901c4564b4c46266d9db060bfbbefc681ce19e0f3cf9d2efad84b0668",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "C#",
+      "preset": "fast",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3:8b",
+        "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "preset": "fast"
+      },
+      "seconds": 2.294,
+      "request_sha256": "b8df587541473bf4b82dfd2cfac5c65dcdd49b5d6b11556de41ca4c55a40f38b",
+      "prompt_sha256": "6acf6b072b678ea4b306a971ab22dba6d13b32dd694e35188ef772a58cf91f64",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "num_predict": 2048,
+        "num_ctx": 4096,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 320,
+      "answer_sha256": "a5df240502aa61175d53a66c8f7358e090c0723a96e3efe10cc72fc17afd0c87",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "C#",
+      "preset": "fast",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3:8b",
+        "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "preset": "fast"
+      },
+      "seconds": 2.289,
+      "request_sha256": "c6c2f9a6799334364bf8fb854abf39b6922a45c41c9a707193729ed0ddb6da2e",
+      "prompt_sha256": "c9cdb514d8721b31bdb6d6bd73718587157172071384c1abda76cef9e2acacb6",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "num_predict": 2048,
+        "num_ctx": 4096,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 288,
+      "answer_sha256": "a00a9861676eb75225a3854d6967e7e0d163d4e64bfae89c36cbff0dcee08809",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "C#",
+      "preset": "fast",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3:8b",
+        "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "preset": "fast"
+      },
+      "seconds": 3.308,
+      "request_sha256": "d628f89d8f31e19116c92367e32f4c19da8a4efe60092a177a24185b884091db",
+      "prompt_sha256": "4db289c03f39e643200e00d1b4b0e216a0d7a7566fb680c872caed1b2d51eb22",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "num_predict": 2048,
+        "num_ctx": 4096,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 677,
+      "answer_sha256": "5bb52c774e12cbe0493e0f3e45f382737af78096ee18622519a40d19d64875e3",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Java",
+      "preset": "normal",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "normal"
+      },
+      "seconds": 7.342,
+      "request_sha256": "bbb6077834a570fe94accde80d56acd0fa330be01a965f7e489d6a0e02812c0d",
+      "prompt_sha256": "8f655e29e2014cc8d86c04759b6c2acb989aa219b5e9432a0dc3435c7e321ec1",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "num_predict": 4096,
+        "num_ctx": 8192,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 1036,
+      "answer_sha256": "4102982f8a3197afff3e47bedd61e89c17ef335ec15ba7551c02d9e6770ed250",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Java",
+      "preset": "normal",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "normal"
+      },
+      "seconds": 3.303,
+      "request_sha256": "3b2a3a69b64e0cc78302b71f33116c5a652c8f162ea3723b9f48338e103c4766",
+      "prompt_sha256": "765f2196a493e97de826023faebda9ea5e45f751f04bbfdd3c3d3b3ea1a11682",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "num_predict": 4096,
+        "num_ctx": 8192,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 862,
+      "answer_sha256": "0a0faf524357c37b55a11c9845c970f2d1cc8ba562e263fe1de0398ac2d8337d",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Java",
+      "preset": "normal",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "normal"
+      },
+      "seconds": 4.312,
+      "request_sha256": "d8e92065b6b75988bb667655255723093136e5c832326b4cd50bf1bf802effe9",
+      "prompt_sha256": "95edd29f2757f8cf5e973c8a6532a8191dbe82b1098e48fae5438228fb750bec",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "num_predict": 4096,
+        "num_ctx": 8192,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 1145,
+      "answer_sha256": "27455764dbf11a3d4bf5d6302ee03bfae92fdceafd4c856af22a8bade3458b22",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "JavaScript",
+      "preset": "normal",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "normal"
+      },
+      "seconds": 4.314,
+      "request_sha256": "96e982621d7e3bf725505fc981ef2e17bedd7d0440558172c172d69c53883cab",
+      "prompt_sha256": "1e212981d7a203f21a14b14046c456e85d10f8b7b4b09c1c7de9d1448760e5ab",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "num_predict": 4096,
+        "num_ctx": 8192,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 818,
+      "answer_sha256": "b6a8e75551665781a441a6f5f9c17d30c70a25578e2b8b0467039a1be96ceb32",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "JavaScript",
+      "preset": "normal",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "normal"
+      },
+      "seconds": 2.293,
+      "request_sha256": "0f9b4d0810727622050abfe49bf94c412f360eef1d8ec8d4f42aa4e598639303",
+      "prompt_sha256": "adeeb9724514f2e949393228ac9a3a4ffd2d42bdb038e32a762a88c504411dae",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "num_predict": 4096,
+        "num_ctx": 8192,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 419,
+      "answer_sha256": "d197b81d662cf9310ae368428c2c4faa4836796e432381a3f8a66a4abd7d2555",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "JavaScript",
+      "preset": "normal",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "normal"
+      },
+      "seconds": 4.3,
+      "request_sha256": "fc383d3fb1f7cb088895a04d63fddf191e3db01434da4b184e425e331b7a25ff",
+      "prompt_sha256": "c1f0f717a16bb4c7435263e58d320e568dc97b914f6599c3dad84014114cd3ef",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "num_predict": 4096,
+        "num_ctx": 8192,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 1090,
+      "answer_sha256": "0b1ea62e9bcf4af9342d0411fc2c5949a645278e780f8818ad8b3dd1d219921f",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "TypeScript",
+      "preset": "max",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3-coder:30b",
+        "digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+        "preset": "max"
+      },
+      "seconds": 8.363,
+      "request_sha256": "5e8042fb10bb0565942cda34b1a19b6d5f47abe6b3abdd3376afa08098d4153b",
+      "prompt_sha256": "841ce1d330a4c18e6660e0530884df48a3e32d622f7f904c9b67782712828fa0",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 8192,
+        "num_ctx": 16384,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 859,
+      "answer_sha256": "a107caefb2f3523682f7d5128310ce26a7ff8aa597059767d5495e9c57ce6535",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "TypeScript",
+      "preset": "max",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3-coder:30b",
+        "digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+        "preset": "max"
+      },
+      "seconds": 3.305,
+      "request_sha256": "bf88da361e1683bb2e825ce824e680e6d27001ca83eed30aa420ffac96e4d950",
+      "prompt_sha256": "592d293b6f103ab8271a3e2910f4f726d306ff6bd23fe8a91610f61e4c4e1d42",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 8192,
+        "num_ctx": 16384,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 626,
+      "answer_sha256": "8c691a27049f5f59e3042546e5499be93f09bc3091316e0b36023e4eaf190031",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "TypeScript",
+      "preset": "max",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3-coder:30b",
+        "digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+        "preset": "max"
+      },
+      "seconds": 3.304,
+      "request_sha256": "a18730939044c9fa5c6fb429ee0df2fc8161955e9be2f0809da10958dcac36aa",
+      "prompt_sha256": "695a9cd271a4a37bf82ed9494231f5b7df41c4f10aa12a9e86260e869eff3f2a",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 8192,
+        "num_ctx": 16384,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 722,
+      "answer_sha256": "e0b658e70cb6e69db920fbed1e6ba3ae3b7ed74effdbc8ce8886ad7b0579464c",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Rust",
+      "preset": "max",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3-coder:30b",
+        "digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+        "preset": "max"
+      },
+      "seconds": 9.369,
+      "request_sha256": "b4d214681b2b580615ed53d2698b66a83b292d5b0492a3bed732fd658b4aed7c",
+      "prompt_sha256": "2a620d57434764c3fb43db44d5954293ce726c8c7e235374c2bd899b7853ae1c",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 8192,
+        "num_ctx": 16384,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 1202,
+      "answer_sha256": "a021e180cc9b66cf3d34d92d16acf2c5beeff068b922a5003788dbf0c4bca743",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Rust",
+      "preset": "max",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3-coder:30b",
+        "digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+        "preset": "max"
+      },
+      "seconds": 3.31,
+      "request_sha256": "853cac39fdad534ed563b15695ced0b41d1be273e6f89378d52d7a8e0c6bba5e",
+      "prompt_sha256": "b8780491205272296e1935983dd3b350d63ea8fca5358e412af58beb7190ed1c",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 8192,
+        "num_ctx": 16384,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 585,
+      "answer_sha256": "ca6afce98f7574ac9fbaafc77d2462a2e4f74d2df3b2188d4346bdd0b7287d24",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Rust",
+      "preset": "max",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "qwen3-coder:30b",
+        "digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+        "preset": "max"
+      },
+      "seconds": 3.306,
+      "request_sha256": "0de293c6fb09942e3972f9cca71b33650cbd115038e4c68bb93d987093eee182",
+      "prompt_sha256": "2a0e2867f2d37e805a0291a53dd9cb468e52afa98cc1ece71e1b6f314628d566",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 8192,
+        "num_ctx": 16384,
+        "repeat_penalty": 1.08
+      },
+      "thinking": false,
+      "schema_sha256": null,
+      "visible_characters": 686,
+      "answer_sha256": "76bbe3b82af1a387d6e81ff53bd87561cf5376408bba2c970f84fc3ff0c2f67f",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Go",
+      "preset": "deep",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "deep"
+      },
+      "seconds": 6.341,
+      "request_sha256": "0a91d1ecd6983198d93c750a6828489df4a33e7d37a8ab465e8412bd5bab8b8f",
+      "prompt_sha256": "ab2c9fc1b363ca08008153d6945e71e4c8b637c0df646b12066879defc01e6a9",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 6144,
+        "num_ctx": 12288,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 773,
+      "answer_sha256": "f13da8d15517fd6d33f4f655d8238c44992c5c22d24a8c600d970ebb0a1e0189",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Go",
+      "preset": "deep",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "deep"
+      },
+      "seconds": 3.309,
+      "request_sha256": "742aa8422614a27dfe4631657f8cd05331a32c42c2d35df345d6e7c4bc497d4c",
+      "prompt_sha256": "6e4d338bf48ca14f4cc200d9b5e64b0110eb24ac52d9abb11be5ad9843bbad48",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 6144,
+        "num_ctx": 12288,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 678,
+      "answer_sha256": "686481e571b07c6a3a36a0dc3463a26055c416394ea4def5d2182bf6a699aeb9",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Go",
+      "preset": "deep",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "deep"
+      },
+      "seconds": 4.31,
+      "request_sha256": "83d6e6d0fd5b1bbd0e0e93471aa238de33730997035f374840f53107e3526097",
+      "prompt_sha256": "85fc0b83657cc400b01e415c7ca48f63ebcb5e46f48f53c400f5226c7e146ecf",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 6144,
+        "num_ctx": 12288,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 763,
+      "answer_sha256": "d643189d137018a45cbe360b8c7b1325e9e052fedf3c5d0846879af0ebb6445c",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Swift",
+      "preset": "deep",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "deep"
+      },
+      "seconds": 3.302,
+      "request_sha256": "1f93a71b493d7b6c96e224cff479763aee4e5508c218c1028bc75884c63d9935",
+      "prompt_sha256": "d4ca53b48fbf751505e51035b4caa97785c0dea1cf582d750937fc11d908ed21",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 6144,
+        "num_ctx": 12288,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 414,
+      "answer_sha256": "907f4cd503216d1554c246ad70eecb8d86b7153ac1d8a954a3f7df741173ccbf",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Swift",
+      "preset": "deep",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "deep"
+      },
+      "seconds": 3.306,
+      "request_sha256": "ac9b52302cc9679dde59cca8d7f890f022feabd8f9c4accd891d3fc45e2c4fb9",
+      "prompt_sha256": "fce554d725733bd0a28943c28ebf5bb8a030ce9b68655b4dc9ef06b2b1b00673",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 6144,
+        "num_ctx": 12288,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 724,
+      "answer_sha256": "389f11de9c1c41d657d126b3a1b125b120c09bf02d756563f3ebf7a77722f088",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    },
+    {
+      "language": "Swift",
+      "preset": "deep",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "gpt-oss:20b",
+        "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+        "preset": "deep"
+      },
+      "seconds": 4.327,
+      "request_sha256": "a28dc966a84ae35a809bf4a5fb9a9cd3cf453233176c282fc25b1d2a606f9a07",
+      "prompt_sha256": "a7d0409aabb88ef4a1166b059302fec54462705eb8b2f282b5234996cb3cab54",
+      "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+      "options": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "num_predict": 6144,
+        "num_ctx": 12288,
+        "repeat_penalty": 1.08
+      },
+      "thinking": "low",
+      "schema_sha256": null,
+      "visible_characters": 996,
+      "answer_sha256": "838620c5446a16ecce29a304fb83cb2ba7a97d7781b1d38726a1c007a77bac5f",
+      "fenced_code": true,
+      "completion_state": "complete",
+      "workspace_count": 0,
+      "run_count": 0,
+      "effect_attempt_stages": []
+    }
+  ],
+  "limits": "Mixed current presets, contexts and output budgets; not an equivalent-base causal ablation. Compilation/behavior evaluated separately."
+}

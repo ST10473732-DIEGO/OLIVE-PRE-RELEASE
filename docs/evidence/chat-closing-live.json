@@ -1,0 +1,32 @@
+{
+  "launch": "normal installed desktop entry, native KDE",
+  "studio": {
+    "route": "select owned Python workspace using existing Studio UI, new normal Chat: Run my project",
+    "state": "completed",
+    "exit_code": 0,
+    "stdout_sha256": "d5f3fd5623277b470d88330491214300e6066455b34396ce6c07d880039f70e6",
+    "expected_stdout": "Hello, OLIVE! with terminal CRLF",
+    "approval_prompts": 0
+  },
+  "search_summary": {
+    "request": "Open Firefox and search for sedimentary rock layers; then summarize the results in Chat",
+    "state": "completed",
+    "verification": "The visible browser page was read from a fresh desktop frame. OCR text may contain transcription errors.",
+    "completion_state": "complete",
+    "provider": {
+      "runtime": "Ollama",
+      "model": "gpt-oss:20b",
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "preset": "normal"
+    },
+    "answer_sha256": "ac5bb89a858add9d23848152db8e4308fa01ebca11f90c19eeacb07363af08b1",
+    "visible_characters": 692,
+    "capture_input_session_closed": true,
+    "helper_cleanup_completed": true
+  },
+  "earlier_failures": [
+    "Harness selectors assumed an open navigation pane and preselected workspace; corrected using existing controls",
+    "New Chat after restart lacked the Studio UI workspace reference; production bridge and scoped request binding repaired",
+    "Earlier upstream summary ResponseError did not recur; original cause was not established"
+  ]
+}

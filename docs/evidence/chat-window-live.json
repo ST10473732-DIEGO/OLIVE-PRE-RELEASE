@@ -1,0 +1,42 @@
+{
+  "launch": "normal installed desktop entry; native KDE",
+  "classification": "live blocked editor admission; no dialog dismissed",
+  "attempts": [
+    {
+      "case": 1,
+      "request_sha256": "64604343f2361ee4de61325684d9a3819e0492395fb7f5f8769ed28348b2aa7a",
+      "response_sha256": "ecc114c827e4d78071efee2b7c7d197000b977383352bc6346eb58a86d02c41f",
+      "approval_prompts": 0,
+      "status": "needs-human",
+      "verification": "Requested app has a dialog; human handoff before focus"
+    },
+    {
+      "case": 2,
+      "request_sha256": "98ed8bc1142ab9aa0ffc1083a6e02a1eeb1a11878a9033c25b0f1b4392196539",
+      "response_sha256": "7adb2eee65a30ed104b2b9d354bfd71e2e32d54e5599d12f19fb9eb8ce05df92",
+      "approval_prompts": 0,
+      "status": "needs-human",
+      "verification": "Requested app has a dialog; human handoff before focus"
+    },
+    {
+      "case": 3,
+      "request_sha256": "86288f564d723040ef6a7d7807b8495fffd473818c4e232101d26386bd9b6f1e",
+      "response_sha256": "ae318673101215462d534f0342256a60637e857217d07a84d6794269c97eb81b",
+      "approval_prompts": 0,
+      "status": "needs-human",
+      "verification": "Requested app has a dialog; human handoff before focus"
+    }
+  ],
+  "diagnostic": {
+    "kwin_windows": 2,
+    "kwin_classification": "two normal windows",
+    "atspi_active_role": "dialog",
+    "atspi_visible_actions": [
+      "Save",
+      "Cancel"
+    ],
+    "filename_empty": true,
+    "ownership_not_proven": true,
+    "private_document_contents_retained": false
+  }
+}

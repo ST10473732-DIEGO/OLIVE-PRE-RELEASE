@@ -1,0 +1,84 @@
+{
+  "implementation_head": "cc03f84c206627791e413168780fb946ec53b333",
+  "date": "2026-09-24",
+  "checks": {
+    "python": {
+      "log_sha256": "3553a03819d8188f0d09f79c15fc3cb908505bcac54e04a135bac9d190fc405d",
+      "status": "passed",
+      "run": 1247,
+      "skipped": 8,
+      "seconds": 140.487
+    },
+    "connect": {
+      "log_sha256": "492286b6b1daa48b33cf163c92c005dfd2ea49d39ad7e0cb75e6b1d2d9564c44",
+      "status": "passed",
+      "run": 241,
+      "skipped": 0,
+      "seconds": 89.475
+    },
+    "frontend": {
+      "log_sha256": "34bd1a27e56daee8cd4aa73ef7c4a61c65f8b305b1f99289c3c3c71f03d187a1",
+      "status": "passed",
+      "passed": 100,
+      "files": 19
+    },
+    "electron": {
+      "log_sha256": "376803bd44f6f3e10c7028c194b0be1076be30f03edb3d76d5de7ff66f705647",
+      "status": "passed",
+      "passed": 56,
+      "skipped": 16,
+      "environment": "native Linux Electron fixture suite; opt-in live and Windows-specific cases distinct"
+    },
+    "typecheck": {
+      "log_sha256": "a4ce7926c4ce5dc17dd916709abd5a65ecea8f3899e05ad63b79972ae80a3f52",
+      "status": "passed"
+    },
+    "lint": {
+      "log_sha256": "fe0272f6063dedf809c162128b30b6564e4f615ce850bf853f29ab431f1a3211",
+      "status": "passed"
+    },
+    "build": {
+      "log_sha256": "156aa54cd78fbe9b778ff15687a62013204f5f2369bf9f99bc117acf465610c2",
+      "status": "passed"
+    },
+    "compileall": {
+      "log_sha256": "e8f79a0ca3af447a709c369be8cff8fac701d07b7cc16dd7dc5e925651d4f7b9",
+      "status": "failed_unchanged_third_party_template",
+      "error": "PySide6 Android __init__.tmpl.py contains Jinja syntax; outside repository sources"
+    },
+    "repository_python_sources": {
+      "status": "passed",
+      "sources": 738,
+      "method": "compile tracked source bytes without importing",
+      "log_sha256": "75f0a8bfb50a0e411b1ce47a4d6f13bc07b4504ca4950ea21429af6e067e50c5"
+    }
+  },
+  "scope_ledger": {
+    "changed_frozen_paths": 9,
+    "historical_manifests_unchanged": true
+  },
+  "earlier_failures_retained": [
+    "Copy bridge allowlist assertions omitted copyText",
+    "Missing C#/Java toolchains in the initial test shell PATH",
+    "Offline provider test expected generic Response instead of explicit unavailable error",
+    "Account verification error assertion used the old generic category",
+    "C8 UI peer request raced the pending permission/share-revision commit",
+    "Standalone Connect aggregate: terminal process state became visible before exit code/output drain; fixed and deterministically reproduced against baseline"
+  ],
+  "hosted_ci_executed": false,
+  "platform_limits": [
+    "Native Windows/macOS not run",
+    "No full multi-display/scale certification",
+    "Owned messenger is not Discord delivery",
+    "Synthetic raster localization is not native end-to-end accuracy"
+  ],
+  "studio_completion_race": {
+    "before_fix_log_sha256": "99b14012a41f13ad9b79388ad4c217157a09d9af62cc9c47d7cfeec122f642dc",
+    "baseline_regression_test": "failed as expected",
+    "fixed_regression_test": "passed",
+    "failed_connect_aggregate_log_sha256": "b9f7f7de53a566ea0b213ce1e902676e423db74b51071ce14be79add3ac24493",
+    "failed_aggregate_run": 241,
+    "failed_aggregate_failures": 1,
+    "fix_commit": "cc03f84c206627791e413168780fb946ec53b333"
+  }
+}
