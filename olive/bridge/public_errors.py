@@ -46,6 +46,10 @@ for _message in (
  _MESSAGES[_message] = _message
 
 def public_error(error):
+ import ollama
+ if isinstance(error,ollama.ResponseError):
+  status = error.status_code if type(error.status_code) is int and 100 <= error.status_code <= 599 else None
+  return {'code':'LocalInferenceError','message':'The local inference provider rejected or failed this request'+(f' (HTTP {status})' if status else '')+'. No replacement model or canned answer was used.'}
  from ..services.ollama_service import GenerationOutputLimit, EmptyModelAnswer
  if isinstance(error,GenerationOutputLimit):
   return {'code':'GenerationOutputLimit','message':

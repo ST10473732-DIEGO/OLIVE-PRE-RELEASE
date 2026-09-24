@@ -203,6 +203,8 @@ class LinuxRuntime:
             try:
                 observation = await self.observe_app(app, processes)
             except (ValueError, LookupError):
+                if grant.scope.effect in {'send','draft'}:
+                    raise ValueError('MESSAGING_OBSERVATION_UNAVAILABLE: the client does not expose usable scoped controls, and visual account/destination resolution is not verified. No message text was entered.') from None
                 if grant.scope.effect != 'click':
                     raise
                 for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):

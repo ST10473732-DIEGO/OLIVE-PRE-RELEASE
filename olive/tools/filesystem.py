@@ -81,6 +81,19 @@ class FilesystemTool:
             if source.is_dir(): source.rmdir()
             else: source.unlink()
             return ToolResult(True,f"Deleted {source.name}")
+        if self.action == "trash":
+            # Single ordinary file only. No permanent-delete fallback, recursive
+            # directory removal or shell interpolation when Trash is unavailable.
+            import os
+            raw = Path(a['path']).expanduser()
+            if set(a) != {'path'} or any(p.is_symlink() for p in (raw,*raw.parents)) or not source.is_file():
+                raise PermissionError('Trash requires one regular file without symbolic links')
+            if hasattr(os,'getuid') and source.stat().st_uid != os.getuid():
+                raise PermissionError('The file belongs to another user')
+            from send2trash import send2trash
+            send2trash(str(source))
+            if source.exists():raise OSError('Trash did not remove the original path')
+            return ToolResult(True, 'The requested file was moved to Trash.', {'trashed':True})
         destination = _path(a["destination"])
         if destination.exists() and not a.get("overwrite",False): return ToolResult.failure("Destination exists; overwrite was not approved", "TargetExists")
         if self.action == "copy":
@@ -97,4 +110,5 @@ def filesystem_tools():
             FilesystemTool("create_directory",("filesystem.write",),"medium"), FilesystemTool("write_text",("filesystem.write",),"medium"),
             FilesystemTool("copy",("filesystem.read","filesystem.write"),"medium"),
             FilesystemTool("move",("filesystem.read","filesystem.write"),"high",True),
+            FilesystemTool("trash",("filesystem.delete",),"medium",True),
             FilesystemTool("delete",("filesystem.delete",),"critical",True)]

@@ -294,6 +294,10 @@ class OllamaService:
                 finally:
                     if hasattr(stream, "aclose"):
                         await stream.aclose()
+            except ollama.ResponseError as error:
+                trace_event('model_provider_failure', model=model,
+                            status_code=error.status_code if type(error.status_code) is int else None)
+                raise
             finally:
                 trace_event('model_visible_response', model=model, characters=answer_characters,
                             sha256=answer_digest.hexdigest(), thinking_characters=thinking_characters, complete=completed, finish_reason=finish_reason if finish_reason in {"stop", "length", None} else "other")

@@ -32,3 +32,11 @@ class PublicBoundaryTests(unittest.TestCase):
             RepositoryService()._run(Path.cwd(), 'status')
             self.assertEqual(run.call_args.kwargs['stdin'], subprocess.DEVNULL)
             self.assertNotIn('shell', run.call_args.kwargs)
+
+class ProviderFailureTests(unittest.TestCase):
+    def test_provider_status_is_specific_without_private_exception_text(self):
+        import ollama
+        result = public_error(ollama.ResponseError('private-token-123',status_code=500))
+        self.assertEqual(result['code'],'LocalInferenceError')
+        self.assertIn('HTTP 500',result['message'])
+        self.assertNotIn('private-token-123',result['message'])

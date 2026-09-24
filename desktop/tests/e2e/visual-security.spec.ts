@@ -45,6 +45,7 @@ test("isolated responsive appearance, keyboard, sandbox and reload evidence", as
       "browser",
       "call",
       "chooseDirectory",
+      "copyText",
       "fileAction",
       "onBrowserAsk",
       "onBrowserState",

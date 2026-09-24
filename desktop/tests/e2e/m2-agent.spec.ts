@@ -58,7 +58,7 @@ test("Agent shows structured fixture history, retains objectives and reaches the
       .getByRole("button", { name: "Start objective", exact: true })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Response", exact: true }),
+      page.getByRole("alert").filter({ hasText: "local model is unavailable" }),
     ).toBeVisible({ timeout: 30000 });
     await expect(
       page.getByRole("button", { name: "Start objective", exact: true }),

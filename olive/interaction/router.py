@@ -177,6 +177,18 @@ class CapabilityRouter:
                 detail += "\nThese topic matches cover documents already indexed in this conversation."
             return ("Found these files" + qualifier + ":\n" + "\n".join(paths) + detail if paths else
                     "I couldn't find a matching file within the searched results." + detail)
+        if intent in {'filesystem.create_file','filesystem.edit_file'}:
+            path = self.path(self.required(e,'path'),context)
+            text = self.required(e,'text')
+            await self.s.agent.tool('filesystem.write_text',{'path':path,'text':text,'overwrite':intent=='filesystem.edit_file'},'Write the requested file contents')
+            verified = await self.s.agent.tool('filesystem.read_text',{'path':path},'Verify the saved contents')
+            if verified.get('text') != text:
+                raise ValueError('The file write completed but exact content was not verified')
+            return 'The requested file contents were saved and read back exactly.'
+        if intent == 'filesystem.trash':
+            path = self.path(self.required(e,'path'),context)
+            await self.s.agent.tool('filesystem.trash',{'path':path},'Move the requested file to Trash')
+            return 'The requested file was moved to Trash. It was not permanently deleted.'
         if intent in {"filesystem.open", "filesystem.move", "filesystem.copy"}:
             path = self.path(self.required(e, "path"), context)
             if intent in {"filesystem.move", "filesystem.copy"}:

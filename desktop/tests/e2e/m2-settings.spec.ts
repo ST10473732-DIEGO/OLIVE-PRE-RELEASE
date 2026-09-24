@@ -188,6 +188,7 @@ test("Settings uses Python validation, retains drafts, updates Monaco preference
       "attachFiles",
       "browser",
         "call",
+        "copyText",
       "fileAction",
       "onBrowserAsk",
         "onBrowserState",

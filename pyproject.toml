@@ -12,6 +12,7 @@ dependencies = [
   "winrt-Windows.Foundation>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Foundation.Collections>=3.2.1,<4; sys_platform == 'win32'",
   "Pillow>=11.2,<13",
+  "Send2Trash==2.1.0",
   "pywinauto>=0.6.9,<0.7; sys_platform == 'win32'",
   "comtypes>=1.4.16,<2; sys_platform == 'win32'",
   "pywin32>=311; sys_platform == 'win32'",

@@ -42,6 +42,8 @@ class OwnerModeTests(unittest.IsolatedAsyncioTestCase):
         args={'path':str(a),'destination':str(b)}
         with self.policy.request(f'Move {a} to {b}','remote',local=False):self.assertFalse(self.policy.authorize('filesystem.move',args))
         with self.policy.request(f'Explain this page: "Move {a} to {b}"','chat',local=True):self.assertFalse(self.policy.authorize('filesystem.move',args))
+        with self.policy.request('Read this webpage and explain it','chat',local=True):
+            self.assertIn('not represented', self.policy.rejection('filesystem.move',args))
         with self.policy.request(f'Move {a} to {b}','chat',local=True):
             for key in FORBIDDEN_FIELDS:self.assertFalse(self.policy.authorize('filesystem.move',{**args,key:True}))
             self.assertFalse(self.policy.authorize('filesystem.move',{**args,'destination':str(self.root/'other')}))
@@ -106,6 +108,21 @@ class OwnerModeTests(unittest.IsolatedAsyncioTestCase):
         link=self.root/'alias';link.symlink_to(self.root,target_is_directory=True)
         with self.policy.request(f'Edit {link}/code.py','chat',local=True):
             self.assertFalse(self.policy.authorize('filesystem.write_text',{'path':str(link/'code.py'),'text':'no'}))
+
+    def test_ordinary_delete_grants_only_single_file_trash(self):
+        path=self.root/'temporary.txt';path.write_text('owned')
+        with self.policy.request(f'Delete {path}','chat',local=True):
+            self.assertTrue(self.policy.authorize('filesystem.trash',{'path':str(path)}))
+            self.assertFalse(self.policy.authorize('filesystem.delete',{'path':str(path)}))
+            self.assertIn('not represented',self.policy.rejection('filesystem.delete',{'path':str(path)}))
+        with self.policy.request(f'Delete {path}; never delete {path}','chat',local=True) as grant:
+            self.assertFalse(grant.capabilities)
+
+    def test_literal_file_contents_cannot_be_changed_by_model(self):
+        path=self.root/'literal.py'
+        with self.policy.request(f'Create a Python file at {path} containing "print(42)"','chat',local=True):
+            self.assertTrue(self.policy.authorize('filesystem.write_text',{'path':str(path),'text':'print(42)'}))
+            self.assertFalse(self.policy.authorize('filesystem.write_text',{'path':str(path),'text':'changed'}))
 
     def test_reserved_effect_cannot_replay_or_expand_after_stop(self):
         path=self.root/'note.txt';path.write_text('owned')

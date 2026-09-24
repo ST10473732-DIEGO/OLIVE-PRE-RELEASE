@@ -18,6 +18,8 @@ import uuid
 
 _current = ContextVar('olive_owner_task', default=None)
 FORBIDDEN_FIELDS = {'approved','owner_mode','permission','ignore_user_policy','disable_stop','grant_root','extra_recipient'}
+SCOPED_EFFECTS = {'filesystem.copy','filesystem.move','filesystem.write_text','filesystem.trash','filesystem.delete','code.apply_patch',
+                  'studio.run','workspace.run_validation','studio.new_project'}
 
 
 def starter_request(text):
@@ -51,6 +53,7 @@ class OwnerGrant:
     expiry: float
     cancellation_epoch: int
     project_spec: tuple = ()
+    content_sha256: str = ''
 
 
 class OwnerPolicy:
@@ -69,12 +72,13 @@ class OwnerPolicy:
             from ..interaction.deliverable import instruction_text, direct_deliverable
             instruction=instruction_text(text)
             answer_only = direct_deliverable(text, {}) is not None
-            forbidden_verbs = set(re.findall(r"\b(?:do not|don't|never)\s+(copy|move|rename|save|edit|fix|run|test|build|create)\b", instruction))
+            forbidden_verbs = set(re.findall(r"\b(?:do not|don't|never)\s+(copy|move|rename|save|edit|fix|run|test|build|create|delete|trash)\b", instruction))
             # Negations constrain authority before capability extraction.
             instruction=re.sub(r"\b(?:do not|don't|never)\s+[^.;\n]+",'',instruction)
             capabilities=set();effect='answer'
             verbs={
                 'copy':{'filesystem.copy'},'move':{'filesystem.move'},'rename':{'filesystem.move'},
+                'delete':{'filesystem.trash'},'trash':{'filesystem.trash'},
                 'save':{'filesystem.write_text'},'edit':{'filesystem.write_text','code.apply_patch'},
                 'fix':{'filesystem.write_text','code.apply_patch'},
                 'run':{'studio.run'},'test':{'workspace.run_validation'},
@@ -107,10 +111,15 @@ class OwnerPolicy:
             if selected_path and re.search(r'\b(?:this|selected|current|that) (?:file|code)\b',instruction):
                 paths.add(selected_path)
             paths=frozenset(str(Path(p).expanduser().resolve()) for p in paths)
-            if effect in {'edit', 'fix', 'save', 'create_file'} and len(paths) != 1:
+            if effect in {'edit', 'fix', 'save', 'create_file', 'delete', 'trash'} and len(paths) != 1:
                 capabilities.clear()  # A typed single-file operation needs one target.
             if capabilities:capabilities.update({'filesystem.stat','filesystem.read_text'})
             project_spec = ()
+            from ..interaction.ordinary_requests import file_transfer
+            literal = file_transfer(text)
+            content_sha256 = ''
+            if literal and literal['steps'][0]['intent'] in {'filesystem.create_file','filesystem.edit_file'}:
+                content_sha256 = hashlib.sha256(literal['steps'][0]['entities']['text'].encode()).hexdigest()
             starter = starter_request(text)
             if starter and creation_root:
                 effect = 'create_project'
@@ -120,7 +129,7 @@ class OwnerPolicy:
                 epoch=self.epochs.get(chat_id,0)
                 grant=OwnerGrant(uuid.uuid4().hex,chat_id,owner_identity(),self.settings()['owner_installation']['id'],
                     hashlib.sha256(text.encode()).hexdigest(),effect,frozenset(capabilities),paths,
-                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch,project_spec)
+                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch,project_spec,content_sha256)
                 self.active[grant.id]=grant
             from ..interaction.trace import event
             event('owner_task_grant', task_id=grant.id, effect=effect, capabilities=sorted(capabilities),
@@ -155,6 +164,8 @@ class OwnerPolicy:
         with self.lock:
             if not self.enabled() or self.active.get(grant.id) is not grant or self.clock() >= grant.expiry:
                 return 'The owner task was cancelled, revoked or expired'
+            if tool in SCOPED_EFFECTS and tool not in grant.capabilities:
+                return 'This effect is not represented by the original owner task'
             if tool in grant.capabilities and not self.authorize(tool, arguments):
                 return 'This effect is outside the owner task or was already attempted'
         return ''
@@ -177,6 +188,8 @@ class OwnerPolicy:
             if self.active.get(grant.id) is not grant or self.epochs.get(grant.chat_id,0)!=grant.cancellation_epoch or self.clock()>=grant.expiry:return False
         if tool not in {'filesystem.stat', 'filesystem.read_text'} and grant.id in self.used:return False
         if tool not in grant.capabilities or FORBIDDEN_FIELDS & arguments.keys():return False
+        if tool == 'filesystem.write_text' and grant.content_sha256:
+            if not isinstance(arguments.get('text'),str) or hashlib.sha256(arguments['text'].encode()).hexdigest() != grant.content_sha256:return False
         if tool == 'studio.new_project':
             if not grant.project_spec:return False
             name, language, location = grant.project_spec

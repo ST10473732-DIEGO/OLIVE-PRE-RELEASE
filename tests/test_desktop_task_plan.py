@@ -22,6 +22,10 @@ class PlanTests(unittest.TestCase):
         self.assertIsNone(explicit_plan('Explain this code; then Open Firefox'))
         self.assertIsNone(explicit_plan('Open Firefox; then ```python\nprint(1)\n```'))
     def test_explicit_clipboard_use_and_url_have_narrow_effects(self):
+        native = direct_scope('Open Discord')
+        web = direct_scope('Open Discord in Firefox')
+        self.assertEqual((native.application,native.effect),('Discord','open'))
+        self.assertEqual((web.application,web.effect,web.content),('Firefox','visit','https://discord.com/app'))
         self.assertEqual(direct_scope('Paste copied code in Kate and save as /tmp/owned.py').effect,'paste_save')
         self.assertEqual(direct_scope('Open https://example.org in Firefox').effect,'visit')
         for value in ('javascript:alert(1)','file:///etc/passwd','https://user:secret@example.org','https://example.org\nrun'):

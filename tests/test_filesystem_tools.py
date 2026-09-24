@@ -4,6 +4,16 @@ from olive.agent.tool_schema import ToolContext
 from olive.tools.filesystem import filesystem_tools
 
 class FilesystemTests(unittest.IsolatedAsyncioTestCase):
+    async def test_trash_has_no_permanent_delete_fallback_and_refuses_directories(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'owned.txt';source.write_text('owned')
+            tool=next(t for t in filesystem_tools() if t.action=='trash')
+            with patch('send2trash.send2trash',side_effect=PermissionError('Trash unavailable')):
+                with self.assertRaises(PermissionError):await tool.execute({'path':str(source)},ToolContext('owned'))
+            self.assertEqual(source.read_text(),'owned')
+            with self.assertRaises(PermissionError):await tool.execute({'path':str(root)},ToolContext('owned'))
+
     async def test_delete_requires_no_destination_and_preserves_nonempty_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "fixture.txt"

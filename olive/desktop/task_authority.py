@@ -71,6 +71,11 @@ def direct_scope(request):
     text = request.strip()
     if text.casefold().startswith('please '):
         text = text[7:]
+    # Explicit web route; ordinary "Open Discord" remains native. The public
+    # origin is reviewed navigation metadata, not login or sending authority.
+    match = re.fullmatch(r'Open Discord in ([\w .+-]{1,80})', text, re.I)
+    if match:
+        return TaskScope(match.group(1), 'visit', 'https://discord.com/app')
     match = re.fullmatch(r'(Scroll (up|down)|(Next|Previous) tab|Read (?:the )?current page) in ([\w .+-]{1,80})', text, re.I)
     if match:
         _, scroll, tab, app = match.groups()
@@ -193,7 +198,7 @@ class TaskAuthority:
             return grant
         account = current_account(observation)
         if not account:
-            raise ValueError('NEEDS_USER_CLARIFICATION: the selected app does not expose one unambiguous current account; specify the account')
+            raise ValueError('MESSAGING_ACCOUNT_UNVERIFIED: the selected client does not expose one unambiguous current account. No message text was entered; specifying an account still requires visible verification.')
         with self.lock:
             if self.grants.get(grant.id) is not grant or grant.epoch != self.epoch or self.stopped.is_set():
                 raise InterruptedError('Task grant was cancelled or replaced')
