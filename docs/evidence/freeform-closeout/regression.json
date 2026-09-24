@@ -1,0 +1,147 @@
+{
+  "environment": {
+    "python": "3.14.7",
+    "node": "24.21.0",
+    "dotnet": "10.0.401",
+    "jdk": "Temurin21.0.12.1"
+  },
+  "commands": {
+    "python": "python -m unittest discover -s tests -v",
+    "connect": "python -m unittest discover -s tests -p test_connect*.py -v",
+    "compilation": "python -m compileall -q .",
+    "desktop": "npm test; npm run typecheck; npm run lint; npm run build; npm run test:e2e (each separately)"
+  },
+  "provisioned_path": [
+    ".venv/bin",
+    ".toolchains/node/bin",
+    ".toolchains/dotnet",
+    ".toolchains/jdk/bin",
+    ".toolchains/ollama/bin"
+  ],
+  "logs": [
+    {
+      "log": "python-first.log",
+      "kind": "intermediate Python",
+      "sha256": "a10c188f4c06d7b8454a7e0d762bebf9359975df606f07903793de961e0ad04f",
+      "tail": "test_permission_specific_deny_beats_global_allow (test_workspace_coding.WorkspaceCodingTests.test_permission_specific_deny_beats_global_allow) ... ok\ntest_project_memory_is_ranked_before_global_memory (test_workspace_coding.WorkspaceCodingTests.test_project_memory_is_ranked_before_global_memory) ... ok\ntest_python_and_dotnet_detection (test_workspace_coding.WorkspaceCodingTests.test_python_and_dotnet_detection) ... ok\ntest_structured_edit_detects_concurrent_change (test_workspace_coding.WorkspaceCodingTests.test_structured_edit_detects_concurrent_change) ... ok\ntest_terminal_session_is_workspace_scoped_and_persistent (test_workspace_coding.WorkspaceCodingTests.test_terminal_session_is_workspace_scoped_and_persistent) ... ok\ntest_workspace_persistence_resolution_and_escape_rejection (test_workspace_coding.WorkspaceCodingTests.test_workspace_persistence_resolution_and_escape_rejection) ... ok\ntest_workspace_planner_builds_open_and_validation_outcome (test_workspace_coding.WorkspaceCodingTests.test_workspace_planner_builds_open_and_validation_outcome) ... ok\n\n----------------------------------------------------------------------\nRan 1257 tests in 139.692s\n\nOK (skipped=8)",
+      "tests": 1257,
+      "seconds": 139.692,
+      "passed": true,
+      "skips": 8
+    },
+    {
+      "log": "python-final.log",
+      "kind": "intermediate Python",
+      "sha256": "1ed10b827daf62816a4c29df583bce36455930bf801efdde772db1b9c23ae6a5",
+      "tail": "test_permission_specific_deny_beats_global_allow (test_workspace_coding.WorkspaceCodingTests.test_permission_specific_deny_beats_global_allow) ... ok\ntest_project_memory_is_ranked_before_global_memory (test_workspace_coding.WorkspaceCodingTests.test_project_memory_is_ranked_before_global_memory) ... ok\ntest_python_and_dotnet_detection (test_workspace_coding.WorkspaceCodingTests.test_python_and_dotnet_detection) ... ok\ntest_structured_edit_detects_concurrent_change (test_workspace_coding.WorkspaceCodingTests.test_structured_edit_detects_concurrent_change) ... ok\ntest_terminal_session_is_workspace_scoped_and_persistent (test_workspace_coding.WorkspaceCodingTests.test_terminal_session_is_workspace_scoped_and_persistent) ... ok\ntest_workspace_persistence_resolution_and_escape_rejection (test_workspace_coding.WorkspaceCodingTests.test_workspace_persistence_resolution_and_escape_rejection) ... ok\ntest_workspace_planner_builds_open_and_validation_outcome (test_workspace_coding.WorkspaceCodingTests.test_workspace_planner_builds_open_and_validation_outcome) ... ok\n\n----------------------------------------------------------------------\nRan 1269 tests in 140.021s\n\nOK (skipped=8)",
+      "tests": 1269,
+      "seconds": 140.021,
+      "passed": true,
+      "skips": 8
+    },
+    {
+      "log": "python-closeout.log",
+      "kind": "intermediate Python during final code review",
+      "sha256": "a331fb36a59c65be3f1cbe2c38eab9bf302313f4affbfbb56cc165e3e280d502",
+      "tail": "test_permission_specific_deny_beats_global_allow (test_workspace_coding.WorkspaceCodingTests.test_permission_specific_deny_beats_global_allow) ... ok\ntest_project_memory_is_ranked_before_global_memory (test_workspace_coding.WorkspaceCodingTests.test_project_memory_is_ranked_before_global_memory) ... ok\ntest_python_and_dotnet_detection (test_workspace_coding.WorkspaceCodingTests.test_python_and_dotnet_detection) ... ok\ntest_structured_edit_detects_concurrent_change (test_workspace_coding.WorkspaceCodingTests.test_structured_edit_detects_concurrent_change) ... ok\ntest_terminal_session_is_workspace_scoped_and_persistent (test_workspace_coding.WorkspaceCodingTests.test_terminal_session_is_workspace_scoped_and_persistent) ... ok\ntest_workspace_persistence_resolution_and_escape_rejection (test_workspace_coding.WorkspaceCodingTests.test_workspace_persistence_resolution_and_escape_rejection) ... ok\ntest_workspace_planner_builds_open_and_validation_outcome (test_workspace_coding.WorkspaceCodingTests.test_workspace_planner_builds_open_and_validation_outcome) ... ok\n\n----------------------------------------------------------------------\nRan 1271 tests in 140.116s\n\nOK (skipped=8)",
+      "tests": 1271,
+      "seconds": 140.116,
+      "passed": true,
+      "skips": 8
+    },
+    {
+      "log": "python-frozen.log",
+      "kind": "final frozen Python",
+      "sha256": "b276586cfac5f874bba33954cdbc37ceef6d0486a8e16067921e75c1b2ad4ca7",
+      "tail": "test_permission_specific_deny_beats_global_allow (test_workspace_coding.WorkspaceCodingTests.test_permission_specific_deny_beats_global_allow) ... ok\ntest_project_memory_is_ranked_before_global_memory (test_workspace_coding.WorkspaceCodingTests.test_project_memory_is_ranked_before_global_memory) ... ok\ntest_python_and_dotnet_detection (test_workspace_coding.WorkspaceCodingTests.test_python_and_dotnet_detection) ... ok\ntest_structured_edit_detects_concurrent_change (test_workspace_coding.WorkspaceCodingTests.test_structured_edit_detects_concurrent_change) ... ok\ntest_terminal_session_is_workspace_scoped_and_persistent (test_workspace_coding.WorkspaceCodingTests.test_terminal_session_is_workspace_scoped_and_persistent) ... ok\ntest_workspace_persistence_resolution_and_escape_rejection (test_workspace_coding.WorkspaceCodingTests.test_workspace_persistence_resolution_and_escape_rejection) ... ok\ntest_workspace_planner_builds_open_and_validation_outcome (test_workspace_coding.WorkspaceCodingTests.test_workspace_planner_builds_open_and_validation_outcome) ... ok\n\n----------------------------------------------------------------------\nRan 1273 tests in 138.783s\n\nOK (skipped=8)",
+      "tests": 1273,
+      "seconds": 138.783,
+      "passed": true,
+      "skips": 8
+    },
+    {
+      "log": "connect.log",
+      "kind": "final standalone Connect",
+      "sha256": "78deb6eafc76fbfdcf1532427f9866f4d621953b6992f51b54fbb453e8a2383b",
+      "tail": "test_snapshot_does_not_exhaust_action_deduplication_budget (test_connect_workspace.ApprovalTests.test_snapshot_does_not_exhaust_action_deduplication_budget) ... ok\ntest_ui_ping_retries_the_same_pending_request_after_approval (test_connect_workspace.ApprovalTests.test_ui_ping_retries_the_same_pending_request_after_approval) ... ok\ntest_off_identity_rename_snapshot_privacy_and_unavailable (test_connect_workspace.WorkspaceTests.test_off_identity_rename_snapshot_privacy_and_unavailable) ... ok\ntest_pairing_offer_expiry_new_session_and_mismatch (test_connect_workspace.WorkspaceTests.test_pairing_offer_expiry_new_session_and_mismatch) ... ok\ntest_real_interface_enable_disable_and_failed (test_connect_workspace.WorkspaceTests.test_real_interface_enable_disable_and_failed) ... ok\ntest_restart_remains_off_and_shutdown_serializes_enable (test_connect_workspace.WorkspaceTests.test_restart_remains_off_and_shutdown_serializes_enable) ... ok\ntest_strict_bridge_rejects_remote_authority (test_connect_workspace.WorkspaceTests.test_strict_bridge_rejects_remote_authority) ... ok\n\n----------------------------------------------------------------------\nRan 241 tests in 89.314s\n\nOK",
+      "tests": 241,
+      "seconds": 89.314,
+      "passed": true,
+      "skips": 0
+    },
+    {
+      "log": "frontend.log",
+      "kind": "frontend",
+      "sha256": "ab85792b97375e71d0b814e34ec0c4d85215a060cc36cdbae07baaef4da6edca",
+      "tail": "> olive-desktop@3.5.1-dev.1 test\n> vitest run\n\n\n RUN  v5.0.0 $REPOSITORY/desktop\n\n\n Test Files  19 passed (19)\n      Tests  100 passed (100)\n   Start at  22:25:50\n   Duration  990ms (import 42%, transform 34%, tests 23%, worker 2%)\n",
+      "passed": true,
+      "tests": 100,
+      "test_files": 19
+    },
+    {
+      "log": "typecheck.log",
+      "kind": "typecheck",
+      "sha256": "a4ce7926c4ce5dc17dd916709abd5a65ecea8f3899e05ad63b79972ae80a3f52",
+      "tail": "\n> olive-desktop@3.5.1-dev.1 typecheck\n> tsc --noEmit\n",
+      "passed": true
+    },
+    {
+      "log": "lint.log",
+      "kind": "lint",
+      "sha256": "fe0272f6063dedf809c162128b30b6564e4f615ce850bf853f29ab431f1a3211",
+      "tail": "\n> olive-desktop@3.5.1-dev.1 lint\n> eslint src electron\n",
+      "passed": true
+    },
+    {
+      "log": "build.log",
+      "kind": "build",
+      "sha256": "eb0263aba6ef21951b1261425259c0fbda69f7cf4160f719c361ba962ac862a5",
+      "tail": "computing gzip size...\nout/electron/main.cjs  162.80 kB \u2502 gzip: 45.71 kB\n\n\u2713 built in 66ms\nvite v8.3.0 building client environment for production...\ntransforming...\n\u2713 2 modules transformed.\nrendering chunks...\ncomputing gzip size...\nout/electron/preload.cjs  1.92 kB \u2502 gzip: 0.74 kB\n\n\u2713 built in 9ms",
+      "passed": true
+    },
+    {
+      "log": "compileall.log",
+      "kind": "earlier whole-tree compileall",
+      "sha256": "e8f79a0ca3af447a709c369be8cff8fac701d07b7cc16dd7dc5e925651d4f7b9",
+      "tail": "*** Error compiling './.venv/lib/python3.14/site-packages/PySide6/scripts/deploy_lib/android/recipes/PySide6/__init__.tmpl.py'...\n  File \"./.venv/lib/python3.14/site-packages/PySide6/scripts/deploy_lib/android/recipes/PySide6/__init__.tmpl.py\", line 39\n    {% for module in qt_modules %}  # noqa: E999\n     ^\nSyntaxError: invalid syntax\n",
+      "passed": false,
+      "exit_code": 1,
+      "reason": "Unchanged third-party PySide6 Android Jinja template is not Python; repository source compilation separate"
+    },
+    {
+      "log": "compileall-closeout.log",
+      "kind": "final whole-tree compileall",
+      "sha256": "e8f79a0ca3af447a709c369be8cff8fac701d07b7cc16dd7dc5e925651d4f7b9",
+      "tail": "*** Error compiling './.venv/lib/python3.14/site-packages/PySide6/scripts/deploy_lib/android/recipes/PySide6/__init__.tmpl.py'...\n  File \"./.venv/lib/python3.14/site-packages/PySide6/scripts/deploy_lib/android/recipes/PySide6/__init__.tmpl.py\", line 39\n    {% for module in qt_modules %}  # noqa: E999\n     ^\nSyntaxError: invalid syntax\n",
+      "passed": false,
+      "exit_code": 1,
+      "reason": "Unchanged third-party PySide6 Android Jinja template is not Python; repository source compilation separate"
+    },
+    {
+      "log": "electron.log",
+      "kind": "Electron incomplete PATH",
+      "sha256": "ad139b772fb3d8e7a0f17e1d8ebd148d2e67be61cadb93f53b3b22d64782f6d6",
+      "tail": "      54 |     const packed = spawnSync(\n      55 |       path.resolve(process.platform === \"win32\" ? \"../.venv/Scripts/python.exe\" : \"../.venv/bin/python\"),\n      56 |       [\n        at $REPOSITORY/desktop/tests/e2e/java-project.spec.ts:53:46\n\n    Error Context: test-results/java-project-new-named-Jav-5ec26-n-its-OLIVE-projects-folder/error-context.md\n\n  2 failed\n    tests/e2e/interactive-run.spec.ts:8:42 \u203a C# ordinary Run connects real keyboard input to the native PTY and survives route churn \n    tests/e2e/java-project.spec.ts:8:1 \u203a new named Java project saves and runs in its OLIVE projects folder \n  16 skipped\n  54 passed (7.3m)",
+      "failed": 2,
+      "skipped": 16,
+      "passed": 54
+    },
+    {
+      "log": "electron-provisioned.log",
+      "kind": "Electron provisioned",
+      "sha256": "126c40c07b2443b6fceacb6ae426b8774002037772ddbd002e40e72c3d25d352",
+      "tail": "  -  64 tests/e2e/preset-chat.spec.ts:7:1 \u203a LIVE LOCAL FAST NORMAL MAX DEEP FAST handoff without executing code\n  -  65 tests/e2e/presets-research.spec.ts:7:1 \u203a LIVE LOCAL five presets, simplified navigation and public research in Chat\n  \u2713  66 tests/e2e/prototype.spec.ts:7:1 \u203a real isolated Electron welcomes, enters, navigates and retains one window (2.3s)\n  \u2713  67 tests/e2e/rebrand.spec.ts:6:1 \u203a OLIVE canonical shell preserves legacy profile and renderer state across restart (7.5s)\n  \u2713  68 tests/e2e/responsive.spec.ts:8:1 \u203a window resizing reflows Home Chat and Studio while retaining editor content (4.8s)\n  \u2713  69 tests/e2e/studio.spec.ts:9:1 \u203a direct Monaco save and test need no duplicate approval and retain conflict checks (5.7s)\n  \u2713  70 tests/e2e/visual-security.spec.ts:8:1 \u203a isolated responsive appearance, keyboard, sandbox and reload evidence (2.2s)\n  -  71 tests/e2e/winforms-designer.spec.ts:9:1 \u203a real WinForms calculator through drag design, C# events, reopen, native run and conflict\n  \u2713  72 tests/e2e/winforms-designer.spec.ts:127:1 \u203a Linux does not advertise native Windows Forms creation (1.4s)\n\n  16 skipped\n  56 passed (7.5m)",
+      "skipped": 16,
+      "passed": 56
+    }
+  ],
+  "repository_source_compile": {
+    "files": 748,
+    "passed": true
+  },
+  "first_electron_failures": [
+    "interactive-run C#: spawnSync dotnet --version returned null; provisioned SDK directory missing from this runner PATH",
+    "java-project: spawnSync compiler returned null; provisioned JDK directory missing from this runner PATH"
+  ],
+  "skips": "Existing opt-in live/platform suites; no new skip or timeout inflation. Hosted/native Windows/macOS and disruptive display tests unperformed."
+}

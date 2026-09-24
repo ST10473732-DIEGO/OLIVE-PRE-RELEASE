@@ -1,0 +1,228 @@
+{
+  "isolated_profile": true,
+  "public_defaults_changed": false,
+  "runs": [
+    {
+      "id": "B-production-code",
+      "seconds": 18.121,
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "params": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "max_tokens": 2048,
+        "repeat_penalty": 1.08,
+        "history_messages": 36,
+        "rag_top_k": 6,
+        "thinking": false
+      },
+      "request": "Return only one Python code block defining cents(text). Convert a nonnegative decimal currency string to integer cents using Decimal, never float. Accept \"0\", \"1.2\", \"12.34\" and reject negative values, NaN, Infinity and more than two decimal places with ValueError. Include required imports. Do not read input or print.",
+      "answer": "```python\nfrom decimal import Decimal, InvalidOperation\n\n\ndef cents(text: str) -> int:\n    \"\"\"Convert a nonnegative decimal currency string to integer cents.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"input must be a string\")\n    try:\n        value = Decimal(text)\n    except (InvalidOperation, ValueError):\n        raise ValueError(f\"invalid currency string: {text!r}\") from None\n\n    if value.is_nan() or value.is_infinite():\n        raise ValueError(f\"NaN or Infinity not allowed: {text!r}\")\n    if value < 0:\n        raise ValueError(f\"negative values not allowed: {text!r}\")\n\n    # More than two decimal places?\n    exponent = value.as_tuple().exponent\n    if exponent is None or exponent < -2:\n        raise ValueError(f\"more than two decimal places: {text!r}\")\n\n    # Convert to cents: multiply by 100 and round to integer.\n    # Since we've validated <= 2 decimal places, this is exact.\n    total_cents = int((value * 100).to_integral_value())\n    return total_cents\n```",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+        "digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+        "preset": ""
+      },
+      "grade": {
+        "passed": true,
+        "stage": "compiled_behaviour",
+        "exit_code": 0,
+        "diagnostic": "",
+        "code_sha256": "74a31797c5a955a60ad95f8afc43d1ac5da6284f8fe1aa16b50ebffc28c91597"
+      }
+    },
+    {
+      "id": "B-production-followup",
+      "seconds": 17.721,
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "params": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "max_tokens": 2048,
+        "repeat_penalty": 1.08,
+        "history_messages": 36,
+        "rag_top_k": 6,
+        "thinking": false
+      },
+      "request": "Keep the Decimal, nonnegative, precision, and ValueError constraints from my previous request. Add explicit rejection of blank strings and return the full Python code only.",
+      "answer": "```python\nfrom decimal import Decimal, InvalidOperation\n\n\ndef cents(text: str) -> int:\n    \"\"\"Convert a nonnegative decimal currency string to integer cents.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"input must be a string\")\n    if text.strip() == \"\":\n        raise ValueError(\"blank string not allowed\")\n\n    try:\n        value = Decimal(text)\n    except (InvalidOperation, ValueError):\n        raise ValueError(f\"invalid currency string: {text!r}\") from None\n\n    if value.is_nan() or value.is_infinite():\n        raise ValueError(f\"NaN or Infinity not allowed: {text!r}\")\n    if value < 0:\n        raise ValueError(f\"negative values not allowed: {text!r}\")\n\n    exponent = value.as_tuple().exponent\n    if exponent is None or exponent < -2:\n        raise ValueError(f\"more than two decimal places: {text!r}\")\n\n    total_cents = int((value * 100).to_integral_value())\n    return total_cents\n```",
+      "provider": {
+        "runtime": "Ollama",
+        "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+        "digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+        "preset": ""
+      },
+      "grade": {
+        "passed": true,
+        "stage": "compiled_behaviour",
+        "exit_code": 0,
+        "diagnostic": "",
+        "code_sha256": "a555d0d418a44b0edaca63d95ec637e408c61340f3e2000001023e3a61b7357d"
+      }
+    }
+  ],
+  "interpretation": {
+    "confidence": 1,
+    "clarification": "",
+    "steps": [
+      {
+        "intent": "conversation.answer",
+        "entities": {},
+        "references": {}
+      }
+    ]
+  },
+  "resolved_steps": [],
+  "request_traces": [
+    {
+      "id": "62886a0e3e024cfea18adeb904c87a1b",
+      "chat_id": "e7ec83a3-58b2-4b1e-9bcc-9d05cddc1aff",
+      "request_sha256": "a55aa89f1f976b7849df8368de336f800c1041240b7fae6d5000f6f320cdf4ac",
+      "preset": "",
+      "selected_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "remote": false,
+      "events": [
+        {
+          "stage": "model_request",
+          "elapsed_ms": 3.8,
+          "model": "qwen3:8b",
+          "prompt_sha256": "584b631c72573a531f3e1a303e1df7a7c4d32d19e7cbf1feaae90e6954674998",
+          "system_sha256": "f3a8e593c9bc4d8bf6ba46acac26e35a720b82c5a92b5cc731e7fe2d12975e6a",
+          "messages": 3,
+          "options": {
+            "temperature": 0,
+            "num_predict": 100,
+            "num_ctx": 4096
+          },
+          "thinking": false,
+          "schema_sha256": "048de5446d87fe19ada2e7cf996985156327829b4f3a9993ce5cd2f43ce75415"
+        },
+        {
+          "stage": "interpreted",
+          "elapsed_ms": 2544.96,
+          "intents": [
+            "conversation.answer"
+          ],
+          "confidence": 1
+        },
+        {
+          "stage": "model_request",
+          "elapsed_ms": 2547.9,
+          "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "prompt_sha256": "1665ff3b533a852dca3c8b16307766fc910dd8dd10986cc27bcb0f38c8b7d88b",
+          "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+          "messages": 2,
+          "options": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "num_predict": 2048,
+            "num_ctx": 4096,
+            "repeat_penalty": 1.08
+          },
+          "thinking": false,
+          "schema_sha256": null
+        },
+        {
+          "stage": "model_visible_response",
+          "elapsed_ms": 18094.07,
+          "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "characters": 998,
+          "sha256": "58d895ed6ddf42725c49d31539b99814ee3ec62bcdfbbff97052ca7ed703f4ae",
+          "thinking_characters": 0,
+          "complete": true,
+          "finish_reason": "stop"
+        },
+        {
+          "stage": "answer_persisted",
+          "elapsed_ms": 18094.21,
+          "message_id": "d48ee8ff-0cce-4251-b1d7-2c084140797d",
+          "characters": 998,
+          "sha256": "58d895ed6ddf42725c49d31539b99814ee3ec62bcdfbbff97052ca7ed703f4ae",
+          "completion_state": "complete",
+          "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "preset": ""
+        },
+        {
+          "stage": "request_finished",
+          "elapsed_ms": 18094.73,
+          "status": "returned"
+        }
+      ]
+    },
+    {
+      "id": "027aede520ed4d36bbc67eaf4805bf70",
+      "chat_id": "e7ec83a3-58b2-4b1e-9bcc-9d05cddc1aff",
+      "request_sha256": "ced2b2548d7c5bfd74aecc108cc8463c769bbfd806bf43fc7b8b5591aa734772",
+      "preset": "",
+      "selected_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "remote": false,
+      "events": [
+        {
+          "stage": "model_request",
+          "elapsed_ms": 3.61,
+          "model": "qwen3:8b",
+          "prompt_sha256": "ddb19f5b59fd3e39e97d8be1fdc7d989b23c14c5f897d3c91d998f2cff89b334",
+          "system_sha256": "f3a8e593c9bc4d8bf6ba46acac26e35a720b82c5a92b5cc731e7fe2d12975e6a",
+          "messages": 3,
+          "options": {
+            "temperature": 0,
+            "num_predict": 100,
+            "num_ctx": 4096
+          },
+          "thinking": false,
+          "schema_sha256": "048de5446d87fe19ada2e7cf996985156327829b4f3a9993ce5cd2f43ce75415"
+        },
+        {
+          "stage": "interpreted",
+          "elapsed_ms": 2976.61,
+          "intents": [
+            "conversation.answer"
+          ],
+          "confidence": 1
+        },
+        {
+          "stage": "model_request",
+          "elapsed_ms": 2979.96,
+          "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "prompt_sha256": "70cdc2063942a8c4d13dac92b04aac478353eaa39f9e5f733458b063e08e6f9a",
+          "system_sha256": "1c5d362f3fb6f98db84d23b6617057b29f6a7dcb4955264e907fb394b2c8dc90",
+          "messages": 4,
+          "options": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "num_predict": 2048,
+            "num_ctx": 4096,
+            "repeat_penalty": 1.08
+          },
+          "thinking": false,
+          "schema_sha256": null
+        },
+        {
+          "stage": "model_visible_response",
+          "elapsed_ms": 17700.92,
+          "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "characters": 917,
+          "sha256": "f61a422d296fc8f7c77bee7f38665c3d9ad33e77d40ab9ae6b44e9ac27675595",
+          "thinking_characters": 0,
+          "complete": true,
+          "finish_reason": "stop"
+        },
+        {
+          "stage": "answer_persisted",
+          "elapsed_ms": 17700.99,
+          "message_id": "cd8ae4c2-0a41-4c41-b19d-7c0b9d7544be",
+          "characters": 917,
+          "sha256": "f61a422d296fc8f7c77bee7f38665c3d9ad33e77d40ab9ae6b44e9ac27675595",
+          "completion_state": "complete",
+          "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "preset": ""
+        },
+        {
+          "stage": "request_finished",
+          "elapsed_ms": 17701.31,
+          "status": "returned"
+        }
+      ]
+    }
+  ]
+}

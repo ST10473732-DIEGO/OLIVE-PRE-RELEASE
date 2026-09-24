@@ -1,0 +1,680 @@
+{
+  "suite": "olive-held-out-answer-20260924",
+  "models": {
+    "olive-eval-hauhau-q6:20260924": {
+      "digest": "022de4bfdd9d4c16141f8c30846f155c51cf7a5b91090a24dcb63a7dbeddec07",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "think": false,
+      "failed_gates": [
+        "python"
+      ],
+      "latency": {
+        "n": 3,
+        "median": 0.061536008000075526,
+        "min": 0.058344686000054935,
+        "max": 2.755753524999818
+      }
+    },
+    "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M": {
+      "digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "think": false,
+      "failed_gates": [],
+      "latency": {
+        "n": 3,
+        "median": 0.15754232099970977,
+        "min": 0.15349455999967176,
+        "max": 3.7596539749997646
+      }
+    },
+    "gpt-oss:20b": {
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "think": "low",
+      "failed_gates": [
+        "python"
+      ],
+      "latency": {
+        "n": 3,
+        "median": 0.19929880000017874,
+        "min": 0.19864082200001576,
+        "max": 3.8624375050003437
+      }
+    }
+  },
+  "records": [
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "followup",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "Se llama Cedar.\nMantengo las restricciones.",
+      "first_visible_ms": 3489.1011400000025,
+      "output_tokens": 12,
+      "prompt_tokens": 102,
+      "seconds": 3.699860298999738
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "missing_image",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "Since no image was actually attached to your message, the exact serial number printed in it cannot be determined.",
+      "first_visible_ms": 102.82953200021439,
+      "output_tokens": 22,
+      "prompt_tokens": 67,
+      "seconds": 0.49038127599988
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "missing_context",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "Since no PDF was attached to this conversation, the exact maintenance date is unknown. Please re-upload the file or provide the date directly.",
+      "first_visible_ms": 100.99781500002791,
+      "output_tokens": 28,
+      "prompt_tokens": 81,
+      "seconds": 0.5827460769996833
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "format",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "{\n  \"language\": \"Spanish\",\n  \"count\": 3\n}",
+      "first_visible_ms": 97.19560800022009,
+      "output_tokens": 19,
+      "prompt_tokens": 74,
+      "seconds": 0.4146544370000811
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "length",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "It is an ordered, mutable collection of items.\nYou can access elements by their index number.",
+      "first_visible_ms": 93.60537800012025,
+      "output_tokens": 21,
+      "prompt_tokens": 69,
+      "seconds": 0.43945998799972585
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "python",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": false,
+      "answer": "```python\nfrom decimal import Decimal, InvalidOperation, ROUND_HALF_UP\n\ndef cents(text):\n    \"\"\"\n    Convert a nonnegative decimal currency string to integer cents.\n    \n    Accepts strings like \"0\", \"1.2\", \"12.34\".\n    Rejects negative values, NaN, Infinity, and more than two decimal places.\n    Raises ValueError on invalid input.\n    \"\"\"\n    try:\n        d = Decimal(text)\n    except InvalidOperation:\n        raise ValueError(f\"Invalid decimal string: {text}\")\n\n    if d < 0:\n        raise ValueError(f\"Negative value not allowed: {text}\")\n    \n    if not d.is_finite():\n        raise ValueError(f\"Non-finite value (NaN or Infinity) not allowed: {text}\")\n\n    # Check decimal places\n    if d.as_tuple().exponent < -2:\n        raise ValueError(f\"More than two decimal places not allowed: {text}\")\n\n    # Convert to integer cents\n    return int(d * 100)\n```",
+      "first_visible_ms": 115.42608699983248,
+      "output_tokens": 226,
+      "prompt_tokens": 115,
+      "stage": "compiled_behaviour",
+      "exit_code": 1,
+      "diagnostic": "Traceback (most recent call last):\n  File \"/work/check.py\", line 7, in <module>\n    try: f(value)\n         ~^^^^^^^\n  File \"/work/candidate.py\", line 16, in cents\n    if d < 0:\n       ^^^^^\ndecimal.InvalidOperation: [<class 'decimal.InvalidOperation'>]\n",
+      "code_sha256": "4207b8c73d4b3c8f4b0fe9d0ccb555f8179a101967ab5312f919be338d0e465f",
+      "seconds": 4.262006523999844
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "javascript",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "```javascript\nfunction uniqueNames(values) {\n  const seen = new Set();\n  const result = [];\n\n  for (const value of values) {\n    const trimmed = value.trim();\n    if (trimmed === \"\") continue;\n\n    const lower = trimmed.toLowerCase();\n    if (!seen.has(lower)) {\n      seen.add(lower);\n      result.push(trimmed);\n    }\n  }\n\n  return result;\n}\n```",
+      "first_visible_ms": 136.10710600005405,
+      "output_tokens": 96,
+      "prompt_tokens": 104,
+      "stage": "compiled_behaviour",
+      "exit_code": 0,
+      "diagnostic": "",
+      "code_sha256": "e4546e991aa69371dcc104a0dda719d0633ed7ad1351c0c0f8921a069cd813ca",
+      "seconds": 1.921602781999809
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "context4096",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "COPPER-173",
+      "first_visible_ms": 410.31380200001877,
+      "output_tokens": 8,
+      "prompt_tokens": 784,
+      "seconds": 0.5328394620000836
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "context8192",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 8192,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "COPPER-173",
+      "first_visible_ms": 3485.073382000337,
+      "output_tokens": 8,
+      "prompt_tokens": 1744,
+      "seconds": 3.6131690940001135
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "latency_1",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 2737.8320530001474,
+      "output_tokens": 2,
+      "prompt_tokens": 51,
+      "seconds": 2.755753524999818
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "latency_2",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 42.01500799990754,
+      "output_tokens": 2,
+      "prompt_tokens": 51,
+      "seconds": 0.061536008000075526
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "latency_3",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 40.83493100006308,
+      "output_tokens": 2,
+      "prompt_tokens": 51,
+      "seconds": 0.058344686000054935
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "cancellation",
+      "passed": true,
+      "seconds": 0.0005440750001071137
+    },
+    {
+      "model": "olive-eval-hauhau-q6:20260924",
+      "case": "recovery",
+      "passed": true,
+      "answer": "RECOVERED",
+      "seconds": 0.1556153340002311
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "followup",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "Se llama Cedar.\nConfirmado.",
+      "first_visible_ms": 5733.240910999939,
+      "output_tokens": 9,
+      "prompt_tokens": 102,
+      "seconds": 6.109160546000112
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "missing_image",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "No image was attached, so the serial number cannot be determined.",
+      "first_visible_ms": 235.46796000027825,
+      "output_tokens": 14,
+      "prompt_tokens": 67,
+      "seconds": 0.8353216649998103
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "missing_context",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "I don’t have access to yesterday’s conversation or any PDF. Please provide the document or date again.",
+      "first_visible_ms": 258.6140789999263,
+      "output_tokens": 22,
+      "prompt_tokens": 81,
+      "seconds": 1.2566996959999415
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "format",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "{\"language\":\"Spanish\",\"count\":3}",
+      "first_visible_ms": 244.36273500032257,
+      "output_tokens": 10,
+      "prompt_tokens": 74,
+      "seconds": 0.6657227700002295
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "length",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "A list stores ordered, mutable items.\nIt allows duplicates and mixed data types.",
+      "first_visible_ms": 252.0493809997788,
+      "output_tokens": 18,
+      "prompt_tokens": 69,
+      "seconds": 1.0557558729997254
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "python",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "```python\nfrom decimal import Decimal, InvalidOperation\n\ndef cents(text: str) -> int:\n    if not isinstance(text, str):\n        raise ValueError(\"Input must be a string\")\n    try:\n        d = Decimal(text)\n    except (InvalidOperation, ValueError):\n        raise ValueError(f\"Invalid currency string: {text!r}\")\n    if d.is_nan() or d.is_infinite():\n        raise ValueError(\"NaN and Infinity are not allowed\")\n    if d < 0:\n        raise ValueError(\"Negative values are not allowed\")\n    # Check for more than two decimal places\n    if d.as_tuple().exponent < -2:\n        raise ValueError(\"More than two decimal places are not allowed\")\n    # Convert to cents: multiply by 100 and convert to int\n    cents_value = int((d * 100).to_integral_value())\n    return cents_value\n```",
+      "first_visible_ms": 300.91390699999465,
+      "output_tokens": 199,
+      "prompt_tokens": 115,
+      "stage": "compiled_behaviour",
+      "exit_code": 0,
+      "diagnostic": "",
+      "code_sha256": "33d0056357b38ed9c46870d51c5f57c97d7fe0fba9fe577f185ef978af5d5fe3",
+      "seconds": 9.34156275100031
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "javascript",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "```javascript\nfunction uniqueNames(values) {\n  const seen = new Set();\n  const result = [];\n  for (const value of values) {\n    const trimmed = value.trim();\n    if (trimmed === \"\") continue;\n    const key = trimmed.toLowerCase();\n    if (seen.has(key)) continue;\n    seen.add(key);\n    result.push(trimmed);\n  }\n  return result;\n}\n```",
+      "first_visible_ms": 314.22468499977185,
+      "output_tokens": 94,
+      "prompt_tokens": 104,
+      "stage": "compiled_behaviour",
+      "exit_code": 0,
+      "diagnostic": "",
+      "code_sha256": "16075b477822c707fbaf3c923bf79231f7f03454e89578cc8260424cfc9f2c55",
+      "seconds": 4.482300266000038
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "context4096",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "COPPER-173",
+      "first_visible_ms": 1239.321359999849,
+      "output_tokens": 8,
+      "prompt_tokens": 784,
+      "seconds": 1.5629200989997116
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "context8192",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 8192,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "COPPER-173",
+      "first_visible_ms": 5906.963608999831,
+      "output_tokens": 8,
+      "prompt_tokens": 1744,
+      "seconds": 6.243451543999981
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "latency_1",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 3708.298727000056,
+      "output_tokens": 2,
+      "prompt_tokens": 51,
+      "seconds": 3.7596539749997646
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "latency_2",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 105.28591000002052,
+      "output_tokens": 2,
+      "prompt_tokens": 51,
+      "seconds": 0.15349455999967176
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "latency_3",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 106.32415000009132,
+      "output_tokens": 2,
+      "prompt_tokens": 51,
+      "seconds": 0.15754232099970977
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "cancellation",
+      "passed": true,
+      "seconds": 0.0003130109998892294
+    },
+    {
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "case": "recovery",
+      "passed": true,
+      "answer": "RECOVERED",
+      "seconds": 0.4263918790002208
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "followup",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "La bomba se llama Cedar.  \nEntendido.",
+      "first_visible_ms": 3305.0872199996775,
+      "output_tokens": 35,
+      "prompt_tokens": 160,
+      "seconds": 3.4294588520001525
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "missing_image",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "I’m sorry, but I can’t see the image you mentioned, so I don’t have any way to determine the serial number.",
+      "first_visible_ms": 442.1234619999268,
+      "output_tokens": 53,
+      "prompt_tokens": 125,
+      "seconds": 0.7441264659996705
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "missing_context",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "I’m sorry, but I don’t have access to that PDF or any earlier conversation, so I can’t provide the maintenance date.",
+      "first_visible_ms": 409.7547689998464,
+      "output_tokens": 54,
+      "prompt_tokens": 138,
+      "seconds": 0.6790747300001385
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "format",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "{\"language\":\"Spanish\",\"count\":3}",
+      "first_visible_ms": 371.83577199994033,
+      "output_tokens": 33,
+      "prompt_tokens": 132,
+      "seconds": 0.4693390279999221
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "length",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "A list stores ordered, mutable items.  \nAccess by index, slice, and iterate.",
+      "first_visible_ms": 406.0481100000288,
+      "output_tokens": 45,
+      "prompt_tokens": 126,
+      "seconds": 0.5857327819999227
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "python",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": false,
+      "answer": "```python\nfrom decimal import Decimal, InvalidOperation, ROUND_DOWN\n\ndef cents(text: str) -> int:\n    \"\"\"\n    Convert a nonnegative decimal currency string to integer cents.\n    Accepts strings like \"0\", \"1.2\", \"12.34\".\n    Raises ValueError for negative values, NaN, Infinity, or more than two decimal places.\n    \"\"\"\n    try:\n        d = Decimal(text)\n    except InvalidOperation:\n        raise ValueError(f\"Invalid numeric value: {text!r}\")\n\n    # Reject NaN or Infinity\n    if not d.is_finite():\n        raise ValueError(f\"Non-finite value: {text!r}\")\n\n    # Reject negative values\n    if d < 0:\n        raise ValueError(f\"Negative value: {text!r}\")\n\n    # Quantize to two decimal places without rounding up\n    d = d.quantize(Decimal('0.01'), rounding=ROUND_DOWN)\n\n    # Ensure no more than two decimal places were present\n    if d.as_tuple().exponent < -2:\n        raise ValueError(f\"Too many decimal places: {text!r}\")\n\n    # Convert to cents\n    cents = int(d * 100)\n    return cents\n```",
+      "first_visible_ms": 269.28084999963176,
+      "output_tokens": 269,
+      "prompt_tokens": 173,
+      "stage": "compiled_behaviour",
+      "exit_code": 1,
+      "diagnostic": "Traceback (most recent call last):\n  File \"/work/check.py\", line 9, in <module>\n    else: raise AssertionError(value)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0.001\n",
+      "code_sha256": "ebfd76913fffe5ee02098fcbc8656479359563be6d8749cf330ae0a5b6a1a37f",
+      "seconds": 2.8465033530001165
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "javascript",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "```javascript\nfunction uniqueNames(values) {\n  const seen = new Set();\n  const result = [];\n\n  for (const raw of values) {\n    const trimmed = raw.trim();\n    if (!trimmed) continue;               // skip blanks\n    const key = trimmed.toLowerCase();    // case‑insensitive key\n    if (!seen.has(key)) {\n      seen.add(key);\n      result.push(trimmed);               // keep first trimmed spelling\n    }\n  }\n\n  return result;\n}\n```",
+      "first_visible_ms": 577.515903999938,
+      "output_tokens": 145,
+      "prompt_tokens": 163,
+      "stage": "compiled_behaviour",
+      "exit_code": 0,
+      "diagnostic": "",
+      "code_sha256": "8df1fec4ddb66efbc583dbd348fbc4436959976140b02029772c25a6c9ea87eb",
+      "seconds": 1.663741449999634
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "context4096",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "COPPER-173",
+      "first_visible_ms": 487.03709200026424,
+      "output_tokens": 24,
+      "prompt_tokens": 749,
+      "seconds": 0.5283486220000668
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "context8192",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 8192,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "COPPER-173",
+      "first_visible_ms": 4361.213468999722,
+      "output_tokens": 30,
+      "prompt_tokens": 1589,
+      "seconds": 4.402069256000232
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "latency_1",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 3852.335780999965,
+      "output_tokens": 17,
+      "prompt_tokens": 109,
+      "seconds": 3.8624375050003437
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "latency_2",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 188.5390140000709,
+      "output_tokens": 17,
+      "prompt_tokens": 109,
+      "seconds": 0.19864082200001576
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "latency_3",
+      "options": {
+        "temperature": 0.2,
+        "num_ctx": 4096,
+        "num_predict": 2048
+      },
+      "passed": true,
+      "answer": "READY",
+      "first_visible_ms": 188.8983960002406,
+      "output_tokens": 17,
+      "prompt_tokens": 109,
+      "seconds": 0.19929880000017874
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "cancellation",
+      "passed": true,
+      "seconds": 0.0005292579999149893
+    },
+    {
+      "model": "gpt-oss:20b",
+      "case": "recovery",
+      "passed": true,
+      "answer": "RECOVERED",
+      "seconds": 0.45676776399977825
+    }
+  ],
+  "declared_cases": [
+    "followup",
+    "missing_image",
+    "missing_context",
+    "format",
+    "length",
+    "python",
+    "javascript",
+    "context4096",
+    "context8192",
+    "latency_1",
+    "latency_2",
+    "latency_3",
+    "cancellation",
+    "recovery"
+  ],
+  "promotion": "Not requested by this harness; decisions require review",
+  "c7": "NOT_RUN; public defaults unchanged"
+}

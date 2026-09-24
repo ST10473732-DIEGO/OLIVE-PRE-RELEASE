@@ -1,0 +1,16 @@
+{
+  "original_historical_dialog": "Kate was absent at initial session inspection; historical dialog not available to attribute",
+  "fresh_owned_unrelated_dialog": {
+    "pid": 8574,
+    "last_verified_window_id": "{70069ea7-492a-4815-a237-887ede9e4301}",
+    "last_verified_title": "Save File — Kate",
+    "last_known_filename": "",
+    "after_F05": "still open; parent and window identity retained",
+    "final_state": "process exited SIGSEGV during read-only AT-SPI tree inspection at 2026-09-24 23:15:56 SAST",
+    "top_frame": "QSortFilterProxyModel::data in libQt6Core.so.6",
+    "inspection_error": "atspi_error: The application no longer exists",
+    "input_dispatched_by_inspection": false,
+    "cause": "Qt file-dialog/accessibility failure correlated with traversal; full root cause not established",
+    "no_recreated_success_claim": true
+  }
+}

@@ -1,0 +1,54 @@
+[
+  {
+    "id": "{8780e21b-e40a-4fb0-8254-d556ade4fb0a}",
+    "pid": 8574,
+    "active": false,
+    "output": "DP-4",
+    "title": "Untitled (Unrelated owned acceptance draft) * — Kate",
+    "normal": true,
+    "dialog": false,
+    "stacking": 8,
+    "transient_for": "",
+    "desktop_file": "org.kde.kate",
+    "resource_class": "org.kde.kate",
+    "resource_name": "kate",
+    "bounds": [
+      2312,
+      215,
+      1135,
+      677
+    ],
+    "frame": [
+      2312,
+      187,
+      1135,
+      705
+    ]
+  },
+  {
+    "id": "{70069ea7-492a-4815-a237-887ede9e4301}",
+    "pid": 8574,
+    "active": false,
+    "output": "DP-4",
+    "title": "Save File — Kate",
+    "normal": true,
+    "dialog": false,
+    "stacking": 9,
+    "transient_for": "{8780e21b-e40a-4fb0-8254-d556ade4fb0a}",
+    "desktop_file": "org.kde.kate",
+    "resource_class": "org.kde.kate",
+    "resource_name": "kate",
+    "bounds": [
+      2400,
+      284,
+      960,
+      540
+    ],
+    "frame": [
+      2400,
+      256,
+      960,
+      568
+    ]
+  }
+]

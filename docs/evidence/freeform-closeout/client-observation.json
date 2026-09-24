@@ -1,0 +1,18 @@
+{
+  "native": [
+    {
+      "accessible": true,
+      "top_level_count": 1,
+      "active": false,
+      "window_id": "{deb83785-1bc8-40d7-8010-2ac23d284de0}"
+    }
+  ],
+  "firefox": [
+    {
+      "accessible": true,
+      "top_level_count": 1,
+      "active": true,
+      "window_id": "{ba841c70-ca34-450a-a5bd-184bdb08d6aa}"
+    }
+  ]
+}

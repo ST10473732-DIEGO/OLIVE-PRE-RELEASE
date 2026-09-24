@@ -1,0 +1,19 @@
+{
+  "messenger_source": "scripts/fixtures/owned_messenger.c",
+  "changes": {
+    "channels": [
+      "Finch",
+      "garden",
+      "Heron",
+      "ideas"
+    ],
+    "initial_heading": "Finch"
+  },
+  "source_sha256": "69f68dd6d7de584d2ede484d26f48bbe3a440fa4624cbcc1b516204e7c4d04ac",
+  "controls_source": "scripts/fixtures/freeform_controls.c",
+  "controls_sha256": "22e946f8bf284da04e36270f698dd891dd465e79fffa50ee7259ef423d2e0c2e",
+  "networked": false,
+  "loopback_http_port": 18764,
+  "unrelated_dialog_text": "Unrelated owned acceptance draft; preserve this text.",
+  "fixture_preparation_is_not_task_acceptance": true
+}

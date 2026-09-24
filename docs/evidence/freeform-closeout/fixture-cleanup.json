@@ -1,0 +1,22 @@
+[
+  {
+    "pid": 8505,
+    "owned_fixture_stopped": true
+  },
+  {
+    "pid": 11588,
+    "owned_fixture_stopped": true
+  },
+  {
+    "pid": 14616,
+    "owned_fixture_stopped": true
+  },
+  {
+    "entry": "olive-freeform-fixture.desktop",
+    "removed_owned_setup": true
+  },
+  {
+    "entry": "olive-freeform-controls.desktop",
+    "removed_owned_setup": true
+  }
+]

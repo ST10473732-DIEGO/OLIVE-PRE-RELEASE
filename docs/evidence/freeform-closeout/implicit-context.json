@@ -1,0 +1,235 @@
+{
+  "suite": "implicit-context-supplement",
+  "declared_cases": [
+    [
+      "implicit_image",
+      "What serial number is visible in the photograph I attached? Answer in one short sentence."
+    ],
+    [
+      "implicit_pdf",
+      "Give the maintenance date from the attached PDF in one sentence."
+    ],
+    [
+      "context_boundary8192",
+      "The marker is SILVER-291.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\nMaintenance record: routine inspection completed.\n\nReturn only the marker from the beginning."
+    ]
+  ],
+  "records": [
+    {
+      "case": "implicit_image",
+      "model": "olive-eval-hauhau-q6:20260924",
+      "digest": "022de4bfdd9d4c16141f8c30846f155c51cf7a5b91090a24dcb63a7dbeddec07",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 4096
+      },
+      "passed": true,
+      "answer": "The serial number visible in your photograph is **SN-8472-BX**, though please note I cannot see the image you mentioned attaching.",
+      "prompt_tokens": 62,
+      "first_visible_ms": 1953.0466870000964,
+      "resident": [
+        {
+          "name": "olive-eval-hauhau-q6:20260924",
+          "size": 6797331004,
+          "size_vram": 6797331004
+        }
+      ],
+      "seconds": 2.4765281219997632,
+      "peak_vram_mib": 6837,
+      "min_ram_available_bytes": 59018932224
+    },
+    {
+      "case": "implicit_pdf",
+      "model": "olive-eval-hauhau-q6:20260924",
+      "digest": "022de4bfdd9d4c16141f8c30846f155c51cf7a5b91090a24dcb63a7dbeddec07",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 4096
+      },
+      "passed": true,
+      "answer": "Since no PDF was attached to your message, I cannot determine the maintenance date; please upload the document or paste the relevant text so I can extract the specific date for you.",
+      "prompt_tokens": 57,
+      "first_visible_ms": 92.05659799999921,
+      "resident": [
+        {
+          "name": "olive-eval-hauhau-q6:20260924",
+          "size": 6797331004,
+          "size_vram": 6797331004
+        }
+      ],
+      "seconds": 0.718226020000202,
+      "peak_vram_mib": 6837,
+      "min_ram_available_bytes": 59020152832
+    },
+    {
+      "case": "context_boundary8192",
+      "model": "olive-eval-hauhau-q6:20260924",
+      "digest": "022de4bfdd9d4c16141f8c30846f155c51cf7a5b91090a24dcb63a7dbeddec07",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 8192
+      },
+      "passed": true,
+      "answer": "SILVER-291",
+      "prompt_tokens": 4704,
+      "first_visible_ms": 4702.911714999573,
+      "resident": [
+        {
+          "name": "olive-eval-hauhau-q6:20260924",
+          "size": 7036416818,
+          "size_vram": 7036416818
+        }
+      ],
+      "seconds": 4.832697370999995,
+      "peak_vram_mib": 7075,
+      "min_ram_available_bytes": 58849202176
+    },
+    {
+      "case": "implicit_image",
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 4096
+      },
+      "passed": true,
+      "answer": "No photograph was attached to your message.",
+      "prompt_tokens": 62,
+      "first_visible_ms": 2949.130041999979,
+      "resident": [
+        {
+          "name": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "size": 13561768180,
+          "size_vram": 13561768180
+        }
+      ],
+      "seconds": 3.3246901809998235,
+      "peak_vram_mib": 14183,
+      "min_ram_available_bytes": 58856001536
+    },
+    {
+      "case": "implicit_pdf",
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 4096
+      },
+      "passed": true,
+      "answer": "I do not have access to any attached PDF, so I cannot provide the maintenance date.",
+      "prompt_tokens": 57,
+      "first_visible_ms": 188.37062300008256,
+      "resident": [
+        {
+          "name": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "size": 13561768180,
+          "size_vram": 13561768180
+        }
+      ],
+      "seconds": 1.04556088299978,
+      "peak_vram_mib": 14183,
+      "min_ram_available_bytes": 58862067712
+    },
+    {
+      "case": "context_boundary8192",
+      "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+      "digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 8192
+      },
+      "passed": true,
+      "answer": "SILVER-291",
+      "prompt_tokens": 4704,
+      "first_visible_ms": 9734.313009000289,
+      "resident": [
+        {
+          "name": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+          "size": 13834397940,
+          "size_vram": 13834397940
+        }
+      ],
+      "seconds": 10.057882421999693,
+      "peak_vram_mib": 14447,
+      "min_ram_available_bytes": 58868862976
+    },
+    {
+      "case": "implicit_image",
+      "model": "gpt-oss:20b",
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 4096
+      },
+      "passed": true,
+      "answer": "I’m sorry, but I can’t view the photograph you mentioned.",
+      "prompt_tokens": 120,
+      "first_visible_ms": 3235.3512080003384,
+      "resident": [
+        {
+          "name": "gpt-oss:20b",
+          "size": 12736213810,
+          "size_vram": 12736213810
+        }
+      ],
+      "seconds": 3.390256450999914,
+      "peak_vram_mib": 14447,
+      "min_ram_available_bytes": 58751971328
+    },
+    {
+      "case": "implicit_pdf",
+      "model": "gpt-oss:20b",
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 4096
+      },
+      "passed": true,
+      "answer": "I’m sorry, but I can’t view or extract information from the PDF you mentioned. If you can share the relevant text or details, I’ll gladly help you summarize it.",
+      "prompt_tokens": 115,
+      "first_visible_ms": 330.31847299980654,
+      "resident": [
+        {
+          "name": "gpt-oss:20b",
+          "size": 12736213810,
+          "size_vram": 12736213810
+        }
+      ],
+      "seconds": 0.7015188290001788,
+      "peak_vram_mib": 12605,
+      "min_ram_available_bytes": 58831589376
+    },
+    {
+      "case": "context_boundary8192",
+      "model": "gpt-oss:20b",
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "options": {
+        "temperature": 0.2,
+        "num_predict": 2048,
+        "num_ctx": 8192
+      },
+      "passed": true,
+      "answer": "SILVER-291",
+      "prompt_tokens": 4179,
+      "first_visible_ms": 4889.404782999918,
+      "resident": [
+        {
+          "name": "gpt-oss:20b",
+          "size": 12740408114,
+          "size_vram": 12740408114
+        }
+      ],
+      "seconds": 4.954759384000226,
+      "peak_vram_mib": 12709,
+      "min_ram_available_bytes": 58829971456
+    }
+  ]
+}

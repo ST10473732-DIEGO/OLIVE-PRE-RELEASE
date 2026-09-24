@@ -1,0 +1,18 @@
+[
+  {
+    "file": "f01.txt",
+    "task": "F01-validated-reproposal",
+    "summary_bytes_equal_saved_bytes": true,
+    "every_excerpt_in_owned_html": true,
+    "sha256": "bf3644080afde45696af52ff1aeb6f90162bb5d0e0e1eca894643e6f79f690bb",
+    "bytes": 133
+  },
+  {
+    "file": "f01-provenance.txt",
+    "task": "F01-source-provenance",
+    "summary_bytes_equal_saved_bytes": true,
+    "every_excerpt_in_owned_html": true,
+    "sha256": "7ec4ccd407c38095af47eadf3a7e11322a3ae85ec8db61324377075e1bf74afd",
+    "bytes": 156
+  }
+]

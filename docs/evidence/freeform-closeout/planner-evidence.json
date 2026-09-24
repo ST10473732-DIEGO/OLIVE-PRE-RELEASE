@@ -1,0 +1,302 @@
+{
+  "diagnostic_traces_only": true,
+  "successful_plan_configuration": {
+    "speech_act": {
+      "model": "qwen3:8b",
+      "context": 4096,
+      "temperature": 0,
+      "output": 100,
+      "think": false
+    },
+    "plan": {
+      "model": "gpt-oss:20b",
+      "context": 4096,
+      "temperature": 0,
+      "output": 2400,
+      "think": "low",
+      "schema_corrections": 1
+    },
+    "summary": {
+      "model": "gpt-oss:20b",
+      "context": 8192,
+      "temperature": 0,
+      "output": 1600,
+      "think": "low"
+    },
+    "gui": "GUI-Owl-1.5-8B-Instruct-Q5_K_M"
+  },
+  "records": [
+    {
+      "source": "result-F01-inspect3.json",
+      "traces": [
+        {
+          "id": "2b5eaecd4503404993b747b746337958",
+          "chat_id": "0e6d69b0-0e15-4218-9ce7-ef5d136393e8",
+          "request_sha256": "37cdd99da3bdfc4b328854916d637d30436f7220e0b9a67bfc90e46aed6725dd",
+          "preset": "normal",
+          "selected_model": "gpt-oss:20b",
+          "remote": false,
+          "events": [
+            {
+              "stage": "owner_task_grant",
+              "elapsed_ms": 2.8,
+              "task_id": "f8b70374959349d4a79ee29cb4b07bb2",
+              "effect": "save",
+              "capabilities": [],
+              "cancellation_epoch": 0,
+              "authorized_by": "owner_task_policy"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 3653.91,
+              "model": "qwen3:8b",
+              "prompt_sha256": "ab3cbe5d2631a1d624a2a839ebad01261cb2962d15d732011cb510ef035cddda",
+              "system_sha256": "f3a8e593c9bc4d8bf6ba46acac26e35a720b82c5a92b5cc731e7fe2d12975e6a",
+              "messages": 3,
+              "options": {
+                "temperature": 0,
+                "num_predict": 100,
+                "num_ctx": 4096
+              },
+              "thinking": false,
+              "schema_sha256": "048de5446d87fe19ada2e7cf996985156327829b4f3a9993ce5cd2f43ce75415"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 6561.52,
+              "model": "gpt-oss:20b",
+              "prompt_sha256": "7cd9672ded2fdaaa81ba7fd044ea61c88d1976846e944b2b2192b0578b7e9922",
+              "system_sha256": "198bbc6f509f0627c7e1cfb322ff56e708351b55fdc7f4d6bae9254f57c277d3",
+              "messages": 2,
+              "options": {
+                "temperature": 0,
+                "num_ctx": 4096,
+                "num_predict": 2400
+              },
+              "thinking": "low",
+              "schema_sha256": "edc3eafd8f605e3b1593b7dbc4ac0be603c6df303745e5e1a20a5db530a17097"
+            },
+            {
+              "stage": "desktop_plan_rejected",
+              "elapsed_ms": 12079.69,
+              "reason": "Invalid derived result type"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 12244.41,
+              "model": "gpt-oss:20b",
+              "prompt_sha256": "1f4047e3618b68c0b172284cfdac289626b88c54596886538ccd3c66ad5f4406",
+              "system_sha256": "bc846526c0367c65a778b87667689dbdbe7e0ded3e31b7dfe5ddf0b712052856",
+              "messages": 2,
+              "options": {
+                "temperature": 0,
+                "num_predict": 1600,
+                "num_ctx": 8192
+              },
+              "thinking": "low",
+              "schema_sha256": "61aa62d898c2485525775a4bf6fe291804ce871b89cd2f08172e94edb90d67c0"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 18867.09,
+              "model": "gpt-oss:20b",
+              "prompt_sha256": "43044fdfdcc9513cf433a593d88bfcdaaa44143a42f34ddd7b728ffcc66c0d40",
+              "system_sha256": "42b71fa7fa6841ee7b3da8f97c569ddef9a37018a8692491c9c38284a747e29f",
+              "messages": 2,
+              "options": {
+                "temperature": 0,
+                "num_predict": 1600,
+                "num_ctx": 8192
+              },
+              "thinking": "low",
+              "schema_sha256": "f86d2cb2809e013b2a61a61b824838884ac0b42b4aa0358743e9047e7a896ed2"
+            },
+            {
+              "stage": "request_finished",
+              "elapsed_ms": 22762.11,
+              "status": "returned"
+            }
+          ]
+        }
+      ],
+      "interpretation_metrics": [
+        {
+          "stage": "speech_act",
+          "mode": "action",
+          "domains": [
+            "browser",
+            "communication",
+            "filesystem"
+          ]
+        },
+        {
+          "stage": "desktop_plan_rejected",
+          "reason": "Invalid derived result type"
+        },
+        {
+          "model": "gpt-oss:20b",
+          "duration_ms": 6617.074309000145,
+          "done_reason": "stop",
+          "prompt_tokens": 3723,
+          "valid": false,
+          "validation_error": "The user did not name that text field; do not invent a field instead of interpreting their requested operation"
+        },
+        {
+          "model": "gpt-oss:20b",
+          "duration_ms": 4057.587761999912,
+          "done_reason": "stop",
+          "prompt_tokens": 3757,
+          "valid": false,
+          "validation_error": "Text entry must copy wording from the current request, not repeat earlier field content. Use an explicit text reference only when the user requests reuse; file attachments use communication.attach."
+        }
+      ]
+    },
+    {
+      "source": "result-F01-named-shape.json",
+      "traces": [
+        {
+          "id": "599224c3a30d48dab46988e3c50b12aa",
+          "chat_id": "d98f8df3-ff9c-4f7a-ac61-f489470b0a95",
+          "request_sha256": "37cdd99da3bdfc4b328854916d637d30436f7220e0b9a67bfc90e46aed6725dd",
+          "preset": "normal",
+          "selected_model": "gpt-oss:20b",
+          "remote": false,
+          "events": [
+            {
+              "stage": "owner_task_grant",
+              "elapsed_ms": 2.69,
+              "task_id": "0da3b04d6d554e8a803f7d10b5a8cd42",
+              "effect": "save",
+              "capabilities": [],
+              "cancellation_epoch": 0,
+              "authorized_by": "owner_task_policy"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 3747.04,
+              "model": "qwen3:8b",
+              "prompt_sha256": "ab3cbe5d2631a1d624a2a839ebad01261cb2962d15d732011cb510ef035cddda",
+              "system_sha256": "f3a8e593c9bc4d8bf6ba46acac26e35a720b82c5a92b5cc731e7fe2d12975e6a",
+              "messages": 3,
+              "options": {
+                "temperature": 0,
+                "num_predict": 100,
+                "num_ctx": 4096
+              },
+              "thinking": false,
+              "schema_sha256": "048de5446d87fe19ada2e7cf996985156327829b4f3a9993ce5cd2f43ce75415"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 6674.25,
+              "model": "gpt-oss:20b",
+              "prompt_sha256": "648f9c5a4d097d1e2717abda699785570fe4d5be5c8575158d4aba0089adce15",
+              "system_sha256": "5fa6d14a1f1d731b7a0314d558e4a31b2914139bd41569a86fa50c5d3cbea832",
+              "messages": 2,
+              "options": {
+                "temperature": 0,
+                "num_ctx": 4096,
+                "num_predict": 2400
+              },
+              "thinking": "low",
+              "schema_sha256": "42f5b426649947c8c0ce152909fdafc9e4cb4acf39bffb1097768ffea283fbfa"
+            },
+            {
+              "stage": "desktop_plan_rejected",
+              "elapsed_ms": 12668.66,
+              "reason": "Unexpected effect resources"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 12828.58,
+              "model": "gpt-oss:20b",
+              "prompt_sha256": "1f4047e3618b68c0b172284cfdac289626b88c54596886538ccd3c66ad5f4406",
+              "system_sha256": "bc846526c0367c65a778b87667689dbdbe7e0ded3e31b7dfe5ddf0b712052856",
+              "messages": 2,
+              "options": {
+                "temperature": 0,
+                "num_predict": 1600,
+                "num_ctx": 8192
+              },
+              "thinking": "low",
+              "schema_sha256": "61aa62d898c2485525775a4bf6fe291804ce871b89cd2f08172e94edb90d67c0"
+            },
+            {
+              "stage": "model_request",
+              "elapsed_ms": 19481.7,
+              "model": "gpt-oss:20b",
+              "prompt_sha256": "43044fdfdcc9513cf433a593d88bfcdaaa44143a42f34ddd7b728ffcc66c0d40",
+              "system_sha256": "42b71fa7fa6841ee7b3da8f97c569ddef9a37018a8692491c9c38284a747e29f",
+              "messages": 2,
+              "options": {
+                "temperature": 0,
+                "num_predict": 1600,
+                "num_ctx": 8192
+              },
+              "thinking": "low",
+              "schema_sha256": "f86d2cb2809e013b2a61a61b824838884ac0b42b4aa0358743e9047e7a896ed2"
+            },
+            {
+              "stage": "request_finished",
+              "elapsed_ms": 23141.07,
+              "status": "returned"
+            }
+          ]
+        }
+      ],
+      "interpretation_metrics": [
+        {
+          "stage": "speech_act",
+          "mode": "action",
+          "domains": [
+            "browser",
+            "communication",
+            "filesystem"
+          ]
+        },
+        {
+          "stage": "desktop_plan_rejected",
+          "reason": "Unexpected effect resources",
+          "shape": [
+            {
+              "effect": "visit",
+              "source": "",
+              "has_content": true
+            },
+            {
+              "effect": "read",
+              "source": "",
+              "has_content": false
+            },
+            {
+              "effect": "summarize",
+              "source": "page",
+              "has_content": false
+            },
+            {
+              "effect": "edit_save",
+              "source": "summary",
+              "has_content": false
+            }
+          ]
+        },
+        {
+          "model": "gpt-oss:20b",
+          "duration_ms": 6645.441109999865,
+          "done_reason": "stop",
+          "prompt_tokens": 3723,
+          "valid": false,
+          "validation_error": "The user did not name that text field; do not invent a field instead of interpreting their requested operation"
+        },
+        {
+          "model": "gpt-oss:20b",
+          "duration_ms": 3822.07114799985,
+          "done_reason": "stop",
+          "prompt_tokens": 3757,
+          "valid": false,
+          "validation_error": "Text entry must copy wording from the current request, not repeat earlier field content. Use an explicit text reference only when the user requests reuse; file attachments use communication.attach."
+        }
+      ]
+    }
+  ]
+}

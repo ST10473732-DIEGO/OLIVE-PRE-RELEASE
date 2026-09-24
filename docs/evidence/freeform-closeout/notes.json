@@ -1,0 +1,29 @@
+{
+  "source_html": "<!doctype html><title>Owned maintenance dates</title><h1>Maintenance schedule</h1><p>The pump inspection is on 12 October 2026.</p><p>The filter replacement is on 19 October 2026.</p><p>The next audit is on 2 November 2026.</p>",
+  "notes": [
+    {
+      "file": "f01.txt",
+      "bytes": 133,
+      "sha256": "bf3644080afde45696af52ff1aeb6f90162bb5d0e0e1eca894643e6f79f690bb",
+      "text": "- The pump inspection is on 12 October 2026.\n- The filter replacement is on 19 October 2026.\n- The next audit is on 2 November 2026.\n"
+    },
+    {
+      "file": "f01-provenance.txt",
+      "bytes": 156,
+      "sha256": "7ec4ccd407c38095af47eadf3a7e11322a3ae85ec8db61324377075e1bf74afd",
+      "text": "- Maintenance schedule\n- The pump inspection is on 12 October 2026.\n- The filter replacement is on 19 October 2026.\n- The next audit is on 2 November 2026.\n"
+    },
+    {
+      "file": "f04.txt",
+      "bytes": 30,
+      "sha256": "018319deaa8765efd269bed5b5d975687e4542b00ad1c62bb598227fe88acbb0",
+      "text": "Owned fresh note 24 September\n"
+    },
+    {
+      "file": "f05.txt",
+      "bytes": 48,
+      "sha256": "5937025ba0744f016a259ab215d310731a5ed2784b3261e430438a34869ed2e2",
+      "text": "Independent note while unrelated dialog remains\n"
+    }
+  ]
+}

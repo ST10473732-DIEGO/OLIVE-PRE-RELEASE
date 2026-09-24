@@ -67,3 +67,30 @@ Model-quality results, compilation checks and any promotion decision are in the
 Chat repair report. No promotion has been made at this checkpoint. Candidate tags
 are optional local evaluation configurations; rollback is simply to keep/use the
 unchanged public presets. No pruning or migration away from Ollama was performed.
+
+## Held-out local answer decision after 9e4d915
+
+The finite follow-on gate retained both candidate digests and acquired no model.
+A passed 13/14 primary cases and 3/3 implicit-context/longer-context supplements,
+but **failed the unchanged Python behavior gate**: NaN raises
+`decimal.InvalidOperation` rather than the requested `ValueError`. B passed
+14/14 plus 3/3 and two compiled production Chat turns in an isolated local-only
+profile, including a retained-constraint follow-up. B therefore passes this
+finite local answer/code role. The actual installed `gpt-oss:20b` baseline passed
+13/14 plus 3/3; its generated Python incorrectly accepts `0.001` after rounding.
+No candidate code was repaired. Earlier measured failures remain historical;
+newly performed passing checks do not erase them.
+
+A/B used think=false, temperature 0.2, output 2048, context 4096 with explicit 8192
+context cases. The baseline used its native think=low profile. All passed streamed
+cancellation/recovery. Resource and latency limitations, exact prompts/outputs,
+compilers and digests are in [the closeout](OLIVE_AGENT_FREEFORM_CLOSEOUT.md#text-model-decision)
+and [raw gate evidence](evidence/freeform-closeout/answer-gate.json).
+The longer context supplement used 4,704 prompt tokens for A/B in an 8192 window;
+it does not establish maximum context. Cache and partial regression overlap
+prevent a controlled speed ranking. No equivalent-base uncensoring claim is made.
+
+Candidate-specific shared C7 validation remains unperformed, not failed. Public
+presets, remote mappings and user overrides remain unchanged; B was active only
+in the explicitly isolated evaluation profile. No public shared-preset promotion
+is claimed. Chat-only candidates were not subjected to unrelated planner/GUI gates.

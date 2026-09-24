@@ -131,3 +131,19 @@ package manager, root privilege or shell interpolation handles file contents.
 The existing executor, permission service, desktop gateway and app controllers
 form the broker boundary for future separate apps. No root daemon, OLIVE OS,
 C9 or C10 implementation is included. No automatic push is authorized.
+
+## Freeform continuation from 9e4d915 (24 September 2026)
+
+The subsequent continuation adds scoped `git.status`, `git.diff`, `git.log` and
+`git.branch_list` authority for explicit local read requests in one selected
+approved workspace. Only the existing read controller arguments are admitted;
+Git mutations, other workspaces, remote contexts and model command fields do
+not inherit that scope. This addition is **FIXTURE_ONLY**, not a new live Git
+acceptance claim. Existing Deny, revocation, expiry and Stop remain authoritative.
+
+The complete controller-family inventory and remaining Ask paths are recorded in
+[the freeform closeout](OLIVE_AGENT_FREEFORM_CLOSEOUT.md#owner-mode-coverage-inventory).
+Other typed controllers were not blanket-authorized. The page-to-Kate dependency
+now binds derived text data through the existing native task authority; no new
+mode or installation ritual was added. Broad owner coverage and Discord visual
+composer execution remain incomplete.

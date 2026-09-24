@@ -1,0 +1,134 @@
+{
+  "baseline_head": "9e4d91544227fb9e1dc3d59dfacb6fa627d83d9e",
+  "implementation_head": "cbc7a088f4d3c62b74e8f5200fce608f32c0563c",
+  "branch": "feature/olive-unified-agent",
+  "no_push": true,
+  "changed_code": [
+    {
+      "path": "olive/authority/owner.py",
+      "sha256": "e9b7c211a067d6648b31edfac8e6c5087b76ee4306b76270c3e7cdda4f00a105"
+    },
+    {
+      "path": "olive/desktop/freeform_plan.py",
+      "sha256": "9cb91e0fc8e1584dd927e3eb306ae79ebc09eaef071f1a0447ae94df5355d185"
+    },
+    {
+      "path": "olive/desktop/grounded_steps.py",
+      "sha256": "3e86363840d4b51f6050dfdb01f4aea9d4229d50eb8a5fb4899122540fa36907"
+    },
+    {
+      "path": "olive/desktop/gui_evidence.py",
+      "sha256": "4017021983d994d5a48d204353ab266e8b6db5030d0d37a275afb96e315d905a"
+    },
+    {
+      "path": "olive/desktop/linux/accessibility.py",
+      "sha256": "61168b653a1662b89985334d93ccd716ee204d0523e77784b1c5b583a6ec3864"
+    },
+    {
+      "path": "olive/desktop/linux/applications.py",
+      "sha256": "bb5583da3450d4e4ece443e78a979bbc2b43247be68fd908ee5dc26727e93347"
+    },
+    {
+      "path": "olive/desktop/linux/browser_navigation.py",
+      "sha256": "b2005e6b6e794c7215c33f956c46a40c035a260fd61997cc9295019293ad443d"
+    },
+    {
+      "path": "olive/desktop/linux/editor_ownership.py",
+      "sha256": "236bf224967556ac973d1a3bb893b600d99dc25c0afdba43768b9736a94895b5"
+    },
+    {
+      "path": "olive/desktop/linux/editor_task.py",
+      "sha256": "49f0397aa250c3da391f965c060a1f3a4b354075e68d1ea483d9919a3d139459"
+    },
+    {
+      "path": "olive/desktop/linux/geometry.py",
+      "sha256": "cd3d7d2a87c47359f2112570f12f60f86d8f5c72e85f53cca6291bbdebb51ac4"
+    },
+    {
+      "path": "olive/desktop/linux/kwin.py",
+      "sha256": "9c12d6122cc5d2c425ce39f3c4f13c1753e75811153f9b331442cb561344ba1e"
+    },
+    {
+      "path": "olive/desktop/linux/messaging_observation.py",
+      "sha256": "dc5f2ec1df2688437be8d03e69267eccc00677727dfefda3a7ad55e0a743cc0a"
+    },
+    {
+      "path": "olive/desktop/linux/runtime.py",
+      "sha256": "d18918773b9cc8018b2072f43c2a1bc4b2d77c2453d155615bb43f62f38607e7"
+    },
+    {
+      "path": "olive/desktop/linux/worker.py",
+      "sha256": "a368dbd8bfa301f017ddf2f85f2b075cddf4d52e2115f69271b9804f9850cc54"
+    },
+    {
+      "path": "olive/desktop/task_authority.py",
+      "sha256": "76c7169ebf7beb73d03c59596a228f44e610a4028af56e250d15d6d174c54fff"
+    },
+    {
+      "path": "olive/desktop/task_results.py",
+      "sha256": "1c156b7a27befb32b6827e0bbec15c070e6a14761812d18d3505d16f5dae2255"
+    },
+    {
+      "path": "olive/evaluation/answer_gate.py",
+      "sha256": "406b6a5950cae86f5fc2b9e454e76028a6db691634e893091bccb67d00c67baa"
+    },
+    {
+      "path": "olive/interaction/interpreter.py",
+      "sha256": "870917fce3057275d6e3ffa80fd4a5e8a8a10b37f1a0714f92236b9e770bf16c"
+    },
+    {
+      "path": "olive/interaction/orchestrator.py",
+      "sha256": "696290be08e8987d9312c89b334f49bd375bbd7107a14eb6d45c48baaaed455a"
+    },
+    {
+      "path": "olive/services/gui_model_service.py",
+      "sha256": "4ac61bebd758b497492c15c75b74120dec5b8377aad34b6cfa4e1cf106169f5b"
+    },
+    {
+      "path": "scripts/backend_v3_benchmark.py",
+      "sha256": "c4d7523ec4f16a6c0ba8d11a9a0e95a7569c42455295d213d8972ea714bbd108"
+    },
+    {
+      "path": "scripts/fixtures/freeform_controls.c",
+      "sha256": "22e946f8bf284da04e36270f698dd891dd465e79fffa50ee7259ef423d2e0c2e"
+    },
+    {
+      "path": "tests/test_answer_gate.py",
+      "sha256": "07dedab0c60d3287212ef3525973e53cc3db7f4e72f208282dd078ee8b496ad1"
+    },
+    {
+      "path": "tests/test_desktop_grounded_steps.py",
+      "sha256": "685f002f0902b4854473b7c3d577bf3fd22a1dea31788c2ca5ca76ed5fe4ee4c"
+    },
+    {
+      "path": "tests/test_desktop_gui_evidence.py",
+      "sha256": "2ff377427e32408c2dd98f9a12585943094c7d29336397a8a290418f3202f6fa"
+    },
+    {
+      "path": "tests/test_desktop_linux_geometry.py",
+      "sha256": "d412608b47692d07fd6fa3849da8d4f5b31cffde5d3e5dc9436fc4b5694d041c"
+    },
+    {
+      "path": "tests/test_editor_ownership.py",
+      "sha256": "9277bb245ccdcb00e1670786ce69c546dfdfbf27828adecb2c8eef6d98946ac6"
+    },
+    {
+      "path": "tests/test_freeform_plan.py",
+      "sha256": "70b73462d68a689e1748434b03813f35ef6d664538ff683e0a37ce1db5193782"
+    },
+    {
+      "path": "tests/test_gui_model_handoff.py",
+      "sha256": "a8a4d2a7291058a70de00d1679719a488a2e52d8fd2de5e695940a6eaa1c4d98"
+    },
+    {
+      "path": "tests/test_messaging_observation.py",
+      "sha256": "9321e5cff49bb25ca0a9f232f2612c38396d1ae3d4964048f38a9a9f75b5ca19"
+    },
+    {
+      "path": "tests/test_owner_mode.py",
+      "sha256": "b67966d17ad4347a5821b3eb98f6492ff139e4974347beea203c8f2490e5f4ab"
+    }
+  ],
+  "historical_evidence_unchanged": true,
+  "historical_evidence_files": 32
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "role": "combo box",
+    "message_prefix": false,
+    "search_prefix": true,
+    "empty": false,
+    "actions": [
+      "activate"
+    ],
+    "key_bindings": {
+      "activate": ";;"
+    }
+  },
+  {
+    "role": "entry",
+    "message_prefix": false,
+    "search_prefix": true,
+    "empty": true,
+    "actions": [
+      "activate"
+    ],
+    "key_bindings": {
+      "activate": ";;"
+    }
+  }
+]
