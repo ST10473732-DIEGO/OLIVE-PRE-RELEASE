@@ -4,6 +4,22 @@ from olive.desktop.task_authority import TaskScope
 
 
 class GroundedStepTests(unittest.TestCase):
+    def test_enter_submission_needs_composer_semantics_and_exact_destination(self):
+        from types import SimpleNamespace
+        from olive.desktop.task_authority import validate_effect
+        scope = TaskScope('Owned', 'send', 'hello', 'garden', 'Owner')
+        composer = dict(id='c', name='Message', role='entry', enabled=True, editable=True,
+                        focused=True, value='hello', bounds=[0,0,100,30], labels=['Enter to send'])
+        observation = dict(revision='r', controls=[composer], destination={'account':'Owner','destination':'garden','server':''})
+        step = next_step(scope, observation, False)
+        self.assertEqual(step['value'], 'Enter')
+        validate_effect(SimpleNamespace(scope=scope), step, observation)
+        composer['labels'] = []
+        self.assertIsNone(next_step(scope, observation, False))
+        with self.assertRaisesRegex(PermissionError,'COMPOSER_SEMANTICS_UNVERIFIED'):
+            validate_effect(SimpleNamespace(scope=scope), step, observation)
+        composer['labels'] = ['Enter to send', 'Enter inserts a newline']
+        self.assertIsNone(next_step(scope, observation, False))
     def setUp(self):
         self.scope = TaskScope('Firefox', 'search', 'A changing query')
         self.control = dict(id='new-id', name='Search or address', enabled=True, editable=True,

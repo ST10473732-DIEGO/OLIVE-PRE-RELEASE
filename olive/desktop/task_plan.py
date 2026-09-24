@@ -13,6 +13,7 @@ from .task_authority import direct_scope
 class DesktopPlan:
     original: str
     clauses: tuple[str,...]
+    summarize: bool = False
 
 
 def explicit_plan(request):
@@ -32,6 +33,16 @@ def explicit_plan(request):
     if quote:return None
     parts.append(request[start:].strip())
     if not 2 <= len(parts) <= 8 or any(not p for p in parts):return None
+    summarize = bool(re.fullmatch(r'(?:summari[sz]e|give me a summary of) (?:it|that page|the page|the results)(?: in Chat)?[.]?', parts[-1], re.I))
+    if summarize:
+        parts.pop()
+        try:
+            last = direct_scope(parts[-1])
+        except ValueError:
+            return None
+        if last.effect not in {'visit','search','read','scroll','tab'}:
+            return None
+        if last.effect != 'read':parts.append('Read current page in '+last.application)
     try:direct_scope(parts[0])
     except ValueError:return None
-    return DesktopPlan(request,tuple(parts))
+    return DesktopPlan(request,tuple(parts),summarize)

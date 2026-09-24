@@ -48,7 +48,7 @@ async def search(runtime, grant, app, processes):
         if step == 'type_query':
             semantic_match = False
             try:
-                observation = await runtime.native.call('observe', {'pid': pid})
+                observation = await runtime.native.call('browser_chrome', {'pid': pid})
                 semantic_match = any(c.get('editable') and c.get('focused') and c.get('value') in {
                     grant.scope.content, '? '+grant.scope.content} for c in observation['controls'])
             except RuntimeError:
@@ -64,7 +64,7 @@ async def search(runtime, grant, app, processes):
         d.record.current_action = 'Verifying the visible results'
         d.publish()
         frame = await runtime.native.call('visual_observe', {'pid': pid}, timeout=5)
-        text = (await asyncio.to_thread(read_frame, frame)).casefold()
+        text = '' if visiting else (await asyncio.to_thread(read_frame, frame)).casefold()
         title = frame['window'].get('title', '').casefold()
         if any(term in text for term in ('unusual traffic', 'captcha', 'verify you are human', 'problem loading page')):
             raise PermissionError('The browser requires human attention; search was not retried')
@@ -72,14 +72,14 @@ async def search(runtime, grant, app, processes):
             from urllib.parse import urlsplit
             wanted = urlsplit(grant.scope.content)
             try:
-                observation = await runtime.native.call('observe', {'pid': pid})
-                urls = [urlsplit(doc['uri']) for doc in observation.get('documents', [])]
+                observation = await runtime.native.call('document_locations', {'pid': pid})
+                urls = [urlsplit(doc['uri']) for doc in observation.get('documents', []) if doc.get('ready')]
                 matched = any((u.scheme,u.netloc,u.path.rstrip('/'),u.query)==(wanted.scheme,wanted.netloc,wanted.path.rstrip('/'),wanted.query) for u in urls)
             except RuntimeError:
                 matched = False
-            if matched and len(text.strip()) > 20:
+            if matched:
                 d.record.status = 'completed'
-                d.record.verification = 'The requested URL is exposed by the visible browser document and a fresh rendered page was read.'
+                d.record.verification = 'The requested URL is exposed by the active visible browser document after navigation; a fresh frame was captured without reading page content.'
                 return d.record.verification
         elif grant.scope.content.casefold() in title and len(text) > 200 and any(term in text for term in ('search', 'results', 'images', 'videos')):
             d.record.status = 'completed'

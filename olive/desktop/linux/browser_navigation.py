@@ -1,7 +1,26 @@
 """Read, scroll and tab operations on the user's visible browser."""
 import asyncio
 import configparser
+import base64
+import io
+from PIL import Image
 from .browser_search import read_frame
+
+
+def document_frame(frame, documents):
+    """Crop the verified current document; unrelated tab titles are not page data."""
+    from .geometry import contains
+    candidates = [d for d in documents if d.get('ready') and contains(frame['window']['bounds'], d.get('bounds'))]
+    if len(candidates) != 1:
+        raise ValueError('The visible page region is not uniquely exposed; browser chrome was not read')
+    x,y,w,h = frame['window']['bounds']
+    dx,dy,dw,dh = candidates[0]['bounds']
+    sx,sy = frame['width']/w,frame['height']/h
+    box = (round((dx-x)*sx),round((dy-y)*sy),round((dx+dw-x)*sx),round((dy+dh-y)*sy))
+    with Image.open(io.BytesIO(base64.b64decode(frame['png'], validate=True))) as image:
+        cropped = image.crop(box)
+        output = io.BytesIO(); cropped.save(output, format='PNG')
+    return {**frame, 'png':base64.b64encode(output.getvalue()).decode(), 'width':box[2]-box[0], 'height':box[3]-box[1]}
 
 
 async def navigate(runtime, grant, app, processes):
@@ -24,7 +43,9 @@ async def navigate(runtime, grant, app, processes):
     runtime.check_task(grant)
     d.record.current_action = 'Reading the visible page'
     d.publish()
-    text = await asyncio.to_thread(read_frame, after)
+    locations = await runtime.native.call('document_locations', {'pid':processes[0][0]})
+    page = document_frame(after, locations.get('documents', []))
+    text = await asyncio.to_thread(read_frame, page)
     if not text.strip():
         raise ValueError('The visible page text could not be read')
     d.record.status = 'completed'

@@ -7,6 +7,17 @@ not a protocol-level exactly-once guarantee.
 from urllib.parse import urlsplit, parse_qs
 
 
+def enter_sends(control):
+    """Require an observed composer instruction, not a model's keyboard guess.
+
+    Labels are usable UI semantics only inside the already bound task target;
+    they cannot create an account, destination, content or send grant.
+    """
+    labels = {str(value).strip().casefold().rstrip('.') for value in control.get('labels', [])}
+    return bool(labels & {'enter to send', 'press enter to send', 'enter sends; shift+enter inserts a newline'}) and not bool(
+        labels & {'enter inserts a newline', 'shift+enter to send', 'press shift+enter to send'})
+
+
 def current_account(observation):
     accounts = [c['name'][9:].strip() for c in observation['controls']
                 if c.get('name', '').startswith('Account: ') and

@@ -29,6 +29,7 @@ class Applications:
                                     Path.home() / '.local/share/applications'))
         self.values = {}
         self.launches = []
+        self.window_processes = {}
 
     def discover(self):
         result = {}
@@ -94,6 +95,38 @@ class Applications:
         # Browser renderer/utility children are not independent app instances.
         return [(pid, created) for pid, parent, created in result if parent not in pids]
 
+    def bind_window_processes(self, app, rows):
+        """Bind a launcher wrapper to KWin's exact installed desktop identity.
+
+        Only the private typed helper supplies these rows. This is same-user app
+        discovery, not a sandbox claim about application-provided metadata.
+        """
+        import psutil
+        if self.values.get(app.id) is not app or hashlib.sha256(app.entry.read_bytes()).hexdigest() != app.digest:
+            raise PermissionError('Application entry changed')
+        found = []
+        for pid in sorted({row['pid'] for row in rows}):
+            if type(pid) is not int or pid <= 0:raise ValueError('Invalid application process')
+            process = psutil.Process(pid)
+            executable = Path(process.exe()).resolve()
+            stat = executable.stat()
+            if process.uids().real != os.getuid() or stat.st_uid not in {0, os.getuid()} or stat.st_mode & 0o022:
+                raise PermissionError('Application process owner or executable changed')
+            with executable.open('rb') as source:
+                if source.read(4) != b'\x7fELF':raise PermissionError('GUI process is not a native executable')
+            created = process.create_time()
+            self.window_processes[(app.id, pid, created)] = str(executable)
+            found.append((pid, created))
+        return found
+
+    def verify_process(self, app, pid, created):
+        import psutil
+        process = psutil.Process(pid)
+        expected = self.window_processes.get((app.id, pid, created), str(app.executable))
+        if process.create_time() != created or process.exe() != expected or process.uids().real != os.getuid():
+            raise PermissionError('Application process lifetime or executable changed')
+        return process
+
     def launch(self, app):
         if self.values.get(app.id) is not app or hashlib.sha256(app.entry.read_bytes()).hexdigest() != app.digest:
             raise PermissionError('Application entry changed; review again')
@@ -111,7 +144,7 @@ class Applications:
         self.launches.append(process)
         return self.processes(app)
 
-    async def wait_for_processes(self, app, stopped, *, timeout=3, clock=time.monotonic, wait=asyncio.sleep):
+    async def wait_for_processes(self, app, stopped, *, timeout=3, clock=time.monotonic, wait=asyncio.sleep, discover=None):
         """Bounded discovery after one launch, not a retry of launching the app.
 
         Process creation has no portable session event; poll metadata at 100 ms.
@@ -122,6 +155,8 @@ class Applications:
             if stopped.is_set():
                 raise InterruptedError('Stopped while waiting for the requested application')
             found = await asyncio.to_thread(self.processes, app)
+            if not found and discover is not None:
+                found = await discover()
             if found:
                 return found
             remaining = deadline - clock()

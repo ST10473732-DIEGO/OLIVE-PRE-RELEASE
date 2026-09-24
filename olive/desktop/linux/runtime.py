@@ -155,10 +155,23 @@ class LinuxRuntime:
             preparation_started = True
             await self.prepare()
             self.authority.check(grant, d.configuration())
-            processes = await asyncio.to_thread(self.apps.launch, app)
+            async def window_processes():
+                found = await self.native.call('application_windows', {'desktop_id': app.id.removesuffix('.desktop')})
+                return await asyncio.to_thread(self.apps.bind_window_processes, app, found)
+            processes = await asyncio.to_thread(self.apps.processes, app)
             if not processes:
-                processes = await self.apps.wait_for_processes(app, d.stop_event)
+                processes = await window_processes()
+            if not processes:
+                processes = await asyncio.to_thread(self.apps.launch, app)
+                if not processes:
+                    processes = await self.apps.wait_for_processes(app, d.stop_event, discover=window_processes)
             await self.activate_app(app, processes)
+            if grant.scope.effect == 'open' and d.record.window.get('accessible') is False:
+                await self.native.call('visual_observe', {'pid': processes[0][0]}, timeout=5)
+                self.check_task(grant)
+                d.record.status = 'completed'
+                d.record.verification = 'The requested installed application is active in KWin and a fresh window frame was captured. Its controls are not accessible.'
+                return d.record.verification
             if grant.scope.effect in {'read', 'scroll', 'tab'}:
                 for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
                     d.gateway.require_not_denied(permissions_session, permission)
@@ -354,9 +367,7 @@ class LinuxRuntime:
         await asyncio.to_thread(validate_frame, frame)
         observations = []
         for pid, created in processes[:8]:
-            process = psutil.Process(pid)
-            if process.create_time() != created or process.exe() != str(app.executable):
-                raise PermissionError('Application process lifetime changed')
+            self.apps.verify_process(app, pid, created)
             try:
                 observed = await self.native.call('observe', {'pid': pid})
                 if observed['windows']:
@@ -377,9 +388,7 @@ class LinuxRuntime:
         if len(processes) != 1:
             raise ValueError('NEEDS_USER_CLARIFICATION: application process identity is not unique')
         pid, created = processes[0]
-        process = psutil.Process(pid)
-        if process.create_time() != created or process.exe() != str(app.executable):
-            raise PermissionError('Application process lifetime changed before focus')
+        self.apps.verify_process(app, pid, created)
         activation = await self.native.call('activate', {'pid': pid}, timeout=10)
         if self.desktop.record:
             self.desktop.record.window = activation

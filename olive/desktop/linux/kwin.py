@@ -5,6 +5,7 @@ boolean and this helper's D-Bus peer. Replies are accepted only from KWin.
 """
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import time
@@ -12,13 +13,14 @@ import uuid
 from gi.repository import Gio, GLib
 
 SCRIPT = '''
-const windows = workspace.windowList().filter(w => w.pid === PID && w.output && (w.normalWindow || w.dialog));
+const windows = workspace.windowList().filter(w => (PID > 0 ? w.pid === PID : [DESKTOP_ID, DESKTOP_ID + '.desktop'].includes(String(w.desktopFileName))) && w.output && (w.normalWindow || w.dialog));
 if (ACTIVATE && windows.length === 1) {
     windows[0].minimized = false;
     workspace.activeWindow = windows[0];
 }
 const result = windows.map(w => ({id:String(w.internalId), pid:w.pid,
     active:w.active, output:w.output.name, title:w.caption,
+    desktop_file:String(w.desktopFileName), resource_class:String(w.resourceClass), resource_name:String(w.resourceName),
     bounds:[w.clientGeometry.x,w.clientGeometry.y,w.clientGeometry.width,w.clientGeometry.height],
     frame:[w.frameGeometry.x,w.frameGeometry.y,w.frameGeometry.width,w.frameGeometry.height]}));
 callDBus(PEER, '/local/olive/WindowReply', 'local.olive.WindowReply', 'Report', JSON.stringify(result));
@@ -27,8 +29,10 @@ XML = '''<node><interface name="local.olive.WindowReply"><method name="Report">
 <arg type="s" direction="in"/></method></interface></node>'''
 
 
-def windows(bus, pid, stopped, activate=False):
-    if type(pid) is not int or pid < 1 or type(activate) is not bool:
+def windows(bus, pid, stopped, activate=False, desktop_id=""):
+    if desktop_id and (pid != 0 or activate or not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", desktop_id)):
+        raise ValueError("Invalid desktop application identity query")
+    if type(pid) is not int or (pid < 1 and not desktop_id) or type(activate) is not bool:
         raise ValueError('Invalid window request')
     result = []
     owner = bus.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
@@ -53,7 +57,7 @@ def windows(bus, pid, stopped, activate=False):
         fd, path = tempfile.mkstemp(prefix=name, suffix='.js', dir=os.environ['XDG_RUNTIME_DIR'])
         with os.fdopen(fd, 'w') as output:
             output.write(SCRIPT.replace('PID', str(pid)).replace('ACTIVATE', str(activate).lower())
-                         .replace('PEER', json.dumps(bus.get_unique_name())))
+                         .replace('PEER', json.dumps(bus.get_unique_name())).replace('DESKTOP_ID', json.dumps(desktop_id)))
         script_id = bus.call_sync('org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting',
             'loadScript', GLib.Variant('(ss)', (path, name)), None,
             Gio.DBusCallFlags.NONE, 2000, None).unpack()[0]

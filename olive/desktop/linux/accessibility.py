@@ -126,7 +126,7 @@ class Accessibility:
             for name in registered:
                 listener.deregister(name)
 
-    def observe(self, pid, region):
+    def observe(self, pid, region, chrome_only=False):
         app = self.resolve(pid)
         self.targets, self.revision = {}, uuid.uuid4().hex
         self.application = pid
@@ -142,6 +142,8 @@ class Accessibility:
                 states = node.get_state_set()
                 role = node.get_role()
                 in_document = in_document or role in (Atspi.Role.DOCUMENT_WEB, Atspi.Role.DOCUMENT_FRAME)
+                if chrome_only and in_document:
+                    continue
                 if states.contains(Atspi.StateType.DEFUNCT):
                     continue
                 if role == Atspi.Role.PASSWORD_TEXT:
@@ -195,6 +197,30 @@ class Accessibility:
                 continue  # Incomplete accessibility is evidence of a gap, never a target.
         return {'pid': pid, 'revision': self.revision, 'windows': windows, 'controls': controls,
                 'documents': documents, 'incomplete': bool(queue), 'untrusted_content': True}
+
+    def document_locations(self, pid, region):
+        """Current document identity only; never read conversation/page contents."""
+        app = self.resolve(pid)
+        queue = [(app, 0)]; documents = []; visited = 0
+        deadline = time.monotonic() + 3
+        while queue and visited < 800 and time.monotonic() < deadline:
+            node, depth = queue.pop(0); visited += 1
+            states = node.get_state_set()
+            if depth and not all(states.contains(s) for s in (Atspi.StateType.VISIBLE, Atspi.StateType.SHOWING)):
+                continue
+            if depth == 1 and not states.contains(Atspi.StateType.ACTIVE):continue
+            role = node.get_role()
+            if role in (Atspi.Role.DOCUMENT_WEB, Atspi.Role.DOCUMENT_FRAME):
+                component = node.get_component_iface()
+                rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
+                document = node.get_document_iface()
+                if document and rect and contains(region, self.mapped_bounds(rect)):
+                    uri = document.get_document_attribute_value('DocURL') or ''
+                    if uri:documents.append({'uri':uri[:2000], 'bounds':self.mapped_bounds(rect), 'ready':not states.contains(Atspi.StateType.BUSY) and node.get_child_count()>0})
+                continue  # Page messages are not navigation evidence.
+            if depth < 28:
+                queue.extend((node.get_child_at_index(i), depth+1) for i in range(min(node.get_child_count(),80)) if node.get_child_at_index(i))
+        return {'documents':documents,'incomplete':bool(queue)}
 
     def check(self, revision, target, bounds, region, require_focus=False):
         if revision != self.revision or target not in self.targets:

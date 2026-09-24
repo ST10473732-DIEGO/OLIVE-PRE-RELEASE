@@ -39,6 +39,9 @@ class EIS:
             'ei_device_keyboard_key': (None, [p, u, b]),
             'ei_device_scroll_delta': (None, [p, d, d]),
             'ei_device_text_utf8': (None, [p, C.c_char_p]),
+            'ei_new_ping': (p, [p]), 'ei_ping': (None, [p]),
+            'ei_ping_get_id': (C.c_uint64, [p]), 'ei_ping_unref': (p, [p]),
+            'ei_event_pong_get_ping': (p, [p]),
         }
         for name, (result, arguments) in signatures.items():
             fn = getattr(self.lib, name)
@@ -50,6 +53,7 @@ class EIS:
         self.sequence = 0
         self.keyboard_group = 0
         self.keyboard_modifiers = 0
+        self.last_pong = 0
         self.lib.ei_configure_name(self.context, b'OLIVE local user-directed control')
         # Transfer a duplicate to libei; retain no portal FD in this caller.
         try:
@@ -83,6 +87,8 @@ class EIS:
                     self.keyboard_modifiers = (self.lib.ei_event_keyboard_get_xkb_mods_depressed(event) |
                         self.lib.ei_event_keyboard_get_xkb_mods_latched(event) |
                         self.lib.ei_event_keyboard_get_xkb_mods_locked(event))
+                elif kind == 90:  # EI_EVENT_PONG: all earlier keys/modifier replies processed.
+                    self.last_pong = self.lib.ei_ping_get_id(self.lib.ei_event_pong_get_ping(event))
                 elif kind in (2, 4, 6, 7):
                     # Never auto-resume after pause or topology change.
                     self.ready.discard(device)
@@ -161,6 +167,7 @@ class EIS:
             return
         from .keymap import strokes
         device = self.device(4)
+        self.synchronize()
         if self.keyboard_modifiers:
             raise PermissionError('Release keyboard modifiers before literal input')
         sequence = strokes(self, device, value)
@@ -168,10 +175,32 @@ class EIS:
             if self.stopped.is_set():
                 raise InterruptedError('Literal input stopped')
             self.chord_codes([42, code] if shift else [code])
-            # Bound event bursts for native completion/edit controls. Waiting on
-            # Stop, rather than sleeping blindly, keeps cancellation immediate.
+            # Bound event bursts while preserving immediate Stop.
             if self.stopped.wait(.008):
                 raise InterruptedError('Literal input stopped')
+
+    def synchronize(self):
+        """libei 1.4+ ordering barrier, not a sleep or a modifier reset.
+
+        The compositor may report our preceding Ctrl/Shift release after the
+        method returned. PONG establishes its current modifier state before text.
+        Actual depressed/locked modifiers still block literal input.
+        """
+        ping = self.lib.ei_new_ping(self.context)
+        if not ping:
+            raise RuntimeError('EIS synchronization allocation failed')
+        try:
+            identity = self.lib.ei_ping_get_id(ping)
+            self.lib.ei_ping(ping)
+            deadline = time.monotonic() + 1
+            while self.last_pong != identity:
+                self.pump()
+                if self.stopped.is_set():raise InterruptedError('Input stopped during synchronization')
+                if self.last_pong == identity:break
+                if time.monotonic() >= deadline:raise TimeoutError('EIS did not acknowledge input ordering')
+                select.select([self.fd], [], [], min(.05, max(0, deadline-time.monotonic())))
+        finally:
+            self.lib.ei_ping_unref(ping)
 
     def chord_codes(self, codes):
         device = self.device(4)

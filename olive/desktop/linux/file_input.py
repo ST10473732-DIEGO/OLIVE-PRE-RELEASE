@@ -11,7 +11,7 @@ class FileInput:
         self.stage = 0
 
     def step(self, worker, step, value):
-        stages = ('new_tab', 'address', 'path', 'open', self.operation, 'address', 'path', 'open', 'paste')
+        stages = ('new_tab', 'address', 'path', 'open', 'select', self.operation, 'address', 'path', 'open', 'paste')
         if self.stage >= len(stages) or step != stages[self.stage]:
             raise PermissionError('File operation is stale or out of sequence')
         current = [w for w in windows(worker.portal.bus, worker.window['pid'], worker.stopped) if w['active']]
@@ -24,7 +24,20 @@ class FileInput:
         elif value:
             raise ValueError('Unexpected file operation value')
         self.stage += 1
-        if step == 'path':
+        if step == 'select':
+            observation = worker.accessibility.observe(worker.window['pid'], worker.eis.region)
+            candidates = [c for c in observation['controls'] if c.get('name') == Path(self.source).name
+                          and c.get('role') in {'icon','list item','table cell'} and c.get('enabled')]
+            if len(candidates) != 1:
+                raise ValueError('File selection target is not unique')
+            target = candidates[0]
+            node = worker.accessibility.check(observation['revision'], target['id'], target['bounds'], worker.eis.region)
+            parent = node.get_parent()
+            selection = parent.get_selection_iface() if parent else None
+            if not selection or not selection.clear_selection() or not selection.select_child(node.get_index_in_parent()):
+                raise ValueError('The file manager did not expose a verified semantic selection')
+            worker.accessibility.revision = ''
+        elif step == 'path':
             observation = worker.accessibility.observe(worker.window['pid'], worker.eis.region)
             fields = [c for c in observation['controls'] if c.get('focused') and c.get('editable')
                       and worker.accessibility.targets[c['id']].get_editable_text_iface()]

@@ -53,8 +53,7 @@ async def transfer(runtime, grant, app, processes):
     matches = [c for c in observation['controls'] if c.get('name') == source.name and c.get('role') in {'icon', 'list item', 'table cell'}]
     if len(matches) != 1:
         raise ValueError('The requested file was not uniquely visible; no clipboard operation')
-    c = matches[0]
-    await runtime.native.call('click', {'revision': observation['revision'], 'target': c['id'], 'bounds': c['bounds'], 'value': ''})
+    await key('select')
     observation = await observe()
     selected = [c for c in observation['controls'] if c.get('selected') and c.get('role') in {'icon', 'list item', 'table cell'}]
     if len(selected) != 1 or selected[0]['name'] != source.name:

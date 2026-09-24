@@ -166,6 +166,9 @@ class Worker:
             return {'ready': True}
         if method == 'file_step' and set(args) == {'step', 'value'} and self.file_input:
             return self.file_input.step(self, **args)
+        if method == 'application_windows' and set(args) == {'desktop_id'}:
+            from olive.desktop.linux.kwin import windows
+            return windows(self.portal.bus, 0, self.stopped, desktop_id=args['desktop_id'])
         if method == 'activate' and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
             from olive.desktop.linux.kwin import activate_window
             from olive.desktop.linux.capture import Capture
@@ -183,9 +186,15 @@ class Worker:
             try:
                 self.accessibility.bind_geometry(args['pid'], window['bounds'])
                 self.accessibility.activate(args['pid'], approved_region(self.portal.streams[0][1]), self.stopped)
-                return {'active': True, 'accessible': True, 'window_id': window['id'], 'bounds': window['bounds']}
-            except LookupError:
-                return {'active': True, 'accessible': False, 'window_id': window['id'], 'bounds': window['bounds']}
+                return {'active': True, 'accessible': True, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
+            except (LookupError, TimeoutError):
+                # An inaccessible Chromium frame is not evidence that KWin lost
+                # focus. Recheck independently before allowing the visual route.
+                from olive.desktop.linux.kwin import windows
+                current = windows(self.portal.bus, args['pid'], self.stopped)
+                if len(current) != 1 or not current[0]['active'] or current[0]['id'] != window['id'] or current[0]['bounds'] != window['bounds']:
+                    raise PermissionError('Application focus or geometry changed during accessibility discovery')
+                return {'active': True, 'accessible': False, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
         if method == 'visual_observe' and set(args) == {'pid'}:
             from olive.desktop.linux.kwin import windows
             from olive.desktop.linux.geometry import contains
@@ -267,14 +276,17 @@ class Worker:
             else:
                 self.eis.browser_key(args['step'])
             return {'dispatched': True}
-        if method == 'observe' and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
+        if method in {'observe', 'browser_chrome', 'document_locations'} and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
             from olive.desktop.linux.kwin import windows
             matches = [w for w in windows(self.portal.bus, args['pid'], self.stopped) if w['active']]
             if len(matches) != 1 or not matches[0]['active']:
                 raise PermissionError('Requested window lost focus')
             self.window = matches[0]
             self.accessibility.bind_geometry(args['pid'], self.window['bounds'])
-            return self.accessibility.observe(args['pid'], approved_region(self.portal.streams[0][1]))
+            region = approved_region(self.portal.streams[0][1])
+            if method == 'document_locations':
+                return self.accessibility.document_locations(args['pid'], region)
+            return self.accessibility.observe(args['pid'], region, chrome_only=method == 'browser_chrome')
         if method == 'editor_key' and set(args) == {'step'}:
             from olive.desktop.linux.kwin import windows
             step = args['step']

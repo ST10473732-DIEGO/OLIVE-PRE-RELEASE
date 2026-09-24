@@ -4,6 +4,11 @@ from olive.desktop.task_authority import direct_scope
 from olive.desktop.browser_url import validated_url
 
 class PlanTests(unittest.TestCase):
+    def test_summary_is_answer_only_after_current_task_page_read(self):
+        plan = explicit_plan('Open https://example.org in Firefox; then summarize that page in Chat')
+        self.assertTrue(plan.summarize)
+        self.assertEqual(plan.clauses[-1], 'Read current page in Firefox')
+        self.assertIsNone(explicit_plan('Open Kate; then summarize that page in Chat'))
     def test_combined_effects_preserve_exact_original_clauses(self):
         value='Open Firefox and search for glacial rivers; then Read current page in Firefox; then Scroll down in Firefox'
         plan=explicit_plan(value)

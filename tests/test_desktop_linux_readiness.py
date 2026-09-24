@@ -1,11 +1,15 @@
 """Owned metadata/focus boundary tests; no live desktop interaction."""
 import asyncio
 import importlib.util
+import hashlib
+import os
 from pathlib import Path
+import sys
+import tempfile
 import threading
 from types import ModuleType, SimpleNamespace
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from olive.desktop.linux.applications import Applications
 
@@ -30,6 +34,31 @@ class ProcessReadinessTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InterruptedError):
             await apps.wait_for_processes(None, stopped)
         apps.launch.assert_not_called()
+
+    async def test_wrapper_discovery_waits_for_exact_window_identity(self):
+        apps = Applications()
+        apps.processes = Mock(return_value=[])
+        discover = AsyncMock(return_value=[(123, 10)])
+        self.assertEqual(await apps.wait_for_processes(None, threading.Event(), discover=discover), [(123, 10)])
+        discover.assert_awaited_once_with()
+
+    def test_window_binding_preserves_pid_lifetime_and_entry_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            entry = Path(directory) / 'owned.desktop'
+            entry.write_text('[Desktop Entry]\nName=Owned\n')
+            app = SimpleNamespace(id=entry.name, entry=entry, digest=hashlib.sha256(entry.read_bytes()).hexdigest(), executable=Path('/wrapper'))
+            apps = Applications(); apps.values[app.id] = app
+            process = Mock()
+            process.exe.return_value = str(Path(sys.executable).resolve())
+            process.uids.return_value = SimpleNamespace(real=os.getuid())
+            process.create_time.return_value = 10
+            with patch('psutil.Process', return_value=process):
+                self.assertEqual(apps.bind_window_processes(app, [{'pid': 123}]), [(123, 10)])
+                apps.verify_process(app, 123, 10)
+                process.create_time.return_value = 11
+                with self.assertRaises(PermissionError): apps.verify_process(app, 123, 10)
+                entry.write_text('changed')
+                with self.assertRaises(PermissionError): apps.bind_window_processes(app, [{'pid': 123}])
 
 
 class WindowReadinessTests(unittest.TestCase):

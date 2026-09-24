@@ -27,7 +27,9 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.activate_app = AsyncMock()
         self.runtime.native.call = AsyncMock(side_effect=self.dispatch)
         app = SimpleNamespace(name='Owned messenger', executable=Path(sys.executable))
-        self.runtime.apps = SimpleNamespace(discover=Mock(), resolve=Mock(return_value=app), launch=Mock(return_value=[(123, 1)]))
+        self.runtime.apps = SimpleNamespace(discover=Mock(), resolve=Mock(return_value=app),
+                                            processes=Mock(return_value=[(123, 1)]),
+                                            launch=Mock(return_value=[(123, 1)]))
         self.value, self.sent, self.revision = '', False, 0
         self.actions = []
         self.change_destination = False
@@ -43,7 +45,7 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         controls = [dict(id='account', name='Account: Test', role='label'),
                     dict(id='header', name='Someone else' if self.change_destination else 'New recipient', role='heading'),
                     dict(id='composer', name='Message', role='entry', enabled=True, focused=True,
-                         editable=True, value=self.value, bounds=[10, 10, 300, 40])]
+                         editable=True, value=self.value, bounds=[10, 10, 300, 40], labels=['Enter to send'])]
         if self.sent:
             controls += [dict(id='row', name='Outgoing message', role='list item'),
                          dict(id='body', parent='row', name=self.value, role='text'),

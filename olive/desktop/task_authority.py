@@ -289,6 +289,10 @@ def validate_effect(grant, proposal, observation):
                 raise PermissionError('Exact authorized message is not uniquely present in the composer')
             if proposal['action'] == 'key' and target is not drafts[0]:
                 raise PermissionError('Enter must target the verified composer, not another focused control')
+            if proposal['action'] == 'key':
+                from .gui_evidence import enter_sends
+                if not enter_sends(target):
+                    raise PermissionError('COMPOSER_SEMANTICS_UNVERIFIED: Enter-to-send is not established by this client')
         else:
             raise PermissionError('This task does not authorize submission')
     elif proposal['action'] in {'click', 'invoke'}:

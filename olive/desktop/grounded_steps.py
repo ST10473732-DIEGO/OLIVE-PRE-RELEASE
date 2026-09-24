@@ -40,7 +40,8 @@ def next_step(scope, observation, submitted):
                 matches = [c for c in controls if c['name'] == scope.destination and c.get('role') != 'heading']
             if len(matches) != 1:
                 return None
-            return dict(action='click', target=matches[0]['id'], value='', revision=observation['revision'],
+            actions = [a for a in matches[0].get('actions', []) if a in {'click', 'press', 'activate', 'select'}]
+            return dict(action='invoke' if len(actions) == 1 else 'click', target=matches[0]['id'], value=actions[0] if len(actions) == 1 else '', revision=observation['revision'],
                         expected='Verify the complete destination context')
         candidates = [c for c in controls if is_composer(c)]
     else:
@@ -60,7 +61,11 @@ def next_step(scope, observation, submitted):
     elif scope.effect == 'send':
         buttons = [c for c in controls if c.get('name', '').strip().casefold() in {'send', 'send message'}]
         if len(buttons) != 1:
-            return None  # Enter can insert a newline in an unknown messenger.
+            from .gui_evidence import enter_sends
+            if buttons or not enter_sends(target):
+                return None  # Unknown semantics never become an Enter guess.
+            return dict(action='key', target=target['id'], value='Enter',
+                        revision=observation['revision'], expected='Verify the outgoing message and status')
         target = buttons[0]
         advertised = [a for a in target.get('actions', []) if a in {'click', 'press', 'activate', 'invoke'}]
         action, argument = ('invoke', advertised[0]) if len(advertised) == 1 else ('click', '')
