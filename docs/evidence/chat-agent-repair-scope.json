@@ -10,7 +10,7 @@
     {
       "path": "desktop/electron/main/index.ts",
       "baseline_sha256": "f4e9dca29ffa67876b1b47ea91864c3872282cd6a16b0d2d4000322b7634a90d",
-      "current_sha256": "7508319f29f548e9c4c45ac8ef027b19e92676351283d950a1af9365560ebae9"
+      "current_sha256": "16bdf7e1ae645a368472753c9c197e70ea37e0415c40ff0a3ee67a539a7bccf0"
     },
     {
       "path": "desktop/electron/preload/index.ts",
@@ -25,7 +25,7 @@
     {
       "path": "desktop/src/components/Markdown.tsx",
       "baseline_sha256": "82cfa909c380817d028a57b2cbe8f2dda24eababe719d588bdb1e8c3c0d8d4d3",
-      "current_sha256": "2170a5f9120e70b65596a89638dd08786767c55174fc844da08fd4f436e3403b"
+      "current_sha256": "59f2cde1598294a8fc8e4b7507f00f8d7cc082e3de470d3e12f0e19767e2079e"
     },
     {
       "path": "desktop/src/features/Chat.tsx",

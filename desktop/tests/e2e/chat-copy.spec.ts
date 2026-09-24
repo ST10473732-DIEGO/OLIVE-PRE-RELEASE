@@ -23,6 +23,11 @@ test("Chat Copy uses the native clipboard, preserves blocks and rejects foreign 
     const read=()=>app.evaluate(async({clipboard})=>await clipboard.readText());
     await page.getByRole("button",{name:"Copy javascript code",exact:true}).click();
     await expect.poll(read).toBe(code);
+    const originalButton = await page.getByRole("button",{name:"Copy javascript code — copied",exact:true}).elementHandle();
+    // A backend refresh rerenders Chat. It must preserve the native accessible
+    // control and copied feedback rather than remount the Markdown block.
+    await page.evaluate(()=>window.olive.call("chat.draft",{chat_id:"copy-code",text:"owned draft"}));
+    await expect.poll(async()=>originalButton!.evaluate(node=>node.isConnected)).toBe(true);
     await expect(page.getByRole("button",{name:"Copy javascript code — copied",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"Copy python code",exact:true}).click();
     await expect.poll(read).toBe('print("second")\n');

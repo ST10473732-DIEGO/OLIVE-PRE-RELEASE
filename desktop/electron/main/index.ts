@@ -50,6 +50,7 @@ else {
     window?.focus();
   });
   void app.whenReady().then(async () => {
+    app.setAccessibilitySupportEnabled(true);
     const assets = app.isPackaged
       ? path.join(app.getAppPath(), "out/renderer")
       : path.join(root, "desktop/out/renderer");

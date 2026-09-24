@@ -50,7 +50,7 @@ export function Markdown({
             {children}
           </button>
         ),
-        pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+        pre: CodeBlock,
         img: ({ alt }) => (
           <span className="muted">[Image blocked{alt ? `: ${alt}` : ""}]</span>
         ),
