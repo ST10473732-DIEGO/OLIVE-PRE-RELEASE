@@ -66,6 +66,7 @@ async def start(self, directory):
                         elif action == 'edit': result = await rpc('edit_local', command['value'].encode())
                         elif action == 'bytes': result = (await rpc('bytes')).decode()
                         elif action == 'counts': result = await rpc('counts')
+                        elif action == 'local_shares': result = service.studio.shared(peer_id)
                         elif action == 'incoming':
                             shared = service.studio.shared(peer_id)[0]
                             incoming = request(peer_id, service.local_id, 'read', shared['workspace_id'], shared['share_revision'], {'path': 'main.py'})

@@ -46,7 +46,7 @@ class TaskAuthorityTests(unittest.TestCase):
         for controls in ([], [dict(name='Account: Work', role='text')],
                          [dict(name='Account: Work', role='label')] * 2):
             grant = self.grant("Send 'Exact text' to Alex in Messenger")
-            with self.assertRaisesRegex(ValueError, 'NEEDS_USER_CLARIFICATION'):
+            with self.assertRaisesRegex(ValueError, 'MESSAGING_ACCOUNT_UNVERIFIED'):
                 self.authority.bind_account(grant, {'controls': controls}, POLICY)
 
     def test_content_cannot_be_typed_into_wrong_destination_or_unrelated_field(self):

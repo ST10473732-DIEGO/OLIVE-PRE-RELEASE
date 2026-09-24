@@ -31,6 +31,10 @@ test("C8 native sharing, approval, remote editor conflicts, jobs and offline dra
     await sharing.getByRole("button", {name: "Share workspace", exact: true}).click();
     await expect(sharing.getByLabel("Target fixture studio.view")).toHaveValue("deny");
     await sharing.getByLabel("Target fixture studio.view").selectOption("ask");
+    // The select event starts an async permission/revision update. Wait for
+    // committed state before constructing the independent peer request; a
+    // request using the preceding revision must remain rejected as stale.
+    await expect.poll(async () => (await control("local_shares"))[0]?.permissions["studio.view"]).toBe("ask");
     expect((await control("incoming")).error).toBe("confirmation_required");
     await expect(page.getByText("One guarded operation on this shared workspace.")).toBeVisible();
     await page.getByRole("button", {name: "Deny", exact: true}).click();
