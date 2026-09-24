@@ -91,6 +91,8 @@ export function Chat({
       /* storage unavailable */
     }
   };
+  const switching = useRef(false);
+  const [switchingChat, setSwitchingChat] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [options, setOptions] = useState(false);
@@ -138,7 +140,7 @@ export function Chat({
     end.current?.scrollIntoView({ block: "end" });
   }, [chat.partial, chat.messages.length]);
   const send = () => {
-    if (!draft.trim() || busy) return;
+    if (!draft.trim() || busy || switching.current) return;
     const text = draft;
     setDraft("");
     latestDraft.current = "";
@@ -150,13 +152,22 @@ export function Chat({
     latestDraft.current = text;
     setChat({ ...chat, draft: text });
   };
-  const newChat = (closeAfter: boolean) =>
-    void call<ChatRecord>("chat.new", {})
-      .then((value) => {
-        setChat(value);
-        if (closeAfter && overlaying()) setHistoryOpen(false);
-      })
-      .catch(report);
+  const changeConversation = async (method: "chat.new" | "chat.select", args: Record<string, unknown>, closeAfter: boolean) => {
+    if (switching.current) return;
+    switching.current = true;
+    setSwitchingChat(true);
+    try {
+      const value = await call<ChatRecord>(method, args);
+      setChat(value);
+      if (closeAfter && overlaying()) setHistoryOpen(false);
+    } catch (error) {
+      report(error);
+    } finally {
+      switching.current = false;
+      setSwitchingChat(false);
+    }
+  };
+  const newChat = (closeAfter: boolean) => void changeConversation("chat.new", {}, closeAfter);
   const preset = snapshot.presets?.find((p) => p.id === chat.preset);
   const attachedCount = (chat.documents?.length || 0) + (chat.images?.length || 0);
   // Matches the runtime rule: images go only to DEEP or a vision-capable model.
@@ -208,14 +219,8 @@ export function Chat({
               key={c.id}
               className={c.id === chat.id ? "selected" : ""}
               aria-current={c.id === chat.id ? "true" : undefined}
-              onClick={() =>
-                void call<ChatRecord>("chat.select", { chat_id: c.id })
-                  .then((value) => {
-                    setChat(value);
-                    if (overlaying()) setHistoryOpen(false);
-                  })
-                  .catch(report)
-              }
+              disabled={switchingChat}
+              onClick={() => void changeConversation("chat.select", { chat_id: c.id }, true)}
             >
               {c.title}
               {c.excerpt && <span className="small muted">{c.excerpt}</span>}
@@ -651,7 +656,7 @@ export function Chat({
               <button
                 className="send"
                 aria-label={busy ? "Stop response" : "Send message"}
-                disabled={!busy && !draft.trim()}
+                disabled={!busy && (switchingChat || !draft.trim())}
                 onClick={busy ? cancel : send}
               >
                 {busy ? <Square size={14} aria-hidden="true" /> : <ArrowUp size={16} aria-hidden="true" />}

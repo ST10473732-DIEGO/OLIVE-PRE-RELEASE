@@ -259,10 +259,14 @@ class OllamaService:
         has_content = False
         completed = False
         finish_reason = ""
+        from ..interaction.trace import model_request, event as trace_event
+        answer_digest, answer_characters = hashlib.sha256(), 0
         async with self._lease(model) as keep_alive:
             try:
+                resolved_options = await self._options(model, options)
+                model_request(model, messages, resolved_options, think=think)
                 stream = self._bounded_stream(model=model, messages=messages,
-                    options=await self._options(model, options), tools=tools or [], keep_alive=keep_alive,
+                    options=resolved_options, tools=tools or [], keep_alive=keep_alive,
                     **self._thinking(model, think))
                 try:
                     async for part in stream:
@@ -270,6 +274,8 @@ class OllamaService:
                         finish_reason = _field(part, "done_reason", "") or finish_reason
                         content = _field(_field(part, "message", {}), "content", "") or ""
                         if content:
+                            answer_digest.update(content.encode('utf-8'))
+                            answer_characters += len(content)
                             has_content = has_content or bool(content.strip())
                             if content.strip():
                                 first = first or time.perf_counter()
@@ -285,6 +291,8 @@ class OllamaService:
                     if hasattr(stream, "aclose"):
                         await stream.aclose()
             finally:
+                trace_event('model_visible_response', model=model, characters=answer_characters,
+                            sha256=answer_digest.hexdigest(), complete=completed, finish_reason=finish_reason if finish_reason in {"stop", "length", None} else "other")
                 if self.metrics:
                     from .model_policy import REQUEST_ROLE
                     self.metrics.record(model, REQUEST_ROLE.get(), started, success, first)
@@ -306,6 +314,8 @@ class OllamaService:
             try:
                 kwargs = {"model": model, "messages": messages, "options": await self._options(model, options),
                           "keep_alive": keep_alive}
+                from ..interaction.trace import model_request
+                model_request(model, messages, kwargs['options'], format, think)
                 if format is not None:
                     kwargs["format"] = format
                 if tools is not None:

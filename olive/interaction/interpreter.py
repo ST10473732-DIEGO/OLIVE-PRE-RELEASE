@@ -8,7 +8,7 @@ from ..agent.model_router import RoutingRequest
 from .intent import parse, schema, INTENTS
 from .examples import demonstrations
 from .context import normalize_pending_intent
-from .deliverable import direct_deliverable
+from .deliverable import direct_deliverable, code_action_requested
 
 
 def has_selected_record(context):
@@ -146,6 +146,11 @@ class SemanticInterpreter:
             return {"confidence": 1., "clarification": "", "steps": [
                 {"intent": "conversation.answer", "entities": {}, "references": {}}]}
         gate = await self.speech_act(text, context)
+        if gate['mode'] == 'action' and set(gate['domains']) and set(gate['domains']) <= {'code', 'project', 'conversation'} and not code_action_requested(text, context):
+            self.metrics.append({'stage':'answer_boundary', 'route':'conversation.answer',
+                                 'reason':'No explicit software target or execution request'})
+            return {'confidence':1., 'clarification':'', 'steps':[
+                {'intent':'conversation.answer', 'entities':{}, 'references':{}}]}
         if gate['mode'] == 'action' and set(gate['domains']).intersection({'code', 'project'}):
             # A coarse fast-model label must not turn requested code output into
             # workspace work. Re-evaluate this boundary with the reasoning role;

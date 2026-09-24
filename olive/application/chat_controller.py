@@ -218,6 +218,10 @@ class ChatController:
                 info = next((m for m in self.s.model_infos if m.name == chat.model), None)
                 message.provider = provider or {"runtime": "Ollama", "model": chat.model,
                                     "digest": getattr(info, "digest", ""), "preset": chat.preset}
+                from ..interaction.trace import event as trace_event, digest
+                trace_event('answer_persisted', message_id=message.id, characters=len(final), sha256=digest(final),
+                            completion_state=message.completion_state, model=message.provider.get('model',''),
+                            preset=message.provider.get('preset',''))
                 branches = chat.response_branches.setdefault(str(user_index), [])
                 for value in ([previous.content] if previous else []) + [final]:
                     if value not in branches:

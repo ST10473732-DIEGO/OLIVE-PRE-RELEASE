@@ -18,6 +18,8 @@ class ToolExecutor:
         self.tool_host = tool_host
 
     async def execute(self, task, action, context) -> ToolResult:
+        from ..interaction.trace import event
+        event("tool_attempt", capability=action.tool_name)
         tool = self.registry.require(action.tool_name); definition = tool.definition
         definition.validate_arguments(action.arguments)
         target = _target_from(action.arguments)

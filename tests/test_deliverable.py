@@ -8,15 +8,15 @@ from olive.interaction.interpreter import SemanticInterpreter
 
 
 class DeliverableTests(unittest.IsolatedAsyncioTestCase):
-    async def test_coarse_code_action_is_semantically_reviewed_before_routing(self):
+    async def test_coarse_code_action_needs_an_explicit_effect_target(self):
         provider = Mock(chat_measured=AsyncMock(side_effect=AssertionError('No action entity extraction')))
         interpreter = SemanticInterpreter(provider, Mock())
         interpreter.speech_act = AsyncMock(side_effect=[
             {'mode': 'action', 'domains': ['code']},
             {'mode': 'answer', 'domains': ['conversation']}])
-        interpreted = await interpreter.interpret('Write the code for a calculator.', {})
+        interpreted = await interpreter.interpret("I'd like a calculator implementation.", {})
         self.assertEqual(interpreted['steps'][0]['intent'], 'conversation.answer')
-        self.assertEqual(interpreter.speech_act.call_args.kwargs, {'role': 'reasoning'})
+        interpreter.speech_act.assert_awaited_once()
         provider.chat_measured.assert_not_awaited()
 
     async def test_selected_mail_summary_keeps_read_only_context_resolution(self):

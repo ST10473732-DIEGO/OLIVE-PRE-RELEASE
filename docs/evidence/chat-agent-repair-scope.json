@@ -30,7 +30,7 @@
     {
       "path": "desktop/src/features/Chat.tsx",
       "baseline_sha256": "4cd8e37ae3ef2c2308edd8199556fc108a030c57d81b031e699c3123d68ce1fb",
-      "current_sha256": "c7f330fc565626670dbfaacc409cb91b26247f024164f7ce15e37b06d38e557d"
+      "current_sha256": "c29daa407f8f1e59cd5116aed50d651282cefc4ca81f6645792979d954c0f300"
     },
     {
       "path": "desktop/src/services/api.ts",

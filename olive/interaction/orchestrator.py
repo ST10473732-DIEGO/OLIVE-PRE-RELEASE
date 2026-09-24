@@ -7,6 +7,7 @@ from .interpreter import SemanticInterpreter
 from .router import CapabilityRouter
 from ..desktop.errors import ObservationUnavailable
 from .request_consent import actual_user_request
+from .trace import traced_request, event as trace_event
 
 
 class NaturalLanguageOrchestrator:
@@ -15,6 +16,7 @@ class NaturalLanguageOrchestrator:
         self.interpreter = interpreter or SemanticInterpreter(services.ollama, services.model_router)
         self.router = router or CapabilityRouter(services)
         self.contexts = {}
+        self.request_traces = []
         self.active = {}
         self.gates = {}
         self.interpreting = {}
@@ -77,6 +79,7 @@ class NaturalLanguageOrchestrator:
         return self.presentation_context(chat_id)
 
     @actual_user_request
+    @traced_request
     async def submit(self, text, chat_id=None, research_mode=""):
         if research_mode not in {"", "Quick", "Deep"}:
             raise ValueError("Unknown research mode")
@@ -147,6 +150,8 @@ class NaturalLanguageOrchestrator:
             context.remember_user(text)
             return self.reply(chat_id, text, question)
         steps = interpretation["steps"]
+        trace_event('interpreted', intents=[step['intent'] for step in steps],
+                    confidence=interpretation['confidence'])
         if getattr(self.s.chat, 'targets', {}).get(chat_id) and (
                 len(steps) != 1 or steps[0]['intent'] != 'conversation.answer'):
             return self.reply(chat_id, text,
@@ -263,6 +268,7 @@ class NaturalLanguageOrchestrator:
         return await self._execute_steps(text, chat_id, steps)
 
     async def _native_submit(self, text, chat_id, interpretation=None):
+        trace_event("desktop_attempt")
         if chat_id in self.active or chat_id in self.s.chat.generations:
             return self.reply(chat_id, text, 'Stop the current request before replacing it.')
         self.active[chat_id] = asyncio.current_task()
@@ -327,6 +333,7 @@ class NaturalLanguageOrchestrator:
                 resolved = context.resolve(step)
                 executed_steps.append(deepcopy(resolved))
                 self.s.publish("interaction_activity", {"chat_id": chat_id, "message": "Working on your request…"})
+                trace_event("capability_attempt", capability=resolved["intent"])
                 messages.append(await self.router.execute(resolved, context))
                 context.accept(resolved)
             context.last_steps = deepcopy(executed_steps)
@@ -369,6 +376,7 @@ class NaturalLanguageOrchestrator:
         """Explicit developer view, never fed back into user intent or permissions."""
         context = self.context(chat_id)
         return deepcopy({"interpretation": context.last_interpretation, "resolved_steps": context.resolved_steps,
+                         "request_traces": [r for r in self.request_traces if r['chat_id']==chat_id][-5:],
                          "interpretation_metrics": getattr(self.interpreter,'metrics',[])[-8:],
                          "browser": context.browser_application, "media": context.media_application,
                          "research_session_id": context.research_session_id,
