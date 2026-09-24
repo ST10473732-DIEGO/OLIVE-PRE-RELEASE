@@ -5,6 +5,7 @@ import type { PreviewAction } from "../preview";
 import type { BrowserAction, BrowserState } from '../browser';
 // No raw IPC, filesystem, process, database, or secret access is exposed.
 contextBridge.exposeInMainWorld("olive", {
+  copyText: (text: string): Promise<void> => ipcRenderer.invoke("olive:copy-text", text),
   browser: (input: BrowserAction) => ipcRenderer.invoke('olive:browser', input),
   onBrowserState: (listener: (state: BrowserState) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, state: BrowserState) => listener(state);

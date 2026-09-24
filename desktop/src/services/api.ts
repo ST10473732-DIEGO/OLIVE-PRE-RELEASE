@@ -116,6 +116,7 @@ export interface Snapshot {
   };
 }
 export interface DesktopAPI {
+  copyText(text: string): Promise<void>;
   browser(input: import('../../electron/browser').BrowserAction): Promise<unknown>;
   onBrowserState(listener: (state: import('../../electron/browser').BrowserState) => void): () => void;
   onBrowserAsk(listener: (text: string) => void): () => void;

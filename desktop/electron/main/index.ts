@@ -9,6 +9,7 @@ import {
   globalShortcut,
   Tray,
   Menu,
+  clipboard,
 } from "electron";
 import { z } from "zod";
 import path from "node:path";
@@ -21,6 +22,7 @@ import { backendPython, iconName } from "../platform";
 import { validateCall } from "../contracts";
 import { fileAction } from "./file-actions";
 import { nativeNotifications } from './notifications';
+import { writeClipboardText } from '../clipboard';
 
 const root = app.isPackaged
   ? path.join(process.resourcesPath, "backend")
@@ -171,6 +173,10 @@ else {
     ipcMain.handle("olive:preview", (event, input: unknown) => {
       trusted(event);
       return preview.action(input);
+    });
+    ipcMain.handle("olive:copy-text", async (event, input: unknown) => {
+      trusted(event);
+      await writeClipboardText(input, text => clipboard.writeText(text));
     });
     ipcMain.handle('olive:browser', (event, input: unknown) => {
       trusted(event);

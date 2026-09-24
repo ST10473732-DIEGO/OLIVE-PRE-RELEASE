@@ -5,7 +5,6 @@ import {
   Square,
   Plus,
   Search,
-  Copy,
   RotateCcw,
   Paperclip,
   SlidersHorizontal,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react";
 import { call, type Chat as ChatRecord, type Snapshot } from "../services/api";
 import { Markdown } from "../components/Markdown";
+import { CopyButton } from "../components/CopyButton";
 import { Core } from "../components/Core";
 import { ConversationOptions } from "./chat/ConversationOptions";
 import { useResource } from "../services/useResource";
@@ -445,13 +445,7 @@ export function Chat({
                 </div>
               )}
               <div className="message-actions">
-                <button
-                  className="icon-button"
-                  aria-label="Copy message"
-                  onClick={() => void navigator.clipboard.writeText(m.content)}
-                >
-                  <Copy size={14} />
-                </button>
+                <CopyButton text={m.content} label="Copy message" iconOnly />
                 {m.role === "assistant" &&
                   index === chat.messages.length - 1 && (
                     <button

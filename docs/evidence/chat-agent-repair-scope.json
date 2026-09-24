@@ -1,0 +1,48 @@
+{
+  "baseline_head": "f7efb5034b3b3c1fe43680570c03fefbcb440822",
+  "authority": "Owner request: Chat quality, Copy, real-client messaging, visual verification and modular Core repair; narrow UI/IPC changes only. Historical manifests remain immutable.",
+  "authorized_changes": [
+    {
+      "path": "desktop/electron/clipboard.ts",
+      "baseline_sha256": null,
+      "current_sha256": "ebed5203a2743a9b5b47b41d1d0b90fec74f0db3265a64a2d78f117d5164e3f6"
+    },
+    {
+      "path": "desktop/electron/main/index.ts",
+      "baseline_sha256": "f4e9dca29ffa67876b1b47ea91864c3872282cd6a16b0d2d4000322b7634a90d",
+      "current_sha256": "7508319f29f548e9c4c45ac8ef027b19e92676351283d950a1af9365560ebae9"
+    },
+    {
+      "path": "desktop/electron/preload/index.ts",
+      "baseline_sha256": "ad99ee96463da0823449a2d8acaa64b35ce1ffab0a13d803b06a375770272e86",
+      "current_sha256": "612f06a8f17c38509719ae8ba3e09d8f93d1c3897d1ee71e43be925c43c5e050"
+    },
+    {
+      "path": "desktop/src/components/CopyButton.tsx",
+      "baseline_sha256": null,
+      "current_sha256": "5fb285a96609c21eff8167f305722dba30e55290061d1abb24c1778ad0adcace"
+    },
+    {
+      "path": "desktop/src/components/Markdown.tsx",
+      "baseline_sha256": "82cfa909c380817d028a57b2cbe8f2dda24eababe719d588bdb1e8c3c0d8d4d3",
+      "current_sha256": "2170a5f9120e70b65596a89638dd08786767c55174fc844da08fd4f436e3403b"
+    },
+    {
+      "path": "desktop/src/features/Chat.tsx",
+      "baseline_sha256": "4cd8e37ae3ef2c2308edd8199556fc108a030c57d81b031e699c3123d68ce1fb",
+      "current_sha256": "c7f330fc565626670dbfaacc409cb91b26247f024164f7ce15e37b06d38e557d"
+    },
+    {
+      "path": "desktop/src/services/api.ts",
+      "baseline_sha256": "0d972c7d340770eb4662b1f38e468211fdc7c893f9c27471eb6002b1883e1b1b",
+      "current_sha256": "59b96cfa98d932f1c5355f748f50a85c2840e43ace67d63831afb8d1c836bf0b"
+    }
+  ],
+  "historical_manifests": {
+    "docs/evidence/backend-v3-frozen-exception.json": "c3d3199789b1ae887bd3d3a299746864642698ff7200c9c34e4e7cecf4aaa4a6",
+    "docs/evidence/backend-v3-frozen.json": "05d2cc808b88cec9a82f86dbc26d22d679aa127dda429ee55097baa5e3f1b340",
+    "docs/evidence/linux-desktop-frozen-exceptions.json": "075c2a56db3161477c1d6d31d4697818e22af98aeac529f307cfd10ba406894a",
+    "docs/evidence/linux-desktop-frozen.json": "a01872510629677818919136bf1c9607881c73c439b2e58016104bd37ccf7142",
+    "docs/evidence/unified-agent-scope.json": "6ae0dd18d44f357161ba76c14718db6748f730f10119908703aad2aacd41a121"
+  }
+}
