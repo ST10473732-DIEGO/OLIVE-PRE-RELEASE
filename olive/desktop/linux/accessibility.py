@@ -53,7 +53,7 @@ class Accessibility:
             raise LookupError('Requested application is not uniquely accessible')
         return matches[0]
 
-    def activate(self, pid, region, stopped, timeout_ms=5000):
+    def activate(self, pid, region, stopped, timeout_ms=5000, allow_active_window=False):
         """Attempt one app-scoped native focus; wait for actual window/activation events.
 
         No KWin eval, fabricated activation token or repeated focus stealing. This
@@ -104,7 +104,10 @@ class Accessibility:
                             if rect and contains(region, self.mapped_bounds(rect)):
                                 windows.append(node)
                     if len(windows) > 1:
-                        raise ValueError('NEEDS_USER_CLARIFICATION: multiple windows of the requested app are visible')
+                        active = [w for w in windows if w.get_state_set().contains(Atspi.StateType.ACTIVE)]
+                        if not allow_active_window or len(active) != 1:
+                            raise ValueError('NEEDS_USER_CLARIFICATION: multiple windows of the requested app are visible')
+                        windows = active
                     if len(windows) == 1:
                         node = windows[0]
                         if node.get_state_set().contains(Atspi.StateType.ACTIVE):

@@ -165,7 +165,8 @@ class LinuxRuntime:
                 processes = await asyncio.to_thread(self.apps.launch, app)
                 if not processes:
                     processes = await self.apps.wait_for_processes(app, d.stop_event, discover=window_processes)
-            await self.activate_app(app, processes)
+            purpose = 'new_document' if grant.scope.effect in {'edit_save','paste_save'} else 'open' if grant.scope.effect == 'open' else 'exact'
+            await self.activate_app(app, processes, purpose=purpose)
             if grant.scope.effect == 'open' and d.record.window.get('accessible') is False:
                 await self.native.call('visual_observe', {'pid': processes[0][0]}, timeout=5)
                 self.check_task(grant)
@@ -384,14 +385,14 @@ class LinuxRuntime:
         self.last_observation = observation
         return observation
 
-    async def activate_app(self, app, processes):
+    async def activate_app(self, app, processes, purpose='exact'):
         import psutil
         # Multiple browser helper PIDs/windows are not an invitation to choose one.
         if len(processes) != 1:
             raise ValueError('NEEDS_USER_CLARIFICATION: application process identity is not unique')
         pid, created = processes[0]
         self.apps.verify_process(app, pid, created)
-        activation = await self.native.call('activate', {'pid': pid}, timeout=10)
+        activation = await self.native.call('activate', {'pid': pid, 'purpose': purpose}, timeout=10)
         if self.desktop.record:
             self.desktop.record.window = activation
 

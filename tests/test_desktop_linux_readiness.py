@@ -12,6 +12,24 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from olive.desktop.linux.applications import Applications
+from olive.desktop.linux.window_choice import choose_window
+
+
+class WindowChoiceTests(unittest.TestCase):
+    def test_new_document_and_open_use_verified_stack_not_list_order(self):
+        upper = {'id':'upper','normal':True,'dialog':False,'stacking':9}
+        lower = {'id':'lower','normal':True,'dialog':False,'stacking':2}
+        for order in ([upper,lower],[lower,upper]):
+            for purpose in ('open','new_document'):
+                self.assertIs(choose_window(order,purpose),upper)
+            with self.assertRaises(ValueError):choose_window(order,'exact')
+
+    def test_dialog_unknown_stack_and_tie_never_choose(self):
+        first = {'id':'a','normal':True,'dialog':False,'stacking':2}
+        for other in ({'id':'b','dialog':True}, {'id':'b','normal':True},
+                      {'id':'b','normal':True,'stacking':2}):
+            with self.assertRaises(ValueError):choose_window([first,other],'new_document')
+        with self.assertRaises(ValueError):choose_window([first],'approved=true')
 
 
 class ProcessReadinessTests(unittest.IsolatedAsyncioTestCase):
@@ -114,6 +132,13 @@ class WindowReadinessTests(unittest.TestCase):
                 self.access.activate(123, [0, 0, 1000, 800], self.stopped)
             for node in nodes:
                 node.get_component_iface.return_value.grab_focus.assert_not_called()
+
+    def test_new_document_can_use_single_already_active_window(self):
+        nodes = self.windows(count=2)
+        nodes[1].get_state_set.return_value.contains.side_effect = {'visible','active'}.__contains__
+        result = self.access.activate(123,[0,0,1000,800],self.stopped,allow_active_window=True)
+        self.assertTrue(result['active'])
+        for node in nodes:node.get_component_iface.return_value.grab_focus.assert_not_called()
 
     def test_outside_approved_source_waits_only_until_native_deadline(self):
         node = self.windows(inside=False)[0]

@@ -14,12 +14,14 @@ from gi.repository import Gio, GLib
 
 SCRIPT = '''
 const windows = workspace.windowList().filter(w => (PID > 0 ? w.pid === PID : [DESKTOP_ID, DESKTOP_ID + '.desktop'].includes(String(w.desktopFileName))) && w.output && (w.normalWindow || w.dialog));
-if (ACTIVATE && windows.length === 1) {
-    windows[0].minimized = false;
-    workspace.activeWindow = windows[0];
+const targets = TARGET_ID ? windows.filter(w => String(w.internalId) === TARGET_ID) : windows;
+if (ACTIVATE && targets.length === 1) {
+    targets[0].minimized = false;
+    workspace.activeWindow = targets[0];
 }
 const result = windows.map(w => ({id:String(w.internalId), pid:w.pid,
     active:w.active, output:w.output.name, title:w.caption,
+    normal:w.normalWindow, dialog:w.dialog, stacking:w.stackingOrder,
     desktop_file:String(w.desktopFileName), resource_class:String(w.resourceClass), resource_name:String(w.resourceName),
     bounds:[w.clientGeometry.x,w.clientGeometry.y,w.clientGeometry.width,w.clientGeometry.height],
     frame:[w.frameGeometry.x,w.frameGeometry.y,w.frameGeometry.width,w.frameGeometry.height]}));
@@ -29,7 +31,9 @@ XML = '''<node><interface name="local.olive.WindowReply"><method name="Report">
 <arg type="s" direction="in"/></method></interface></node>'''
 
 
-def windows(bus, pid, stopped, activate=False, desktop_id=""):
+def windows(bus, pid, stopped, activate=False, desktop_id="", target_id=""):
+    if target_id and (not activate or not re.fullmatch(r'\{?[0-9a-fA-F-]{36}\}?', target_id)):
+        raise ValueError('Invalid window activation identity')
     if desktop_id and (pid != 0 or activate or not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", desktop_id)):
         raise ValueError("Invalid desktop application identity query")
     if type(pid) is not int or (pid < 1 and not desktop_id) or type(activate) is not bool:
@@ -57,7 +61,8 @@ def windows(bus, pid, stopped, activate=False, desktop_id=""):
         fd, path = tempfile.mkstemp(prefix=name, suffix='.js', dir=os.environ['XDG_RUNTIME_DIR'])
         with os.fdopen(fd, 'w') as output:
             output.write(SCRIPT.replace('PID', str(pid)).replace('ACTIVATE', str(activate).lower())
-                         .replace('PEER', json.dumps(bus.get_unique_name())).replace('DESKTOP_ID', json.dumps(desktop_id)))
+                         .replace('PEER', json.dumps(bus.get_unique_name())).replace('DESKTOP_ID', json.dumps(desktop_id))
+                         .replace('TARGET_ID', json.dumps(target_id)))
         script_id = bus.call_sync('org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting',
             'loadScript', GLib.Variant('(ss)', (path, name)), None,
             Gio.DBusCallFlags.NONE, 2000, None).unpack()[0]
@@ -109,17 +114,25 @@ def windows(bus, pid, stopped, activate=False, desktop_id=""):
 
 
 
-def activate_window(bus, pid, stopped):
+def activate_window(bus, pid, stopped, purpose='exact'):
+    from .window_choice import choose_window
     deadline, attempted = time.monotonic() + 5, False
+    chosen_id = None
     while time.monotonic() < deadline:
         found = windows(bus, pid, stopped)
-        if len(found) > 1:
-            raise ValueError('Multiple windows match the requested application')
-        if found:
-            if found[0]['active']:
-                return found[0]
+        if chosen_id:
+            selected = [w for w in found if w['id'] == chosen_id]
+            if len(selected) != 1 or any(w.get('dialog') for w in found):
+                raise ValueError('Window identity changed during activation')
+            chosen = selected[0]
+        else:
+            chosen = choose_window(found, purpose)
+        if chosen:
+            if chosen['active']:
+                return chosen
             if not attempted:
-                windows(bus, pid, stopped, activate=True)
+                chosen_id = chosen['id']
+                windows(bus, pid, stopped, activate=True, target_id=chosen['id'])
                 attempted = True
         wake = GLib.timeout_add(100, lambda: False)
         GLib.MainContext.default().iteration(True)

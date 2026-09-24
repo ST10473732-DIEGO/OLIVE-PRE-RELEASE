@@ -169,10 +169,10 @@ class Worker:
         if method == 'application_windows' and set(args) == {'desktop_id'}:
             from olive.desktop.linux.kwin import windows
             return windows(self.portal.bus, 0, self.stopped, desktop_id=args['desktop_id'])
-        if method == 'activate' and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
+        if method == 'activate' and set(args) == {'pid','purpose'} and type(args['pid']) is int and args['pid'] > 0 and args['purpose'] in {'exact','open','new_document'}:
             from olive.desktop.linux.kwin import activate_window
             from olive.desktop.linux.capture import Capture
-            window = activate_window(self.portal.bus, args['pid'], self.stopped)
+            window = activate_window(self.portal.bus, args['pid'], self.stopped, purpose=args['purpose'])
             streams = [s for s in self.portal.all_streams if s[1].get('mapping_id') == window['output']]
             if len(streams) != 1:
                 raise PermissionError('Requested window output is not mapped to a portal stream')
@@ -185,13 +185,14 @@ class Worker:
             self.window = window
             try:
                 self.accessibility.bind_geometry(args['pid'], window['bounds'])
-                self.accessibility.activate(args['pid'], approved_region(self.portal.streams[0][1]), self.stopped)
+                self.accessibility.activate(args['pid'], approved_region(self.portal.streams[0][1]), self.stopped,
+                                            allow_active_window=args['purpose'] != 'exact')
                 return {'active': True, 'accessible': True, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
             except (LookupError, TimeoutError):
                 # An inaccessible Chromium frame is not evidence that KWin lost
                 # focus. Recheck independently before allowing the visual route.
                 from olive.desktop.linux.kwin import windows
-                current = windows(self.portal.bus, args['pid'], self.stopped)
+                current = [w for w in windows(self.portal.bus, args['pid'], self.stopped) if w['active']]
                 if len(current) != 1 or not current[0]['active'] or current[0]['id'] != window['id'] or current[0]['bounds'] != window['bounds']:
                     raise PermissionError('Application focus or geometry changed during accessibility discovery')
                 return {'active': True, 'accessible': False, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
