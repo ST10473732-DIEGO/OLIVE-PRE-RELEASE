@@ -1,11 +1,16 @@
 {
   "baseline_head": "f7efb5034b3b3c1fe43680570c03fefbcb440822",
-  "authority": "Owner request: Chat quality, Copy, real-client messaging, visual verification and modular Core repair; narrow UI/IPC changes only. Historical manifests remain immutable.",
+  "authority": "Owner request: Chat quality, Copy, real-client messaging, visual verification and modular Core repair; narrow UI/IPC changes only. Historical manifests remain immutable. Explicit local software requests may pass a selected Studio workspace reference from normal Chat; read-only answers and remote Chat do not bind it.",
   "authorized_changes": [
     {
       "path": "desktop/electron/clipboard.ts",
       "baseline_sha256": null,
       "current_sha256": "ebed5203a2743a9b5b47b41d1d0b90fec74f0db3265a64a2d78f117d5164e3f6"
+    },
+    {
+      "path": "desktop/electron/contracts.ts",
+      "baseline_sha256": "ff938d457fc72bb27a1df7408249f1cd3837f354ae453b5ec23cb90fd36306cf",
+      "current_sha256": "efa03609740ffde42c4d2838c351276a489ca22bc971f739633769066adf47b2"
     },
     {
       "path": "desktop/electron/main/index.ts",
@@ -16,6 +21,11 @@
       "path": "desktop/electron/preload/index.ts",
       "baseline_sha256": "ad99ee96463da0823449a2d8acaa64b35ce1ffab0a13d803b06a375770272e86",
       "current_sha256": "612f06a8f17c38509719ae8ba3e09d8f93d1c3897d1ee71e43be925c43c5e050"
+    },
+    {
+      "path": "desktop/src/app/App.tsx",
+      "baseline_sha256": "2bee2609061c1b2274dca72f9290d273ee04062dbe6f3118dc22e94871bff671",
+      "current_sha256": "7da205d9f8e6cdd13dbe7381ea39fce366dd8e39e77acbbb6dbe2d07deaae3c7"
     },
     {
       "path": "desktop/src/components/CopyButton.tsx",

@@ -9,6 +9,7 @@ from ..desktop.errors import ObservationUnavailable
 from .request_consent import actual_user_request
 from ..authority.owner import owner_request
 from .trace import traced_request, event as trace_event
+from .workspace_reference import selected_workspace_reference
 
 
 class NaturalLanguageOrchestrator:
@@ -81,8 +82,9 @@ class NaturalLanguageOrchestrator:
 
     @actual_user_request
     @traced_request
+    @selected_workspace_reference
     @owner_request
-    async def submit(self, text, chat_id=None, research_mode=""):
+    async def submit(self, text, chat_id=None, research_mode="", workspace_id=""):
         if research_mode not in {"", "Quick", "Deep"}:
             raise ValueError("Unknown research mode")
         chat_id = chat_id or self.s.current_chat_id
@@ -105,14 +107,14 @@ class NaturalLanguageOrchestrator:
                 pass  # Freeform interpretation below can still propose a bounded task.
             else:
                 return await self._native_submit(text, chat_id)
-        selection = (self.selected_workspace, self.selected_file)
-        if self.selected_workspace and context.studio_selection != selection:
-            workspace = self.s.workspace_repo.load_all().get(self.selected_workspace)
+        selection = (workspace_id or self.selected_workspace, None if workspace_id else self.selected_file)
+        if selection[0] and context.studio_selection != selection:
+            workspace = self.s.workspace_repo.load_all().get(selection[0])
             if workspace:
                 context.workspace_id = workspace.id
                 context.project_id = workspace.project_id
-                if self.selected_file:
-                    context.entities["path"] = self.selected_file
+                if selection[1]:
+                    context.entities["path"] = selection[1]
                 context.studio_selection = selection
         interpreting = self.interpreting.setdefault(chat_id, set())
         interpreting.add(asyncio.current_task())

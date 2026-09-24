@@ -232,7 +232,7 @@ def owner_request(function):
         context=self.context(chat_id)
         workspace=self.s.workspace_repo.load_all().get(context.workspace_id or self.selected_workspace)
         with policy.request(text,chat_id,local=not getattr(self.s.chat,'targets',{}).get(chat_id),
-                            selected_path=self.selected_file or context.entities.get('path',''),workspace=workspace.root_path if workspace else '',
+                            selected_path=(None if kwargs.get('workspace_id') else self.selected_file) or context.entities.get('path',''),workspace=workspace.root_path if workspace else '',
                             creation_root=str(self.s.data_dir)):
             return await function(self,text,chat_id,*args,**kwargs)
     return invoke

@@ -427,7 +427,9 @@ export default function App() {
           text,
           ...context,
         });
-      else await call("interaction.submit", { chat_id: chat.id, text, ...(researchMode ? {research_mode: researchMode} : {}) });
+      else await call("interaction.submit", { chat_id: chat.id, text,
+        ...(workspace ? {workspace_id: workspace} : {}),
+        ...(researchMode ? {research_mode: researchMode} : {}) });
       await refresh();
     } catch (e) {
       report(e);

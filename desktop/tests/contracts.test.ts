@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { validateCall } from "../electron/contracts";
 const id = "550e8400-e29b-41d4-a716-446655440000";
 describe("main-process contract", () => {
+  it("accepts a selected workspace reference without accepting authority fields", () => {
+    const args = {chat_id: "chat", text: "Run my project", workspace_id: "selected"};
+    expect(validateCall({id, method: "interaction.submit", args}).args).toEqual(args);
+    for (const field of ["approved", "owner_mode", "permission", "ignore_user_policy", "disable_stop", "grant_root", "extra_recipient"])
+      expect(() => validateCall({id, method: "interaction.submit", args: {...args, [field]: true}})).toThrow();
+  });
   it("rejects arbitrary service methods and workspace path injection", () => {
     expect(() =>
       validateCall({ id, method: "agent.tool", args: {} }),

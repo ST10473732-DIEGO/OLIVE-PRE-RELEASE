@@ -63,7 +63,7 @@ export const schemas = {
       direction: z.union([z.literal(-1), z.literal(1)]),
     })
     .strict(),
-  "interaction.submit": z.object({ ...chat, text, research_mode: z.enum(["Quick", "Deep"]).optional() }).strict(),
+  "interaction.submit": z.object({ ...chat, text, workspace_id: short.optional(), research_mode: z.enum(["Quick", "Deep"]).optional() }).strict(),
   "interaction.cancel": z.object(chat).strict(),
   "context.clear": z.object(chat).strict(),
   "studio.tree": z.object(workspace).strict(),
