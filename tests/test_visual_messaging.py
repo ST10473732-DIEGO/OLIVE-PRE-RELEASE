@@ -163,6 +163,7 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             return []
         with patch.object(visual_messaging, 'ocr_lines', ocr), \
                 patch.object(visual_messaging, 'ocr_words', lambda frame, box, scale=4: ocr(frame, box)), \
+                patch.object(visual_messaging, 'ocr_rows', lambda frame, box, scale=4: ocr(frame, box)), \
                 patch.object(visual_messaging.asyncio, 'sleep',
                                                                              return_value=None), \
                 patch.object(visual_messaging, 'unchanged_outside', lambda before, after, box: unchanged):
@@ -381,4 +382,27 @@ class SwitcherRowTests(unittest.TestCase):
     def test_results_band_starts_below_the_search_box(self):
         from olive.desktop.linux.visual_messaging import results_band
         frame = {'width': 900, 'height': 480}
-        self.assertEqual(results_band(frame, (324, 190), 180, 160), (180, 160, 900, 330))
+        self.assertEqual(results_band(frame, (324, 190), 207, 160, 693), (207, 160, 693, 330))
+
+
+@unittest.skipUnless(__import__('shutil').which('tesseract'), 'tesseract OCR')
+class RowReadingTests(unittest.TestCase):
+    def test_rows_are_read_as_strips_and_matched_exactly(self):
+        import base64, io, subprocess
+        from PIL import Image, ImageDraw, ImageFont
+        from olive.desktop.visual_ocr import ocr_rows
+        font_path = subprocess.run(['fc-match', '-f', '%{file}', 'sans'], capture_output=True, text=True).stdout
+        font, small = ImageFont.truetype(font_path, 14), ImageFont.truetype(font_path, 9)
+        image = Image.new('RGB', (440, 90), (43, 45, 49))
+        draw = ImageDraw.Draw(image)
+        for y, name, server in ((10, 'gen-chat', 'D SERVER'), (40, 'gen-chat', 'OTHER PLACE')):
+            draw.text((12, y), '# ' + name, fill=(220, 221, 222), font=font)
+            draw.text((110, y + 4), 'TEXT CHANNELS', fill=(140, 142, 148), font=small)
+            draw.text((330, y + 2), server, fill=(180, 182, 186), font=font)
+        data = io.BytesIO()
+        image.save(data, format='PNG')
+        frame = {'png': base64.b64encode(data.getvalue()).decode(), 'width': 440, 'height': 90}
+        words = ocr_rows(frame, (0, 0, 440, 90))
+        self.assertEqual(len(switcher_matches(words, '#gen-chat', 'D SERVER')), 1)
+        self.assertEqual(len(switcher_matches(words, '#gen-chat')), 2)  # Same name in two servers: ambiguous.
+        self.assertEqual(switcher_matches(words, '#gen-chat', 'C SERVER'), [])

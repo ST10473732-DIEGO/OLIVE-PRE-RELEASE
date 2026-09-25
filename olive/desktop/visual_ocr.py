@@ -86,7 +86,9 @@ def ocr_lines(frame, box, scale=3, isolate=True, words=False):
     merged = []
     for line in (_tesseract(basic, scale, left, top, words) +
                  (_tesseract(isolated, scale, left, top, words) if isolate else [])):
-        duplicate = next((m for m in merged if normalize(m['text']) == normalize(line['text']) and
+        # Lines merge only identical text; words from the two passes that cover the
+        # same glyphs are one reading, so the more confident one is kept.
+        duplicate = next((m for m in merged if (words or normalize(m['text']) == normalize(line['text'])) and
                           _overlap(m['box'], line['box'])), None)
         if duplicate is None:
             merged.append(line)
@@ -174,3 +176,30 @@ def unchanged_outside(before, after, box):
 
 def ocr_words(frame, box, scale=4):
     return ocr_lines(frame, box, scale=scale, words=True)
+
+
+def ocr_rows(frame, box, scale=4, half_height=12):
+    """Words of a list, each row re-read as its own strip.
+
+    A coarse read of the whole list locates the rows; reading each row alone is
+    markedly more accurate for small labels. Overlapping readings keep the more
+    confident one. Evidence only, never authority.
+    """
+    left, top, right, bottom = clamp_box(frame, box)
+    middles = []
+    for middle in sorted((w['box'][1] + w['box'][3]) / 2 for w in ocr_words(frame, box, scale)):
+        if not middles or middle - middles[-1] >= half_height / 2:
+            middles.append(middle)
+    found = []
+    for middle in middles:
+        try:
+            words = ocr_words(frame, (left, max(top, middle - half_height), right, min(bottom, middle + half_height)), scale)
+        except ValueError:
+            continue  # A strip clamped below the minimum size has nothing to read.
+        for word in words:
+            duplicate = next((m for m in found if _overlap(m['box'], word['box'])), None)
+            if duplicate is None:
+                found.append(word)
+            elif word['confidence'] > duplicate['confidence']:
+                found[found.index(duplicate)] = word
+    return found

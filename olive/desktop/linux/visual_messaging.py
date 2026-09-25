@@ -12,7 +12,7 @@ import asyncio
 from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
                                  switcher_matches)
-from ..visual_ocr import band, normalize, ocr_lines, ocr_words, unchanged_outside
+from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .4
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
@@ -121,10 +121,15 @@ class VisualMessaging:
             _, lines = await self.region(frame, 'switcher')
             prompt = [l for l in lines if self.adapter.switcher_prompt in normalize(l['text'])]
             if prompt:
-                # Results are listed below the search box; the box itself (which will
-                # hold the typed query) and anything left of the dialog are excluded.
-                results_left = min(l['box'][0] for l in prompt) - 40
-                results_top = max(l['box'][3] for l in prompt) + 6
+                # Results are listed below the search box (which will hold the typed
+                # query). The switcher is centred, so the prompt's first word bounds
+                # the dialog on both sides; panels behind it are excluded.
+                box = (min(l['box'][0] for l in prompt) - 4, min(l['box'][1] for l in prompt) - 4,
+                       max(l['box'][2] for l in prompt) + 4, max(l['box'][3] for l in prompt) + 4)
+                first = [w for w in await asyncio.to_thread(ocr_words, frame, box)
+                         if normalize(w['text']) == self.adapter.switcher_prompt.split()[0]]
+                left = (first[0]['box'][0] if len(first) == 1 else min(l['box'][0] for l in prompt)) - 16
+                results = (max(0, left), max(l['box'][3] for l in prompt) + 6, frame['width'] - max(0, left))
                 break
         else:
             await self.escape()
@@ -143,13 +148,13 @@ class VisualMessaging:
                 continue
             # Uniqueness is judged from a wide band around the proposal, so a second
             # visible row with the same name (other server) stays ambiguous.
-            wide = await asyncio.to_thread(ocr_words, frame, results_band(frame, point, results_left, results_top))
+            wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results))
             candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
             if candidates:
                 # One confirmation read so a late-loading duplicate is still counted.
                 await asyncio.sleep(SETTLE_SECONDS)
                 frame = await self.frame()
-                wide = await asyncio.to_thread(ocr_words, frame, results_band(frame, point, results_left, results_top))
+                wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results))
                 candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
                 break
         if point is None:
@@ -289,10 +294,10 @@ class VisualMessaging:
                           ('composer', ctx.composer), ('account', ctx.account)))
 
 
-def results_band(frame, point, left, top):
-    """Switcher results: below the search box, from its left edge to the window's right edge."""
+def results_band(frame, point, left, top, right):
+    """Switcher results: below the search box, within the dialog's horizontal bounds."""
     _, _, _, bottom = band(frame, point, 140)
-    return (max(0, left), max(0, top), frame['width'], max(top + 8, bottom))
+    return (max(0, left), max(0, top), max(left + 8, min(frame['width'], right)), max(top + 8, bottom))
 
 
 def crop_document(frame, documents):
