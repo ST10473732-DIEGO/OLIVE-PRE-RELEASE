@@ -8,6 +8,7 @@ interface Status {
   bot_name: string | null;
   guild_id: string | null;
   channel_id: string | null;
+  bot_id?: string | null;
 }
 export function Connections({
   open,
@@ -53,9 +54,9 @@ export function Connections({
       </p>
       <p className="muted">
         Messages are sent as your bot, not as your personal Discord account.
-        Each send requires review of the exact destination and text. Personal
-        Discord accounts require manual sending; OLIVE can retain your draft but
-        cannot automate a normal account. Only the configured bot channel is used.
+        Each send requires review of the exact destination and text. Only the
+        configured bot channel is used. To message from your own account, ask
+        OLIVE in Chat: it works in your open Discord app and asks before sending.
       </p>
       <form
         className="project-form"
@@ -124,32 +125,37 @@ export function Connections({
         {!!guilds.length&&<label>Server<select value={selectedGuild} onChange={e=>{setSelectedGuild(e.target.value);void discover(e.target.value);}}><option value="">Select an accessible server</option>{guilds.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}
         {channels.map(c=><button key={c.id} disabled={busy||!c.can_send} onClick={()=>{setBusy(true);void call<Status>('connections.discord_select',{guild_id:selectedGuild,channel_id:c.id}).then(setStatus).catch(report).finally(()=>setBusy(false));}}>Use #{c.name}{!c.can_send?' · read only':''}</button>)}
       </div>}
-      {status?.enabled && (
-        <button
-          disabled={busy}
-          onClick={() =>
-            void call<Status>("connections.discord_disconnect", {
-              remove_credentials: false,
-            })
-              .then(setStatus)
-              .catch(report)
-          }
-        >
-          Disconnect
-        </button>
+      {(status?.enabled || status?.bot_id) && (
+        <div className="row">
+          {status?.enabled && (
+            <button
+              disabled={busy}
+              onClick={() =>
+                void call<Status>("connections.discord_disconnect", {
+                  remove_credentials: false,
+                })
+                  .then(setStatus)
+                  .catch(report)
+              }
+            >
+              Disconnect
+            </button>
+          )}
+          <button
+            className="danger-action"
+            disabled={busy}
+            onClick={() =>
+              void call<Status>("connections.discord_disconnect", {
+                remove_credentials: true,
+              })
+                .then(setStatus)
+                .catch(report)
+            }
+          >
+            Disconnect and remove credential
+          </button>
+        </div>
       )}
-      <button
-        disabled={busy}
-        onClick={() =>
-          void call<Status>("connections.discord_disconnect", {
-            remove_credentials: true,
-          })
-            .then(setStatus)
-            .catch(report)
-        }
-      >
-        Disconnect and remove credential
-      </button>
     </Sheet>
   );
 }

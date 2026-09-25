@@ -206,7 +206,7 @@ export default function CalendarPage({
   );
   useEffect(() => {
     // Open the time grid at the working day, not at midnight.
-    if ((view === "Week" || view === "Day") && grid.current) grid.current.scrollTop = 7 * HOUR - 10;
+    if ((view === "Week" || view === "Day") && grid.current) grid.current.scrollTop = 6.5 * HOUR;
   }, [view]);
   return (
     <WorkspacePage

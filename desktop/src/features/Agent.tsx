@@ -34,6 +34,7 @@ import {
   History,
   Sparkles,
 } from "lucide-react";
+import { whenLabel } from "../services/when";
 const toneOf = (state: string): "success" | "error" | "warning" | "accent" | undefined =>
   state === "completed" || state === "passed"
     ? "success"
@@ -210,8 +211,8 @@ export default function Agent({
               >
                 <span className="ws-row-text">
                   <strong>{t.user_request}</strong>
-                  <span className="muted">
-                    {labels[t.state] || t.state} · {t.updated_at}
+                  <span className="muted" title={t.updated_at}>
+                    {labels[t.state] || t.state} · {whenLabel(t.updated_at)}
                   </span>
                 </span>
                 <span className="agent-history-dot" data-tone={toneOf(t.state)} aria-hidden="true" />

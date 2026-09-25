@@ -21,8 +21,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
-  padding: 8px 20px;
+  min-height: 60px;
+  padding: 12px 24px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
@@ -442,6 +442,15 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
+}
+.devices-workspace .devices-check {
+  flex-direction: row;
+  align-items: center;
+  color: var(--text-primary);
+}
+.devices-panel-body > button,
+.devices-panel-body > form > button {
+  align-self: flex-start;
 }
 .devices-check small {
   flex-basis: 100%;

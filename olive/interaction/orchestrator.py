@@ -3,6 +3,7 @@
 import asyncio
 from copy import deepcopy
 from .context import InteractionContext
+from ..models import chat_title
 from .interpreter import SemanticInterpreter
 from .router import CapabilityRouter
 from ..desktop.errors import ObservationUnavailable
@@ -343,7 +344,7 @@ class NaturalLanguageOrchestrator:
         self.gates[chat_id].set()
         chat = self.s.chats[chat_id]
         if not chat.messages:
-            chat.title = text[:48]
+            chat.title = chat_title(text)
         message = chat.add_message('user', text)
         self.s.save_chats()
         native = self.s.desktop.linux

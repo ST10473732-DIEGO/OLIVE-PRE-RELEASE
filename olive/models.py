@@ -80,6 +80,18 @@ class DocumentRef:
         )
 
 
+def chat_title(text: str, limit: int = 60) -> str:
+    """A conversation title from its first message: one line, cut at a word boundary."""
+    line = " ".join(text.split())
+    if len(line) <= limit:
+        return line
+    cut = line[:limit - 1]
+    space = cut.rfind(" ")
+    if space >= limit // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:-") + "…"
+
+
 @dataclass
 class Chat:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

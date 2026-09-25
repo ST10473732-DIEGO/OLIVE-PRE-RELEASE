@@ -444,6 +444,8 @@
 .navigation {
   width: var(--nav);
   flex-shrink: 0;
+  overflow: hidden;
+  transition: width var(--dur-panel) var(--ease), padding var(--dur-panel) var(--ease);
   display: flex;
   flex-direction: column;
   background: var(--bg-base);
@@ -482,6 +484,12 @@
   padding-top: 6px;
 }
 .nav-group-label {
+  box-sizing: border-box;
+  height: 25px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: height var(--dur-panel) var(--ease), margin var(--dur-panel) var(--ease),
+    padding var(--dur-panel) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-panel) var(--ease);
   font-size: 10.5px;
   font-weight: 650;
   letter-spacing: 0.08em;
@@ -494,7 +502,6 @@
   height: 1px;
   padding: 0;
   margin: 5px 8px;
-  overflow: hidden;
   color: transparent;
   background: var(--border-default);
 }
@@ -502,6 +509,8 @@
   display: flex;
   align-items: center;
   gap: 9px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    height var(--dur-panel) var(--ease), padding var(--dur-panel) var(--ease);
   width: 100%;
   min-height: 30px;
   height: 30px;
@@ -557,15 +566,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 .navigation.compact .nav-row {
-  justify-content: center;
-  padding: 0;
+  padding: 0 10px;
   gap: 0;
   height: 34px;
 }
 .navigation.compact .nav-label {
-  display: none;
+  width: 0;
+  opacity: 0;
 }
 .nav-foot {
   display: flex;
