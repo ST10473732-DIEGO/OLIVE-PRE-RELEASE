@@ -84,5 +84,34 @@ def git_request(text):
     return None
 
 
+def system_request(text):
+    """Explicit typed OS settings; a value outside the literal request is never used."""
+    value = re.sub(r'^(?:please\s+)', '', text.strip(), flags=re.I).rstrip('.!?').casefold()
+    patterns = (
+        (r'(?:set|change|turn) (?:the )?(?:system )?volume (?:to )?(\d{1,3}) ?(?:%|percent)', 'audio_set_volume', int),
+        (r'(?:set|change|turn) (?:the )?(?:screen |display )?brightness (?:to )?(\d{1,3}) ?(?:%|percent)', 'display_set_brightness', int),
+        (r'(mute|unmute)(?: the)?(?: audio| sound| volume)?', 'audio_set_mute', lambda w: w == 'mute'),
+        (r'(?:turn|switch) (on|off) (?:the )?bluetooth|(?:turn|switch) (?:the )?bluetooth (on|off)|(enable|disable) (?:the )?bluetooth',
+         'bluetooth_set_power', lambda w: w in {'on', 'enable'}),
+        (r'make (?:the )?bluetooth (discoverable|visible|hidden|invisible|undiscoverable)', 'bluetooth_set_discoverable',
+         lambda w: w in {'discoverable', 'visible'}),
+        (r"(?:what(?:'s| is) the (?:current )?volume|show (?:the )?audio status|is (?:the )?audio muted)", 'audio_status', None),
+        (r"(?:is bluetooth (?:on|off|enabled)|show (?:the )?bluetooth status|what(?:'s| is) the bluetooth status)", 'bluetooth_status', None),
+        (r"(?:what(?:'s| is) the (?:screen |display )?brightness|show (?:the )?(?:display|brightness) status)", 'display_status', None),
+        (r"(?:is wi-?fi (?:on|enabled)|show (?:the )?(?:network|wi-?fi) status|am i online)", 'network_status', None),
+    )
+    for pattern, operation, convert in patterns:
+        match = re.fullmatch(pattern, value)
+        if match:
+            word = next((g for g in match.groups() if g), '')
+            entities = {'operation': operation}
+            if convert is int:
+                entities['value'] = word
+            elif convert is not None:
+                entities['value'] = 'true' if convert(word) else 'false'
+            return _step('system.control', **entities)
+    return None
+
+
 def ordinary_request(text):
-    return file_transfer(text) or directory_request(text) or git_request(text)
+    return file_transfer(text) or directory_request(text) or git_request(text) or system_request(text)

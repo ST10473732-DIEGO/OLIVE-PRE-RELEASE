@@ -97,6 +97,7 @@ class ServiceContainer:
             self.settings["theme"] = DEFAULT_THEME
         self.colors = get_theme(self.theme_name)
 
+        from ..tools.os_controls import os_control_tools
         from ..authority.owner import OwnerPolicy
         self.owner_policy = OwnerPolicy(lambda: self.settings)
         self.ollama = OllamaService()
@@ -190,6 +191,7 @@ class ServiceContainer:
             *ide_tools(self.workspace_repo),
             *workspace_tools(self.workspace_repo),
             StudioRunTool(self.run_service, self.workspace_repo),
+            *os_control_tools(),
         ]:
             self.tool_registry.register(tool)
         self.confirmations = ConfirmationService(confirmation_handler)

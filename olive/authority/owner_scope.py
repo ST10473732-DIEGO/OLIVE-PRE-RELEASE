@@ -17,8 +17,7 @@ GIT_WRITE = {'git.add', 'git.commit', 'git.create_branch', 'git.checkout'}
 FS_READ = {'filesystem.list', 'filesystem.search', 'filesystem.stat', 'filesystem.read_text'}
 APP_TOOLS = {'system.open_application', 'system.close_application', 'system.open_path', 'ide.open_workspace',
              'ide.open_file'}
-SYSTEM_TOOLS = {'system.audio_status', 'system.audio_set_volume', 'system.audio_set_mute',
-                'system.bluetooth_status', 'system.bluetooth_set_power'}
+SYSTEM_READ = {'system.audio_status', 'system.bluetooth_status', 'system.display_status', 'system.network_status'}
 PERSONAL_WRITE = {'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.reopen', 'tasks.schedule',
                   'calendar.create', 'calendar.update', 'reminders.create', 'reminders.update',
                   'reminders.snooze', 'reminders.dismiss'}
@@ -120,17 +119,24 @@ def extend(text, instruction, *, workspace='', answer_only=False, forbidden=froz
         system['system.audio_set_mute'] = False
     elif re.search(r'\bmute\b', positive):
         system['system.audio_set_mute'] = True
+    brightness = re.search(r'\b(?:set|change|turn)\s+(?:the\s+)?(?:screen\s+|display\s+)?brightness\s+(?:to\s+)?(\d{1,3})\s*(?:%|percent)', positive)
+    if brightness and 1 <= int(brightness.group(1)) <= 100:
+        system['system.display_set_brightness'] = int(brightness.group(1))
+    visible = re.search(r'\bmake\s+(?:the\s+)?bluetooth\s+(discoverable|visible|hidden|invisible|undiscoverable)\b', positive)
+    if visible:
+        system['system.bluetooth_set_discoverable'] = visible.group(1) in {'discoverable', 'visible'}
     bluetooth = re.search(r'\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?bluetooth\b|\b(?:turn|switch)\s+(?:the\s+)?bluetooth\s+(on|off)\b|\b(enable|disable)\s+(?:the\s+)?bluetooth\b',
                           positive)
     if bluetooth:
         word = next(g for g in bluetooth.groups() if g)
         system['system.bluetooth_set_power'] = word in {'on', 'enable'}
-    if system and not forbidden & {'change', 'set', 'turn'}:
+    if system and not forbidden & {'change', 'set', 'turn', 'make'}:
         capabilities.update(system)
-        capabilities.update({'system.audio_status', 'system.bluetooth_status'})
+        capabilities.update(SYSTEM_READ)
         bindings['system'] = system
-    elif re.search(r'\b(?:volume|audio|bluetooth)\b', positive) and re.search(r'\b(?:what|show|check|status|is)\b', positive):
-        capabilities.update({'system.audio_status', 'system.bluetooth_status'})
+    elif re.search(r'\b(?:volume|audio|bluetooth|brightness|wi-?fi|network)\b', positive) and \
+            re.search(r'\b(?:what|show|check|status|is|are)\b', positive):
+        capabilities.update(SYSTEM_READ)
     # Ordinary local personal records: one explicit create/update/complete.
     if re.search(r'\b(?:task|tasks|to-?do|event|meeting|appointment|reminder|calendar)\b|\bremind me\b', positive):
         personal = set()

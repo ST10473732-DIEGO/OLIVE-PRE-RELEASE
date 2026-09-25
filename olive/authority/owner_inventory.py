@@ -69,9 +69,11 @@ INVENTORY.update(_rows('application', A, 'application/path literally named in th
 INVENTORY.update(_rows('application', R, 'read-only process listing', 'system.list_running_applications'))
 INVENTORY.update(_rows('application', H, 'force termination is never an ordinary close',
                        'system.terminate_application'))
-INVENTORY.update(_rows('system', A, 'typed user-session API; explicit on/off/level; state restored by caller',
-                       'system.audio_set_volume', 'system.audio_set_mute', 'system.bluetooth_set_power'))
-INVENTORY.update(_rows('system', R, 'typed read-only status', 'system.audio_status', 'system.bluetooth_status'))
+INVENTORY.update(_rows('system', A, 'typed user-session API; exact requested on/off/level; read back',
+                       'system.audio_set_volume', 'system.audio_set_mute', 'system.bluetooth_set_power',
+                       'system.bluetooth_set_discoverable', 'system.display_set_brightness'))
+INVENTORY.update(_rows('system', R, 'typed read-only status', 'system.audio_status', 'system.bluetooth_status',
+                       'system.display_status', 'system.network_status'))
 # Desktop control: the native task broker (task_authority) binds each effect.
 INVENTORY.update(_rows('desktop', A, 'unified desktop task grant; fresh observation, ledger, Stop',
                        'desktop.activate', 'desktop.launch', 'desktop.focus', 'desktop.invoke', 'desktop.select',
@@ -160,8 +162,7 @@ EXTERNAL_FAMILIES = {
     'connect.studio': (REMOTE_RULES_ONLY, 'C6 exact device grants'),
     'connect.sync': (REMOTE_RULES_ONLY, 'C3 exact device grants'),
     'system.power_session': (OS_AUTH_REQUIRED, 'logind/Polkit decides; OLIVE never bypasses authentication'),
-    'system.wifi_toggle': (UNSUPPORTED, 'no typed controller in this milestone'),
-    'system.display_brightness': (UNSUPPORTED, 'no supported user-level brightness API detected on this machine'),
+    'system.wifi_toggle': (UNSUPPORTED, 'status only; toggling would disconnect the running session and is not live-testable here'),
     'system.root_operations': (NOT_SAFE_FOR_OWNER_AUTO, 'no root shell, sudo rule or Polkit bypass'),
 }
 

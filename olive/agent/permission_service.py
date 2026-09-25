@@ -33,7 +33,7 @@ class PermissionService:
                 "clipboard.read":"ask", "clipboard.write":"ask",
                 "software.install":"ask", "software.purchase":"ask",
                 "application.upload":"ask", "application.delete":"ask",
-                "application.submit":"ask", "application.security_settings":"ask"}
+                "application.submit":"ask", "application.security_settings":"ask", "system.settings":"ask"}
     DEFAULTS.update({"app.file_explorer.navigate": "ask", "app.windows_settings.navigate": "ask", "application.media": "ask", "application.search": "ask"})
     DEFAULTS.update({f'{domain}.{action}': 'allow' if action=='read' else 'ask'
                      for domain in ('profile','contacts','calendar','tasks','reminders','personal')

@@ -204,6 +204,8 @@ class CapabilityRouter:
             return (path + ' contains:\n' + '\n'.join(names)) if names else path + ' is empty.'
         if intent == 'code.git':
             return await self.git(e, context)
+        if intent == 'system.control':
+            return await self.system_control(e)
         if intent == 'filesystem.trash':
             path = self.path(self.required(e,'path'),context)
             await self.s.agent.tool('filesystem.trash',{'path':path},'Move the requested file to Trash')
@@ -403,6 +405,28 @@ class CapabilityRouter:
             destination = values["recipient"] or " / ".join(v for v in (values["server"], values["channel"]) if v)
             return f"Draft for {destination}:\n\n{values['message']}\n\nNothing has been sent."
         raise ValueError("I don't have a connected action for that request yet.")
+
+    async def system_control(self, e):
+        operation = e.get('operation', '')
+        keys = {'audio_set_volume': ('percent', int), 'display_set_brightness': ('percent', int),
+                'audio_set_mute': ('muted', bool), 'bluetooth_set_power': ('powered', bool),
+                'bluetooth_set_discoverable': ('discoverable', bool)}
+        arguments = {}
+        if operation in keys:
+            key, kind = keys[operation]
+            raw = e.get('value', '')
+            arguments[key] = int(raw) if kind is int else raw == 'true'
+        elif operation not in {'audio_status', 'bluetooth_status', 'display_status', 'network_status'}:
+            raise ValueError('That system setting is not supported.')
+        result = await self.s.agent.tool('system.' + operation, arguments, 'Change a system setting' if arguments else 'Read system status')
+        if operation.startswith('audio'):
+            return f"Volume {result['volume_percent']}%{' (muted)' if result['muted'] else ''} on {result['device'] or 'the default output'} (read back from PipeWire)."
+        if operation.startswith('bluetooth'):
+            return (f"Bluetooth is {'on' if result['powered'] else 'off'} and {'discoverable' if result['discoverable'] else 'not discoverable'}"
+                    f" ({result['connected_devices']} connected device(s); read back from BlueZ).")
+        if operation.startswith('display'):
+            return f"Display brightness is {result['brightness_percent']}% (read back from KDE Power Management)."
+        return f"Wi-Fi radio: {result['wifi']}; network: {result['state']}, connectivity {result['connectivity']}."
 
     async def git(self, e, context):
         if not context.workspace_id:

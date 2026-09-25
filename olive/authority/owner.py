@@ -22,8 +22,8 @@ SCOPED_EFFECTS = {'filesystem.copy','filesystem.move','filesystem.write_text','f
                   'studio.run','workspace.run_validation','studio.new_project'}
 READ_TOOLS = {'filesystem.stat', 'filesystem.read_text', 'git.status', 'git.diff', 'git.log', 'git.branch_list'}
 from .owner_scope import CODE_READ, FS_READ, RESEARCH_READ
-NON_RESERVING = READ_TOOLS | FS_READ | CODE_READ | RESEARCH_READ | {
-    'system.list_running_applications', 'system.audio_status', 'system.bluetooth_status'}
+from .owner_scope import SYSTEM_READ
+NON_RESERVING = READ_TOOLS | FS_READ | CODE_READ | RESEARCH_READ | SYSTEM_READ | {'system.list_running_applications'}
 
 
 def starter_request(text):
@@ -269,12 +269,14 @@ class OwnerPolicy:
                        workspace_argument, grant.workspace, self.workspace_repo))
         if tool == 'system.list_running_applications':
             return not arguments
-        if tool in {'system.audio_status', 'system.bluetooth_status'}:
+        if tool in scope.SYSTEM_READ:
             return not arguments
-        if tool in {'system.audio_set_volume', 'system.audio_set_mute', 'system.bluetooth_set_power'}:
+        if tool in {'system.audio_set_volume', 'system.audio_set_mute', 'system.bluetooth_set_power',
+                    'system.bluetooth_set_discoverable', 'system.display_set_brightness'}:
             bound = bindings.get('system', {})
             key = {'system.audio_set_volume': 'percent', 'system.audio_set_mute': 'muted',
-                   'system.bluetooth_set_power': 'powered'}[tool]
+                   'system.bluetooth_set_power': 'powered', 'system.bluetooth_set_discoverable': 'discoverable',
+                   'system.display_set_brightness': 'percent'}[tool]
             return tool in bound and set(arguments) == {key} and arguments[key] == bound[tool] and \
                 type(arguments[key]) is type(bound[tool])
         if tool in scope.RESEARCH_READ:
