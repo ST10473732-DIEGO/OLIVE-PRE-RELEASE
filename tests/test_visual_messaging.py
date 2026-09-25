@@ -109,6 +109,9 @@ class Client:
                     self.drafts[self.current] = ''
             return {'dispatched': True}
         if method == 'visual_text':
+            if self.switcher and getattr(self, 'drop_typing', 0):
+                self.drop_typing -= 1       # Keystrokes lost while the switcher takes focus.
+                return {'dispatched': True}
             if self.switcher:
                 self.query = args['value']
             elif self.focus:
@@ -186,6 +189,8 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         def words(frame, box, scale=4):
             # The search box row after selection: the query stays visible while the
             # switcher is (simulated as) still closing.
+            if box[3] - box[1] < 40 and box[1] < 200 and client.switcher and not client.focus:
+                return client.lines('switcher')  # The search box: typed query or empty prompt.
             closing = box[3] - box[1] < 40 and box[1] < 200 and client.focus
             if closing:
                 checked.append(box)
@@ -735,6 +740,21 @@ class SwitcherToggleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('appears once', outcome)
         self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
         self.assertEqual(len(self.keys(client, 'ctrl+k')), 2)
+        self.assertEqual(len(self.keys(client, 'Escape')), 1)
+
+    async def test_switcher_left_open_with_an_old_query_is_reopened_empty(self):
+        client = Client(current=0)
+        client.switcher, client.query = True, 'stale query'   # Ctrl+K does not clear it.
+        original = client.call
+        async def call(method, args=None, timeout=None):
+            if method == 'visual_key' and args['value'] == 'ctrl+k' and client.switcher and client.query:
+                client.calls.append((method, dict(args)))
+                return {'dispatched': True}                    # Ignored while open with text.
+            return await original(method, args, timeout)
+        client.call = call
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
 
 
 class EchoTests(unittest.TestCase):
@@ -749,5 +769,149 @@ class EchoTests(unittest.TestCase):
         self.assertEqual(len(echo_rows(first, 'hello from OLIVE', 'deeayygoo')), 1)
         self.assertEqual(len(echo_rows(continued, 'hello from OLIVE', 'deeayygoo')), 1)
         self.assertEqual(echo_rows(first, 'hello from OLIVE', 'someone-else'), [])      # Another sender.
+        truncated = words(160, 'deeayy', 'hello')                                      # Coloured name cut short.
+        self.assertEqual(len(echo_rows(truncated, 'hello', 'deeayygoo')), 1)
+        self.assertEqual(echo_rows(words(160, 'dee', 'hello'), 'hello', 'deeayygoo'), [])
+        self.assertEqual(echo_rows(words(160, 'deeayx', 'hello'), 'hello', 'deeayygoo'), [])
         self.assertEqual(echo_rows(words(100, 'say', 'hello', 'from', 'OLIVE'), 'hello from OLIVE', 'deeayygoo'), [])
         self.assertEqual(echo_rows(words(100, 'hello', 'from', 'OLIVE', 'again'), 'hello from OLIVE', ''), [])
+
+
+class RightAlignedLabelTests(unittest.TestCase):
+    """A real Discord row: '# nepali-jerk-circle CHAT ... guaplings', the label read as 'u'."""
+
+    def row(self, *label):
+        base = [('#*', 66, 397), ('nepali-jerk-circle', 90, 412), ('CMAT', 78, 494)]
+        return [{'text': t, 'confidence': c, 'box': (x, 278, x + 8 * len(t), 290)} for t, c, x in base + list(label)]
+
+    def states(self, words, server):
+        from olive.desktop.messaging_context import switcher_candidates
+        return [r['server'] for r in switcher_candidates(words, '#nepali-jerk-circle', server, 600)]
+
+    def test_glyph_sized_misreading_is_not_another_server(self):
+        self.assertEqual(self.states(self.row(('u', 84, 774)), 'guaplings'), ['unread'])
+
+    def test_category_is_never_the_server_label(self):
+        self.assertEqual(self.states(self.row(), 'guaplings'), ['unread'])
+
+    def test_readable_labels_confirm_or_disqualify(self):
+        self.assertEqual(self.states(self.row(('guaplings', 88, 760)), 'guaplings'), ['confirmed'])
+        self.assertEqual(self.states(self.row(('perrito', 90, 720), ('bonito', 91, 760)), 'guaplings'), ['other'])
+
+
+class QueryTypingTests(unittest.IsolatedAsyncioTestCase):
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    def typed(self, client):
+        return [c[1]['value'] for c in client.calls if c[0] == 'visual_text']
+
+    async def test_dropped_query_is_typed_once_more(self):
+        client = Client(current=0)
+        client.drop_typing = 1
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(self.typed(client), ['general', 'general', 'field update'])
+
+    async def test_query_that_never_appears_stops_before_selection(self):
+        client = Client(current=0)
+        client.drop_typing = 9
+        with self.assertRaisesRegex(ValueError, 'did not appear in the quick switcher'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(self.typed(client), ['general', 'general'])
+        self.assertEqual(client.sent, [])
+        self.assertFalse([c for c in client.calls if c[0] == 'visual_click'])
+
+
+class RowHeightTests(unittest.TestCase):
+    def test_small_caps_labels_never_drop_the_channel_name(self):
+        from olive.desktop.messaging_context import switcher_candidates
+        row = [{'text': t, 'confidence': c, 'box': b} for t, c, b in (
+            ('#*', 66, (396.8, 278.0, 406.2, 287.5)), ('nepali-jerk-circle', 90, (411.5, 278.0, 490.5, 288.5)),
+            ('CMAT', 78, (494.0, 282.0, 508.2, 286.0)), ('u', 84, (774.2, 282.2, 777.8, 285.8)),
+            ('nge', 5, (794.0, 282.0, 806.5, 287.8)), ('I', 92, (816.0, 272.0, 820.0, 296.0)))]
+        self.assertEqual([r['server'] for r in switcher_candidates(row, '#nepali-jerk-circle', 'guaplings', 600)],
+                         ['unread'])
+
+
+class ReadingMergeTests(unittest.TestCase):
+    """Two OCR passes over the same glyphs: whole words beat fragments; garbage never wins."""
+
+    def word(self, text, confidence, left, right):
+        return {'text': text, 'confidence': confidence, 'box': (left, 32, right, 42)}
+
+    def merged(self, *readings):
+        from olive.desktop.visual_ocr import merge_reading
+        found = []
+        for reading in readings:
+            merge_reading(found, reading)
+        return sorted(w['text'] for w in found)
+
+    def test_credible_whole_word_replaces_its_fragments(self):
+        whole = self.word('#nepali-jerk-circle', 85, 340, 424)
+        parts = [self.word('#nepali', 62, 340, 374), self.word('jerk', 76, 378, 395), self.word('circle', 88, 400, 424)]
+        self.assertEqual(self.merged(whole, *parts), ['#nepali-jerk-circle'])
+        self.assertEqual(self.merged(*parts, whole), ['#nepali-jerk-circle'])
+
+    def test_garbled_wide_reading_never_displaces_confident_words(self):
+        garbage = self.word('N', 4, 300, 800)
+        words = [self.word('nepali-jerk-circle', 90, 412, 490), self.word('guaplings', 84, 760, 800)]
+        self.assertEqual(self.merged(garbage, *words), ['guaplings', 'nepali-jerk-circle'])
+        self.assertEqual(self.merged(*words, garbage), ['guaplings', 'nepali-jerk-circle'])
+
+    def test_same_glyphs_keep_the_more_confident_reading(self):
+        self.assertEqual(self.merged(self.word('Messaqe', 70, 299, 338), self.word('Message', 92, 299, 337)), ['Message'])
+
+
+class DeliveryTests(unittest.IsolatedAsyncioTestCase):
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    async def test_garbled_placeholder_after_sending_still_confirms_delivery(self):
+        client = Client(current=0)
+        original = client.lines
+        def lines(role):
+            if role == 'composer' and client.sent and not client.drafts.get(client.current):
+                return [line('2ssape #general', 600)]  # Caret over the placeholder's first letters.
+            return original(role)
+        client.lines = lines
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+
+    async def test_text_still_in_the_composer_is_never_reported_delivered(self):
+        client = Client(current=0)
+        original = client.call
+        async def call(method, args=None, timeout=None):
+            result = await original(method, args, timeout)
+            if method == 'visual_key' and args['value'] == 'Enter' and client.sent:
+                client.drafts[client.current] = client.sent[-1][2]   # Echo shown but text still present.
+            return result
+        client.call = call
+        with self.assertRaisesRegex(ValueError, 'uncertain'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(len(self.keys(client, 'Enter')), 1)
+
+
+@unittest.skipUnless(__import__('shutil').which('tesseract'), 'tesseract OCR')
+class UsernameTests(unittest.IsolatedAsyncioTestCase):
+    """Several people share a display name; only the exact username selects one."""
+
+    async def test_exact_username_selects_one_person(self):
+        import base64, io, subprocess
+        from dataclasses import replace
+        from PIL import Image, ImageDraw, ImageFont
+        font_path = subprocess.run(['fc-match', '-f', '%{file}', 'sans'], capture_output=True, text=True).stdout
+        big, small = ImageFont.truetype(font_path, 15), ImageFont.truetype(font_path, 12)
+        image = Image.new('RGB', (440, 120), (43, 45, 49))
+        draw = ImageDraw.Draw(image)
+        for y, handle in ((10, '4818'), (40, 'cuhcrzzz'), (70, 'knownwarfare9246')):
+            draw.text((20, y), 'diego', fill=(220, 221, 222), font=big)
+            draw.text((70, y + 3), handle, fill=(150, 152, 158), font=small)
+        data = io.BytesIO()
+        image.save(data, format='PNG')
+        frame = {'png': base64.b64encode(data.getvalue()).decode(), 'width': 440, 'height': 120}
+        from olive.desktop.visual_ocr import ocr_rows
+        words = ocr_rows(frame, (0, 0, 440, 120))
+        for handle, expected in (('4818', 1), ('cuhcrzzz', 1), ('9999', 0)):
+            messaging = visual_messaging.VisualMessaging.__new__(visual_messaging.VisualMessaging)
+            messaging.adapter, messaging.record = adapter_for('Discord'), lambda entry: None
+            messaging.scope = TaskScope('Discord', 'send', 'hello', '@diego', handle=handle)
+            self.assertEqual(len(await messaging.candidates_in(frame, words)), expected, handle)

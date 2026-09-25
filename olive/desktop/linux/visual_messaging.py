@@ -62,6 +62,8 @@ class VisualMessaging:
         contrast in either theme. Reading the quieter frame avoids the caret.
         """
         first = await self.frame()
+        if first.get('static'):
+            return first  # Nothing is changing on screen, so no caret is blinking.
         second = await self.frame()
         if (first['width'], first['height']) != (second['width'], second['height']):
             return second
@@ -78,10 +80,22 @@ class VisualMessaging:
         if not fractions:
             return None
         left, top, right, bottom = fractions
-        return (left * frame['width'], top * frame['height'], right * frame['width'], bottom * frame['height'])
+        left, top, right, bottom = (left * frame['width'], top * frame['height'], right * frame['width'],
+                                    bottom * frame['height'])
+        bounds = (frame.get('window') or {}).get('bounds')
+        if role == 'composer' and self.adapter.composer_left_logical and bounds and bounds[2] > 0:
+            # Fixed-width panels (logical px) beside the composer are not part of it.
+            left = max(left, self.adapter.composer_left_logical * frame['width'] / bounds[2])
+        return (left, top, right, bottom)
 
     def composer_area(self, frame, point):
         return self.area(frame, 'composer') or band(frame, point, 32, frame['width'] * .4)
+
+    def read_composer(self, frame, point):
+        """The composer area: words where the layout is declared, lines otherwise."""
+        if self.area(frame, 'composer'):
+            return ocr_words(frame, self.composer_area(frame, point), 3)
+        return ocr_lines(frame, self.composer_area(frame, point))
 
     async def composer_text(self, frame, point):
         """Words from where the verified placeholder text started (buttons to its left
@@ -96,7 +110,10 @@ class VisualMessaging:
         """Declared area or model proposal -> bounded crop -> OCR lines (frame pixels)."""
         box = self.area(frame, role)
         if box:
-            lines = await asyncio.to_thread(ocr_lines, frame, box, 2 if role == 'switcher' else 3)
+            if role == 'composer':
+                lines = await asyncio.to_thread(ocr_words, frame, box, 3)
+            else:
+                lines = await asyncio.to_thread(ocr_lines, frame, box, 2 if role == 'switcher' else 3)
             point = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
             self.diagnose(role, point, lines)
             return point, lines
@@ -133,14 +150,15 @@ class VisualMessaging:
                 # A blinking caret can hide the placeholder's first letter: re-read
                 # the same area on the caret-off frame of the next blink.
                 frame = await self.quiet_frame(lambda f: self.composer_area(f, point))
-                lines = await asyncio.to_thread(ocr_lines, frame, self.composer_area(frame, point))
+                lines = await asyncio.to_thread(self.read_composer, frame, point)
             composer = composer_state(lines, self.adapter)
             if composer[0] == 'empty' or point is None:
                 break
             # A draft that is exactly the requested text (for example from an
             # earlier Draft request) is recognised; any other draft is preserved.
-            same = exact_segment(await asyncio.to_thread(ocr_words, frame, self.composer_area(frame, point)),
-                                 self.scope.content)
+            words = lines if self.area(frame, 'composer') else await asyncio.to_thread(
+                ocr_words, frame, self.composer_area(frame, point))
+            same = exact_segment(words, self.scope.content)
             if same:
                 composer = ('draft', '', self.scope.content, same)
                 break
@@ -209,8 +227,11 @@ class VisualMessaging:
         await asyncio.sleep(OPEN_SECONDS)
         for attempt in range(SETTLE_READS + 1):
             if attempt == SETTLE_READS - 1:
-                # The shortcut toggles: a switcher left open was just closed. Press it
-                # once more (bounded to one retry) and re-check before typing anything.
+                # A switcher left open (possibly holding an old query, which hides the
+                # prompt) or just toggled closed: close it with Escape and open a fresh,
+                # empty one (bounded to one retry), then re-check before typing anything.
+                await self.escape()
+                await asyncio.sleep(SETTLE_SECONDS)
                 frame = await self.frame()
                 await self.runtime.native.call('visual_key', {'revision': frame['revision'],
                                                               'value': self.adapter.switcher_key})
@@ -230,15 +251,14 @@ class VisualMessaging:
                          if normalize(w['text']) == self.adapter.switcher_prompt.split()[0]]
                 anchored = len(first) == 1
                 left = (first[0]['box'][0] if anchored else min(l['box'][0] for l in prompt)) - 16
-                results = (max(0, left), max(l['box'][3] for l in prompt) + 6, frame['width'] - max(0, left))
+                results = self.results = (max(0, left), max(l['box'][3] for l in prompt) + 6,
+                                          frame['width'] - max(0, left))
                 search_box = box
                 break
         else:
             await self.escape()
             raise ValueError('DESTINATION_UNVERIFIED: the quick switcher did not open as expected; nothing was typed')
-        frame = await self.frame()
-        await self.runtime.native.call('visual_text', {'revision': frame['revision'],
-                                                       'value': self.scope.destination.lstrip('#@')})
+        await self.type_query(search_box)
         # Results load asynchronously after the query; wait (bounded) for an exact row.
         candidates, point = [], None
         for attempt in range(SETTLE_READS):
@@ -263,10 +283,10 @@ class VisualMessaging:
                          if bare(w['text']) == bare(self.scope.destination) and w['confidence'] >= 60]
                 if len(query) == 1:
                     left = max(0, query[0]['box'][0] - 16)
-                    results = (left, results[1], frame['width'] - left)
+                    results = self.results = (left, results[1], frame['width'] - left)
             wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
                                            self.names_destination)
-            candidates = self.row_candidates(wide)
+            candidates = await self.candidates_in(frame, wide)
             if candidates:
                 # One quick confirmation: an unchanged list loaded nothing new;
                 # otherwise a late-loading row with the same name triggers a full
@@ -283,7 +303,7 @@ class VisualMessaging:
                     frame = again
                     wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
                                                    self.names_destination)
-                    candidates = self.row_candidates(wide)
+                    candidates = await self.candidates_in(frame, wide)
                 break
         if point is None:
             await self.escape()
@@ -291,8 +311,11 @@ class VisualMessaging:
         if len(candidates) != 1:
             await self.escape()
             where = self.scope.destination + (' in ' + self.scope.server if self.scope.server else '')
-            raise ValueError('TARGET_AMBIGUOUS: several destinations are named ' + where +
-                             '. Tell me which one; nothing was selected or sent.' if candidates else
+            hint = (' Add the username, for example "to ' + self.scope.destination + ' (username)".'
+                    if self.scope.destination.startswith('@') and not getattr(self.scope, 'handle', '') else
+                    ' Tell me which one.')
+            raise ValueError('TARGET_AMBIGUOUS: several destinations are named ' + where + '.' + hint +
+                             ' Nothing was selected or sent.' if candidates else
                              'TARGET_NOT_VISIBLE: no exact destination row for ' + where +
                              ' was found; nothing was selected or sent.')
         if not select:
@@ -337,7 +360,78 @@ class VisualMessaging:
         wanted = bare(self.scope.destination)
         return any(wanted and wanted in bare(w['text']) for w in words)
 
+    async def type_query(self, search_box):
+        """Type the destination into the switcher and confirm it appears there.
+
+        A client can drop keystrokes while its switcher is still taking focus. While
+        the empty prompt is still shown nothing was entered, so the query is typed
+        once more (bounded); anything else in the box stops the task.
+        """
+        query = self.scope.destination.lstrip('#@')
+        area = (self.results[0], search_box[1], self.results[2], search_box[3])
+        prompt_word = self.adapter.switcher_prompt.split()[0]
+        for attempt in range(2):
+            frame = await self.frame()
+            await self.runtime.native.call('visual_text', {'revision': frame['revision'], 'value': query})
+            empty = False
+            for _ in range(SETTLE_READS):
+                await asyncio.sleep(SETTLE_SECONDS)
+                frame = await self.frame()
+                words = [w for w in await asyncio.to_thread(ocr_words, frame, area, 3) if w['confidence'] >= 60]
+                if any(bare(w['text']) == bare(query) for w in words):
+                    self.record({'operation': 'visual_query', 'status': 'query visible', 'attempt': attempt + 1})
+                    return
+                empty = any(prompt_word in normalize(w['text']).split() for w in words)
+                if words and not empty:
+                    break  # Something other than the query or the empty prompt.
+            if not empty:
+                break
+        await self.escape()
+        raise ValueError('DESTINATION_UNVERIFIED: the destination name did not appear in the quick switcher; '
+                         'nothing was selected or sent')
+
+    async def candidates_in(self, frame, words):
+        """Selectable rows: exact name (and server); with a username, each row whose
+        display name matches has the text right after the name re-read on its own
+        tight line crop (small grey usernames), and must equal the username."""
+        handle = getattr(self.scope, 'handle', '')
+        if not handle:
+            return self.row_candidates(words)
+        wanted = bare(self.scope.destination).split()
+        wanted_handle = normalize(handle).lstrip('@').split()
+        confirmed = []
+        for row in switcher_candidates(words, self.scope.destination):
+            names = [w for w in row['lines'] if bare(w['text']) == wanted[-1]]
+            if not names:
+                continue
+            name = names[0]
+            crop = (name['box'][2] + 2, row['box'][1] - 4, min(frame['width'], name['box'][2] + 200), row['box'][3] + 4)
+            try:
+                read = await asyncio.to_thread(ocr_words, frame, crop, 4, 7)
+            except ValueError:
+                continue
+            tokens = [normalize(w['text']).lstrip('@') for w in sorted(read, key=lambda w: w['box'][0])
+                      if w['confidence'] >= 60 and normalize(w['text'])]
+            if tokens[:len(wanted_handle)] == wanted_handle:
+                confirmed.append(dict(row, server='not requested'))
+        self.record({'operation': 'visual_rows', 'display_name_rows': len(switcher_candidates(words, self.scope.destination)),
+                     'username_confirmed': len(confirmed)})
+        return confirmed
+
     def row_candidates(self, words):
+        rows_ = self._row_candidates(words)
+        # States only (never names): how each exact-name row's server label was judged.
+        named = switcher_candidates(words, self.scope.destination, self.scope.server, self.label_from(),
+                                    getattr(self.scope, 'handle', ''))
+        self.record({'operation': 'visual_rows', 'exact_name_rows': [r['server'] for r in named],
+                     'label_from': self.label_from()})
+        return rows_
+
+    def label_from(self):
+        results = getattr(self, 'results', None)
+        return (results[0] + results[2]) / 2 if self.adapter.switcher_label_right and results else None
+
+    def _row_candidates(self, words):
         """Exact-name rows not contradicting the requested server.
 
         The switcher only navigates. A server label too small to read there does
@@ -345,7 +439,8 @@ class VisualMessaging:
         server must still read exactly in the opened conversation before any text
         is entered. A confidently read different server always disqualifies.
         """
-        return [row for row in switcher_candidates(words, self.scope.destination, self.scope.server)
+        return [row for row in switcher_candidates(words, self.scope.destination, self.scope.server, self.label_from(),
+                                                   getattr(self.scope, 'handle', ''))
                 if row['server'] != 'other']
 
     async def escape(self):
@@ -448,16 +543,19 @@ class VisualMessaging:
             await asyncio.sleep(.3)
             # The emptied composer shows its placeholder beside a blinking caret.
             frame = await self.quiet_frame(lambda f: self.composer_area(f, point))
-            composer = composer_state(await asyncio.to_thread(ocr_lines, frame, self.composer_area(frame, point)),
-                                      self.adapter)
+            words = await asyncio.to_thread(self.read_composer, frame, point)
+            # Delivery means the exact text left the composer (placeholder or not;
+            # a caret beside the placeholder may garble it) and appears once more in
+            # the conversation just above.
+            cleared = composer_state(words, self.adapter)[0] == 'empty' or exact_segment(words, scope.content) is None
             echoed = await self.echoes(frame, point)
-            if composer[0] == 'empty' and echoed == self.baseline + 1:
+            if cleared and echoed == self.baseline + 1:
                 ctx.delivery = 'SENT_UI'
                 await asyncio.to_thread(ledger.verified, self.grant)
                 d = self.runtime.desktop
                 d.record.status = 'completed'
                 d.record.verification = ('The exact message appears once as the latest outgoing row in the verified '
-                                         + scope.destination + ' conversation and the composer is empty. This is UI '
+                                         + scope.destination + ' conversation and has left the composer. This is UI '
                                          'evidence of submission, not protocol delivery confirmation.')
                 self.record({'operation': 'visual_send', 'status': 'submitted once; UI echo observed'})
                 return d.record.verification

@@ -23,6 +23,7 @@ class TaskScope:
     server: str = ''
     path: str = ''
     predicate: str = ''  # Literal user domain predicate for a result-derived location.
+    handle: str = ''     # A person's username beside a shared display name (for example '4818').
 
 
 def interpreted_scope(request, steps):
@@ -70,6 +71,17 @@ def literal_path(path):
     """One destination path, never a trailing clause captured by a greedy pattern."""
     return bool(path) and not re.search(r'[\n\x00,;]|\s(?:but|and|then|without|unless|except|do not|never)\b|don[\'’]t',
                                         path, re.I)
+
+
+def split_handle(destination):
+    """'@diego (4818)' or '@diego with username 4818' -> ('@diego', '4818')."""
+    match = (re.fullmatch(r'(.+?)\s*\(\s*@?([\w.#-]{1,40})\s*\)', destination) or
+             re.fullmatch(r'(.+?)\s+with username\s+@?([\w.#-]{1,40})', destination, re.I))
+    if match:
+        return match.group(1).strip(), match.group(2)
+    if '(' in destination or ')' in destination:
+        raise ValueError('Give the person as @name (username); no message was sent')
+    return destination, ''
 
 
 def direct_scope(request):
@@ -123,22 +135,25 @@ def direct_scope(request):
             raise ValueError('The search text includes a possible task constraint; clarify the exact query before input')
         return TaskScope(app.strip(), 'search' if query else 'open', query or '')
     # Official web route for a named messaging service inside an explicit browser.
-    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#+-]{1,100}?)(?: in ([\w .\'+-]{1,100}?))? '
+    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#()+-]{1,100}?)(?: in ([\w .\'+-]{1,100}?))? '
                          r'in Discord (?:web )?in ([\w .+-]{1,60}?)(?: using account (.{1,100}))?', text, re.I | re.S)
     if match:
         verb, quote, content, destination, server, app, account = match.groups()
         if not content or any(re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', field or '', re.I)
                               for field in (account, app, destination, server)):
             raise ValueError('Clarify the exact message, account and additional constraints')
-        return TaskScope(app, verb.lower(), content, destination, account or '', server or '', predicate='discord.com')
-    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#+-]{1,100}?) in ([\w .\'+-]{1,100}?) in ([\w .+-]{1,80}?)(?: using account (.{1,100}))?', text, re.I | re.S)
+        destination, handle = split_handle(destination)
+        return TaskScope(app, verb.lower(), content, destination, account or '', server or '', predicate='discord.com',
+                         handle=handle)
+    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#()+-]{1,100}?) in ([\w .\'+-]{1,100}?) in ([\w .+-]{1,80}?)(?: using account (.{1,100}))?', text, re.I | re.S)
     if match and not re.search(r'\bin\b', match.group(6), re.I):
         verb, quote, content, destination, server, app, account = match.groups()
         if not content or any(re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', field or '', re.I)
                               for field in (account, app, destination, server)):
             raise ValueError('Clarify the exact message, account and additional constraints')
-        return TaskScope(app, verb.lower(), content, destination, account or '', server)
-    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#+-]{1,100}?) in ([\w .+-]{1,80}?)(?: using account (.{1,100}))?', text, re.I | re.S)
+        destination, handle = split_handle(destination)
+        return TaskScope(app, verb.lower(), content, destination, account or '', server, handle=handle)
+    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#()+-]{1,100}?) in ([\w .+-]{1,80}?)(?: using account (.{1,100}))?', text, re.I | re.S)
     if match:
         verb, quote, content, destination, app, account = match.groups()
         if not content:
@@ -146,7 +161,8 @@ def direct_scope(request):
         account = account or ''
         if any(re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', field, re.I) for field in (account, app, destination)):
             raise ValueError('Clarify the account and additional constraints before messaging')
-        return TaskScope(app, verb.lower(), content, destination, account)
+        destination, handle = split_handle(destination)
+        return TaskScope(app, verb.lower(), content, destination, account, handle=handle)
     match = re.fullmatch(r'Open ([\w .+-]{1,80}?), go to ([\w .#+-]{1,100}?), open ([\w .#+-]{1,100}?), (send|draft) ([\'\"])(.*?)\5(?: using account (.{1,100}))?', text, re.I | re.S)
     if match:
         app, server, channel, verb, quote, content, account = match.groups()

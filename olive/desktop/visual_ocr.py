@@ -34,10 +34,10 @@ def band(frame, point, half_height, half_width=None):
     return clamp_box(frame, (x - half_width, y - half_height, x + half_width, y + half_height))
 
 
-def _tesseract(image, scale, left, top, words=False):
+def _tesseract(image, scale, left, top, words=False, psm=11):
     data = io.BytesIO()
     image.save(data, format='PNG')
-    output = subprocess.run(['tesseract', 'stdin', 'stdout', '--psm', '11', 'tsv'], input=data.getvalue(),
+    output = subprocess.run(['tesseract', 'stdin', 'stdout', '--psm', str(psm), 'tsv'], input=data.getvalue(),
                             capture_output=True, timeout=10, check=True)
     grouped = {}
     for word in csv.DictReader(io.StringIO(output.stdout.decode(errors='replace')), delimiter='\t',
@@ -66,7 +66,7 @@ def _tesseract(image, scale, left, top, words=False):
     return lines
 
 
-def ocr_lines(frame, box, scale=3, isolate=True, words=False):
+def ocr_lines(frame, box, scale=3, isolate=True, words=False, psm=11):
     """Two independent passes: global contrast, and text isolated from its local background.
 
     The second pass keeps low-contrast placeholders readable when a crop spans
@@ -84,11 +84,17 @@ def ocr_lines(frame, box, scale=3, isolate=True, words=False):
     background = large.filter(ImageFilter.MedianFilter(21)).filter(ImageFilter.BoxBlur(30))
     isolated = ImageChops.difference(large, background).point(lambda v: 0 if v > 30 else 255)
     merged = []
-    for line in (_tesseract(basic, scale, left, top, words) +
-                 (_tesseract(isolated, scale, left, top, words) if isolate else [])):
-        # Lines merge only identical text; words from the two passes that cover the
-        # same glyphs are one reading, so the more confident one is kept.
-        duplicate = next((m for m in merged if (words or normalize(m['text']) == normalize(line['text'])) and
+    readings = (_tesseract(basic, scale, left, top, words, psm) +
+                (_tesseract(isolated, scale, left, top, words, psm) if isolate else []))
+    if words:
+        # Words from the two passes that cover the same glyphs are one reading.
+        for word in readings:
+            merge_reading(merged, word)
+        merged.sort(key=lambda word: (word['box'][1], word['box'][0]))
+        return merged
+    for line in readings:
+        # Lines merge only identical text; the more confident reading is kept.
+        duplicate = next((m for m in merged if normalize(m['text']) == normalize(line['text']) and
                           _overlap(m['box'], line['box'])), None)
         if duplicate is None:
             merged.append(line)
@@ -100,6 +106,37 @@ def ocr_lines(frame, box, scale=3, isolate=True, words=False):
 
 def _overlap(a, b):
     return max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])
+
+
+def merge_reading(found, word):
+    """Add one word reading to `found`, resolving readings of the same glyphs.
+
+    Near-identical boxes are one reading: the more confident wins. A credible
+    reading (confidence >= MIN_CONFIDENCE) that spans narrower ones is the whole
+    word they are fragments of (for example a pass that split '#nepali-jerk-circle'
+    at its hyphens) and replaces them; a low-confidence wide reading (for example a
+    whole row read as one garbled glyph) never displaces confident fragments.
+    """
+    width = lambda box: max(1e-6, box[2] - box[0])
+    shared = lambda a, b: min(a[2], b[2]) - max(a[0], b[0])
+    overlapping = [other for other in found if _overlap(other['box'], word['box'])]
+    for other in overlapping:
+        if shared(other['box'], word['box']) >= .7 * max(width(other['box']), width(word['box'])):
+            if word['confidence'] > other['confidence']:
+                found[found.index(other)] = word
+            return
+    credible = word['confidence'] >= MIN_CONFIDENCE
+    inside = [o for o in overlapping if shared(o['box'], word['box']) >= .7 * width(o['box'])]
+    around = [o for o in overlapping if shared(o['box'], word['box']) >= .7 * width(word['box'])]
+    if any(o['confidence'] >= MIN_CONFIDENCE for o in around):
+        return  # A fragment of a credible wider reading.
+    if inside and not credible:
+        return  # A garbled wide reading next to confident fragments.
+    for fragment in inside:
+        found.remove(fragment)
+    for garbled in around:
+        found.remove(garbled)
+    found.append(word)
 
 
 def confident(lines):
@@ -180,11 +217,11 @@ def unchanged_outside(before, after, box, within=None):
     return images[0].size == images[1].size and ImageChops.difference(*images).getbbox() is None
 
 
-def ocr_words(frame, box, scale=4):
-    return ocr_lines(frame, box, scale=scale, words=True)
+def ocr_words(frame, box, scale=4, psm=11):
+    return ocr_lines(frame, box, scale=scale, words=True, psm=psm)
 
 
-def ocr_rows(frame, box, scale=4, half_height=12, only=None):
+def ocr_rows(frame, box, scale=4, half_height=12, only=None, psm=11):
     """Words of a list, each row re-read as its own strip.
 
     A coarse read of the whole list locates the rows; reading each row alone is
@@ -206,13 +243,9 @@ def ocr_rows(frame, box, scale=4, half_height=12, only=None):
     found = []
     for middle in middles:
         try:
-            words = ocr_words(frame, (left, max(top, middle - half_height), right, min(bottom, middle + half_height)), scale)
+            words = ocr_words(frame, (left, max(top, middle - half_height), right, min(bottom, middle + half_height)), scale, psm)
         except ValueError:
             continue  # A strip clamped below the minimum size has nothing to read.
         for word in words:
-            duplicate = next((m for m in found if _overlap(m['box'], word['box'])), None)
-            if duplicate is None:
-                found.append(word)
-            elif word['confidence'] > duplicate['confidence']:
-                found[found.index(duplicate)] = word
+            merge_reading(found, word)
     return kept + found

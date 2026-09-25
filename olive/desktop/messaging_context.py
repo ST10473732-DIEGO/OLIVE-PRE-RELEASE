@@ -19,7 +19,9 @@ class MessagingAdapter:
     key: str
     applications: tuple          # installed desktop ids / names (casefold)
     web_hosts: tuple = ()        # official web origin hosts for the browser route
-    placeholder: str = r'^message\s*([#@])\s*(.+?)$'
+    # The fixed label may lose up to two leading characters to a caret or glyph
+    # merge; the destination after it must still read exactly.
+    placeholder: str = r'^(?:m|.{0,2})essage\s*([#@])\s*(.+?)$'
     switcher_key: str = 'ctrl+k'
     switcher_prompt: str = 'where would you like to go'
     submit: str = 'enter'
@@ -36,6 +38,10 @@ class MessagingAdapter:
     account_first_line: bool = False
     # Enter in the switcher opens the highlighted result (verified from pixels).
     switcher_enter_opens: bool = False
+    # Switcher rows show the server label right-aligned (in the right half of the row).
+    switcher_label_right: bool = False
+    # Fixed-width panels left of the composer (logical px), excluded from its area.
+    composer_left_logical: int = 0
 
 
 REGION_PROMPTS = {
@@ -54,7 +60,8 @@ ADAPTERS = (
                      # The user panel (account) is read beside the verified composer.
                      regions={'composer': (0.0, 0.91, 1.0, 1.0), 'server': (0.0, 0.0, 0.34, 0.1),
                               'header': (0.12, 0.0, 0.85, 0.1), 'switcher': (0.25, 0.2, 0.75, 0.5)},
-                     account_first_line=True, switcher_enter_opens=True),
+                     account_first_line=True, switcher_enter_opens=True, switcher_label_right=True,
+                     composer_left_logical=320),  # Server rail + channel list / user panel.
     MessagingAdapter('visual-messenger-fixture', ('visual messenger', 'olive-visual-messenger-fixture'),
                      submit_provenance='Owned fixture: Enter sends; verified by its owned sent log',
                      prompts=REGION_PROMPTS),
@@ -160,6 +167,8 @@ def composer_state(lines, adapter):
         match = re.match(adapter.placeholder, normalize(line['text']))
         if match:
             placeholders.append((match.group(1), match.group(2).strip(), line))
+    if not placeholders:
+        placeholders = label_pairs(lines)
     if len(placeholders) == 1:
         sigil, name, line = placeholders[0]
         return 'empty', sigil, name, line
@@ -171,6 +180,27 @@ def composer_state(lines, adapter):
     # Several unrelated rows mean this band is not a composer (for example a
     # contacts/home view); never report that as a verified composer or draft.
     return 'unknown', '', '', None
+
+
+def label_pairs(lines):
+    """Placeholders found token by token: a word ending in 'essage' (the fixed label,
+    whose first letters a caret may hide) directly followed on the same line by one
+    '#name' / '@name' token. Independent of how OCR fragments were joined."""
+    words = [w for w in lines if w['confidence'] >= MIN_CONFIDENCE and w['text'].strip()]
+    found = []
+    for label in words:
+        if not normalize(label['text']).endswith('essage'):
+            continue
+        height = label['box'][3] - label['box'][1]
+        after = [w for w in words if w is not label and 0 <= w['box'][0] - label['box'][2] <= max(6, 1.2 * height)
+                 and abs((w['box'][1] + w['box'][3]) - (label['box'][1] + label['box'][3])) / 2 <= max(4, height / 2)]
+        for token in after:
+            match = re.fullmatch(r'([#@])(\S+)', normalize(token['text']))
+            if match:
+                found.append((match.group(1), match.group(2),
+                              dict(token, box=(label['box'][0], min(label['box'][1], token['box'][1]),
+                                              token['box'][2], max(label['box'][3], token['box'][3])))))
+    return found
 
 
 def resolve_destination(scope, composer):
@@ -261,7 +291,7 @@ def rows(lines, tolerance=8, minimum=None):
     return result
 
 
-def switcher_candidates(entries, destination, server=''):
+def switcher_candidates(entries, destination, server='', label_from=None, handle=''):
     """Result rows whose first confident label is exactly the destination.
 
     Each row carries the state of its right-aligned server label: 'confirmed'
@@ -278,9 +308,12 @@ def switcher_candidates(entries, destination, server=''):
               for entry in entries for part in str(entry['text']).split()]
     found = []
     for row in rows(tokens, minimum=0):
-        # A token much taller than the row's text is a scrollbar or divider, never a label.
-        heights = sorted(w['box'][3] - w['box'][1] for w in row['lines'])
-        typical = heights[len(heights) // 2]
+        # A token much taller than the row's text is a scrollbar or divider, never a
+        # label. The text height comes from confidently read words (small-caps
+        # categories and tiny labels must not shrink it).
+        texts = [w['box'][3] - w['box'][1] for w in row['lines']
+                 if w['confidence'] >= MIN_CONFIDENCE and len(re.findall(r'[^\W_]', w['text'])) >= 2]
+        typical = max(texts) if texts else max(w['box'][3] - w['box'][1] for w in row['lines'])
         words = [w for w in row['lines'] if w['box'][3] - w['box'][1] <= 1.8 * typical]
         # Skip only sigils and short unreadable icon glyphs, never a word that
         # could be part of another channel's name.
@@ -290,14 +323,26 @@ def switcher_candidates(entries, destination, server=''):
         name = words[:len(wanted)]
         if [bare(w['text']) for w in name] != wanted or any(w['confidence'] < MIN_CONFIDENCE for w in name):
             continue
+        if handle:
+            # A person's username follows the shared display name on the same row;
+            # it must read exactly, or the row is someone else.
+            wanted_handle = normalize(handle).lstrip('@').split()
+            after = [w for w in words[len(wanted):] if bare(w['text']) and w['confidence'] >= MIN_CONFIDENCE]
+            if [normalize(w['text']).lstrip('@') for w in after[:len(wanted_handle)]] != wanted_handle:
+                continue
         rest = [w for w in words[len(wanted):] if bare(w['text'])]
+        if label_from is not None:
+            # The server label is right-aligned; words nearer the name (a category
+            # such as "CHAT") can never stand in for it.
+            rest = [w for w in rest if w['box'][0] >= label_from]
         tail = rest[-len(workspace):] if workspace and len(rest) >= len(workspace) else []
-        if not workspace or not rest or rest[-1]['confidence'] < MIN_CONFIDENCE:
-            row['server'] = 'unread'
-        elif [bare(w['text']) for w in tail] == workspace and all(w['confidence'] >= MIN_CONFIDENCE for w in tail):
+        readable = [w for w in rest if w['confidence'] >= MIN_CONFIDENCE and len(re.findall(r'[^\W_]', w['text'])) >= 2]
+        if workspace and [bare(w['text']) for w in tail] == workspace and all(w['confidence'] >= MIN_CONFIDENCE for w in tail):
             row['server'] = 'confirmed'
+        elif workspace and readable:
+            row['server'] = 'other'   # A readable, different label.
         else:
-            row['server'] = 'other'
+            row['server'] = 'unread'  # Absent, or only glyph-sized misreadings.
         found.append(row)
     return found
 
@@ -331,7 +376,11 @@ def echo_rows(words, content, account=''):
         tokens = [token for w in row['lines'] for token in normalize(w['text']).split()]
         if not target or tokens[-len(target):] != target:
             continue
-        prefix = ' '.join(tokens[:-len(target)])
-        if not prefix or (account and bare(account) and bare(account) in prefix):
+        prefix = tokens[:-len(target)]
+        name = bare(account) if account else ''
+        # The sender's name may be read truncated at its end (coloured names); a
+        # leading fragment of at least four characters still names this account.
+        if not prefix or name and (name in ' '.join(prefix) or
+                                   any(len(t) >= 4 and name.startswith(t) for t in prefix)):
             found.append(row)
     return found
