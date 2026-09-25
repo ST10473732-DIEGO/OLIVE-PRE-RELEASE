@@ -319,3 +319,19 @@ def exact_segment(lines, content):
     """The one run reading exactly the requested text, or None."""
     runs = [l for l in segments(lines) if normalize(l['text']) == normalize(content)]
     return runs[0] if len(runs) == 1 else None
+
+
+def echo_rows(words, content, account=''):
+    """Rows showing the sent text: the row ends with exactly the content's words and
+    either holds nothing else (a continued message) or shows the sender's account
+    name before them (the first message of a group: time, name, badge, text)."""
+    target = normalize(content).split()
+    found = []
+    for row in rows(words):
+        tokens = [token for w in row['lines'] for token in normalize(w['text']).split()]
+        if not target or tokens[-len(target):] != target:
+            continue
+        prefix = ' '.join(tokens[:-len(target)])
+        if not prefix or (account and bare(account) and bare(account) in prefix):
+            found.append(row)
+    return found

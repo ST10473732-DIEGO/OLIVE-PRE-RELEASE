@@ -735,3 +735,19 @@ class SwitcherToggleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('appears once', outcome)
         self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
         self.assertEqual(len(self.keys(client, 'ctrl+k')), 2)
+
+
+class EchoTests(unittest.TestCase):
+    """The sent message as Discord shows it: alone, or after time, name and badge."""
+
+    def test_group_start_and_continuation_rows(self):
+        from olive.desktop.messaging_context import echo_rows
+        words = lambda top, *texts: [{'text': t, 'confidence': 92, 'box': (10 + 60 * i, top, 60 + 60 * i, top + 12)}
+                                     for i, t in enumerate(texts)]
+        first = words(100, '4:50', 'PM', 'deeayygoo', 'win', 'hello', 'from', 'OLIVE')
+        continued = words(130, 'hello', 'from', 'OLIVE')
+        self.assertEqual(len(echo_rows(first, 'hello from OLIVE', 'deeayygoo')), 1)
+        self.assertEqual(len(echo_rows(continued, 'hello from OLIVE', 'deeayygoo')), 1)
+        self.assertEqual(echo_rows(first, 'hello from OLIVE', 'someone-else'), [])      # Another sender.
+        self.assertEqual(echo_rows(words(100, 'say', 'hello', 'from', 'OLIVE'), 'hello from OLIVE', 'deeayygoo'), [])
+        self.assertEqual(echo_rows(words(100, 'hello', 'from', 'OLIVE', 'again'), 'hello from OLIVE', ''), [])

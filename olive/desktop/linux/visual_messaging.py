@@ -15,7 +15,7 @@ import time
 
 from ..messaging_context import (AMBIGUOUS, MISMATCH, NOT_VISIBLE, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
-                                 exact_segment, rows, segments, switcher_candidates, typed_exactly)
+                                 echo_rows, exact_segment, rows, segments, switcher_candidates, typed_exactly)
 from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .3
@@ -468,7 +468,8 @@ class VisualMessaging:
         box = self.context.composer.box or (0, point[1] - 14, 0, point[1])
         left = max(0, box[0] - 40)
         words = await asyncio.to_thread(ocr_words, frame, (left, box[1] - 120, frame['width'], box[1] - 4), 3)
-        return sum(normalize(r['text']) == normalize(self.scope.content) for r in segments(words))
+        account = self.context.account.value if self.context.account.state == VERIFIED else ''
+        return len(echo_rows(words, self.scope.content, account))
 
     def describe(self):
         ctx = self.context
