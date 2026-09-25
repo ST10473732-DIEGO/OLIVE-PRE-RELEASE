@@ -305,7 +305,8 @@ class SemanticInterpreter:
             # in live acceptance. Use the measured reasoning role for this
             # structured extraction; ordinary conversational output stays direct.
             native_request = bool(set(gate['domains']).intersection({'calendar','task','tasks','reminders','personal','mail','communication'}))
-            model = self.router.route(RoutingRequest("fast" if attempt == 0 and not native_request else "reasoning"))
+            model = self.router.route(RoutingRequest("fast" if attempt == 0 and not native_request else "reasoning",
+                                                     prefer_loaded=True))
             if not model or getattr(model, "role", "") in {"coding", "vision", "embeddings"}:
                 raise RuntimeError("Start Ollama and select an installed language model")
             known = set(context.get("entities", {})) | set((context.get("pending_draft") or {}).get("entities", {}))
@@ -509,7 +510,7 @@ class SemanticInterpreter:
 
     async def speech_act(self, text, context=None, role="fast"):
         """Classify the current utterance alone; a draft never supplies new authority."""
-        model = self.router.route(RoutingRequest(role))
+        model = self.router.route(RoutingRequest(role, prefer_loaded=True))
         if not model or getattr(model, "role", "") in {"coding", "vision", "embeddings"}:
             raise RuntimeError("Select an installed general language model for understanding requests")
         context = context or {}
@@ -571,7 +572,7 @@ class SemanticInterpreter:
               json.dumps(state)},
              *demonstrations(("conversation", "application", "code", "project", "task", "communication", "filesystem", "research", "media", "knowledge", "memory"), gate=True),
              {"role": "user", "content": text}],
-            options={"temperature": 0, "num_predict": 100 if role == "fast" else 1200, "num_ctx": 4096},
+            options={"temperature": 0, "num_predict": 100 if role == "fast" and not model.name.startswith("gpt-oss") else 1200, "num_ctx": 4096},
             format={"type": "object", "additionalProperties": False, "required": ["mode", "domains"],
                     "properties": {"mode": {"type": "string", "enum": ["answer", "action", "clarify"]},
                                    "domains": {"type": "array", "minItems": 1, "maxItems": 5,

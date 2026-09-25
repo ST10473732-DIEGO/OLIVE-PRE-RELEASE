@@ -50,6 +50,7 @@ export const schemas = {
   "chat.new": empty,
   "chat.get": z.object(chat).strict(),
   "chat.select": z.object(chat).strict(),
+  "chat.warm": z.object(chat).strict(),
   "chat.draft": z.object({ ...chat, text }).strict(),
   "chat.rename": z.object({ ...chat, title: short }).strict(),
   "chat.model": z.object({ ...chat, model: short }).strict(),

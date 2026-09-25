@@ -1,4 +1,5 @@
 import { GrowingComposer } from "../components/GrowingComposer";
+import { useWarmModel } from "../services/warm";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -100,6 +101,7 @@ export function Chat({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [source, setSource] = useState<unknown>();
   const composer = useRef<HTMLTextAreaElement>(null);
+  const warm = useWarmModel(chat.id);
   const results = useResource(
     () =>
       call<{ id: string; title: string; excerpt?: string }[]>("chat.search", {
@@ -222,7 +224,7 @@ export function Chat({
               disabled={switchingChat}
               onClick={() => void changeConversation("chat.select", { chat_id: c.id }, true)}
             >
-              {c.title}
+              <span className="conversation-title" title={c.title}>{c.title}</span>
               {c.excerpt && <span className="small muted">{c.excerpt}</span>}
             </button>
           ))}
@@ -586,7 +588,10 @@ export function Chat({
               aria-label="Message OLIVE"
               placeholder={researchMode === "Deep" ? "What should OLIVE research?" : researchMode === "Quick" ? "Ask, and OLIVE will search the web…" : "Ask, explore, or get something done…"}
               value={draft}
-              onChange={(e) => updateDraft(e.target.value)}
+              onChange={(e) => {
+                updateDraft(e.target.value);
+                warm();
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();

@@ -33,6 +33,7 @@ METHODS = {
     'chat.new': ({}, {}),
     'chat.get': ({'chat_id': str}, {}),
     'chat.select': ({'chat_id': str}, {}),
+    'chat.warm': ({'chat_id': str}, {}),
     'chat.draft': ({'chat_id': str, 'text': str}, {}),
     'chat.rename': ({'chat_id': str, 'title': str}, {}),
     'chat.model': ({'chat_id': str, 'model': str}, {}),

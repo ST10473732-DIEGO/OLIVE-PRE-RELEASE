@@ -69,6 +69,7 @@ class OllamaService:
         self._artifact_cache: dict[str, dict] = {}
         self._digests: dict[str, str] = {}
         self.residency = None
+        self._loaded_context: dict[str, int] = {}
         self.metrics = None
         self.stream_budgets = StreamBudgets()
 
@@ -113,6 +114,21 @@ class OllamaService:
     async def unload_model(self, model):
         await self.client.generate(model=model, prompt="", keep_alive=0)
 
+    async def warm(self, model):
+        """Load a model before its first request, with the context that request will use.
+
+        Skipped while inference is busy or when the model is already resident, so it never
+        delays or evicts active work. A differing context would force Ollama to reload.
+        """
+        if self.residency is None or self.residency.lock.locked():
+            return False
+        if any(m["name"] == model for m in await self.loaded_models()):
+            return False
+        async with self._lease(model) as keep_alive:
+            options = await self._options(model, {})
+            await self.client.generate(model=model, prompt="", keep_alive=keep_alive, options=options)
+        return True
+
     async def effective_context_length(self, model):
         advertised = await self.context_length(model)
         if self.residency is None:
@@ -133,6 +149,11 @@ class OllamaService:
         if self.residency is not None:
             budget = await self.effective_context_length(model)
             result["num_ctx"] = min(int(result.get("num_ctx", budget)), budget)
+            # Ollama reloads a model whose context changes. A smaller request reuses the
+            # context the resident model already holds instead of paying for a reload.
+            held = self._loaded_context.get(model, 0)
+            result["num_ctx"] = max(result["num_ctx"], held)
+            self._loaded_context = {model: result["num_ctx"]}
         return result
 
     async def ping(self) -> bool:

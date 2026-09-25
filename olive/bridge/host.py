@@ -123,7 +123,7 @@ class Host:
         validate(request)
         # Read-only snapshots (including per-token Chat refreshes) must not fill
         # the non-evicting action replay ledger. Effects retain their identities.
-        if (request['method'] in ('runtime.snapshot', 'chat.get', 'chat.search',
+        if (request['method'] in ('runtime.snapshot', 'chat.get', 'chat.search', 'chat.warm',
                                  'interaction.inspect', 'desktop.status',
                                  'connect.snapshot', 'connect.model_targets', 'connect.studio_local_workspaces')
                 or request['method'] == 'connect.studio_request' and request['args']['operation'] in ('workspaces', 'tree', 'read', 'run_status')):
@@ -331,7 +331,7 @@ class Host:
             'studio.install_package': s.studio.install_package,
             'studio.cancel_install': s.studio.cancel_install,
             'studio.create_project': s.data.create_coding_project,
-            'chat.new': s.chat.new, 'chat.get': s.chat.get, 'chat.select': s.chat.select,
+            'chat.new': s.chat.new, 'chat.get': s.chat.get, 'chat.select': s.chat.select, 'chat.warm': s.chat.warm,
             'chat.draft': s.chat.save_draft,
             'chat.rename': s.chat.update, 'chat.model': s.chat.update,
             'chat.preset': s.chat.update,

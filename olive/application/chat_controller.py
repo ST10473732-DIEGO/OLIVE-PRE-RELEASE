@@ -7,7 +7,7 @@ from dataclasses import asdict
 from copy import deepcopy
 import time
 
-from ..models import Chat
+from ..models import Chat, chat_title
 
 
 class ChatController:
@@ -115,6 +115,14 @@ class ChatController:
         if task:
             task.cancel()
 
+    async def warm(self, chat_id):
+        """Preload the conversation's local model while the person is still typing."""
+        chat = self.s.chats.get(chat_id)
+        if (not chat or not chat.model or chat_id in self.generations or self.targets.get(chat_id)
+                or chat.preset == "reimagine"):
+            return {"warmed": False}
+        return {"warmed": await self.s.ollama.warm(chat.model)}
+
     def stop_all(self):
         for task in list(self.generations.values()):
             task.cancel()
@@ -169,7 +177,7 @@ class ChatController:
             if not text:
                 raise ValueError("Enter a message")
             if not chat.messages:
-                chat.title = text[:48]
+                chat.title = chat_title(text)
             if not existing_user_message_id:
                 chat.add_message("user", text)
         user_index = len(chat.messages) - 1

@@ -10,6 +10,9 @@ class RoutingRequest:
     context_required: int = 0
     prefer_low_latency: bool = False
     task_type: str = ""
+    # Callers whose prompts and budgets suit any candidate (including thinking models)
+    # may reuse the loaded model instead of switching.
+    prefer_loaded: bool = False
 
 
 class ModelRouter:
@@ -47,10 +50,22 @@ class ModelRouter:
                 return (0, *rank, hint)
             return (1, hint, int(getattr(model, "size", 0) or 0), model.name)
 
-        selected = selected or min(capable, key=score)
+        # One managed model is resident at a time, so a different model means an unload and
+        # a load. Opted-in callers keep the loaded model when it is a listed, adequately
+        # measured candidate for this role.
+        resident = (getattr(self.residency, "current", None)
+                    if request.prefer_loaded and record and not selected else None)
+        warm = next((m for m in capable if m.name == resident and m.name in CANDIDATES.get(role, ())), None)
+        if warm is not None and self.benchmarks:
+            measured = self.benchmarks.summary(warm.name, role)
+            if measured and measured["quality"] < .5:
+                warm = None
+        reason = ("manual override" if selected else "already loaded; avoids a model switch" if warm
+                  else "local measurements / compatible candidates")
+        selected = selected or warm or min(capable, key=score)
         if record:
             REQUEST_ROLE.set(role)
-            self._record(role, selected.name, "manual override" if selected.name == override else "local measurements / compatible candidates")
+            self._record(role, selected.name, reason)
         return selected
 
     def _record(self, role, model, reason):

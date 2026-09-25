@@ -1,4 +1,5 @@
 import { GrowingComposer } from "../components/GrowingComposer";
+import { useWarmModel } from "../services/warm";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -105,6 +106,7 @@ export function HomePage({
   const steps = firstRunSteps(snapshot?.home.status.ollama, snapshot?.presets, paired.length);
   const firstRun = Boolean(snapshot) && !recent.length && steps.some((s) => !s.done && !s.optional);
   const preset = snapshot?.presets?.find((p) => p.id === chat?.preset);
+  const warm = useWarmModel(chat?.id);
   const dateLine = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   return (
     <main className="home">
@@ -121,7 +123,10 @@ export function HomePage({
                 aria-label="Ask OLIVE anything"
                 placeholder="Ask OLIVE, or describe what you want done"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  warm();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
