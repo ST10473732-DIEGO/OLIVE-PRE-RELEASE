@@ -149,21 +149,7 @@ class VisualMessaging:
         ctx.draft = '' if composer[0] == 'empty' else composer[2] if composer[0] == 'draft' else None
         if composer[0] == 'draft':
             # A draft hides the placeholder; confirm the conversation from its header instead.
-            header = self.area(frame, 'header')
-            if header:
-                words = await asyncio.to_thread(ocr_words, frame, header, 3)
-                wanted = bare(self.scope.destination)
-                # A one-word name is matched as its own word (a channel icon read as a
-                # glyph may sit right beside it); longer names as runs of words.
-                pieces = [w for w in words if w['confidence'] >= 60] if ' ' not in wanted else segments(words)
-                runs = [r for r in pieces if bare(r['text']) == wanted]
-                ctx.destination = (Layer(VERIFIED, self.scope.destination, runs[0]['box'], 'conversation header run')
-                                   if len(runs) == 1 else
-                                   Layer(AMBIGUOUS if runs else NOT_VISIBLE, evidence='conversation header not exact'))
-                self.diagnose('header', ((header[0] + header[2]) / 2, header[3] / 2), words)
-            else:
-                anchor, lines = await self.region(frame, 'header')
-                ctx.destination = resolve_exact(lines, self.scope.destination, 'destination header', anchor)
+            ctx.destination = await self.header_destination(frame)
         ctx.composer = (Layer(VERIFIED, 'composer', composer[3]['box'], 'placeholder/draft read in proposed band')
                         if composer[0] in {'empty', 'draft'} else Layer(evidence='composer band not readable'))
         if self.scope.server:
@@ -192,6 +178,23 @@ class VisualMessaging:
             ctx.account = observed
         self.record({'operation': 'visual_messaging_resolve', 'context': ctx.summary()})
         return frame, point
+
+    async def header_destination(self, frame):
+        """The conversation header names exactly the requested destination."""
+        header = self.area(frame, 'header')
+        if not header:
+            anchor, lines = await self.region(frame, 'header')
+            return resolve_exact(lines, self.scope.destination, 'destination header', anchor)
+        words = await asyncio.to_thread(ocr_words, frame, header, 3)
+        self.diagnose('header', ((header[0] + header[2]) / 2, header[3] / 2), words)
+        wanted = bare(self.scope.destination)
+        # A one-word name is matched as its own word (a channel icon read as a
+        # glyph may sit right beside it); longer names as runs of words.
+        pieces = [w for w in words if w['confidence'] >= 60] if ' ' not in wanted else segments(words)
+        runs = [r for r in pieces if bare(r['text']) == wanted]
+        if len(runs) == 1:
+            return Layer(VERIFIED, self.scope.destination, runs[0]['box'], 'conversation header run')
+        return Layer(AMBIGUOUS if runs else NOT_VISIBLE, evidence='conversation header not exact')
 
     async def navigate(self, select=True):
         """One bounded quick-switcher attempt; exact unique row or no click.
@@ -425,8 +428,7 @@ class VisualMessaging:
         if await asyncio.to_thread(unchanged_outside, frame, after, composer_band):
             self.record({'operation': 'visual_presend', 'status': 'only the composer changed since verification'})
         else:
-            _, lines = await self.region(after, 'header')
-            header = resolve_exact(lines, scope.destination, 'destination header')
+            header = await self.header_destination(after)
             if header.state != VERIFIED:
                 raise ValueError('DESTINATION_UNVERIFIED: the conversation changed or its header did not confirm ' +
                                  scope.destination + ' before sending; the draft is ready and nothing was sent.')
