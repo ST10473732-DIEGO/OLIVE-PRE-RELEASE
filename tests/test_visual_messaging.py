@@ -78,6 +78,8 @@ class Client:
         if role == 'header':
             return [line('# ' + channel, 20)]
         if role == 'switcher':
+            if getattr(self, 'toggles', False) and not self.switcher:
+                return []  # Closed: no prompt on screen.
             return [line(self.query or 'Where would you like to go?', 150, left=300)]
         if role == 'wide':
             rows = [(s, c) for s, c in self.CHANNELS if not self.query or self.query in c]
@@ -93,7 +95,8 @@ class Client:
             return {'png': '', 'width': 1000, 'height': 680, 'revision': str(len(self.calls)), 'window': {}}
         if method == 'visual_key':
             if args['value'] == 'ctrl+k':
-                self.switcher, self.query = True, ''
+                # Real clients toggle the switcher with its shortcut.
+                self.switcher, self.query = (not self.switcher) if getattr(self, 'toggles', False) else True, ''
             elif args['value'] == 'Escape':
                 self.switcher = False
             elif args['value'] == 'Enter' and self.switcher:
@@ -720,3 +723,15 @@ class CaretFrameTests(unittest.IsolatedAsyncioTestCase):
         messaging.frame = next_frame
         self.assertFalse((await messaging.quiet_frame(lambda f: (0, 0, 300, 40)))['caret'])
         self.assertFalse((await messaging.quiet_frame(lambda f: (0, 0, 300, 40)))['caret'])
+
+
+class SwitcherToggleTests(unittest.IsolatedAsyncioTestCase):
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    async def test_switcher_left_open_is_reopened_once_before_typing(self):
+        client = Client(current=0)
+        client.toggles, client.switcher = True, True  # Left open by the user.
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+        self.assertEqual(len(self.keys(client, 'ctrl+k')), 2)

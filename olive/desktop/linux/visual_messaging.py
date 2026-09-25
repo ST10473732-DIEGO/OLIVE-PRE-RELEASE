@@ -204,8 +204,15 @@ class VisualMessaging:
         await self.runtime.native.call('visual_key', {'revision': frame['revision'], 'value': self.adapter.switcher_key})
         # Clients animate the switcher open; re-read (read-only, bounded) until it settles.
         await asyncio.sleep(OPEN_SECONDS)
-        for attempt in range(SETTLE_READS):
-            if attempt:
+        for attempt in range(SETTLE_READS + 1):
+            if attempt == SETTLE_READS - 1:
+                # The shortcut toggles: a switcher left open was just closed. Press it
+                # once more (bounded to one retry) and re-check before typing anything.
+                frame = await self.frame()
+                await self.runtime.native.call('visual_key', {'revision': frame['revision'],
+                                                              'value': self.adapter.switcher_key})
+                await asyncio.sleep(OPEN_SECONDS)
+            elif attempt:
                 await asyncio.sleep(SETTLE_SECONDS)
             frame = await self.frame()
             _, lines = await self.region(frame, 'switcher')
