@@ -171,10 +171,11 @@ class Worker:
         if method == 'application_windows' and set(args) == {'desktop_id'}:
             from olive.desktop.linux.kwin import windows
             return windows(self.portal.bus, 0, self.stopped, desktop_id=args['desktop_id'])
-        if method == 'activate' and set(args) == {'pid','purpose'} and type(args['pid']) is int and args['pid'] > 0 and args['purpose'] in {'exact','open','new_document'}:
+        if method == 'activate' and set(args) == {'pid','purpose'} and type(args['pid']) is int and args['pid'] > 0 and args['purpose'] in {'exact','open','new_document','visual'}:
             from olive.desktop.linux.kwin import activate_window
             from olive.desktop.linux.capture import Capture
-            window = activate_window(self.portal.bus, args['pid'], self.stopped, purpose=args['purpose'])
+            visual = args['purpose'] == 'visual'
+            window = activate_window(self.portal.bus, args['pid'], self.stopped, purpose='exact' if visual else args['purpose'])
             streams = [s for s in self.portal.all_streams if s[1].get('mapping_id') == window['output']]
             if len(streams) != 1:
                 raise PermissionError('Requested window output is not mapped to a portal stream')
@@ -185,6 +186,10 @@ class Worker:
                 self.eis.region = approved_region(streams[0][1])
                 self.capture = Capture(self.portal.fd('ScreenCast', 'OpenPipeWireRemote'), streams[0][0], streams[0][1]['size'])
             self.window = window
+            if visual:
+                # Visual-only clients: KWin's active exact window is the evidence; no
+                # wait for accessibility activation events they do not emit.
+                return {'active': True, 'accessible': False, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
             try:
                 self.accessibility.bind_geometry(args['pid'], window['bounds'])
                 self.accessibility.activate(args['pid'], approved_region(self.portal.streams[0][1]), self.stopped,

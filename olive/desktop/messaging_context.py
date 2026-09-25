@@ -53,7 +53,7 @@ ADAPTERS = (
                      header_decorations=('v', 'x'),  # The server menu's chevron / close icon.
                      # The user panel (account) is read beside the verified composer.
                      regions={'composer': (0.0, 0.91, 1.0, 1.0), 'server': (0.0, 0.0, 0.34, 0.1),
-                              'header': (0.12, 0.0, 0.85, 0.1), 'switcher': (0.15, 0.15, 0.85, 0.6)},
+                              'header': (0.12, 0.0, 0.85, 0.1), 'switcher': (0.25, 0.2, 0.75, 0.5)},
                      account_first_line=True, switcher_enter_opens=True),
     MessagingAdapter('visual-messenger-fixture', ('visual messenger', 'olive-visual-messenger-fixture'),
                      submit_provenance='Owned fixture: Enter sends; verified by its owned sent log',
@@ -313,3 +313,9 @@ def typed_exactly(lines, content, adapter):
     if composer_state(lines, adapter)[0] == 'empty':
         return False
     return sum(normalize(l['text']) == normalize(content) for l in segments(lines)) == 1
+
+
+def exact_segment(lines, content):
+    """The one run reading exactly the requested text, or None."""
+    runs = [l for l in segments(lines) if normalize(l['text']) == normalize(content)]
+    return runs[0] if len(runs) == 1 else None

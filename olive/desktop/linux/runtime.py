@@ -188,6 +188,11 @@ class LinuxRuntime:
                 if not processes:
                     processes = await self.apps.wait_for_processes(app, d.stop_event, discover=window_processes)
             purpose = 'new_document' if grant.scope.effect in {'edit_save','paste_save'} else 'open' if grant.scope.effect == 'open' else 'exact'
+            if grant.scope.effect in {'send', 'draft'}:
+                from ..messaging_context import adapter_for
+                declared = adapter_for(app.name)
+                if declared is not None and declared.regions:
+                    purpose = 'visual'  # Compositor focus only; no accessibility wait.
             await self.activate_app(app, processes, purpose=purpose)
             if bound_step and bound_step.scope.effect == 'read' and bound_step.source:
                 location = results.source_location(bound_step.source, bound_step.scope.application, results.epoch)
@@ -229,6 +234,13 @@ class LinuxRuntime:
                         d.gateway.require_not_denied(permissions_session, permission)
                     from .browser_search import search
                     return await search(self, grant, app, processes)
+            if grant.scope.effect in {'send', 'draft'}:
+                from ..messaging_context import adapter_for
+                declared = adapter_for(app.name)
+                if declared is not None and declared.regions:
+                    # A client with a declared layout exposes no usable messaging
+                    # semantics (for example Discord); skip the accessibility pass.
+                    return await self.visual_messaging(grant, app, processes)
             try:
                 observation = await self.observe_app(app, processes)
             except (ValueError, LookupError):

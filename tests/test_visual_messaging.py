@@ -161,10 +161,12 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                                   check_task=lambda grant: None, reserve_effect=reserve)
         grant = SimpleNamespace(scope=scope)
 
-        def ocr(frame, box):
+        def ocr(frame, box, *options):
             left, top, right, bottom = box
             if client.panel and left == 0 and right <= 300 and top < 600 < bottom:
                 return client.lines('panel')
+            if top <= 600 <= bottom and right - left > 600 and bottom - top < 40:
+                return client.lines('composer')  # The composer's text strip.
             middle = (top + bottom) / 2
             if bottom - top > 150:  # the switcher results read
                 return client.lines('wide')
@@ -193,7 +195,7 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                 patch.object(visual_messaging, 'ocr_rows', lambda frame, box, *options: ocr(frame, box)), \
                 patch.object(visual_messaging.asyncio, 'sleep',
                                                                              return_value=None), \
-                patch.object(visual_messaging, 'unchanged_outside', lambda before, after, box: unchanged):
+                patch.object(visual_messaging, 'unchanged_outside', lambda before, after, box, within=None: unchanged if within is None else False):
             if adapter is None:
                 outcome = await visual_messaging.visual_message(runtime, grant, 1, scope.application)
             else:
@@ -652,3 +654,69 @@ class HighlightTests(unittest.TestCase):
                                 client, adapter=self.adapter(), highlight=lambda listed: None)
         self.assertEqual(client.sent, [])
         self.assertFalse(any(client.drafts.values()))
+
+
+class ExactDraftTests(unittest.IsolatedAsyncioTestCase):
+    """A draft that is exactly the requested text satisfies the request; any other draft is preserved."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    def typed(self, client):
+        return [c[1]['value'] for c in client.calls if c[0] == 'visual_text']
+
+    async def test_identical_draft_completes_a_draft_request_without_typing(self):
+        client = Client(current=2, draft='field update')
+        outcome, _ = await self.run_task('Draft "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('already in the verified', outcome)
+        self.assertEqual(self.typed(client), ['general'])  # Only the switcher query.
+        self.assertEqual(client.sent, [])
+
+    async def test_identical_draft_is_sent_once_without_retyping(self):
+        client = Client(current=2, draft='field update')
+        outcome, reserved = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+        self.assertEqual(self.typed(client), ['general'])
+        self.assertEqual(reserved, ['reserved', 'verified'])
+
+    async def test_different_draft_is_never_sent_or_overwritten(self):
+        client = Client(current=2, draft='something else')
+        with self.assertRaisesRegex(ValueError, 'COMPOSER_UNVERIFIED'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
+        self.assertEqual(client.drafts[2], 'something else')
+
+
+class WithinAreaTests(unittest.TestCase):
+    frame = UnchangedOutsideTests.frame
+
+    def test_comparison_limited_to_an_area(self):
+        from olive.desktop.visual_ocr import unchanged_outside
+        before = self.frame()
+        elsewhere = self.frame(lambda d: d.rectangle((150, 100, 190, 118), fill=(255, 0, 0)))
+        self.assertTrue(unchanged_outside(before, elsewhere, (0, 0, 0, 0), (0, 0, 140, 90)))
+        self.assertFalse(unchanged_outside(before, elsewhere, (0, 0, 0, 0), (0, 0, 200, 120)))
+        inside = self.frame(lambda d: d.rectangle((10, 40, 60, 60), fill=(255, 0, 0)))
+        self.assertFalse(unchanged_outside(before, inside, (0, 0, 0, 0), (0, 0, 140, 90)))
+
+
+class CaretFrameTests(unittest.IsolatedAsyncioTestCase):
+    def frame(self, caret):
+        import base64, io
+        from PIL import Image, ImageDraw
+        image = Image.new('RGB', (300, 40), (56, 58, 64))
+        draw = ImageDraw.Draw(image)
+        draw.text((10, 12), 'hello from OLIVE', fill=(220, 221, 222))
+        if caret:
+            draw.line((112, 8, 112, 30), fill=(230, 230, 230), width=2)
+        data = io.BytesIO()
+        image.save(data, format='PNG')
+        return {'png': base64.b64encode(data.getvalue()).decode(), 'width': 300, 'height': 40, 'caret': caret}
+
+    async def test_the_caret_off_frame_is_read(self):
+        frames = iter([self.frame(True), self.frame(False), self.frame(False), self.frame(True)])
+        messaging = visual_messaging.VisualMessaging.__new__(visual_messaging.VisualMessaging)
+        async def next_frame():
+            return next(frames)
+        messaging.frame = next_frame
+        self.assertFalse((await messaging.quiet_frame(lambda f: (0, 0, 300, 40)))['caret'])
+        self.assertFalse((await messaging.quiet_frame(lambda f: (0, 0, 300, 40)))['caret'])
