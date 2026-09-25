@@ -25,7 +25,8 @@ class FileInput:
             raise ValueError('Unexpected file operation value')
         self.stage += 1
         if step == 'select':
-            observation = worker.accessibility.observe(worker.window['pid'], worker.eis.region)
+            observation = worker.accessibility.observe(worker.window['pid'], worker.eis.region,
+                                                       item=Path(self.source).name)
             candidates = [c for c in observation['controls'] if c.get('name') == Path(self.source).name
                           and c.get('role') in {'icon','list item','table cell'} and c.get('enabled')]
             if len(candidates) != 1:

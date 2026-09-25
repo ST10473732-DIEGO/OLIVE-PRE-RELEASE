@@ -31,7 +31,7 @@ async def transfer(runtime, grant, app, processes):
     d = runtime.desktop
     async def observe():
         runtime.check_task(grant)
-        return await runtime.observe_app(app, processes)
+        return await runtime.observe_app(app, processes, item=source.name)
     async def key(step, value=''):
         runtime.check_task(grant)
         await runtime.native.call('file_step', {'step': step, 'value': value})

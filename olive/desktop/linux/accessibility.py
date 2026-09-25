@@ -1,4 +1,11 @@
-"""Bounded, application-scoped AT-SPI observations; no global text harvesting."""
+"""Bounded, application-scoped AT-SPI observations; no global text harvesting.
+
+Qt item views proxy every child access to QAbstractItemModel::data. One closeout
+tree read coincided with a Kate SIGSEGV in QSortFilterProxyModel::data, so Qt
+item-view contents are not enumerated unless a step asks for one exact item name.
+A vanished application aborts the traversal immediately and is never re-read.
+"""
+import os
 import time
 import uuid
 
@@ -9,6 +16,20 @@ from gi.repository import Atspi, GLib
 from .geometry import contains, intersection
 
 
+class ObservationAborted(LookupError):
+    """The observed application vanished or its accessibility bus failed."""
+    def __init__(self, category, detail=''):
+        super().__init__(category + (': ' + detail if detail else ''))
+        self.category = category
+
+
+# (node budget, depth, seconds) per toolkit profile.
+PROFILES = {'default': (800, 28, 3.0), 'qt': (400, 20, 2.0), 'qt_degraded': (200, 14, 1.5)}
+ITEM_QUERY_ROWS = 400
+MIN_INTERVAL = .2
+APP_GONE = ('no longer exists', 'serviceunknown', 'service unknown', 'disconnected', 'noreply', 'no reply')
+
+
 class Accessibility:
     def __init__(self):
         Atspi.set_timeout(500, 1000)
@@ -17,6 +38,36 @@ class Accessibility:
         self.application = None
         self.window_geometry = None
         self.offset = (0, 0)
+        self.crashed = set()        # (pid, toolkit) observed to vanish during observation
+        self.degraded = set()       # toolkits that crashed once in this helper session
+        self.last_scan = {}         # pid -> monotonic time of the last full traversal
+        self.events = []            # bounded diagnostic categories, never tree contents
+
+    @staticmethod
+    def toolkit(app):
+        try:
+            name = (app.get_toolkit_name() or '').casefold()
+        except Exception:
+            return ''
+        return 'qt' if name.startswith('qt') else name
+
+    @staticmethod
+    def item_view_roles():
+        return {getattr(Atspi.Role, name) for name in ('TABLE', 'TREE_TABLE', 'TREE', 'LIST', 'LIST_BOX')
+                if hasattr(Atspi.Role, name)}
+
+    def _gone(self, pid, toolkit, error):
+        detail = str(error).casefold()
+        alive = _alive(pid)
+        if not alive or any(marker in detail for marker in APP_GONE):
+            if not alive:
+                self.crashed.add(pid)  # Never re-read a process that died mid-observation.
+            if toolkit:
+                self.degraded.add(toolkit)  # Later scans of this toolkit use the smallest profile.
+            self.events = (self.events + [{'category': 'APP_CRASHED_DURING_OBSERVATION' if not alive else
+                                           'ACCESSIBILITY_BUS_ERROR', 'pid': pid, 'toolkit': toolkit}])[-20:]
+            raise ObservationAborted('APP_CRASHED_DURING_OBSERVATION' if not alive else 'ACCESSIBILITY_BUS_ERROR',
+                                     'observation stopped; the same traversal is not retried')
 
     def mapped_bounds(self, rect):
         return [rect.x + self.offset[0], rect.y + self.offset[1], rect.width, rect.height]
@@ -129,16 +180,36 @@ class Accessibility:
             for name in registered:
                 listener.deregister(name)
 
-    def observe(self, pid, region, chrome_only=False):
+    def observe(self, pid, region, chrome_only=False, item=''):
+        if pid in self.crashed:
+            raise ObservationAborted('APP_CRASHED_DURING_OBSERVATION', 'this process already failed an observation')
+        wait = self.last_scan.get(pid, 0) + MIN_INTERVAL - time.monotonic()
+        if wait > 0:
+            time.sleep(min(wait, MIN_INTERVAL))  # Rate-limit repeated semantic scans.
         app = self.resolve(pid)
+        toolkit = self.toolkit(app)
+        profile = 'qt_degraded' if toolkit == 'qt' and 'qt' in self.degraded else 'qt' if toolkit == 'qt' else 'default'
+        node_budget, max_depth, seconds = PROFILES[profile]
+        item_views = self.item_view_roles() if toolkit == 'qt' else set()
         self.targets, self.revision = {}, uuid.uuid4().hex
         self.application = pid
-        deadline = time.monotonic() + 3
+        try:
+            return self._observe(pid, app, toolkit, profile, region, chrome_only, item, node_budget, max_depth,
+                                 time.monotonic() + seconds, item_views)
+        except ObservationAborted:
+            self.targets.clear()
+            self.revision = ''
+            raise
+        finally:
+            self.last_scan[pid] = time.monotonic()
+
+    def _observe(self, pid, app, toolkit, profile, region, chrome_only, item, node_budget, max_depth, deadline,
+                 item_views):
         controls, windows, documents = [], [], []
         text_budget = 12000
         queue = [(app, 0, '', '', False, region)]
-        visited = 0
-        while queue and visited < 800 and time.monotonic() < deadline and text_budget > 0:
+        visited = errors = pruned = 0
+        while queue and visited < node_budget and time.monotonic() < deadline and text_budget > 0:
             node, depth, window, parent, in_document, clip = queue.pop(0)
             visited += 1
             try:
@@ -206,7 +277,15 @@ class Accessibility:
                         'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names,
                         'key_bindings': key_bindings, 'labels': labels})
                     self.targets[key] = node
-                if depth < 28:
+                if role in item_views:
+                    # Never enumerate Qt model rows by default. A named item
+                    # query reads only row names/states within a fixed budget.
+                    if item and visible and within_source:
+                        self._query_items(node, key, window, item, clip, controls)
+                    else:
+                        pruned += 1
+                    continue
+                if depth < max_depth:
                     child_clip = (clip if transparent_viewport else intersection(clip, bounds)) if role in (Atspi.Role.VIEWPORT, Atspi.Role.SCROLL_PANE) else clip
                     if child_clip is None:
                         continue
@@ -214,10 +293,45 @@ class Accessibility:
                         child = node.get_child_at_index(index)
                         if child:
                             queue.append((child, depth + 1, window, key, in_document, child_clip))
-            except Exception:
+            except ObservationAborted:
+                raise
+            except Exception as error:
+                errors += 1
+                if errors == 1 or not _alive(pid):
+                    self._gone(pid, toolkit, error)  # Stops only when the app/bus is gone.
+                if errors >= 3:
+                    raise ObservationAborted('STALE_OBSERVATION', 'repeated accessibility errors') from None
                 continue  # Incomplete accessibility is evidence of a gap, never a target.
         return {'pid': pid, 'revision': self.revision, 'windows': windows, 'controls': controls,
-                'documents': documents, 'incomplete': bool(queue), 'untrusted_content': True}
+                'documents': documents, 'incomplete': bool(queue), 'untrusted_content': True,
+                'profile': profile, 'pruned_item_views': pruned}
+
+    def _query_items(self, view, parent, window, item, clip, controls):
+        """Exact-name row lookup; no text/relations/actions of unrelated rows."""
+        count = min(view.get_child_count(), ITEM_QUERY_ROWS)
+        for index in range(count):
+            child = view.get_child_at_index(index)
+            if not child:
+                continue
+            name = child.get_name()[:300]
+            states = child.get_state_set()
+            selected = states.contains(Atspi.StateType.SELECTED)
+            if name != item and not selected:
+                continue
+            if not (states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE)):
+                continue
+            component = child.get_component_iface()
+            rect = component.get_extents(Atspi.CoordType.SCREEN) if component else None
+            bounds = self.mapped_bounds(rect) if rect else None
+            if not contains(clip, bounds):
+                continue
+            key = parent + '.' + str(index)
+            controls.append({'id': key, 'window': window, 'parent': parent, 'name': name,
+                             'role': child.get_role_name(), 'in_document': False, 'value': '', 'bounds': bounds,
+                             'enabled': states.contains(Atspi.StateType.ENABLED), 'selected': selected,
+                             'focused': states.contains(Atspi.StateType.FOCUSED), 'editable': False,
+                             'actions': [], 'key_bindings': {}, 'labels': []})
+            self.targets[key] = child
 
     def document_locations(self, pid, region):
         """Current document identity only; never read conversation/page contents."""
@@ -330,3 +444,13 @@ class Accessibility:
         return [relation.get_target(i).get_name()[:100] for relation in (node.get_relation_set() or ())
                 if relation.get_relation_type() == Atspi.RelationType.LABELLED_BY
                 for i in range(min(relation.get_n_targets(), 4))]
+
+
+def _alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True

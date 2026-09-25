@@ -399,7 +399,7 @@ class LinuxRuntime:
             'destination': grant.scope.destination, 'server': grant.scope.server} and sum(
                 is_composer(c) and c.get('value') == grant.scope.content for c in observation['controls']) == 1
 
-    async def observe_app(self, app, processes):
+    async def observe_app(self, app, processes, item=''):
         import psutil
         from .frame_validation import validate_frame
         frame = await self.native.call('capture', timeout=4)
@@ -408,10 +408,15 @@ class LinuxRuntime:
         for pid, created in processes[:8]:
             self.apps.verify_process(app, pid, created)
             try:
-                observed = await self.native.call('observe', {'pid': pid})
+                observed = await self.native.call('observe', {'pid': pid, 'item': item} if item else {'pid': pid})
                 if observed['windows']:
                     observations.append(observed)
-            except RuntimeError:
+            except RuntimeError as error:
+                category = str(error).split(':', 1)[0]
+                if category in {'APP_CRASHED_DURING_OBSERVATION', 'ACCESSIBILITY_BUS_ERROR', 'STALE_OBSERVATION'}:
+                    # Never retry the same traversal or fall back to blind input.
+                    raise ValueError(category + ': the application stopped responding to accessibility '
+                                     'observation; no input was sent') from None
                 continue
         if len(observations) != 1:
             raise ValueError('Choose the intended accessible application window; no target was guessed')

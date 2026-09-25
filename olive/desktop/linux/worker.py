@@ -14,7 +14,7 @@ import time
 # Executed as a file by the venv host; import only this native package.
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from olive.desktop.linux.portal import Portal, GLib
-from olive.desktop.linux.accessibility import Accessibility
+from olive.desktop.linux.accessibility import Accessibility, ObservationAborted
 from olive.desktop.linux.geometry import approved_region
 from olive.desktop.task_authority import scroll_amount
 
@@ -279,7 +279,10 @@ class Worker:
             else:
                 self.eis.browser_key(args['step'])
             return {'dispatched': True}
-        if method in {'observe', 'browser_chrome', 'document_locations'} and set(args) == {'pid'} and type(args['pid']) is int and args['pid'] > 0:
+        if (method in {'observe', 'browser_chrome', 'document_locations'} and set(args) in ({'pid'}, {'pid', 'item'})
+                and type(args['pid']) is int and args['pid'] > 0 and
+                (method == 'observe' or 'item' not in args) and
+                isinstance(args.get('item', ''), str) and len(args.get('item', '')) <= 255):
             from olive.desktop.linux.kwin import windows
             matches = [w for w in windows(self.portal.bus, args['pid'], self.stopped) if w['active']]
             if len(matches) != 1 or not matches[0]['active']:
@@ -289,7 +292,8 @@ class Worker:
             region = approved_region(self.portal.streams[0][1])
             if method == 'document_locations':
                 return self.accessibility.document_locations(args['pid'], region)
-            return self.accessibility.observe(args['pid'], region, chrome_only=method == 'browser_chrome')
+            return self.accessibility.observe(args['pid'], region, chrome_only=method == 'browser_chrome',
+                                              item=args.get('item', ''))
         if method == 'editor_session' and set(args) == {'pid', 'created'}:
             import psutil
             from olive.desktop.linux.editor_ownership import EditorOwnership
@@ -427,7 +431,7 @@ class Worker:
         except Exception as error:
             # No exception repr: GI errors can contain private application text.
             self.emit({'id': message.get('id'), 'error': type(error).__name__,
-                       'message': str(error)[:500] if type(error) in (ValueError, PermissionError, InterruptedError, TimeoutError) or isinstance(error, GLib.Error) and message.get('method') in {'probe', 'bind_stop', 'start'} else 'Native operation failed: ' + type(error).__name__})
+                       'message': str(error)[:500] if type(error) in (ValueError, PermissionError, InterruptedError, TimeoutError, ObservationAborted) or isinstance(error, GLib.Error) and message.get('method') in {'probe', 'bind_stop', 'start'} else 'Native operation failed: ' + type(error).__name__})
         finally:
             self.pending.release()
         return False

@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-25",
+  "purpose": "Controlled reproduction attempt of the 24 September Kate/Qt SIGSEGV (QSortFilterProxyModel::data) using owned fixtures only",
+  "fixtures": {
+    "kdialog_save_dialog": "kdialog --getsavefilename on an owned 300-file acceptance directory (same KDE file widget/proxy model family as Kate Save As)",
+    "fresh_kate": "kate --startanon on an owned fixture.txt; its owned 'Save session' dialog opened through Kate's exported QAction (no input)"
+  },
+  "runs": [
+    {"traversal": "baseline observe() from 340c755", "directory_churn": false, "rounds": 40, "app_survived": true, "errors": 0, "controls": 101},
+    {"traversal": "unrestricted recursive dump (names/roles/states/text, no budgets)", "directory_churn": false, "rounds": 40, "app_survived": true, "errors": 0},
+    {"traversal": "hardened observe()", "directory_churn": false, "rounds": 40, "app_survived": true, "errors": 0, "controls": 55},
+    {"traversal": "baseline observe() from 340c755", "directory_churn": true, "rounds": 60, "app_survived": true, "errors": 0, "controls": "78-101"},
+    {"traversal": "unrestricted recursive dump", "directory_churn": true, "rounds": 60, "app_survived": true, "errors": 9, "error_kind": "atspi 'No such object path' for item-view rows removed mid-read"},
+    {"traversal": "hardened observe()", "directory_churn": true, "rounds": 60, "app_survived": true, "errors": 0, "controls": 55}
+  ],
+  "fresh_kate_hardened_reads": {"rounds": 4, "profile": "qt", "controls": 73, "pruned_item_views": 1, "seconds": "0.06-0.08", "with_open_session_dialog": {"controls": 6, "seconds": 0.012}},
+  "crash_reproduced": false,
+  "root_cause_established": false,
+  "interpretation": "Item-view rows are volatile during model updates (9 vanished-object errors in the unrestricted dump). The hardened traversal never enumerates Qt item-view rows unless one exact item is requested, and aborts rather than continues when the application disappears. This reduces exposure; it is not a proven fix for the historical crash.",
+  "input_dispatched": false,
+  "private_documents_used": false
+}
