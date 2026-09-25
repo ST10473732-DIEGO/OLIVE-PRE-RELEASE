@@ -14,6 +14,7 @@ from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, Messaging
                                  switcher_matches)
 from ..visual_ocr import band, normalize, ocr_lines, unchanged_outside
 
+SETTLE_READS, SETTLE_SECONDS = 3, .4
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
          'switcher': (30, 300)}
 
@@ -112,23 +113,43 @@ class VisualMessaging:
         self.progress('Finding ' + self.scope.destination + '…')
         frame = await self.frame()
         await self.runtime.native.call('visual_key', {'revision': frame['revision'], 'value': self.adapter.switcher_key})
-        frame = await self.frame()
-        _, lines = await self.region(frame, 'switcher')
-        if not any(self.adapter.switcher_prompt in normalize(l['text']) for l in lines):
+        # Clients animate the switcher open; re-read (read-only, bounded) until it settles.
+        for attempt in range(SETTLE_READS):
+            if attempt:
+                await asyncio.sleep(SETTLE_SECONDS)
+            frame = await self.frame()
+            _, lines = await self.region(frame, 'switcher')
+            if any(self.adapter.switcher_prompt in normalize(l['text']) for l in lines):
+                break
+        else:
             await self.escape()
             raise ValueError('DESTINATION_UNVERIFIED: the quick switcher did not open as expected; nothing was typed')
         frame = await self.frame()
         await self.runtime.native.call('visual_text', {'revision': frame['revision'],
                                                        'value': self.scope.destination.lstrip('#@')})
-        frame = await self.frame()
-        point, lines = await self.region(frame, 'result', label=self.scope.destination.lstrip('#@'))
+        # Results load asynchronously after the query; wait (bounded) for an exact row.
+        candidates, point = [], None
+        for attempt in range(SETTLE_READS):
+            if attempt:
+                await asyncio.sleep(SETTLE_SECONDS)
+            frame = await self.frame()
+            point, lines = await self.region(frame, 'result', label=self.scope.destination.lstrip('#@'))
+            if point is None:
+                continue
+            # Uniqueness is judged from a wide band around the proposal, so a second
+            # visible row with the same name (other server) stays ambiguous.
+            wide = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 140, 300))
+            candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
+            if candidates:
+                # One confirmation read so a late-loading duplicate is still counted.
+                await asyncio.sleep(SETTLE_SECONDS)
+                frame = await self.frame()
+                wide = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 140, 300))
+                candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
+                break
         if point is None:
             await self.escape()
             raise ValueError('TARGET_NOT_VISIBLE: no matching destination was proposed; nothing was selected')
-        # Uniqueness is judged from a wide band around the proposal, so a second
-        # visible row with the same name (other server) stays ambiguous.
-        wide = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 140, 300))
-        candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
         if len(candidates) != 1:
             await self.escape()
             where = self.scope.destination + (' in ' + self.scope.server if self.scope.server else '')

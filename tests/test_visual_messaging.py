@@ -306,3 +306,47 @@ class UnchangedOutsideTests(unittest.TestCase):
         switched = self.frame(lambda d: d.rectangle((10, 10, 80, 22), fill=(40, 42, 48)))
         self.assertFalse(unchanged_outside(before, switched, composer))
         self.assertFalse(unchanged_outside(before, dict(typed, width=201), composer))
+
+
+class SettleTests(unittest.IsolatedAsyncioTestCase):
+    """Animated switchers and asynchronously loaded results get bounded, read-only re-reads."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    def delay(self, client, role, reads):
+        original, seen = client.lines, {'n': 0}
+        def lines(r):
+            if r == role and seen['n'] < reads:
+                seen['n'] += 1
+                return []
+            return original(r)
+        client.lines = lines
+
+    async def test_switcher_opening_on_a_later_read_still_navigates(self):
+        client = Client(current=0)
+        self.delay(client, 'switcher', 1)
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+
+    async def test_switcher_that_never_opens_types_nothing(self):
+        client = Client(current=0)
+        self.delay(client, 'switcher', 99)
+        with self.assertRaisesRegex(ValueError, 'quick switcher did not open'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
+        self.assertFalse([c for c in client.calls if c[0] == 'visual_text'])
+
+    async def test_duplicate_loading_late_is_still_ambiguous(self):
+        client = Client(current=1)
+        original, seen = client.lines, {'n': 0}
+        def lines(role):
+            rows = original(role)
+            if role == 'wide':
+                seen['n'] += 1
+                if seen['n'] == 1:
+                    return rows[:2]  # Only the first 'general' row has rendered yet.
+            return rows
+        client.lines = lines
+        with self.assertRaisesRegex(ValueError, 'TARGET_AMBIGUOUS'):
+            await self.run_task('Send "hi" to general in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
