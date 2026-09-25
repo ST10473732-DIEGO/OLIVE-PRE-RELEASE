@@ -196,8 +196,10 @@ def validate_plan(request, proposal):
             # independently parsed effect scopes; never swap two named targets.
             from .task_authority import direct_scope
             from .task_plan import explicit_plan
-            explicit = explicit_plan(request)
-            texts = explicit.clauses if explicit else (request,)
+            from ..interaction.task_goal import strip_constraints
+            core = strip_constraints(request)  # Typed constraints stay enforced by the goal.
+            explicit = explicit_plan(core)
+            texts = explicit.clauses if explicit else (core,)
             authorized = []
             for text in texts:
                 try:

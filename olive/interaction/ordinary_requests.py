@@ -57,6 +57,9 @@ GIT_READ = {'status': 'status', 'diff': 'diff', 'log': 'log', 'history': 'log', 
 def git_request(text):
     """Typed Git operations for the selected workspace; never a command string."""
     value = re.sub(r'^(?:please\s+)', '', text.strip(), flags=re.I).rstrip('.')
+    # An explicit reference to the selected project is scope, not an operation.
+    value = re.sub(r'\s+(?:in|of|for|to) (?:my|the|this|selected) (?:project|repository|repo|workspace)\b', '', value,
+                   flags=re.I)
     reads = re.fullmatch(r'(?:show|check|read|inspect|list|display)(?: me)?(?: the)? git '
                          r'(status|diff|log|history|branches)(?:\s+(?:and|,)\s+(?:the\s+)?(?:git\s+)?(status|diff|log|history|branches))?'
                          r'(?: (?:for|of|in) (?:my|the|this|selected) (?:project|repository|repo|workspace))?', value, re.I)

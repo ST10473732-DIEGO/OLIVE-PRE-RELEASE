@@ -344,3 +344,20 @@ class OSControlTests(unittest.IsolatedAsyncioTestCase):
         with policy.request('Set brightness to 60%', 'chat', local=True):
             self.assertTrue(policy.authorize('system.display_set_brightness', {'percent': 60}))
             self.assertFalse(policy.authorize('system.display_set_brightness', {'percent': 1}))
+
+
+class FolderSourceRegressionTests(unittest.TestCase):
+    def test_find_in_folder_then_copy_binds_the_file_never_the_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / 'files').mkdir()
+            (root / 'project').mkdir()
+            (root / 'files' / 'report.pdf').write_bytes(b'owned')
+            policy = OwnerPolicy(lambda: {'owner_mode': True, 'owner_installation': {'id': 'f', 'owner': owner_identity()}})
+            with policy.request(f'Find report.pdf in {root}/files and copy it to {root}/project', 'chat', local=True):
+                self.assertFalse(policy.authorize('filesystem.copy', {'path': str(root / 'files'),
+                                                                       'destination': str(root / 'project' / 'files')}))
+                self.assertTrue(policy.authorize('filesystem.copy', {'path': str(root / 'files' / 'report.pdf'),
+                                                                      'destination': str(root / 'project' / 'report.pdf')}))
+            with policy.request(f'Copy {root}/files to {root}/project', 'chat', local=True) as grant:
+                self.assertNotIn('filesystem.copy', grant.capabilities)

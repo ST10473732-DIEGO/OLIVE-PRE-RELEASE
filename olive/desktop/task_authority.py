@@ -66,6 +66,12 @@ def interpreted_scope(request, steps):
     return TaskScope(app, effect, content)
 
 
+def literal_path(path):
+    """One destination path, never a trailing clause captured by a greedy pattern."""
+    return bool(path) and not re.search(r'[\n\x00,;]|\s(?:but|and|then|without|unless|except|do not|never)\b|don[\'’]t',
+                                        path, re.I)
+
+
 def direct_scope(request):
     if not isinstance(request, str) or not 1 <= len(request) <= 4000:
         raise ValueError('Provide one bounded desktop request')
@@ -89,17 +95,17 @@ def direct_scope(request):
     match = re.fullmatch(r'Paste (?:the )?(?:copied (?:text|code)|clipboard) in ([\w .+-]{1,80}) and save as (.+)', text, re.I)
     if match:
         app, path = match.groups()
-        if '\n' in path or '\x00' in path:
+        if not literal_path(path):
             raise ValueError('Provide one owned destination path')
         return TaskScope(app, 'paste_save', path=path)
     match = re.fullmatch(r'(Copy|Move) (.+?) to (.+?) in ([\w .+-]{1,80})', text, re.I)
     if match:
         operation, source, destination, app = match.groups()
         return TaskScope(app, operation.lower(), source.strip('\'"'), path=destination.strip('\'"'))
-    match = re.fullmatch(r'Write ([\'\"])(.*?)\1 in ([\w .+-]{1,80}) and save as (.+)', text, re.I | re.S)
+    match = re.fullmatch(r'Write ([\'\"])(.*?)\1 in ([\w .+-]{1,80}) and save (?:it )?as (.+?)[.]?', text, re.I | re.S)
     if match:
         _, content, app, path = match.groups()
-        if not content or '\x00' in content or '\n' in path:
+        if not content or '\x00' in content or not literal_path(path):
             raise ValueError('Provide literal text and one owned destination path')
         return TaskScope(app, 'edit_save', content, path=path)
     match = re.fullmatch(r'Click ([\w .+-]{1,80}) in ([\w .+-]{1,80})', text, re.I)

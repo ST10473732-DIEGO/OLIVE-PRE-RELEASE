@@ -12,6 +12,32 @@ from .trace import traced_request, event as trace_event
 from .workspace_reference import selected_workspace_reference
 
 
+def bind_search_result(step, executed, context):
+    """'Find X in DIR and copy it': 'it' is the search's single verified result.
+
+    Only when the preceding step of THIS request searched exactly the folder the
+    proposal names and selected one file inside it. Never a historical file.
+    """
+    from pathlib import Path
+    if step['intent'] not in {'filesystem.copy', 'filesystem.move', 'filesystem.trash', 'filesystem.open'}:
+        return step
+    if not executed or executed[-1]['intent'] != 'filesystem.search':
+        return step
+    searched, named, found = executed[-1]['entities'].get('path'), step['entities'].get('path'), context.entities.get('path')
+    try:
+        folder = Path(searched).expanduser().resolve() if searched else None
+        same = folder is not None and named and Path(named).expanduser().resolve() == folder
+        inside = found and folder in Path(found).resolve().parents
+    except (OSError, RuntimeError, ValueError, TypeError):
+        return step
+    if not (same and inside and len(context.file_candidates) == 1):
+        return step
+    bound = deepcopy(step)
+    bound['entities']['path'] = found
+    trace_event('result_bound', capability=step['intent'], kind='ResolvedFileResult')
+    return bound
+
+
 def step_activity(scope):
     """Concise inline progress, never reasoning."""
     app = scope.application or 'the application'
@@ -510,6 +536,7 @@ class NaturalLanguageOrchestrator:
                     continue
                 if goal:
                     goal.check_effect(step_effect(step))  # Constraints re-evaluated before each effect.
+                step = bind_search_result(step, executed_steps, context)
                 resolved = context.resolve(step)
                 executed_steps.append(deepcopy(resolved))
                 self.s.publish("interaction_activity", {"chat_id": chat_id, "message": "Working on your request…"})

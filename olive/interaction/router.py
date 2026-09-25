@@ -1,5 +1,6 @@
 """Semantic capabilities reuse authorized controllers; this layer grants no permission."""
 
+import asyncio
 import json
 import uuid
 from pathlib import Path
@@ -213,15 +214,26 @@ class CapabilityRouter:
         if intent in {"filesystem.open", "filesystem.move", "filesystem.copy"}:
             path = self.path(self.required(e, "path"), context)
             if intent in {"filesystem.move", "filesystem.copy"}:
+                source_info = await self.s.agent.tool("filesystem.stat", {"path": path}, "Check the source file")
+                if source_info.get("is_directory"):
+                    # A searched folder is a location, not the requested file. Folder
+                    # transfers need an explicit folder request through Files.
+                    raise ValueError("The source is a folder, not a file. Name the file to transfer; nothing was copied or moved.")
                 destination = self.path(self.required(e, "destination"), context)
                 info = await self.s.agent.tool("filesystem.stat", {"path": destination, "allow_missing": True}, "Check the destination folder")
                 if info.get("is_directory"):
                     destination = str(Path(destination) / Path(path).name)
+                digest = await asyncio.to_thread(_file_digest, path)
                 await self.s.agent.tool(intent, {"path": path, "destination": destination}, "Transfer the selected file")
-                if intent == "filesystem.move":
+                moved = intent == "filesystem.move"
+                if await asyncio.to_thread(_file_digest, destination) != digest or (moved and Path(path).exists()):
+                    raise ValueError("The transfer finished but the destination bytes were not verified; inspect "
+                                     + destination + " before retrying.")
+                if moved:
                     e["path"] = destination
                     context.file_candidates = [destination if p == path else p for p in context.file_candidates]
-                return "The file was moved." if intent == "filesystem.move" else "The file was copied."
+                return (("The file was moved to " if moved else "The file was copied to ") + destination +
+                        "; its SHA-256 matches the original.")
             await self.s.agent.tool("system.open_path", {"path": path}, "Open the selected file")
             return "I requested that Windows open the file."
         if intent == "project.open":
@@ -473,3 +485,15 @@ class CapabilityRouter:
         if not path.is_absolute():
             raise ValueError("Please identify the full file or folder location.")
         return str(path)
+
+
+def _file_digest(path):
+    import hashlib
+    target = Path(path)
+    if not target.is_file() or target.stat().st_size > 512 * 1024 * 1024:
+        return None
+    digest = hashlib.sha256()
+    with target.open('rb') as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()

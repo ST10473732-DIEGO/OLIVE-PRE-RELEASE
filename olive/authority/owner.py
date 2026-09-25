@@ -110,9 +110,23 @@ class OwnerPolicy:
             source = destination = ''
             if effect in {'copy', 'move', 'rename'} and len(references) == 2:
                 source, destination = [str(Path(p).expanduser().resolve()) for p in references]
-                if Path(destination).is_dir():
+                folder_requested = re.search(r'\b(?:copy|move)\s+(?:the\s+)?(?:folder|directory)\b', instruction)
+                if Path(source).is_dir() and not folder_requested:
+                    # "Find report.pdf in DIR and copy it": resolve the literal file
+                    # inside the named folder; never grant the folder itself.
+                    names = {n for n in re.findall(r'(?<![\w/.-])([\w][\w.-]{0,120}\.[A-Za-z0-9]{1,8})\b', path_text)
+                             if (Path(source) / n).is_file()}
+                    if len(names) == 1:
+                        paths.discard(source)
+                        source = str((Path(source) / names.pop()).resolve())
+                        paths.add(source)
+                    else:
+                        capabilities.clear()
+                        source = destination = ''
+                if destination and Path(destination).is_dir():
                     destination = str(Path(destination) / Path(source).name)
-                paths.add(destination)
+                if destination:
+                    paths.add(destination)
             elif effect in {'copy', 'move', 'rename'}:
                 capabilities.clear()  # Resolve exact directional targets first.
             if selected_path and re.search(r'\b(?:this|selected|current|that) (?:file|code)\b',instruction):

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock
 from olive.desktop.freeform_plan import FIELDS, validate_plan
 from olive.interaction.goal_program import conditional_test_program, gate
 from olive.interaction.orchestrator import NaturalLanguageOrchestrator
+from olive.desktop.task_authority import direct_scope
 from olive.interaction.task_goal import (CANCELLED, COMPLETED, FAILED, PENDING, SKIPPED, derive_goal, recoverable,
                                          residual_negation)
 
@@ -197,3 +198,49 @@ class ErrorCategoryTests(unittest.TestCase):
         self.assertEqual(categorize('Permission denied: filesystem.write'), 'OWNER_DENY')
         self.assertEqual(categorize('Something unusual happened'), '')
         self.assertEqual(labelled('Target missing or disabled'), 'TARGET_NOT_VISIBLE: Target missing or disabled')
+
+
+class SearchResultBindingTests(unittest.TestCase):
+    def test_it_binds_only_to_this_requests_single_search_result(self):
+        import tempfile
+        from pathlib import Path
+        from olive.interaction.context import InteractionContext
+        from olive.interaction.orchestrator import bind_search_result
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp).resolve()
+            (folder / 'report.pdf').write_bytes(b'x')
+            context = InteractionContext()
+            context.entities['path'] = str(folder / 'report.pdf')
+            context.file_candidates = [str(folder / 'report.pdf')]
+            search = {'intent': 'filesystem.search', 'entities': {'path': str(folder), 'query': 'report.pdf'}}
+            copy = {'intent': 'filesystem.copy', 'entities': {'path': str(folder), 'destination': '/tmp/x'}, 'references': {}}
+            self.assertEqual(bind_search_result(copy, [search], context)['entities']['path'], str(folder / 'report.pdf'))
+            self.assertEqual(bind_search_result(copy, [], context)['entities']['path'], str(folder))
+            other = {**copy, 'entities': {'path': '/somewhere/else', 'destination': '/tmp/x'}}
+            self.assertEqual(bind_search_result(other, [search], context)['entities']['path'], '/somewhere/else')
+            context.file_candidates.append(str(folder / 'second.pdf'))
+            self.assertEqual(bind_search_result(copy, [search], context)['entities']['path'], str(folder))
+
+
+class ConstraintBindingTests(unittest.TestCase):
+    def test_literal_effect_binds_after_typed_constraint_is_set_aside(self):
+        from olive.interaction.task_goal import strip_constraints
+        request = 'Write "Standup at 10" in Kate and save it as /tmp/t15.txt, but do not close Firefox'
+        plan = validate_plan(request, {'steps': [row('edit_save', application='Kate', content='Standup at 10',
+                                                     path='/tmp/t15.txt')]})
+        self.assertEqual(plan.goal.constraints[0].target, 'firefox')
+        self.assertEqual(strip_constraints('Write "do not close Firefox" in Kate and save it as /tmp/x.txt'),
+                         'Write "do not close Firefox" in Kate and save it as /tmp/x.txt')
+        with self.assertRaises(PermissionError):
+            validate_plan(request, {'steps': [row('edit_save', application='Kate', content='Other text',
+                                                  path='/tmp/t15.txt')]})
+
+
+class DirectPathClauseTests(unittest.TestCase):
+    def test_trailing_constraint_is_never_captured_into_a_literal_path(self):
+        request = 'Write "Standup at 10" in Kate and save it as /tmp/t15.txt, but do not close Firefox'
+        with self.assertRaises(ValueError):
+            direct_scope(request)
+        with self.assertRaises(ValueError):
+            direct_scope('Paste the clipboard in Kate and save as /tmp/a.txt and then close Firefox')
+        self.assertEqual(direct_scope('Write "x" in Kate and save it as /tmp/My Notes/a.txt').path, '/tmp/My Notes/a.txt')

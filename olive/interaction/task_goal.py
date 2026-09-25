@@ -336,3 +336,21 @@ def running_applications(goal):
             if name in label:
                 found[name] = True
     return found
+
+
+def strip_constraints(request):
+    """The request without typed constraint/condition clauses; quoted payloads untouched.
+
+    Used only so an effect's literal scope can be parsed independently; the
+    constraints themselves stay enforced through the TaskGoal.
+    """
+    quotes = []
+
+    def keep(match):
+        quotes.append(match.group(0))
+        return '\x00' + str(len(quotes) - 1) + '\x00'
+    masked = re.sub(r'([\'"])(?:(?!\1).)*?\1', keep, request, flags=re.S)
+    for pattern, _ in (*CONSTRAINT_PATTERNS, *CONDITION_PATTERNS):
+        masked = re.sub(r'\s*[,;]?\s*(?:\b(?:but|and)\s+)?' + pattern, '', masked, flags=re.I)
+    masked = re.sub(r'\s+([.!?])?$', r'\1', masked.strip()).rstrip(',;')
+    return re.sub('\x00(\\d+)\x00', lambda m: quotes[int(m.group(1))], masked).strip()
