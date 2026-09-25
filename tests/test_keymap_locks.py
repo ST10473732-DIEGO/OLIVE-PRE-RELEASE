@@ -48,14 +48,23 @@ class KeyboardLockTests(unittest.TestCase):
         sequence = strokes(self.eis, 1, 'hello 123', self.num)
         self.assertFalse(any(code in KEYPAD for code, _ in sequence))
 
-    def test_caps_lock_blocks_with_an_exact_reason(self):
-        with self.assertRaisesRegex(PermissionError, 'Caps Lock is on'):
-            strokes(self.eis, 1, 'hello', self.caps | self.num)
-
-    def test_other_locks_still_block(self):
-        with self.assertRaisesRegex(PermissionError, 'other than Num Lock'):
-            strokes(self.eis, 1, 'hello', 1 << 7)
+    def test_caps_lock_is_compensated_so_the_text_is_unchanged(self):
+        plain = strokes(self.eis, 1, 'Hello 123')
+        locked = strokes(self.eis, 1, 'Hello 123', self.caps | self.num)
+        self.assertEqual([code for code, _ in plain], [code for code, _ in locked])
+        # Letters invert Shift under Caps Lock; digits and space do not.
+        self.assertEqual([shift for _, shift in locked], [not s if c.isalpha() else s
+                                                          for c, (_, s) in zip('Hello 123', plain)])
 
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipUnless(sys.platform == 'linux' and ctypes.util.find_library('xkbcommon'), 'libxkbcommon on Linux')
+class CapsLockKeyTests(unittest.TestCase):
+    setUp = KeyboardLockTests.setUp
+    def test_caps_lock_key_is_found_in_the_layout(self):
+        from olive.desktop.linux.keymap import caps_lock
+        mask, code = caps_lock(self.eis, 1)
+        self.assertEqual((mask, code), (self.caps, 58))  # evdev KEY_CAPSLOCK in the us layout.

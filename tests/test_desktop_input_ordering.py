@@ -47,3 +47,74 @@ class InputOrderingTests(unittest.TestCase):
             self.assertEqual(cropped.getpixel((0,0)),(0,128,0))
         for docs in ([],[doc,doc],[{**doc,'ready':False}]):
             with self.assertRaises(ValueError):document_frame(frame,docs)
+
+
+class CapsLockReleaseTests(unittest.TestCase):
+    """Caps Lock is released only around OLIVE's literal text and always restored."""
+
+    def client(self, locked):
+        from unittest.mock import patch
+        client = EIS.__new__(EIS)
+        client.lib, client.stopped, client.ready = Mock(), threading.Event(), set()
+        client.lib.ei_device_has_capability.return_value = False
+        client.keyboard_pressed, client.keyboard_locked = 0, locked
+        client.pump, client.device = Mock(), Mock(return_value='keyboard')
+        client.presses, client.chords = [], []
+        def press(device, kind, code):
+            client.presses.append(code)
+            client.keyboard_locked ^= 2 if code == 58 else 0
+        client.press = press
+        client.synchronize = Mock()
+        client.chord_codes = lambda codes: client.chords.append(list(codes))
+        return client
+
+    def run_text(self, client, value='hi'):
+        from unittest.mock import patch
+        with patch('olive.desktop.linux.keymap.caps_lock', return_value=(2, 58)), \
+                patch('olive.desktop.linux.keymap.strokes', side_effect=lambda eis, d, text, locked: [(35, False), (23, False)]):
+            client.text(value)
+
+    def test_caps_lock_released_for_typing_and_restored(self):
+        client = self.client(locked=2)
+        self.run_text(client)
+        self.assertEqual(client.presses, [58, 58])
+        self.assertEqual(client.keyboard_locked, 2)
+        self.assertEqual(client.chords, [[35], [23]])
+
+    def test_no_toggle_when_caps_lock_is_off(self):
+        client = self.client(locked=0)
+        self.run_text(client)
+        self.assertEqual(client.presses, [])
+
+    def test_restored_even_when_typing_is_stopped(self):
+        client = self.client(locked=2)
+        client.stopped.set()
+        with self.assertRaises(InterruptedError):
+            self.run_text(client)
+        self.assertEqual(client.presses, [58, 58])
+
+
+class KeystrokesFirstTests(unittest.TestCase):
+    client = CapsLockReleaseTests.client
+
+    def test_keystrokes_are_used_even_when_native_text_is_advertised(self):
+        from unittest.mock import patch
+        client = self.client(locked=0)
+        client.ready = {'text-device'}
+        client.lib.ei_device_has_capability.return_value = True
+        with patch('olive.desktop.linux.keymap.caps_lock', return_value=(2, 58)), \
+                patch('olive.desktop.linux.keymap.strokes', return_value=[(35, False)]):
+            client.text('h')
+        self.assertEqual(client.chords, [[35]])
+        client.lib.ei_device_text_utf8.assert_not_called()
+
+    def test_native_text_only_for_characters_the_layout_cannot_type(self):
+        from unittest.mock import patch
+        client = self.client(locked=0)
+        client.ready = {'text-device'}
+        client.lib.ei_device_has_capability.return_value = True
+        client.frame = Mock()
+        with patch('olive.desktop.linux.keymap.strokes', side_effect=PermissionError('unavailable')):
+            client.text('😀')
+        client.lib.ei_device_text_utf8.assert_called_once()
+        self.assertEqual(client.chords, [])

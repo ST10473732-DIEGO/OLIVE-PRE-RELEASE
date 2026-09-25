@@ -160,28 +160,49 @@ class EIS:
     def text(self, value):
         if not isinstance(value, str) or not 1 <= len(value) <= 4000 or '\x00' in value:
             raise ValueError('Invalid literal input')
-        # Native Unicode text only when advertised; no guessed keymap or clipboard.
+        # Key strokes through the compositor keymap reach every client; native EIS
+        # text (EI_DEVICE_CAP_TEXT) is delivered as text-input, which Chromium/
+        # Electron apps ignore unless their IME support is enabled, so it is only a
+        # fallback for characters the layout cannot type. No clipboard is used.
+        from .keymap import caps_lock, strokes
         self.pump()
-        if any(self.lib.ei_device_has_capability(d, 64) for d in self.ready):
-            device = self.device(64)
-            self.lib.ei_device_text_utf8(device, value.encode('utf-8'))
-            self.frame(device)
-            return
-        from .keymap import strokes
         device = self.device(4)
+        try:
+            strokes(self, device, value, self.keyboard_locked)
+        except PermissionError:
+            if any(self.lib.ei_device_has_capability(d, 64) for d in self.ready):
+                text_device = self.device(64)
+                self.lib.ei_device_text_utf8(text_device, value.encode('utf-8'))
+                self.frame(text_device)
+                return
+            raise
         self.synchronize()
         if self.keyboard_pressed:
             raise PermissionError('Release keyboard modifiers before literal input')
-        # Locks are checked against the compositor keymap: Caps Lock would change
-        # the typed text, while Num Lock cannot (keypad keys are never used).
-        sequence = strokes(self, device, value, self.keyboard_locked)
-        for code, shift in sequence:
-            if self.stopped.is_set():
-                raise InterruptedError('Literal input stopped')
-            self.chord_codes([42, code] if shift else [code])
-            # Bound event bursts while preserving immediate Stop.
-            if self.stopped.wait(.008):
-                raise InterruptedError('Literal input stopped')
+        # Some clients (Chromium/Electron) do not honour Shift-compensated letters
+        # while Caps Lock is on. Caps Lock is released for OLIVE's own literal text
+        # only and restored right after, even when typing fails or is stopped.
+        mask, caps_key = caps_lock(self, device)
+        released = bool(mask and self.keyboard_locked & mask and caps_key is not None)
+        try:
+            if released:
+                self.press(device, 'key', caps_key)
+                self.synchronize()
+                if self.stopped.wait(.1):  # Let clients apply the lock change first.
+                    raise InterruptedError('Literal input stopped')
+            # Characters are resolved under the current locks (keypad keys are never
+            # used), so a remaining lock still cannot change the typed text.
+            sequence = strokes(self, device, value, self.keyboard_locked)
+            for code, shift in sequence:
+                if self.stopped.is_set():
+                    raise InterruptedError('Literal input stopped')
+                self.chord_codes([42, code] if shift else [code])
+                # Bound event bursts while preserving immediate Stop.
+                if self.stopped.wait(.008):
+                    raise InterruptedError('Literal input stopped')
+        finally:
+            if released:
+                self.press(device, 'key', caps_key)  # Restore the user's Caps Lock.
 
     def synchronize(self):
         """libei 1.4+ ordering barrier, not a sleep or a modifier reset.
