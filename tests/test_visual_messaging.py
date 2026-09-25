@@ -457,3 +457,15 @@ class ServerStateTests(unittest.TestCase):
         states = [r['server'] for r in switcher_candidates(unread + other + right, '#gen-chat', 'D SERVER')]
         self.assertEqual(states, ['unread', 'other', 'confirmed'])
         self.assertEqual(len(switcher_matches(unread + other + right, '#gen-chat', 'D SERVER')), 1)
+
+
+class ScrollbarGlyphTests(unittest.TestCase):
+    def test_a_scrollbar_read_as_a_letter_does_not_end_the_row(self):
+        from olive.desktop.messaging_context import switcher_candidates
+        row = [{'text': t, 'confidence': c, 'box': b} for t, c, b in (
+            ('##*', 31, (396, 324, 406, 334)), ('gen-chat', 89, (411, 324, 452, 335)), ('rexr', 68, (455, 323, 470, 336)),
+            ('D', 81, (766, 326, 771, 332)), ('SERVER', 81, (774, 326, 807, 332)), ('I', 92, (816, 316, 820, 340)))]
+        self.assertEqual([r['server'] for r in switcher_candidates(row, '#gen-chat', 'D SERVER')], ['confirmed'])
+        two = row[:3] + [{'text': 'Server', 'confidence': 90, 'box': (760, 324, 795, 335)},
+                         {'text': '2', 'confidence': 90, 'box': (798, 324, 804, 335)}] + row[5:]
+        self.assertEqual([r['server'] for r in switcher_candidates(two, '#gen-chat', 'Server 2')], ['confirmed'])

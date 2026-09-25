@@ -212,7 +212,10 @@ def switcher_candidates(entries, destination, server=''):
               for entry in entries for part in str(entry['text']).split()]
     found = []
     for row in rows(tokens, minimum=0):
-        words = list(row['lines'])
+        # A token much taller than the row's text is a scrollbar or divider, never a label.
+        heights = sorted(w['box'][3] - w['box'][1] for w in row['lines'])
+        typical = heights[len(heights) // 2]
+        words = [w for w in row['lines'] if w['box'][3] - w['box'][1] <= 1.8 * typical]
         # Skip only sigils and short unreadable icon glyphs, never a word that
         # could be part of another channel's name.
         while words and (not bare(words[0]['text']) or
