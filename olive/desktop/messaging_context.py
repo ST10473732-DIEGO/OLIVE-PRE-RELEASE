@@ -378,8 +378,14 @@ def switcher_matches(entries, destination, server=''):
 LOOKALIKE = str.maketrans({'i': 'l', '1': 'l', '|': 'l', '0': 'o'})
 
 
-def typed_key(text):
+def lookalike(text):
     return normalize(text).translate(LOOKALIKE)
+
+
+def typed_key(text):
+    """Text OLIVE typed itself, as OCR can confirm it: look-alike glyphs equal and
+    whitespace ignored (small UI text leaves word gaps as narrow as letter gaps)."""
+    return lookalike(text).replace(' ', '')
 
 
 def typed_exactly(lines, content, adapter):
@@ -396,20 +402,28 @@ def exact_segment(lines, content):
 
 
 def echo_rows(words, content, account=''):
-    """Rows showing the sent text: the row ends with exactly the content's words and
-    either holds nothing else (a continued message) or shows the sender's account
-    name before them (the first message of a group: time, name, badge, text)."""
-    target = typed_key(content).split()
+    """Rows showing the sent text: the row ends with exactly the content (look-alike
+    glyphs equal, spacing ignored) and either holds nothing else (a continued
+    message) or shows the sender's account name before it (the first message of a
+    group: time, name, badge, text)."""
+    target = typed_key(content)
+    name = typed_key(account) if account else ''
     found = []
     for row in rows(words):
-        tokens = [token for w in row['lines'] for token in typed_key(w['text']).split()]
-        if not target or tokens[-len(target):] != target:
+        tokens = [token for w in row['lines'] for token in lookalike(w['text']).split()]
+        if not target or not ''.join(tokens).endswith(target):
             continue
-        prefix = tokens[:-len(target)]
-        name = bare(account).translate(LOOKALIKE) if account else ''
+        # The content must start at a token boundary.
+        count, length = 0, 0
+        while count < len(tokens) and length < len(target):
+            count += 1
+            length += len(tokens[-count])
+        if length != len(target):
+            continue
+        prefix = tokens[:len(tokens) - count]
         # The sender's name may be read truncated at its end (coloured names); a
         # leading fragment of at least four characters still names this account.
-        if not prefix or name and (name in ' '.join(prefix) or
+        if not prefix or name and (name in ''.join(prefix) or
                                    any(len(t) >= 4 and name.startswith(t) for t in prefix)):
             found.append(row)
     return found

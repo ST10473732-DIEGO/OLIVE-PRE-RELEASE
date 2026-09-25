@@ -188,7 +188,7 @@ class EIS:
             if released:
                 self.press(device, 'key', caps_key)
                 self.synchronize()
-                if self.stopped.wait(.1):  # Let clients apply the lock change first.
+                if self.stopped.wait(.3):  # Let clients apply the lock change first.
                     raise InterruptedError('Literal input stopped')
             # Characters are resolved under the current locks (keypad keys are never
             # used), so a remaining lock still cannot change the typed text.
@@ -202,6 +202,7 @@ class EIS:
                     raise InterruptedError('Literal input stopped')
         finally:
             if released:
+                self.stopped.wait(.15)  # Let the client consume the text first.
                 self.press(device, 'key', caps_key)  # Restore the user's Caps Lock.
 
     def synchronize(self):

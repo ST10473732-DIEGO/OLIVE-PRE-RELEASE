@@ -565,6 +565,8 @@ class VisualMessaging:
             # the conversation just above.
             cleared = composer_state(words, self.adapter)[0] == 'empty' or exact_segment(words, scope.content) is None
             echoed = await self.echoes(frame, point)
+            self.record({'operation': 'visual_delivery_check', 'cleared': cleared, 'echoed': echoed,
+                         'baseline': self.baseline})
             if cleared and echoed == self.baseline + 1:
                 ctx.delivery = 'SENT_UI'
                 await asyncio.to_thread(ledger.verified, self.grant)

@@ -939,3 +939,15 @@ class SplitDestinationTests(unittest.TestCase):
         self.assertEqual(composer_state(live, adapter, '#gen-chat')[:3], ('empty', '#', 'gen-chat'))
         scope = TaskScope('Discord', 'send', 'hi', '#genchat')
         self.assertEqual(resolve_destination(scope, composer_state(live, adapter, '#genchat')).state, MISMATCH)
+
+
+class SpacingTests(unittest.TestCase):
+    def test_typed_text_ignores_ocr_word_spacing_on_word_boundaries(self):
+        from olive.desktop.messaging_context import echo_rows, exact_segment
+        def word(text, left):
+            return {'text': text, 'confidence': 90, 'box': (left, 10, left + 7 * len(text), 20)}
+        self.assertIsNotNone(exact_segment([word('OLIVEdelivery', 56), word('check', 150)], 'OLIVE delivery check'))
+        row = [word('deeayygoo', 10), word('win', 80), word('OLIVEdelivery', 120), word('check', 215)]
+        self.assertEqual(len(echo_rows(row, 'OLIVE delivery check', 'deeayygoo')), 1)
+        self.assertEqual(echo_rows([word('xOLIVE', 10), word('delivery', 60), word('check', 130)],
+                                   'OLIVE delivery check', ''), [])
