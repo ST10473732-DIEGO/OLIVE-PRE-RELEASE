@@ -1,6 +1,7 @@
 """Visible-UI messaging for clients without usable accessibility semantics.
 
-GUI-Owl only proposes where a region is. Each proposal is verified from an
+Where a client's layout is declared (adapter regions), labels are read directly
+by OCR in those areas; otherwise GUI-Owl only proposes where a region is. Each proposal is verified from an
 independent OCR read of a small crop around it before any input, and every input
 is followed by a fresh frame. The destination and content come solely from the
 user's request. Enter is sent once, only after destination, workspace, account,
@@ -8,10 +9,13 @@ composer and exact draft are verified, and never retried after an uncertain
 result. No message pane is read beyond the band just above the composer.
 """
 import asyncio
+import base64
+import io
+import time
 
 from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
-                                 switcher_candidates)
+                                 rows, switcher_candidates, typed_exactly)
 from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .4
@@ -27,6 +31,10 @@ class VisualMessaging:
         self.context = MessagingContext(runtime.desktop.record.application, adapter.key, self.scope.content,
                                         submit=adapter.submit)
         self.history = runtime.desktop.record.history
+        self.started = time.monotonic()
+
+    def record(self, entry):
+        self.history.append({**entry, 'at': round(time.monotonic() - self.started, 2)})
 
     def progress(self, text):
         d = self.runtime.desktop
@@ -50,8 +58,25 @@ class VisualMessaging:
         await self.runtime.native.call('visual_click', {'revision': frame['revision'],
                                                         'point': [point[0] + dx, point[1] + dy]})
 
+    def area(self, frame, role):
+        """The client's declared layout area for a role, in frame pixels, or None."""
+        fractions = self.adapter.regions.get(role)
+        if not fractions:
+            return None
+        left, top, right, bottom = fractions
+        return (left * frame['width'], top * frame['height'], right * frame['width'], bottom * frame['height'])
+
+    def composer_area(self, frame, point):
+        return self.area(frame, 'composer') or band(frame, point, 32, frame['width'] * .4)
+
     async def region(self, frame, role, label=''):
-        """Model proposal -> bounded crop -> OCR lines (frame pixels)."""
+        """Declared area or model proposal -> bounded crop -> OCR lines (frame pixels)."""
+        box = self.area(frame, role)
+        if box:
+            lines = await asyncio.to_thread(ocr_lines, frame, box)
+            point = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+            self.diagnose(role, point, lines)
+            return point, lines
         if self.runtime.gui is None:
             from ...services.gui_model_service import GuiModelService
             self.runtime.gui = GuiModelService(self.runtime.desktop.s.model_residency)
@@ -75,7 +100,7 @@ class VisualMessaging:
                  'lines': len(lines)}
         if self.adapter.key.endswith('fixture'):
             entry['text'] = [(l['text'], round(l['confidence'])) for l in lines][:12]
-        self.history.append(entry)
+        self.record(entry)
 
     async def resolve(self):
         frame = await self.frame()
@@ -88,7 +113,7 @@ class VisualMessaging:
                 break
             await asyncio.sleep(CARET_SECONDS)
             frame = await self.frame()
-            lines = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 32, frame['width'] * .4))
+            lines = await asyncio.to_thread(ocr_lines, frame, self.composer_area(frame, point))
             composer = composer_state(lines, self.adapter)
         ctx = self.context
         ctx.destination = resolve_destination(self.scope, composer)
@@ -103,8 +128,19 @@ class VisualMessaging:
             anchor, lines = await self.region(frame, 'server')
             ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace', anchor,
                                           self.adapter.header_decorations)
-        _, lines = await self.region(frame, 'account')
-        observed = observed_account(lines, ctx.composer.box if ctx.composer.state == VERIFIED else None)
+        if not (self.scope.effect == 'send' or self.scope.account):
+            self.record({'operation': 'visual_messaging_resolve', 'context': ctx.summary()})
+            return frame, point
+        composer_box = ctx.composer.box if ctx.composer.state == VERIFIED else None
+        if self.adapter.account_first_line and composer_box:
+            # The user panel sits beside the composer, at its height, to its left.
+            left, top, _, bottom = composer_box
+            # Word-level: the avatar beside the name spoils a whole-line reading.
+            lines = await asyncio.to_thread(ocr_words, frame, (0, max(0, top - 22), max(8, left - 30), bottom + 8))
+            self.diagnose('account', ((left - 30) / 2, top), lines)
+        else:
+            _, lines = await self.region(frame, 'account')
+        observed = observed_account(lines, composer_box, self.adapter.account_first_line)
         if self.scope.account:
             ctx.account = (Layer(VERIFIED, self.scope.account, observed.box, 'requested account visible')
                            if observed.state == VERIFIED and bare(observed.value) == bare(self.scope.account)
@@ -112,7 +148,7 @@ class VisualMessaging:
                                       evidence='requested account not verified'))
         else:
             ctx.account = observed
-        self.history.append({'operation': 'visual_messaging_resolve', 'context': ctx.summary()})
+        self.record({'operation': 'visual_messaging_resolve', 'context': ctx.summary()})
         return frame, point
 
     async def navigate(self, select=True):
@@ -155,7 +191,11 @@ class VisualMessaging:
             if attempt:
                 await asyncio.sleep(SETTLE_SECONDS)
             frame = await self.frame()
-            point, lines = await self.region(frame, 'result', label=self.scope.destination.lstrip('#@'))
+            if self.area(frame, 'switcher'):
+                # Declared layout: results fill the dialog below the search box.
+                point = ((results[0] + results[2]) / 2, results[1] + frame['height'] * .2)
+            else:
+                point, lines = await self.region(frame, 'result', label=self.scope.destination.lstrip('#@'))
             if point is None:
                 continue
             # Uniqueness is judged from a wide band around the proposal, so a second
@@ -170,14 +210,21 @@ class VisualMessaging:
                 if len(query) == 1:
                     left = max(0, query[0]['box'][0] - 16)
                     results = (left, results[1], frame['width'] - left)
-            wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results))
+            wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
+                                           self.names_destination)
             candidates = self.row_candidates(wide)
             if candidates:
-                # One confirmation read so a late-loading duplicate is still counted.
+                # One quick confirmation read: a late-loading row with the same name
+                # triggers a full re-read, so it is still counted.
                 await asyncio.sleep(SETTLE_SECONDS)
-                frame = await self.frame()
-                wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results))
-                candidates = self.row_candidates(wide)
+                again = await self.frame()
+                named = len(switcher_candidates(wide, self.scope.destination))
+                coarse = await asyncio.to_thread(ocr_words, again, results_band(again, point, *results))
+                if len(switcher_candidates(coarse, self.scope.destination)) > named:
+                    frame = again
+                    wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
+                                                   self.names_destination)
+                    candidates = self.row_candidates(wide)
                 break
         if point is None:
             await self.escape()
@@ -191,16 +238,25 @@ class VisualMessaging:
                              ' was found; nothing was selected or sent.')
         if not select:
             await self.escape()
-            self.history.append({'operation': 'visual_uniqueness', 'status': 'destination name unique in client'})
+            self.record({'operation': 'visual_uniqueness', 'status': 'destination name unique in client'})
             return
-        # The model only anchored the search band; the click targets the row that
-        # OCR independently verified as the unique exact destination.
-        left, top, right, bottom = candidates[0]['box']
         fresh = await self.frame()
         if (fresh['width'], fresh['height']) != (frame['width'], frame['height']):
             raise ValueError('WINDOW_CHANGED: the window changed before selection; nothing was selected')
-        target = ((left + right) / 2, (top + bottom) / 2)
-        await self.click(fresh, target)
+        listed = rows([w for w in wide if w['confidence'] >= 30], minimum=0)
+        chosen = next((i for i, row in enumerate(listed) if _same_row(row, candidates[0])), None)
+        if (self.adapter.switcher_enter_opens and chosen is not None and
+                await asyncio.to_thread(highlighted_row, frame, listed, results[0], results[2]) == chosen):
+            # The verified exact row is the one the client highlights: Enter opens it
+            # (keyboard selection; no pointer involved).
+            await self.runtime.native.call('visual_key', {'revision': fresh['revision'], 'value': 'Enter'})
+            method = 'keyboard'
+        else:
+            # The click targets the row that OCR independently verified as the
+            # unique exact destination.
+            left, top, right, bottom = candidates[0]['box']
+            await self.click(fresh, ((left + right) / 2, (top + bottom) / 2))
+            method = 'pointer'
         # The switcher closes and the conversation opens asynchronously; the
         # destination is only checked once the typed query has left the screen.
         for _ in range(SETTLE_READS):
@@ -213,8 +269,14 @@ class VisualMessaging:
         else:
             await self.escape()
             raise ValueError('DESTINATION_UNVERIFIED: the selected row did not open its conversation; nothing was typed')
-        self.history.append({'operation': 'visual_navigation', 'status': 'selected exact destination row',
+        self.record({'operation': 'visual_navigation', 'status': 'selected exact destination row',
+                             'method': method,
                              'server_in_switcher': candidates[0]['server'] if self.scope.server else 'not requested'})
+
+    def names_destination(self, words):
+        """A coarse result row that may name the destination (then re-read in detail)."""
+        wanted = bare(self.scope.destination)
+        return any(wanted and wanted in bare(w['text']) for w in words)
 
     def row_candidates(self, words):
         """Exact-name rows not contradicting the requested server.
@@ -234,16 +296,11 @@ class VisualMessaging:
     async def run(self):
         scope, ctx = self.scope, self.context
         sending = scope.effect == 'send'
+        # Go straight to the named destination (the switcher also proves the name is
+        # unique across the client), then verify the opened conversation once.
+        await self.navigate()
         self.progress('Checking the conversation…')
         frame, point = await self.resolve()
-        needs_navigation = ctx.destination.state != VERIFIED or scope.server and ctx.workspace.state != VERIFIED
-        if not scope.server:
-            # Without a server, the name must be unique across the whole client.
-            await self.navigate(select=needs_navigation)
-            frame, point = await self.resolve()
-        elif needs_navigation:
-            await self.navigate()
-            frame, point = await self.resolve()
         if ctx.draft and ctx.destination.state == VERIFIED:
             raise ValueError('COMPOSER_UNVERIFIED: the composer already contains a draft; it was preserved '
                              'and nothing was typed.')
@@ -272,15 +329,15 @@ class VisualMessaging:
                 # The caret now sits after the typed text; re-read a fresh frame.
                 await asyncio.sleep(CARET_SECONDS)
                 after = await self.frame()
-            typed = await asyncio.to_thread(ocr_lines, after, band(after, point, 32, after['width'] * .4))
+            typed = await asyncio.to_thread(ocr_lines, after, self.composer_area(after, point))
             self.diagnose('typed', point, typed)
-            state = composer_state(typed, self.adapter)
-            if state[0] == 'draft' and normalize(state[2]) == normalize(scope.content):
+            verified = typed_exactly(typed, scope.content, self.adapter)
+            if verified:
                 break
-        if state[0] != 'draft' or normalize(state[2]) != normalize(scope.content):
+        if not verified:
             raise ValueError('COMPOSER_UNVERIFIED: the exact requested text was not verified in the composer; '
                              'the draft was left for you to inspect and nothing was sent.')
-        self.history.append({'operation': 'visual_draft', 'status': 'exact text verified in composer'})
+        self.record({'operation': 'visual_draft', 'status': 'exact text verified in composer'})
         if not sending:
             d = self.runtime.desktop
             d.record.status = 'completed'
@@ -293,16 +350,16 @@ class VisualMessaging:
         # Pre-send re-verification that the destination has not changed: either
         # nothing outside the composer changed since the verified observation, or
         # the conversation header names the exact destination.
-        composer_band = band(after, point, 32, after['width'] * .4)
+        composer_band = self.composer_area(after, point)
         if await asyncio.to_thread(unchanged_outside, frame, after, composer_band):
-            self.history.append({'operation': 'visual_presend', 'status': 'only the composer changed since verification'})
+            self.record({'operation': 'visual_presend', 'status': 'only the composer changed since verification'})
         else:
             _, lines = await self.region(after, 'header')
             header = resolve_exact(lines, scope.destination, 'destination header')
             if header.state != VERIFIED:
                 raise ValueError('DESTINATION_UNVERIFIED: the conversation changed or its header did not confirm ' +
                                  scope.destination + ' before sending; the draft is ready and nothing was sent.')
-            self.history.append({'operation': 'visual_presend', 'status': 'destination header re-read exactly'})
+            self.record({'operation': 'visual_presend', 'status': 'destination header re-read exactly'})
         self.baseline = await self.echoes(after, point)
         ledger = await self.runtime.reserve_effect(self.grant)
         self.progress('Sending…')
@@ -317,7 +374,7 @@ class VisualMessaging:
         for _ in range(3):
             await asyncio.sleep(.4)
             frame = await self.frame()
-            composer = composer_state(await asyncio.to_thread(ocr_lines, frame, band(frame, point, 32, frame['width'] * .4)),
+            composer = composer_state(await asyncio.to_thread(ocr_lines, frame, self.composer_area(frame, point)),
                                       self.adapter)
             echoed = await self.echoes(frame, point)
             if composer[0] == 'empty' and echoed == self.baseline + 1:
@@ -328,7 +385,7 @@ class VisualMessaging:
                 d.record.verification = ('The exact message appears once as the latest outgoing row in the verified '
                                          + scope.destination + ' conversation and the composer is empty. This is UI '
                                          'evidence of submission, not protocol delivery confirmation.')
-                self.history.append({'operation': 'visual_send', 'status': 'submitted once; UI echo observed'})
+                self.record({'operation': 'visual_send', 'status': 'submitted once; UI echo observed'})
                 return d.record.verification
         ctx.delivery = 'UNCERTAIN'
         raise ValueError('Submission outcome uncertain: Enter was sent once but the outgoing message was not '
@@ -336,8 +393,9 @@ class VisualMessaging:
 
     async def echoes(self, frame, point):
         """Exact copies of the requested text in the band just above the composer only."""
-        left = max(0, (self.context.composer.box or (0,))[0] - 40)
-        lines = await asyncio.to_thread(ocr_lines, frame, (left, point[1] - 150, frame['width'], point[1] - 34))
+        box = self.context.composer.box or (0, point[1] - 14, 0, point[1])
+        left = max(0, box[0] - 40)
+        lines = await asyncio.to_thread(ocr_lines, frame, (left, box[1] - 120, frame['width'], box[1] - 4))
         return sum(normalize(l['text']) == normalize(self.scope.content) for l in lines)
 
     def describe(self):
@@ -345,6 +403,34 @@ class VisualMessaging:
         return ', '.join(f'{name} {layer.state.lower()}' for name, layer in
                          (('destination', ctx.destination), ('workspace', ctx.workspace),
                           ('composer', ctx.composer), ('account', ctx.account)))
+
+
+def _same_row(a, b):
+    return a['box'][1] < b['box'][3] and b['box'][1] < a['box'][3]
+
+
+def highlighted_row(frame, listed, left, right):
+    """Index of the one row drawn with a clearly brighter background, or None.
+
+    The median luminance of each row's strip is its background (text pixels are a
+    minority). Only a clear margin over every other row counts as highlighted.
+    """
+    from PIL import Image, ImageStat
+    try:
+        with Image.open(io.BytesIO(base64.b64decode(frame['png'], validate=True))) as image:
+            gray = image.convert('L')
+    except Exception:
+        return None
+    levels = []
+    for row in listed:
+        top, bottom = max(0, int(row['box'][1]) - 4), min(gray.height, int(row['box'][3]) + 4)
+        if bottom - top < 4:
+            return None
+        levels.append(ImageStat.Stat(gray.crop((max(0, int(left)), top, min(gray.width, int(right)), bottom))).median[0])
+    order = sorted(range(len(levels)), key=lambda i: -levels[i])
+    if len(order) < 2 or levels[order[0]] - levels[order[1]] < 4:
+        return None
+    return order[0]
 
 
 def results_band(frame, point, left, top, right):

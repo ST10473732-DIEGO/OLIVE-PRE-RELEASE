@@ -178,18 +178,25 @@ def ocr_words(frame, box, scale=4):
     return ocr_lines(frame, box, scale=scale, words=True)
 
 
-def ocr_rows(frame, box, scale=4, half_height=12):
+def ocr_rows(frame, box, scale=4, half_height=12, only=None):
     """Words of a list, each row re-read as its own strip.
 
     A coarse read of the whole list locates the rows; reading each row alone is
-    markedly more accurate for small labels. Overlapping readings keep the more
-    confident one. Evidence only, never authority.
+    markedly more accurate for small labels. With `only` (a predicate on the words
+    of a coarse row), only matching rows are re-read and the rest keep their coarse
+    words. Overlapping readings keep the more confident one. Evidence only.
     """
     left, top, right, bottom = clamp_box(frame, box)
-    middles = []
-    for middle in sorted((w['box'][1] + w['box'][3]) / 2 for w in ocr_words(frame, box, scale)):
+    coarse = ocr_words(frame, box, scale)
+    middles, kept = [], []
+    for middle in sorted((w['box'][1] + w['box'][3]) / 2 for w in coarse):
         if not middles or middle - middles[-1] >= half_height / 2:
             middles.append(middle)
+    if only is not None:
+        near = lambda word, middle: abs((word['box'][1] + word['box'][3]) / 2 - middle) < half_height / 2
+        selected = [m for m in middles if only([w for w in coarse if near(w, m)])]
+        kept = [w for w in coarse if not any(near(w, m) for m in selected)]
+        middles = selected
     found = []
     for middle in middles:
         try:
@@ -202,4 +209,4 @@ def ocr_rows(frame, box, scale=4, half_height=12):
                 found.append(word)
             elif word['confidence'] > duplicate['confidence']:
                 found[found.index(duplicate)] = word
-    return found
+    return kept + found

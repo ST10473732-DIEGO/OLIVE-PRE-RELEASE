@@ -27,6 +27,15 @@ class MessagingAdapter:
     prompts: dict = field(default_factory=dict)
     # Icons the client always draws after the server name (read by OCR as a letter).
     header_decorations: tuple = ()
+    # Fixed layout areas (fractions of the window: left, top, right, bottom) where
+    # each label is read directly by OCR, instead of asking a vision model where it
+    # is. Exact text is still required inside the area; roles without an area use
+    # the model proposal. Empty for clients whose layout is not declared.
+    regions: dict = field(default_factory=dict)
+    # The account panel shows the user's name above a status line.
+    account_first_line: bool = False
+    # Enter in the switcher opens the highlighted result (verified from pixels).
+    switcher_enter_opens: bool = False
 
 
 REGION_PROMPTS = {
@@ -41,7 +50,11 @@ ADAPTERS = (
     MessagingAdapter('discord', ('discord', 'com.discordapp.discord', 'discord canary', 'discord ptb'),
                      ('discord.com',), submit_provenance='Client convention (Enter sends, Shift+Enter newline); '
                      'not verified against a real send in this milestone', prompts=REGION_PROMPTS,
-                     header_decorations=('v', 'x')),  # The server menu's chevron / close icon.
+                     header_decorations=('v', 'x'),  # The server menu's chevron / close icon.
+                     # The user panel (account) is read beside the verified composer.
+                     regions={'composer': (0.0, 0.91, 1.0, 1.0), 'server': (0.0, 0.0, 0.34, 0.1),
+                              'header': (0.12, 0.0, 0.85, 0.1), 'switcher': (0.15, 0.15, 0.85, 0.6)},
+                     account_first_line=True, switcher_enter_opens=True),
     MessagingAdapter('visual-messenger-fixture', ('visual messenger', 'olive-visual-messenger-fixture'),
                      submit_provenance='Owned fixture: Enter sends; verified by its owned sent log',
                      prompts=REGION_PROMPTS),
@@ -206,12 +219,21 @@ def overlaps(a, b):
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def observed_account(lines, composer_box=None):
-    rows = [l for l in confident(lines) if len(bare(l['text'])) >= 2]
+def observed_account(lines, composer_box=None, first_line=False):
+    rows = [l for l in segments(lines) if len(bare(l['text'])) >= 2]
     if composer_box:
         # Text inside the verified composer (its placeholder or draft, possibly
         # clipped by the account band) is never account identity.
         rows = [l for l in rows if not overlaps(l['box'], composer_box)]
+    if first_line:
+        # Icon glyphs read as punctuation plus one letter are not a name.
+        rows = [l for l in rows if len(re.findall(r'[^\W_]', l['text'])) >= 2]
+    if first_line and rows:
+        # Declared panel structure: the name is the top-left run; a status line
+        # follows below and panel buttons sit to its right.
+        top = min(l['box'][1] for l in rows)
+        name = min((l for l in rows if l['box'][1] - top <= 6), key=lambda l: l['box'][0])
+        return Layer(VERIFIED, name['text'].strip(), name['box'], 'account name line of the user panel')
     if len(rows) == 1:
         return Layer(VERIFIED, rows[0]['text'].strip(), rows[0]['box'], 'single visible account name')
     return Layer(AMBIGUOUS if rows else NOT_VISIBLE, evidence='account panel not uniquely readable')
@@ -284,3 +306,10 @@ def switcher_matches(entries, destination, server=''):
     """Rows exactly naming the destination and, when requested, confirming the server."""
     return [row for row in switcher_candidates(entries, destination, server)
             if not server or row['server'] == 'confirmed']
+
+
+def typed_exactly(lines, content, adapter):
+    """The requested text is visible exactly once in the composer area and no placeholder is shown."""
+    if composer_state(lines, adapter)[0] == 'empty':
+        return False
+    return sum(normalize(l['text']) == normalize(content) for l in segments(lines)) == 1

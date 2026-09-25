@@ -57,8 +57,9 @@ class Client:
     """A minimal simulated chat client driven only through the visual worker calls."""
     CHANNELS = [('Osprey Workshop', 'general'), ('Osprey Workshop', 'releases'), ('Heron Lab', 'general')]
 
-    def __init__(self, current=0, draft='', account='fixture-owner', echo=True):
+    def __init__(self, current=0, draft='', account='fixture-owner', echo=True, panel_beside_composer=False):
         self.current, self.drafts, self.account, self.echo = current, {current: draft}, account, echo
+        self.panel = panel_beside_composer  # Discord-like: the user panel sits left of the composer.
         self.switcher, self.query, self.focus = False, '', False
         self.sent, self.calls = [], []
 
@@ -66,7 +67,10 @@ class Client:
         server, channel = self.CHANNELS[self.current]
         draft = self.drafts.get(self.current, '')
         if role == 'composer':
-            return [line(draft, 600)] if draft else [line('Message #' + channel, 600)]
+            left = 300 if self.panel else 10
+            return [line(draft, 600, left=left)] if draft else [line('Message #' + channel, 600, left=left)]
+        if role == 'panel':
+            return [line(self.account, 596), line('Online', 612, confidence=80)]
         if role == 'server':
             return [line(server, 20)]
         if role == 'account':
@@ -92,6 +96,10 @@ class Client:
                 self.switcher, self.query = True, ''
             elif args['value'] == 'Escape':
                 self.switcher = False
+            elif args['value'] == 'Enter' and self.switcher:
+                # The switcher opens its highlighted (first) matching result.
+                rows = [i for i, (s, c) in enumerate(self.CHANNELS) if not self.query or self.query in c]
+                self.current, self.switcher, self.focus = rows[0], False, True
             elif args['value'] == 'Enter' and self.focus and self.drafts.get(self.current):
                 if self.echo:
                     self.sent.append((*self.CHANNELS[self.current], self.drafts[self.current]))
@@ -116,7 +124,7 @@ class Client:
 
 
 class ExecutorTests(unittest.IsolatedAsyncioTestCase):
-    async def run_task(self, request, client, unchanged=False, open_reads=0):
+    async def run_task(self, request, client, unchanged=False, open_reads=0, adapter=None, highlight=None):
         scope = direct_scope(request)
         record = SimpleNamespace(history=[], application=scope.application, current_action='', status='running',
                                  verification='')
@@ -132,8 +140,12 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         roles = {'composer': (500, 600), 'server': (150, 20), 'account': (150, 660), 'header': (400, 20),
                  'switcher': (500, 150)}
 
+        self.model_calls = 0
+        test = self
+
         class Gui:
             async def action(self, frame, prompt):
+                test.model_calls += 1
                 for role, key in (('composer', 'message input'), ('header', 'title of the current'),
                                   ('server', 'server or workspace'), ('account', 'own name'),
                                   ('switcher', 'quick switcher')):
@@ -151,6 +163,8 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
 
         def ocr(frame, box):
             left, top, right, bottom = box
+            if client.panel and left == 0 and right <= 300 and top < 600 < bottom:
+                return client.lines('panel')
             middle = (top + bottom) / 2
             if bottom - top > 150:  # the switcher results read
                 return client.lines('wide')
@@ -176,11 +190,15 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             return ocr(frame, box)
         with patch.object(visual_messaging, 'ocr_lines', ocr), \
                 patch.object(visual_messaging, 'ocr_words', words), \
-                patch.object(visual_messaging, 'ocr_rows', lambda frame, box, scale=4: ocr(frame, box)), \
+                patch.object(visual_messaging, 'ocr_rows', lambda frame, box, *options: ocr(frame, box)), \
                 patch.object(visual_messaging.asyncio, 'sleep',
                                                                              return_value=None), \
                 patch.object(visual_messaging, 'unchanged_outside', lambda before, after, box: unchanged):
-            outcome = await visual_messaging.visual_message(runtime, grant, 1, scope.application)
+            if adapter is None:
+                outcome = await visual_messaging.visual_message(runtime, grant, 1, scope.application)
+            else:
+                with patch.object(visual_messaging, 'highlighted_row', lambda frame, listed, left, right: highlight(listed)):
+                    outcome = await visual_messaging.VisualMessaging(runtime, grant, 1, adapter).run()
         return outcome, reserved
 
     def keys(self, client, value):
@@ -238,14 +256,16 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, 'COMPOSER_UNVERIFIED'):
             await self.run_task('Send "hi" to #general in Osprey Workshop in Visual Messenger', client)
         self.assertEqual(client.drafts[0], 'unrelated draft')
-        self.assertFalse([c for c in client.calls if c[0] == 'visual_text'])
+        # Only the destination name was typed (into the switcher); never the message.
+        self.assertEqual([c[1]['value'] for c in client.calls if c[0] == 'visual_text'], ['general'])
 
     async def test_requested_account_must_match_visible_account(self):
         client = Client(current=0, account='someone-else')
         with self.assertRaisesRegex(ValueError, 'ACCOUNT_UNVERIFIED'):
             await self.run_task('Send "hi" to #general in Osprey Workshop in Visual Messenger using account fixture-owner',
                                 client)
-        self.assertFalse([c for c in client.calls if c[0] == 'visual_text'])
+        self.assertEqual([c[1]['value'] for c in client.calls if c[0] == 'visual_text'], ['general'])
+        self.assertFalse(any(client.drafts.values()))
 
     async def test_uncertain_submission_is_never_retried(self):
         client = Client(current=0, echo=False)
@@ -562,3 +582,73 @@ class ChannelViewReadingTests(unittest.TestCase):
                                        adapter_for('Discord').header_decorations).state, MISMATCH)
         self.assertEqual(resolve_exact([line('D SERVER V v', 29)], 'D SERVER', 'workspace', None,
                                        adapter_for('Discord').header_decorations).state, MISMATCH)
+
+
+class DeclaredLayoutTests(unittest.IsolatedAsyncioTestCase):
+    """A client with a declared layout is read by OCR alone and navigated by keyboard when verified."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    def adapter(self):
+        from dataclasses import replace
+        # Areas centred on the simulated client's labels (frame 1000 x 680).
+        area = lambda x, y, half: ((x - half) / 1000, (y - 10) / 680, (x + half) / 1000, (y + 10) / 680)
+        return replace(adapter_for('Visual Messenger'), switcher_enter_opens=True, account_first_line=True,
+                       regions={'composer': area(500, 600, 500), 'server': area(150, 20, 50),
+                                'header': area(400, 20, 100), 'account': area(150, 660, 50),
+                                'switcher': area(500, 150, 300)})
+
+    async def test_declared_layout_needs_no_vision_model_and_selects_by_keyboard(self):
+        client = Client(current=2, panel_beside_composer=True)
+        # The client highlights its first matching result: Osprey Workshop's #general.
+        first = lambda listed: next(i for i, row in enumerate(listed) if 'general' in row['text'])
+        outcome, _ = await self.run_task('Send "field update" to #general in Osprey Workshop in Visual Messenger',
+                                         client, adapter=self.adapter(), highlight=first)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Osprey Workshop', 'general', 'field update')])
+        switcher_clicks = [c for c in client.calls if c[0] == 'visual_click' and c[1]['point'][1] < 590]
+        self.assertEqual(switcher_clicks, [])  # Selected with Enter, not the pointer.
+        self.assertEqual(self.model_calls, 0)   # Every label was read in its declared area.
+
+    async def test_enter_is_never_used_when_another_row_is_highlighted(self):
+        client = Client(current=0, panel_beside_composer=True)
+        first = lambda listed: next(i for i, row in enumerate(listed) if 'general' in row['text'])
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client,
+                                         adapter=self.adapter(), highlight=first)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+        self.assertTrue([c for c in client.calls if c[0] == 'visual_click' and c[1]['point'][1] < 590])
+
+    async def test_unverified_highlight_falls_back_to_the_verified_row_click(self):
+        client = Client(current=0, panel_beside_composer=True)
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client,
+                                         adapter=self.adapter(), highlight=lambda listed: None)
+        self.assertIn('appears once', outcome)
+        self.assertTrue([c for c in client.calls if c[0] == 'visual_click' and c[1]['point'][1] < 590])
+
+
+class HighlightTests(unittest.TestCase):
+    def frame(self, shades):
+        import base64, io
+        from PIL import Image, ImageDraw
+        image = Image.new('RGB', (400, 30 * len(shades)), (43, 45, 49))
+        draw = ImageDraw.Draw(image)
+        for i, shade in enumerate(shades):
+            draw.rectangle((0, 30 * i, 399, 30 * i + 29), fill=shade)
+            draw.text((20, 30 * i + 10), 'row %d' % i, fill=(220, 220, 220))
+        data = io.BytesIO()
+        image.save(data, format='PNG')
+        return {'png': base64.b64encode(data.getvalue()).decode(), 'width': 400, 'height': 30 * len(shades)}
+
+    def test_only_a_clearly_brighter_row_counts(self):
+        from olive.desktop.linux.visual_messaging import highlighted_row
+        listed = [{'box': (20, 30 * i + 10, 80, 30 * i + 20)} for i in range(3)]
+        self.assertEqual(highlighted_row(self.frame([(43, 45, 49), (64, 66, 72), (43, 45, 49)]), listed, 0, 400), 1)
+        self.assertIsNone(highlighted_row(self.frame([(43, 45, 49), (44, 46, 50), (43, 45, 49)]), listed, 0, 400))
+        self.assertIsNone(highlighted_row({'png': '', 'width': 400, 'height': 90}, listed, 0, 400))
+
+    async def test_account_panel_name_is_verified_for_a_named_account(self):
+        client = Client(current=2, panel_beside_composer=True, account='someone-else')
+        with self.assertRaisesRegex(ValueError, 'ACCOUNT_UNVERIFIED'):
+            await self.run_task('Send "hi" to #general in Osprey Workshop in Visual Messenger using account fixture-owner',
+                                client, adapter=self.adapter(), highlight=lambda listed: None)
+        self.assertEqual(client.sent, [])
+        self.assertFalse(any(client.drafts.values()))
