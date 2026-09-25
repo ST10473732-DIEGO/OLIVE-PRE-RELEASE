@@ -59,22 +59,38 @@ class Capture:
             if not isinstance(self.sink, GstApp.AppSink):
                 raise RuntimeError('Capture sink has no typed sample interface')
             self.last_pts = None
+            self.held = None
+            self.failed = False
             if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
                 raise RuntimeError('Capture pipeline could not start')
         except BaseException:
             self.close()
             raise
 
+    def healthy(self):
+        # A failed or stopped stream is never mistaken for an unchanged screen.
+        if not self.failed and self.pipeline.get_bus().pop_filtered(Gst.MessageType.ERROR | Gst.MessageType.EOS):
+            self.failed = True
+        return not self.failed and self.pipeline.get_state(0)[1] == Gst.State.PLAYING
+
     def frame(self):
-        # Drain old retained frame, then require a new producer timestamp.
+        # Drain the retained frame (keeping it), then wait for a new producer
+        # timestamp. The compositor stream is damage-driven: while the pipeline
+        # is healthy, no new frame for the whole wait means the newest frame is
+        # still the current screen, so it is returned and marked static.
         for _ in range(4):
-            if self.sink.try_pull_sample(0) is None:
+            retained = self.sink.try_pull_sample(0)
+            if retained is None:
                 break
-        sample = self.sink.try_pull_sample(2 * Gst.SECOND)
+            self.held = retained
+        sample, static = self.sink.try_pull_sample(2 * Gst.SECOND), False
         if sample is None:
-            raise TimeoutError('Approved capture is paused or unavailable')
+            if self.held is None or not self.healthy():
+                raise TimeoutError('Approved capture is paused or unavailable')
+            sample, static = self.held, True
+        self.held = sample
         buffer = sample.get_buffer()
-        if buffer.pts == self.last_pts or buffer.pts == Gst.CLOCK_TIME_NONE:
+        if buffer.pts == Gst.CLOCK_TIME_NONE or (buffer.pts == self.last_pts and not static):
             raise ValueError('Capture timestamp is stale or missing')
         self.last_pts = buffer.pts
         data, width, height = encode_sample(sample)
@@ -82,7 +98,7 @@ class Capture:
         return {'png': base64.b64encode(data).decode('ascii'), 'width': width,
                 'height': height, 'original_width': source.get_value('width'),
                 'original_height': source.get_value('height'), 'crop_origin': [0, 0],
-                'pts': buffer.pts, 'captured_at': time.monotonic()}
+                'pts': buffer.pts, 'captured_at': time.monotonic(), 'static': static}
 
     def close(self):
         try:
