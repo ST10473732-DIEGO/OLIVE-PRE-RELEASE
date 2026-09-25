@@ -141,3 +141,22 @@ def region_lines(frame, limit=24):
         except ValueError:
             continue
     return lines
+
+
+def unchanged_outside(before, after, box):
+    """True when two same-size frames are pixel-identical everywhere outside `box`.
+
+    Model- and OCR-free evidence that nothing but that region changed between a
+    verified observation and a later one (for example, only the composer).
+    """
+    from PIL import Image, ImageChops, ImageDraw
+    if (before['width'], before['height']) != (after['width'], after['height']):
+        return False
+    left, top, right, bottom = clamp_box(after, box)
+    images = []
+    for frame in (before, after):
+        with Image.open(io.BytesIO(base64.b64decode(frame['png'], validate=True))) as image:
+            rgb = image.convert('RGB')
+        ImageDraw.Draw(rgb).rectangle((left, top, right - 1, bottom - 1), fill=(0, 0, 0))
+        images.append(rgb)
+    return images[0].size == images[1].size and ImageChops.difference(*images).getbbox() is None

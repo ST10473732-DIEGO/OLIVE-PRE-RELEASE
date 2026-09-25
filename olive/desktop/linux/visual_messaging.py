@@ -12,7 +12,7 @@ import asyncio
 from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
                                  switcher_matches)
-from ..visual_ocr import band, normalize, ocr_lines
+from ..visual_ocr import band, normalize, ocr_lines, unchanged_outside
 
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
          'switcher': (30, 300)}
@@ -92,7 +92,7 @@ class VisualMessaging:
             anchor, lines = await self.region(frame, 'server')
             ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace', anchor)
         _, lines = await self.region(frame, 'account')
-        observed = observed_account(lines)
+        observed = observed_account(lines, ctx.composer.box if ctx.composer.state == VERIFIED else None)
         if self.scope.account:
             ctx.account = (Layer(VERIFIED, self.scope.account, observed.box, 'requested account visible')
                            if observed.state == VERIFIED and bare(observed.value) == bare(self.scope.account)
@@ -172,7 +172,8 @@ class VisualMessaging:
                              'and nothing was typed.')
         blocker = ctx.blocker(scope, sending)
         if blocker:
-            raise ValueError(blocker + ': ' + self.describe() + '. No text was entered.')
+            raise ValueError(blocker + ': ' + self.describe() + '. No text was entered' +
+                             ('; the existing draft was preserved.' if ctx.draft else '.'))
         if ctx.draft:
             raise ValueError('COMPOSER_UNVERIFIED: the composer already contains a draft; it was preserved '
                              'and nothing was typed.')
@@ -204,13 +205,19 @@ class VisualMessaging:
         if self.adapter.submit != 'enter':
             raise PermissionError('READY_TO_SEND: this client has no verified submission contract; the exact draft '
                                   'is ready and was not sent.')
-        # Pre-send re-verification of the destination from the conversation header.
-        header_point, lines = await self.region(after, 'header')
-        header = resolve_exact(lines, scope.destination, 'destination header')
-        if header.state != VERIFIED:
-            raise ValueError('DESTINATION_UNVERIFIED: the conversation header did not confirm ' + scope.destination +
-                             ' before sending; the draft is ready and nothing was sent.')
-        del header_point
+        # Pre-send re-verification that the destination has not changed: either
+        # nothing outside the composer changed since the verified observation, or
+        # the conversation header names the exact destination.
+        composer_band = band(after, point, 32, after['width'] * .4)
+        if await asyncio.to_thread(unchanged_outside, frame, after, composer_band):
+            self.history.append({'operation': 'visual_presend', 'status': 'only the composer changed since verification'})
+        else:
+            _, lines = await self.region(after, 'header')
+            header = resolve_exact(lines, scope.destination, 'destination header')
+            if header.state != VERIFIED:
+                raise ValueError('DESTINATION_UNVERIFIED: the conversation changed or its header did not confirm ' +
+                                 scope.destination + ' before sending; the draft is ready and nothing was sent.')
+            self.history.append({'operation': 'visual_presend', 'status': 'destination header re-read exactly'})
         self.baseline = await self.echoes(after, point)
         ledger = await self.runtime.reserve_effect(self.grant)
         self.progress('Sending…')

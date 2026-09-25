@@ -116,7 +116,7 @@ class Client:
 
 
 class ExecutorTests(unittest.IsolatedAsyncioTestCase):
-    async def run_task(self, request, client):
+    async def run_task(self, request, client, unchanged=False):
         scope = direct_scope(request)
         record = SimpleNamespace(history=[], application=scope.application, current_action='', status='running',
                                  verification='')
@@ -162,7 +162,8 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                 return client.lines('above')
             return []
         with patch.object(visual_messaging, 'ocr_lines', ocr), patch.object(visual_messaging.asyncio, 'sleep',
-                                                                             return_value=None):
+                                                                             return_value=None), \
+                patch.object(visual_messaging, 'unchanged_outside', lambda before, after, box: unchanged):
             outcome = await visual_messaging.visual_message(runtime, grant, 1, scope.application)
         return outcome, reserved
 
@@ -246,3 +247,62 @@ class ComposerClassificationTests(unittest.TestCase):
         adapter = adapter_for('Discord')
         rows = [line('Friends', 10), line('Nitro', 40), line('Shop', 70), line('Direct Messages', 100)]
         self.assertEqual(composer_state(rows, adapter)[0], 'unknown')
+
+
+class AccountBandTests(unittest.TestCase):
+    def test_clipped_composer_text_is_not_account_identity(self):
+        from olive.desktop.messaging_context import observed_account
+        composer = (250, 420, 420, 440)
+        rows = [line('Mess', 424, left=250), line('fixture-owner', 430, left=40)]
+        self.assertEqual(observed_account(rows).state, AMBIGUOUS)
+        account = observed_account(rows, composer)
+        self.assertEqual((account.state, account.value), (VERIFIED, 'fixture-owner'))
+        rows.append(line('second-owner', 450, left=40))
+        self.assertEqual(observed_account(rows, composer).state, AMBIGUOUS)
+
+
+class PresendIdentityTests(unittest.IsolatedAsyncioTestCase):
+    """A misread header cannot block a send whose surroundings are provably unchanged, nor allow a changed one."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    async def test_unchanged_surroundings_confirm_the_verified_destination(self):
+        client = Client(current=0)
+        client.lines = (lambda original: lambda role: [line('# fleld-notes', 20)] if role == 'header'
+                        else original(role))(client.lines)
+        outcome, reserved = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger',
+                                                client, unchanged=True)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+        self.assertEqual(reserved, ['reserved', 'verified'])
+
+    async def test_changed_surroundings_need_the_exact_header(self):
+        client = Client(current=0)
+        client.lines = (lambda original: lambda role: [line('# fleld-notes', 20)] if role == 'header'
+                        else original(role))(client.lines)
+        with self.assertRaisesRegex(ValueError, 'DESTINATION_UNVERIFIED'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
+        self.assertFalse(self.keys(client, 'Enter'))
+
+
+class UnchangedOutsideTests(unittest.TestCase):
+    def frame(self, draw=None):
+        import base64, io
+        from PIL import Image, ImageDraw
+        image = Image.new('RGB', (200, 120), (40, 42, 48))
+        ImageDraw.Draw(image).text((10, 10), '# general', fill=(230, 230, 230))
+        if draw:
+            draw(ImageDraw.Draw(image))
+        data = io.BytesIO()
+        image.save(data, format='PNG')
+        return {'png': base64.b64encode(data.getvalue()).decode(), 'width': 200, 'height': 120}
+
+    def test_only_changes_inside_the_region_are_ignored(self):
+        from olive.desktop.visual_ocr import unchanged_outside
+        composer = (0, 90, 200, 120)
+        before = self.frame()
+        typed = self.frame(lambda d: d.text((10, 100), 'hello', fill=(255, 255, 255)))
+        self.assertTrue(unchanged_outside(before, typed, composer))
+        switched = self.frame(lambda d: d.rectangle((10, 10, 80, 22), fill=(40, 42, 48)))
+        self.assertFalse(unchanged_outside(before, switched, composer))
+        self.assertFalse(unchanged_outside(before, dict(typed, width=201), composer))

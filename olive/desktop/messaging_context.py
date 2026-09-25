@@ -158,8 +158,16 @@ def resolve_exact(lines, expected, what, anchor=None):
     return Layer(NOT_VISIBLE, evidence=what + ' not read')
 
 
-def observed_account(lines):
+def overlaps(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def observed_account(lines, composer_box=None):
     rows = [l for l in confident(lines) if len(bare(l['text'])) >= 2]
+    if composer_box:
+        # Text inside the verified composer (its placeholder or draft, possibly
+        # clipped by the account band) is never account identity.
+        rows = [l for l in rows if not overlaps(l['box'], composer_box)]
     if len(rows) == 1:
         return Layer(VERIFIED, rows[0]['text'].strip(), rows[0]['box'], 'single visible account name')
     return Layer(AMBIGUOUS if rows else NOT_VISIBLE, evidence='account panel not uniquely readable')
