@@ -226,3 +226,20 @@ delivered but first reported as uncertain and was not retried. A draft now
 takes about 10 s and a typed send about 16 s, where earlier attempts took about
 28 s just to reach a stop.
 
+
+The next day, the same route reached a second server and a direct message.
+- **Second server:** its channel was found only after server labels were read
+  by position.
+- **Direct message:** five people shared the recipient's display name, so OLIVE
+  now accepts `@name (username)` and checks the username.
+- **Typing:** it now goes by key strokes, independent of Caps Lock.
+
+Sends were also recorded through the real Chat window. An application-wide pass
+then:
+- aligned the calendar's lines;
+- animated the sidebar;
+- tidied Chat, Agent, Devices, Reminders and Connections;
+- found a large hidden cost in chat: two model swaps per message. Reusing the
+  loaded model, and preloading it while the person types, cut a short reply
+  from 8 s to 2 s and fixed a prompt that had been misread as a calendar
+  search.

@@ -465,3 +465,74 @@ Earlier attempts took about 28 s just to reach a stop. Discord now needs no
 vision model. Its Enter-to-send convention is confirmed on this client by
 SEND-4 and SEND-5. Discord web in Firefox was not re-tested live after these
 changes.
+
+## Addendum 2: second server, direct messages, the real UI and speed (25–26 September 2026)
+
+The owner then authorized one message ("hello", then "hello test 2" only if the
+first worked) in a channel of their second server, and "hello" as
+a direct message to their own second account. These were the only external
+messages beyond `D SERVER`.
+
+| Commit | Fix |
+|---|---|
+| `7dc4317` | Type by key strokes into every client; Chromium ignores the EI text capability |
+| `71f7b9f` | Right-aligned server labels; confident-word row heights; DM handle `@name (username)` with a tight username re-read |
+| `95425e2` | Wide-versus-fragment OCR merging; look-alike and whitespace-tolerant typed-text check; truncated-name echo rule |
+| `9b3bcf0` | Frames stamped on arrival; 10 fps capture; parallel server and composer reads |
+| `b14dec7` | Caps Lock released for typing and restored afterwards |
+
+Live results (account and DM recipient redacted):
+
+- **Second server:** SECOND-15 ("hello") and SECOND-16 ("hello test 2") were
+  both delivered once. OLIVE reported them *uncertain*, not failed, because the
+  sender name was truncated and the placeholder was misread after the send.
+  Neither was retried. `95425e2` fixed both echo cases. Earlier attempts
+  stopped safely before typing; the stops traced to the switcher's server label
+  and the row-height filter.
+- **Direct message:** the display name alone was refused as ambiguous,
+  because five people share it. `@name (username)` selected the right person.
+  DM-5 was sent once and verified in 19.1 s.
+- **Real OLIVE UI:** requests were typed into Chat by a Playwright-driven
+  renderer while the window was recorded. "OLIVE UI final test 2" was verified
+  14.6 s after Enter. The recordings stayed on the owner's machine.
+- **Speed:** a verified send takes about 12–15 s end to end, against about
+  28 s just to reach a stop before. It needs no vision model.
+
+### Application speed and design pass
+
+Measured in the real renderer on a 75 Hz display:
+
+- **Page switches:** paint 8–43 ms after the click.
+- **Animations:** palette, drawer, sidebar collapse, calendar views and
+  scrolling hold 13.3 ms frames, with at most one late frame per scenario.
+- **Sidebar:** collapse now animates its width. Icons keep their position,
+  labels fade, and group labels shrink into their divider rules. Reduce Motion
+  still removes every transition.
+- **First reply:** starting to type preloads the conversation's model
+  (`chat.warm`), using the context the request will use. The preload is skipped
+  while inference is busy or the model is already loaded.
+- **Model swaps:** the speech-act gate and the first interpretation pass now
+  reuse the loaded model when it is a listed candidate for their role
+  (`prefer_loaded`). A smaller request reuses the resident model's context
+  rather than making Ollama reload it. With NORMAL, a short chat reply went from
+  8.06 s (two model swaps) to 2.04 s.
+- **Misrouting:** the fast gate had routed "Reply with the single word: ready"
+  to a calendar search. On the loaded reasoning model it is answered directly.
+
+Design fixes:
+
+- **Calendar:**
+  - Day dividers now line up between the header, the all-day row and the grid,
+    which previously differed by the scrollbar width.
+  - The grid opens half an hour before 07:00.
+  - Week titles are shown in full; search rests as an icon and expands.
+  - The view switcher no longer moves between views.
+  - Today uses a soft tint, and days outside the month are dimmed.
+- **Chat:** conversation titles are cut at word boundaries, and the list shows
+  single lines.
+- **Agent:** history times are readable ("Today 20:20").
+- **Devices:** the discovery checkbox sits on one row, buttons use their
+  natural width, and the header height matches other pages.
+- **Reminders:** the footnote has spacing.
+- **Connections:** the credential removal action appears only when a bot was
+  configured. The copy now points to Chat for sending from your own account.
