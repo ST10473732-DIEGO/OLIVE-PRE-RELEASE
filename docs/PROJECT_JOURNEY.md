@@ -168,3 +168,40 @@ Discord composer execution still have named limits. User data, historical
 manifests, models, V2 presentation, Stop/watchdog, Connect boundaries and rollback
 remain. No C9/C10/OS work, push, merge, tag or release occurred. See
 [the freeform closeout](OLIVE_AGENT_FREEFORM_CLOSEOUT.md).
+
+## 2026-09-25 — Unified agent milestone closeout
+
+The final unified-agent run started from `340c755` and was interrupted by a usage
+limit during its final live pass, at 16/21 with three tasks still failing. The
+next session recovered the harness and retained results from the session record
+and repaired those failures. The machine had rebooted in between. With OLIVE and
+Firefox on different monitors, a settled page stopped producing damage-driven
+capture frames and tasks failed as "capture paused". That was a real defect,
+and an unchanged screen is now accepted as current evidence while the stream is
+healthy. Repeated clicks were blocked by a same-named status label and by a
+Firefox tab titled like a page link; uniqueness is now decided among actionable
+controls. The owned messenger header OCR'd "field" as "fleld" at every scale.
+Instead of fuzzy matching, the send now proves that nothing outside the composer
+changed since the verified frame. The first session's commit `4c532dd` had also
+broken one existing test that nobody noticed until the next full run.
+
+Typed task goals, constraints, conditions and completeness were added, along
+with a 207-controller Owner Mode inventory, typed audio/Bluetooth/brightness
+controls and a layered messaging contract. Candidate B passed its declared MAX
+gate (9/9) and C7 validation (9/9) and became public MAX, pinned by digest with
+the old mapping kept for rollback.
+
+Two consolidated live passes through production Chat ran 47 checks each: 45/47
+at `5efa10d`, then 46/47 on the final code `b87cf83`, with zero OLIVE approval
+prompts. The one final miss was a stale-fixture precondition in the check, not a
+false accept; it was re-verified on a restarted fixture. One pass-1 messenger
+stop (nothing sent) did not reproduce and remains unexplained. The Kate crash
+from 24 September was not reproduced and its cause is still unknown.
+
+Real Discord (native and web) was tested read-only and stopped before text entry.
+No external message was sent. Discord's Enter-to-send convention still needs its
+first real, user-specified send to be confirmed. Python passed 1,352 tests with
+8 skips; Connect 241; frontend 100; Electron 56 passed with 16 skipped;
+typecheck, lint and build passed; 766 repository sources compile. No C9, C10,
+OLIVE OS, push, merge, tag or release. See
+[the final closeout](OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md).

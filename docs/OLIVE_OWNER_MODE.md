@@ -147,3 +147,15 @@ Other typed controllers were not blanket-authorized. The page-to-Kate dependency
 now binds derived text data through the existing native task authority; no new
 mode or installation ritual was added. Broad owner coverage and Discord visual
 composer execution remain incomplete.
+
+## Complete controller inventory (25 September 2026)
+
+Every registered local controller (207) is classified in
+`olive/authority/owner_inventory.py`: 106 owner-automatic for explicit tasks, 64
+read-only, 19 high-impact explicit paths, 6 not safe for owner automation and 12
+deprecated. External families are classed as REMOTE_RULES_ONLY (Connect),
+OS_AUTH_REQUIRED (power/session) and UNSUPPORTED (Wi-Fi toggle). Tests keep the
+table in lockstep with the tool registry. The table grants nothing by itself.
+Grants remain per task, derived from the literal request, with Deny, Stop,
+expiry and remote isolation authoritative. Live results are in
+[the final closeout](OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md#d-owner-mode).
