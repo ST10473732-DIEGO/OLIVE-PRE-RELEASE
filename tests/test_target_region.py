@@ -54,3 +54,47 @@ class TargetRegionTests(unittest.TestCase):
         self.assertFalse(validate_effect(grant,press,observation)[1])
         target['name']='Different button'
         with self.assertRaises(PermissionError):validate_effect(grant,press,observation)
+
+
+class StaticTextNameTests(unittest.TestCase):
+    """A status label repeating a control's name is not a second click target."""
+
+    def test_same_named_label_does_not_compete_with_the_control(self):
+        button = {'id': 'b', 'name': 'Cobalt', 'role': 'push button', 'enabled': True, 'bounds': [16, 416, 728, 33]}
+        label = {'id': 'l', 'name': 'Cobalt', 'role': 'label', 'enabled': True, 'bounds': [16, 505, 728, 19]}
+        o = {'revision': 'r', 'controls': [button, label]}
+        self.assertEqual(semantic_target(o, 'Cobalt').identity, 'b')
+        o['controls'].append(dict(button, id='b2'))
+        self.assertEqual(semantic_target(o, 'Cobalt').state, TargetState.AMBIGUOUS)
+        self.assertEqual(semantic_target({'revision': 'r', 'controls': [label]}, 'Cobalt').state, TargetState.UNSUPPORTED)
+
+    def test_label_only_match_still_navigates_to_an_off_screen_control(self):
+        from olive.desktop.grounded_steps import next_step
+        from olive.desktop.task_authority import TaskScope
+        scope = TaskScope('Owned app', 'click', 'Cobalt')
+        label = {'id': 'l', 'name': 'Cobalt', 'role': 'label', 'enabled': True, 'bounds': [16, 505, 728, 19]}
+        pane = {'id': 's', 'name': '', 'role': 'scroll pane', 'enabled': True, 'bounds': [16, 213, 728, 236]}
+        step = next_step(scope, {'revision': 'r', 'controls': [label, pane]}, False)
+        self.assertEqual((step['action'], step['target']), ('scroll', 's'))
+        button = {'id': 'b', 'name': 'Cobalt', 'role': 'push button', 'enabled': True, 'focused': False,
+                  'bounds': [16, 416, 728, 33]}
+        step = next_step(scope, {'revision': 'r', 'controls': [label, pane, button]}, False)
+        self.assertEqual((step['action'], step['target']), ('focus', 'b'))
+
+
+class BrowserTabMirrorTests(unittest.TestCase):
+    def test_tab_titled_like_a_page_link_does_not_compete_with_the_link(self):
+        from olive.desktop.grounded_steps import next_step
+        from olive.desktop.task_authority import TaskScope
+        scope = TaskScope('Firefox', 'click', 'OLIVE Field Guide')
+        tab = {'id': 't', 'name': 'OLIVE Field Guide', 'role': 'page tab', 'enabled': True, 'in_document': False,
+               'bounds': [3302, 0, 173, 44], 'actions': ['switch']}
+        link = {'id': 'l', 'name': 'OLIVE Field Guide', 'role': 'link', 'enabled': True, 'in_document': True,
+                'bounds': [1928, 256, 183, 30], 'actions': ['jump']}
+        step = next_step(scope, {'revision': 'r', 'controls': [tab, link]}, False)
+        self.assertEqual((step['action'], step['target'], step['value']), ('invoke', 'l', 'jump'))
+        twin = dict(link, id='l2', bounds=[1928, 300, 183, 30])
+        self.assertIsNone(next_step(scope, {'revision': 'r', 'controls': [tab, link, twin]}, False))
+        # Without a page element of that name, a tab is not silently chosen either.
+        other = dict(tab, id='t2')
+        self.assertIsNone(next_step(scope, {'revision': 'r', 'controls': [tab, other]}, False))

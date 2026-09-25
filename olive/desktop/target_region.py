@@ -31,6 +31,10 @@ class TargetEvidence:
         return self.bounds
 
 
+ACTIONABLE_ROLES = frozenset({'button', 'push button', 'toggle button', 'check box', 'radio button', 'menu item',
+                              'page tab', 'link'})
+
+
 def semantic_target(observation, label, revision=None):
     from .visual_targets import normalize
     if revision is not None and observation.get('revision') != revision:
@@ -39,12 +43,15 @@ def semantic_target(observation, label, revision=None):
                   if normalize(c.get('name', '')) == normalize(label)]
     if not candidates:
         return TargetEvidence(TargetState.UNSUPPORTED if observation.get('incomplete') else TargetState.NOT_VISIBLE_HERE)
+    # Static text that repeats a control's name (a status line or heading) is
+    # not a competing click target; uniqueness is decided among actionable roles.
+    candidates = [c for c in candidates if c.get('role') in ACTIONABLE_ROLES] or candidates
     if len(candidates) != 1:
         return TargetEvidence(TargetState.AMBIGUOUS)
     c = candidates[0]
     if not c.get('enabled') or c.get('visible') is False or c.get('occluded'):
         return TargetEvidence(TargetState.NOT_ACTIONABLE)
-    if c.get('role') not in {'button', 'push button', 'toggle button', 'check box', 'radio button', 'menu item', 'page tab', 'link'}:
+    if c.get('role') not in ACTIONABLE_ROLES:
         return TargetEvidence(TargetState.UNSUPPORTED)
     bounds = c.get('bounds')
     if not isinstance(bounds, (list,tuple)) or len(bounds) != 4 or not all(type(n) in {int,float} and math.isfinite(n) for n in bounds) or min(bounds[2:]) <= 0:

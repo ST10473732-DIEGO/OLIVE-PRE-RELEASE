@@ -279,6 +279,18 @@ class LinuxRuntime:
                 d.record.current_action = 'Verifying' if submitted else 'Finding the next control'
                 d.publish()
                 proposal = next_step(grant.scope, observation, submitted)
+                if proposal is None and grant.scope.effect == 'click' and not index:
+                    # Bounded readiness wait: a page or view may still be exposing its
+                    # controls. Re-observe before the visual route; no input meanwhile.
+                    for _ in range(3):
+                        await asyncio.sleep(.7)
+                        self.authority.check(grant, d.configuration())
+                        observation = await self.observe_app(app, processes)
+                        observation['destination'] = messaging_destination(grant.scope, observation)
+                        proposal = next_step(grant.scope, observation, submitted)
+                        d.record.history.append({'operation': 'reobserve', 'status': 'waited for the target to load'})
+                        if proposal is not None:
+                            break
                 if proposal is None and grant.scope.effect == 'click':
                     for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
                         d.gateway.require_not_denied(permissions_session, permission)

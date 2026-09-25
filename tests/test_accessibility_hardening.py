@@ -160,3 +160,17 @@ class HardenedObservationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DocumentPriorityTests(HardenedObservationTests):
+    def test_showing_page_content_is_read_before_extra_browser_chrome(self):
+        panels = [Node('PANEL', f'tabs {p}', [Node('PUSH_BUTTON', f'Tab {p}.{i}') for i in range(80)]) for p in range(12)]
+        link = Node('PUSH_BUTTON', 'OLIVE Field Guide')
+        page = Node('DOCUMENT_WEB', 'Owned results page', [link])
+        window = Node('FRAME', 'Firefox', [*panels, page],
+                      states=('VISIBLE', 'SHOWING', 'ACTIVE', 'ENABLED'), bounds=(0, 0, 1000, 1800))
+        self.access.resolve = Mock(return_value=Node('APPLICATION', 'Firefox', [window], toolkit='Gecko',
+                                                     bounds=(0, 0, 1000, 1800)))
+        result = self.access.observe(4242, self.region)
+        self.assertIn('OLIVE Field Guide', {c['name'] for c in result['controls']})
+        self.assertTrue(result['incomplete'])

@@ -208,9 +208,10 @@ class Accessibility:
         controls, windows, documents = [], [], []
         text_budget = 12000
         queue = [(app, 0, '', '', False, region)]
+        page_queue = []  # Showing page content is read before the remaining browser chrome.
         visited = errors = pruned = 0
-        while queue and visited < node_budget and time.monotonic() < deadline and text_budget > 0:
-            node, depth, window, parent, in_document, clip = queue.pop(0)
+        while (queue or page_queue) and visited < node_budget and time.monotonic() < deadline and text_budget > 0:
+            node, depth, window, parent, in_document, clip = (page_queue or queue).pop(0)
             visited += 1
             try:
                 states = node.get_state_set()
@@ -292,7 +293,8 @@ class Accessibility:
                     for index in range(min(node.get_child_count(), 80)):
                         child = node.get_child_at_index(index)
                         if child:
-                            queue.append((child, depth + 1, window, key, in_document, child_clip))
+                            (page_queue if in_document else queue).append(
+                                (child, depth + 1, window, key, in_document, child_clip))
             except ObservationAborted:
                 raise
             except Exception as error:
@@ -303,7 +305,7 @@ class Accessibility:
                     raise ObservationAborted('STALE_OBSERVATION', 'repeated accessibility errors') from None
                 continue  # Incomplete accessibility is evidence of a gap, never a target.
         return {'pid': pid, 'revision': self.revision, 'windows': windows, 'controls': controls,
-                'documents': documents, 'incomplete': bool(queue), 'untrusted_content': True,
+                'documents': documents, 'incomplete': bool(queue or page_queue), 'untrusted_content': True,
                 'profile': profile, 'pruned_item_views': pruned}
 
     def _query_items(self, view, parent, window, item, clip, controls):

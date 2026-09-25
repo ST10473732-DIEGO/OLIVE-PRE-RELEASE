@@ -12,7 +12,14 @@ def next_step(scope, observation, submitted):
         return None  # Verification, never a second submission, owns this phase.
     controls = [c for c in observation['controls'] if c.get('enabled')]
     if scope.effect == 'click':
-        candidates = [c for c in controls if same_control_label(c.get('name', ''), scope.content)]
+        from .target_region import ACTIONABLE_ROLES, semantic_target, TargetState
+        # Only actionable roles compete; a same-named status label is not a target.
+        candidates = [c for c in controls if same_control_label(c.get('name', ''), scope.content)
+                      and c.get('role') in ACTIONABLE_ROLES]
+        if any(c.get('in_document') for c in candidates):
+            # A browser tab titled like a page element mirrors a document; it is
+            # not the named control inside the page. Page elements still compete.
+            candidates = [c for c in candidates if c.get('in_document') or c.get('role') != 'page tab']
         if not candidates:
             menus = [c for c in controls if c.get('name', '').casefold() == 'menu'
                      and c.get('role') in {'button', 'push button', 'menu item', 'toggle button'}]
@@ -28,8 +35,9 @@ def next_step(scope, observation, submitted):
                             expected='Observe the requested target after bounded scrolling')
         if len(candidates) != 1:
             return None
-        from .target_region import semantic_target, TargetState
-        evidence = semantic_target(observation, candidates[0]['name'])
+        scoped = dict(observation, controls=[c for c in observation['controls'] if c.get('role') != 'page tab'
+                                             or not candidates[0].get('in_document')])
+        evidence = semantic_target(scoped, candidates[0]['name'])
         if evidence.state != TargetState.FOUND:
             return None
         target = candidates[0]

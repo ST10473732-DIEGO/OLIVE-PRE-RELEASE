@@ -218,3 +218,28 @@ class AdaptiveRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.prepare.assert_not_awaited()
         self.runtime.apps.launch.assert_not_called()
         self.assertEqual(self.desktop.record.status, 'needs-human')
+
+
+@unittest.skipUnless(sys.platform == 'linux', 'Linux controller integration')
+class ReadinessWaitTests(unittest.IsolatedAsyncioTestCase):
+    """A click target exposed one observation late is found by bounded re-observation, never by guessing."""
+    asyncSetUp, asyncTearDown = AdaptiveRuntimeTests.asyncSetUp, AdaptiveRuntimeTests.asyncTearDown
+    observe, dispatch, plan = AdaptiveRuntimeTests.observe, AdaptiveRuntimeTests.dispatch, AdaptiveRuntimeTests.plan
+
+    async def test_late_target_is_found_after_readiness_wait_without_input_meanwhile(self):
+        observe = self.observe
+        async def late(*args):
+            result = await observe(*args)
+            if self.revision >= 2:
+                result['controls'].append(dict(id='late', name='Late button', role='push button', enabled=True,
+                                               focused='focus' in self.actions, actions=['press'],
+                                               bounds=[20, 60, 120, 30]))
+            return result
+        self.runtime.observe_app.side_effect = late
+        with patch('olive.desktop.linux.runtime.asyncio.sleep', AsyncMock()):
+            await self.runtime.run('Click Late button in Owned messenger', 'owned-click')
+        self.assertEqual(self.actions[:2], ['focus', 'key'])
+        self.assertNotIn('visual_observe', self.actions)
+        self.assertEqual(sum(h['operation'] == 'reobserve' and 'load' in h.get('status', '')
+                             for h in self.desktop.record.history), 1)
+        self.confirm.assert_not_awaited()
