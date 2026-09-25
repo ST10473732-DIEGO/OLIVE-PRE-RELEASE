@@ -151,7 +151,7 @@ class VisualMessaging:
                 # the same area on the caret-off frame of the next blink.
                 frame = await self.quiet_frame(lambda f: self.composer_area(f, point))
                 lines = await asyncio.to_thread(self.read_composer, frame, point)
-            composer = composer_state(lines, self.adapter)
+            composer = composer_state(lines, self.adapter, self.scope.destination)
             if composer[0] == 'empty' or point is None:
                 break
             # A draft that is exactly the requested text (for example from an

@@ -915,3 +915,26 @@ class UsernameTests(unittest.IsolatedAsyncioTestCase):
             messaging.adapter, messaging.record = adapter_for('Discord'), lambda entry: None
             messaging.scope = TaskScope('Discord', 'send', 'hello', '@diego', handle=handle)
             self.assertEqual(len(await messaging.candidates_in(frame, words)), expected, handle)
+
+
+class LookalikeTests(unittest.TestCase):
+    def test_typed_text_tolerates_ocr_lookalikes_but_names_do_not(self):
+        from olive.desktop.messaging_context import echo_rows, exact_segment, typed_exactly
+        words = [line('OLIVE', 600, left=310), line('Ul', 600, left=366), line('test', 600, left=392)]
+        self.assertTrue(typed_exactly(words, 'OLIVE UI test', adapter_for('Discord')))
+        self.assertIsNotNone(exact_segment(words, 'OLIVE UI test'))
+        self.assertFalse(typed_exactly(words, 'OLIVE UX test', adapter_for('Discord')))
+        self.assertEqual(len(echo_rows([line('OLlVE', 500), ], 'OLIVE', '')), 1)
+        # Destination identity stays exact.
+        self.assertEqual(resolve_exact([line('generaI', 10)], '#general', 'x').state, MISMATCH)
+
+
+class SplitDestinationTests(unittest.TestCase):
+    def test_hyphen_dropped_by_ocr_rejoins_only_to_the_requested_name(self):
+        def word(text, left, confidence=90):
+            return {'text': text, 'confidence': confidence, 'box': (left, 640, left + 8 * len(text), 650)}
+        live = [word('-+', 269, 83), word('Message', 299, 55), word('#gen', 358, 85), word('chat', 393, 93)]
+        adapter = adapter_for('Discord')
+        self.assertEqual(composer_state(live, adapter, '#gen-chat')[:3], ('empty', '#', 'gen-chat'))
+        scope = TaskScope('Discord', 'send', 'hi', '#genchat')
+        self.assertEqual(resolve_destination(scope, composer_state(live, adapter, '#genchat')).state, MISMATCH)

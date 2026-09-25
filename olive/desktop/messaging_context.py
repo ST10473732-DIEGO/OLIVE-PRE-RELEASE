@@ -159,7 +159,7 @@ def segments(lines):
     return joined
 
 
-def composer_state(lines, adapter):
+def composer_state(lines, adapter, expected=''):
     """(kind, sigil, name_or_text) from OCR lines of the composer band."""
     rows = [l for l in segments(lines) if len(l['text'].strip()) >= 2]
     placeholders = []
@@ -168,7 +168,7 @@ def composer_state(lines, adapter):
         if match:
             placeholders.append((match.group(1), match.group(2).strip(), line))
     if not placeholders:
-        placeholders = label_pairs(lines)
+        placeholders = label_pairs(lines, expected)
     if len(placeholders) == 1:
         sigil, name, line = placeholders[0]
         return 'empty', sigil, name, line
@@ -182,24 +182,43 @@ def composer_state(lines, adapter):
     return 'unknown', '', '', None
 
 
-def label_pairs(lines):
+def label_pairs(lines, expected=''):
     """Placeholders found token by token: a word ending in 'essage' (the fixed label,
-    whose first letters a caret may hide) directly followed on the same line by one
-    '#name' / '@name' token. Independent of how OCR fragments were joined."""
-    words = [w for w in lines if w['confidence'] >= MIN_CONFIDENCE and w['text'].strip()]
+    whose first letters a caret may hide) directly followed on the same line by a
+    '#name' / '@name' token. Independent of how OCR fragments were joined.
+
+    OCR may drop a thin hyphen and split the name ('#gen' 'chat'): adjacent pieces
+    are rejoined only when that reproduces exactly the `expected` destination.
+    """
+    words = [w for w in lines if w['text'].strip()]
     found = []
     for label in words:
-        if not normalize(label['text']).endswith('essage'):
+        # The label is fixed text and only marks the placeholder: a lower bar.
+        if label['confidence'] < 40 or not normalize(label['text']).endswith('essage'):
             continue
         height = label['box'][3] - label['box'][1]
-        after = [w for w in words if w is not label and 0 <= w['box'][0] - label['box'][2] <= max(6, 1.2 * height)
-                 and abs((w['box'][1] + w['box'][3]) - (label['box'][1] + label['box'][3])) / 2 <= max(4, height / 2)]
-        for token in after:
-            match = re.fullmatch(r'([#@])(\S+)', normalize(token['text']))
-            if match:
-                found.append((match.group(1), match.group(2),
-                              dict(token, box=(label['box'][0], min(label['box'][1], token['box'][1]),
-                                              token['box'][2], max(label['box'][3], token['box'][3])))))
+        same_line = lambda w: abs((w['box'][1] + w['box'][3]) - (label['box'][1] + label['box'][3])) / 2 <= max(4, height / 2)
+        pieces = sorted((w for w in words if w is not label and w['confidence'] >= MIN_CONFIDENCE and same_line(w)
+                         and w['box'][0] >= label['box'][2]), key=lambda w: w['box'][0])
+        if not pieces or pieces[0]['box'][0] - label['box'][2] > max(6, 1.2 * height):
+            continue
+        run = [pieces[0]]
+        for piece in pieces[1:]:
+            if piece['box'][0] - run[-1]['box'][2] > max(4, .9 * height) or len(run) == 4:
+                break
+            run.append(piece)
+        texts = [normalize(w['text']) for w in run]
+        count = 1
+        if expected:
+            wanted = normalize(expected)
+            count = next((k for k in range(1, len(run) + 1) if '-'.join(texts[:k]) == wanted), 1)
+        text = '-'.join(texts[:count])
+        match = re.fullmatch(r'([#@])(\S+)', text)
+        if match:
+            used = run[:count]
+            found.append((match.group(1), match.group(2),
+                          dict(run[0], text=text, box=(label['box'][0], min(label['box'][1], run[0]['box'][1]),
+                                                        used[-1]['box'][2], max(label['box'][3], used[-1]['box'][3])))))
     return found
 
 
@@ -353,16 +372,26 @@ def switcher_matches(entries, destination, server=''):
             if not server or row['server'] == 'confirmed']
 
 
+# Glyphs OCR cannot tell apart in small UI text. Only used to recognise text OLIVE
+# typed itself (exact key strokes); destination, server and account names are
+# always compared exactly.
+LOOKALIKE = str.maketrans({'i': 'l', '1': 'l', '|': 'l', '0': 'o'})
+
+
+def typed_key(text):
+    return normalize(text).translate(LOOKALIKE)
+
+
 def typed_exactly(lines, content, adapter):
     """The requested text is visible exactly once in the composer area and no placeholder is shown."""
     if composer_state(lines, adapter)[0] == 'empty':
         return False
-    return sum(normalize(l['text']) == normalize(content) for l in segments(lines)) == 1
+    return sum(typed_key(l['text']) == typed_key(content) for l in segments(lines)) == 1
 
 
 def exact_segment(lines, content):
     """The one run reading exactly the requested text, or None."""
-    runs = [l for l in segments(lines) if normalize(l['text']) == normalize(content)]
+    runs = [l for l in segments(lines) if typed_key(l['text']) == typed_key(content)]
     return runs[0] if len(runs) == 1 else None
 
 
@@ -370,14 +399,14 @@ def echo_rows(words, content, account=''):
     """Rows showing the sent text: the row ends with exactly the content's words and
     either holds nothing else (a continued message) or shows the sender's account
     name before them (the first message of a group: time, name, badge, text)."""
-    target = normalize(content).split()
+    target = typed_key(content).split()
     found = []
     for row in rows(words):
-        tokens = [token for w in row['lines'] for token in normalize(w['text']).split()]
+        tokens = [token for w in row['lines'] for token in typed_key(w['text']).split()]
         if not target or tokens[-len(target):] != target:
             continue
         prefix = tokens[:-len(target)]
-        name = bare(account) if account else ''
+        name = bare(account).translate(LOOKALIKE) if account else ''
         # The sender's name may be read truncated at its end (coloured names); a
         # leading fragment of at least four characters still names this account.
         if not prefix or name and (name in ' '.join(prefix) or
