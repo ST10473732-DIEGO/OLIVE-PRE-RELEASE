@@ -221,7 +221,7 @@ def ocr_words(frame, box, scale=4, psm=11):
     return ocr_lines(frame, box, scale=scale, words=True, psm=psm)
 
 
-def ocr_rows(frame, box, scale=4, half_height=12, only=None, psm=11):
+def ocr_rows(frame, box, scale=4, half_height=12, only=None, psm=11, coarse_scale=None):
     """Words of a list, each row re-read as its own strip.
 
     A coarse read of the whole list locates the rows; reading each row alone is
@@ -230,7 +230,7 @@ def ocr_rows(frame, box, scale=4, half_height=12, only=None, psm=11):
     words. Overlapping readings keep the more confident one. Evidence only.
     """
     left, top, right, bottom = clamp_box(frame, box)
-    coarse = ocr_words(frame, box, scale)
+    coarse = ocr_words(frame, box, coarse_scale or scale)
     middles, kept = [], []
     for middle in sorted((w['box'][1] + w['box'][3]) / 2 for w in coarse):
         if not middles or middle - middles[-1] >= half_height / 2:

@@ -19,6 +19,11 @@ from olive.desktop.linux.geometry import approved_region
 from olive.desktop.task_authority import scroll_amount
 
 
+
+# Requests that only observe; every other request may change the screen.
+READ_ONLY = frozenset({'diagnostic', 'probe', 'visual_observe', 'capture', 'observe', 'browser_chrome',
+                       'document_locations', 'application_windows'})
+
 class Worker:
     def __init__(self):
         import fcntl
@@ -39,6 +44,7 @@ class Worker:
         self.editor_ownership = None
         self.file_input = None
         self.last_heartbeat = time.monotonic()
+        self.last_input = None  # When the last state-changing request finished.
         self.stop_deadline = None
         self.session_deadline = None
         self.loop = GLib.MainLoop()
@@ -215,7 +221,7 @@ class Worker:
             region = approved_region(self.portal.streams[0][1])
             if not contains(region, found[0]['bounds']):
                 raise PermissionError('Visual target left the mapped display')
-            frame = self.capture.frame()
+            frame = self.capture.frame(since=self.last_input)
             x, y, width, height = found[0]['bounds']
             sx, sy = frame['width']/region[2], frame['height']/region[3]
             left, top = round((x-region[0])*sx), round((y-region[1])*sy)
@@ -394,7 +400,7 @@ class Worker:
                 self.eis.text(value)
             return {'dispatched': True}
         if method == 'capture' and not args:
-            return self.capture.frame()
+            return self.capture.frame(since=self.last_input)
         required = {'revision', 'target', 'bounds', 'value'}
         if method not in {'focus', 'click', 'type', 'key', 'invoke', 'scroll'} or set(args) != required:
             raise ValueError('Unknown native action or fields')
@@ -454,7 +460,12 @@ class Worker:
         try:
             if set(message) != {'id', 'method', 'arguments'} or type(message['id']) is not int or not isinstance(message['arguments'], dict):
                 raise ValueError('Invalid native request')
-            result = self.dispatch(message['method'], message['arguments'])
+            try:
+                result = self.dispatch(message['method'], message['arguments'])
+            finally:
+                if message['method'] not in READ_ONLY:
+                    # A later screen read must postdate this request's effects.
+                    self.last_input = time.monotonic()
             self.emit({'id': message['id'], 'result': result})
         except Exception as error:
             # No exception repr: GI errors can contain private application text.

@@ -721,7 +721,8 @@ class CaretFrameTests(unittest.IsolatedAsyncioTestCase):
         return {'png': base64.b64encode(data.getvalue()).decode(), 'width': 300, 'height': 40, 'caret': caret}
 
     async def test_the_caret_off_frame_is_read(self):
-        frames = iter([self.frame(True), self.frame(False), self.frame(False), self.frame(True)])
+        import itertools
+        frames = itertools.cycle([self.frame(True), self.frame(False)])  # A blinking caret.
         messaging = visual_messaging.VisualMessaging.__new__(visual_messaging.VisualMessaging)
         async def next_frame():
             return next(frames)

@@ -2,6 +2,7 @@
 import base64
 import io
 import os
+import threading
 import time
 
 import gi
@@ -52,7 +53,7 @@ class Capture:
                 raise ValueError('Capture aspect ratio exceeds the frame budget')
             self.pipeline = Gst.parse_launch(
                 f'pipewiresrc name=source fd={fd} path={int(node)} do-timestamp=true ! '
-                'videorate drop-only=true ! video/x-raw,framerate=2/1 ! videoconvert ! videoscale ! '
+                'videorate drop-only=true ! video/x-raw,framerate=10/1 ! videoconvert ! videoscale ! '
                 f'video/x-raw,format=RGBA,width=1280,height={scaled_height},pixel-aspect-ratio=1/1 ! '
                 'appsink name=frame max-buffers=1 drop=true sync=false')
             self.sink = self.pipeline.get_by_name('frame')
@@ -61,6 +62,13 @@ class Capture:
             self.last_pts = None
             self.held = None
             self.failed = False
+            # Every new frame is kept with its arrival time, so a read after input
+            # waits only for a frame that postdates that input, while a re-read with
+            # no input since returns the newest frame immediately.
+            self.latest, self.latest_at = None, 0.0
+            self.arrived = threading.Condition()
+            self.sink.set_property('emit-signals', True)
+            self.sink.connect('new-sample', self._arrive)
             if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
                 raise RuntimeError('Capture pipeline could not start')
         except BaseException:
@@ -73,21 +81,36 @@ class Capture:
             self.failed = True
         return not self.failed and self.pipeline.get_state(0)[1] == Gst.State.PLAYING
 
-    def frame(self):
-        # Drain the retained frame (keeping it), then wait for a new producer
-        # timestamp. The compositor stream is damage-driven: while the pipeline
-        # is healthy, no new frame for the whole wait means the newest frame is
-        # still the current screen, so it is returned and marked static.
-        for _ in range(4):
-            retained = self.sink.try_pull_sample(0)
-            if retained is None:
-                break
-            self.held = retained
-        sample, static = self.sink.try_pull_sample(2 * Gst.SECOND), False
-        if sample is None:
-            if self.held is None or not self.healthy():
-                raise TimeoutError('Approved capture is paused or unavailable')
-            sample, static = self.held, True
+    def _arrive(self, sink):
+        sample = sink.emit('pull-sample')
+        if sample is not None:
+            with self.arrived:
+                self.latest, self.latest_at = sample, time.monotonic()
+                self.arrived.notify_all()
+        return Gst.FlowReturn.OK
+
+    def frame(self, since=None, wait=2.0):
+        """The newest frame that arrived after `since` (monotonic; for example the
+        last input), waiting up to two seconds for one. Without `since`, a frame
+        newer than the last one returned.
+
+        The compositor stream is damage-driven: while the pipeline is healthy, no
+        new frame for the whole wait means the newest frame is still the current
+        screen, so it is returned and marked static.
+        """
+        deadline = time.monotonic() + wait
+        with self.arrived:
+            def fresh():
+                if self.latest is None:
+                    return False
+                if since is not None:
+                    return self.latest_at > since
+                return self.latest is not self.held
+            while not fresh() and time.monotonic() < deadline:
+                self.arrived.wait(max(0.0, deadline - time.monotonic()))
+            sample, static = (self.latest, False) if fresh() else (self.latest, True)
+        if sample is None or static and not self.healthy():
+            raise TimeoutError('Approved capture is paused or unavailable')
         self.held = sample
         buffer = sample.get_buffer()
         if buffer.pts == Gst.CLOCK_TIME_NONE:
@@ -106,6 +129,7 @@ class Capture:
     def close(self):
         try:
             if self.pipeline:
+                self.sink.set_property('emit-signals', False)
                 self.pipeline.set_state(Gst.State.NULL)
                 self.pipeline = None
         finally:

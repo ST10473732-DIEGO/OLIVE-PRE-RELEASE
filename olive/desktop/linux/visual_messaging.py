@@ -19,8 +19,9 @@ from ..messaging_context import (AMBIGUOUS, MISMATCH, NOT_VISIBLE, VERIFIED, Lay
 from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .3
-OPEN_SECONDS = .5  # The switcher's opening animation; reading earlier wastes a read.
+OPEN_SECONDS = .8  # The switcher's opening animation; reading earlier wastes a read.
 CARET_READS = 2  # Extra reads of the caret-off frame when the first read fails.
+CARET_SPAN = .6  # Longer than one caret blink phase.
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
          'switcher': (30, 300)}
 
@@ -55,19 +56,21 @@ class VisualMessaging:
         return crop_document(frame, [d for d in locations.get('documents', []) if d.get('ready')])
 
     async def quiet_frame(self, area):
-        """Of two consecutive frames, the one with less contrast in `area`.
-
-        The compositor only produces a frame when the screen changes; while a text
-        caret blinks, consecutive frames alternate caret on / off, and the caret adds
-        contrast in either theme. Reading the quieter frame avoids the caret.
+        """The frame with the least contrast in `area` among frames spanning one caret
+        blink (about 0.53 s): a blinking caret adds contrast in either theme, so the
+        quietest frame is caret-free. A static screen has no blinking caret.
         """
-        first = await self.frame()
-        if first.get('static'):
-            return first  # Nothing is changing on screen, so no caret is blinking.
-        second = await self.frame()
-        if (first['width'], first['height']) != (second['width'], second['height']):
-            return second
-        return min((second, first), key=lambda f: contrast(f, area(f)))
+        frames = [await self.frame()]
+        if frames[0].get('static'):
+            return frames[0]
+        until = time.monotonic() + CARET_SPAN
+        while time.monotonic() < until:
+            await asyncio.sleep(.2)
+            frame = await self.frame()
+            if (frame['width'], frame['height']) != (frames[0]['width'], frames[0]['height']):
+                return frame
+            frames.append(frame)
+        return min(reversed(frames), key=lambda f: contrast(f, area(f)))
 
     async def click(self, frame, point):
         dx, dy = frame.get('offset', (0, 0))
@@ -144,6 +147,10 @@ class VisualMessaging:
 
     async def resolve(self):
         frame = await self.frame()
+        # The server header is independent of the composer: read both concurrently
+        # when the layout is declared (OCR runs in separate processes).
+        server_read = (asyncio.ensure_future(self.region(frame, 'server'))
+                       if self.scope.server and self.area(frame, 'server') else None)
         point, lines = await self.region(frame, 'composer')
         for attempt in range(CARET_READS + 1):
             if attempt:
@@ -171,7 +178,7 @@ class VisualMessaging:
         ctx.composer = (Layer(VERIFIED, 'composer', composer[3]['box'], 'placeholder/draft read in proposed band')
                         if composer[0] in {'empty', 'draft'} else Layer(evidence='composer band not readable'))
         if self.scope.server:
-            anchor, lines = await self.region(frame, 'server')
+            anchor, lines = await (server_read or self.region(frame, 'server'))
             ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace', anchor,
                                           self.adapter.header_decorations)
         if not (self.scope.effect == 'send' or self.scope.account):
@@ -285,7 +292,7 @@ class VisualMessaging:
                     left = max(0, query[0]['box'][0] - 16)
                     results = self.results = (left, results[1], frame['width'] - left)
             wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
-                                           self.names_destination)
+                                           self.detail_rows(), 11, 3)
             candidates = await self.candidates_in(frame, wide)
             if candidates:
                 # One quick confirmation: an unchanged list loaded nothing new;
@@ -302,7 +309,7 @@ class VisualMessaging:
                 if len(switcher_candidates(coarse, self.scope.destination)) > named:
                     frame = again
                     wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
-                                                   self.names_destination)
+                                                   self.detail_rows(), 11, 3)
                     candidates = await self.candidates_in(frame, wide)
                 break
         if point is None:
@@ -355,6 +362,12 @@ class VisualMessaging:
                              'method': method,
                              'server_in_switcher': candidates[0]['server'] if self.scope.server else 'not requested'})
 
+    def detail_rows(self):
+        """Which coarse rows get a detailed re-read: rows naming the destination when a
+        server label must be read; none for a person with a username (the username
+        gets its own tight read in candidates_in)."""
+        return (lambda words: False) if getattr(self.scope, 'handle', '') else self.names_destination
+
     def names_destination(self, words):
         """A coarse result row that may name the destination (then re-read in detail)."""
         wanted = bare(self.scope.destination)
@@ -374,16 +387,18 @@ class VisualMessaging:
             frame = await self.frame()
             await self.runtime.native.call('visual_text', {'revision': frame['revision'], 'value': query})
             empty = False
-            for _ in range(SETTLE_READS):
-                await asyncio.sleep(SETTLE_SECONDS)
-                frame = await self.frame()
+            for check in range(SETTLE_READS):
+                if check:
+                    await asyncio.sleep(SETTLE_SECONDS)
+                frame = await self.frame()  # A frame after the typing (the helper waits for one).
                 words = [w for w in await asyncio.to_thread(ocr_words, frame, area, 3) if w['confidence'] >= 60]
                 if any(bare(w['text']) == bare(query) for w in words):
                     self.record({'operation': 'visual_query', 'status': 'query visible', 'attempt': attempt + 1})
                     return
                 empty = any(prompt_word in normalize(w['text']).split() for w in words)
-                if words and not empty:
-                    break  # Something other than the query or the empty prompt.
+                partial = any(bare(w['text']) and bare(query).startswith(bare(w['text'])) for w in words)
+                if words and not empty and not partial:
+                    break  # Something other than the query (still rendering) or the empty prompt.
             if not empty:
                 break
         await self.escape()
@@ -490,8 +505,9 @@ class VisualMessaging:
         self.progress('Verifying…')
         after = await self.frame()
         for attempt in range(CARET_READS + 1):
-            # The caret sits right after the typed text: read the caret-off frame.
-            after = await self.quiet_frame(lambda f: self.composer_area(f, point))
+            # The caret sits right after the typed text: first a plain read, then
+            # the caret-off frame of a blink.
+            after = await (self.frame() if not attempt else self.quiet_frame(lambda f: self.composer_area(f, point)))
             typed = await self.composer_text(after, point)
             self.diagnose('typed', point, typed)
             verified = typed_exactly(typed, scope.content, self.adapter)
@@ -539,10 +555,10 @@ class VisualMessaging:
 
     async def verify_delivery(self, point, ledger):
         ctx, scope = self.context, self.scope
-        for _ in range(3):
-            await asyncio.sleep(.3)
-            # The emptied composer shows its placeholder beside a blinking caret.
-            frame = await self.quiet_frame(lambda f: self.composer_area(f, point))
+        for _ in range(4):
+            await asyncio.sleep(.25)
+            # Whether the text left the composer does not depend on the caret.
+            frame = await self.frame()
             words = await asyncio.to_thread(self.read_composer, frame, point)
             # Delivery means the exact text left the composer (placeholder or not;
             # a caret beside the placeholder may garble it) and appears once more in
