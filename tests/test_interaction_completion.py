@@ -193,7 +193,9 @@ class CompletionTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = str(Path(directory) / "report.pdf")
             destination = str(Path(directory) / "Documents")
-            agent = SimpleNamespace(tool=AsyncMock(return_value={"is_directory": True}))
+            # Stat answers per path: the source is a file, the destination a folder.
+            agent = SimpleNamespace(tool=AsyncMock(side_effect=lambda name, args, reason: {
+                "is_directory": args.get("path") == destination} if name == "filesystem.stat" else {}))
             router = CapabilityRouter(SimpleNamespace(desktop=None, agent=agent))
             for operation in ("copy", "move"):
                 context = InteractionContext(entities={"path": source}, file_candidates=[source])
