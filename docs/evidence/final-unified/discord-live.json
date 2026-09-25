@@ -1,0 +1,125 @@
+{
+ "date": "2026-09-25",
+ "client": "native Discord 1.0.159 (Electron, Wayland), real logged-in account (name redacted), owner-authorized test server \"D SERVER\"",
+ "authorization": "The owner requested the draft to #gen-chat and then stated that D SERVER is their personal server and authorized test sends there. Only the listed exact contents were sent.",
+ "route": "production Chat -> declared Discord layout (OCR only, no vision model) -> quick switcher by keyboard when the verified row is highlighted -> verified conversation/server/account/composer -> exact typed text -> pre-send identity -> Enter once -> on-screen echo",
+ "attempts": [
+  {
+   "id": "DISCORD-1",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 28.166,
+   "approval_prompts": 0,
+   "reply": "COMPOSER_UNVERIFIED: the exact requested text was not verified in the composer; the draft was left for you to inspect and nothing was sent."
+  },
+  {
+   "id": "DISCORD-2",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 23.162,
+   "approval_prompts": 0,
+   "reply": "DESTINATION_UNVERIFIED: destination mismatch, workspace verified, composer verified, account unverified. No text was entered; the existing draft was preserved."
+  },
+  {
+   "id": "DISCORD-3",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 16.655,
+   "approval_prompts": 0,
+   "reply": "DESTINATION_UNVERIFIED: destination not_visible, workspace verified, composer verified, account unverified. No text was entered; the existing draft was preserved."
+  },
+  {
+   "id": "DISCORD-4",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 23.107,
+   "approval_prompts": 0,
+   "reply": "COMPOSER_UNVERIFIED: the composer already contains a draft; it was preserved and nothing was typed."
+  },
+  {
+   "id": "DISCORD-5",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 16.655,
+   "approval_prompts": 0,
+   "reply": "The exact requested draft is already in the verified #gen-chat composer; nothing was typed and it was not sent."
+  },
+  {
+   "id": "DISCORD-6",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 15.661,
+   "approval_prompts": 0,
+   "reply": "The exact requested draft is already in the verified #gen-chat composer; nothing was typed and it was not sent."
+  },
+  {
+   "id": "DISCORD-7",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 10.655,
+   "approval_prompts": 0,
+   "reply": "The exact requested draft is already in the verified #gen-chat composer; nothing was typed and it was not sent."
+  },
+  {
+   "id": "DISCORD-8",
+   "request": "Draft \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 9.68,
+   "approval_prompts": 0,
+   "reply": "The exact requested draft is already in the verified #gen-chat composer; nothing was typed and it was not sent."
+  },
+  {
+   "id": "DISCORD-9",
+   "request": "Draft \"hello from OLIVE\" to #media in D SERVER in Discord",
+   "seconds": 16.569,
+   "approval_prompts": 0,
+   "reply": "DESTINATION_UNVERIFIED: destination unverified, workspace verified, composer unverified, account unverified. No text was entered."
+  },
+  {
+   "id": "DISCORD-10",
+   "request": "Draft \"hello from OLIVE\" to #media in D SERVER in Discord",
+   "seconds": 5.053,
+   "approval_prompts": 0,
+   "reply": "DESTINATION_UNVERIFIED: the quick switcher did not open as expected; nothing was typed"
+  },
+  {
+   "id": "SEND-1",
+   "request": "Send \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 10.564,
+   "approval_prompts": 0,
+   "reply": "TARGET_NOT_VISIBLE: no exact destination row for #gen-chat in D SERVER was found; nothing was selected or sent."
+  },
+  {
+   "id": "SEND-2",
+   "request": "Send \"hello from OLIVE\" to #gen-chat in D SERVER in Discord",
+   "seconds": 18.237,
+   "approval_prompts": 0,
+   "reply": "Submission outcome uncertain: Enter was sent once but the outgoing message was not verified. It will not be retried; check the conversation."
+  },
+  {
+   "id": "SEND-3",
+   "request": "Send \"OLIVE send test 2\" to #gen-chat in D SERVER in Discord",
+   "seconds": 12.259,
+   "approval_prompts": 0,
+   "reply": "DESTINATION_UNVERIFIED: the conversation changed or its header did not confirm #gen-chat before sending; the draft is ready and nothing was sent."
+  },
+  {
+   "id": "SEND-4",
+   "request": "Send \"OLIVE send test 2\" to #gen-chat in D SERVER in Discord",
+   "seconds": 13.782,
+   "approval_prompts": 0,
+   "reply": "The exact message appears once as the latest outgoing row in the verified #gen-chat conversation and the composer is empty. This is UI evidence of submission, not protocol delivery confirmation."
+  },
+  {
+   "id": "SEND-5",
+   "request": "Send \"OLIVE send test 3\" to #gen-chat in D SERVER in Discord",
+   "seconds": 16.124,
+   "approval_prompts": 0,
+   "reply": "The exact message appears once as the latest outgoing row in the verified #gen-chat conversation and the composer is empty. This is UI evidence of submission, not protocol delivery confirmation."
+  }
+ ],
+ "messages_sent": [
+  "hello from OLIVE (SEND-2: delivered, but reported uncertain; the echo check was fixed in 11cf593, no retry)",
+  "OLIVE send test 2 (SEND-4: verified)",
+  "OLIVE send test 3 (SEND-5: typed and verified)"
+ ],
+ "timing_seconds": {
+  "before (vision-model route, earlier session attempts)": "about 28 s to a stop",
+  "draft recognised (DISCORD-8)": 9.68,
+  "send of verified draft (SEND-4)": 13.78,
+  "fresh typed send (SEND-5)": 16.12
+ },
+ "unrelated_state": "Stray text \"ending\" in the #media composer came from keystrokes typed while Discord was focused; OLIVE never typed there."
+}

@@ -422,5 +422,46 @@ RTX 3080 Ti 16 GiB. Logs are summarized in
 | IMPLEMENTED_AND_LIVE_TESTED | Freeform goals/constraints/conditions/completeness; dependent results (page → note, link → read, search → transfer); bounded recovery; Owner Mode zero-prompt local tasks with Deny/Stop; Kate observation hardening in live editor tasks; owned visual messaging send/draft/ambiguity; target verification set; prompt-injection isolation; audio, Bluetooth, brightness and network status controllers with restore; B as MAX with C7 |
 | IMPLEMENTED_FIXTURE_ONLY | Window moved between observe and click (unit); remote non-inheritance of Owner Mode (suite); mail/research/media owner families (unit); Kate crash cause (not reproduced) |
 | PLATFORM_LIMITED | Wi-Fi toggle (status only); power/session (OS authentication, no controller); icon-only targets without an accessible name (abstain, V02) |
-| NEEDS_REAL_USER_TASK | A real Discord (native or web) send to an exact destination with exact content, which is also the first confirmation of Discord's Enter-to-send contract |
+| NEEDS_REAL_USER_TASK | A real send through Discord **web in Firefox** (native Discord is now live-tested, see the addendum) |
 | FAILED_GATE | None in the final pass. Pass 1's F19 stop remains unexplained and is retained. |
+
+## Addendum: real native Discord messaging (25 September 2026, later the same day)
+
+After this closeout, the owner ran native Discord drafts through normal Chat and
+reported each stop. Every stop was safe: nothing was typed into the wrong place
+and nothing was sent. Each one was diagnosed from local, uncommitted captures
+and fixed with tests that fail on the previous code:
+
+| Commit | Fix |
+|---|---|
+| `e9452d6` | Settle reads while the switcher animates |
+| `7a927bb` | An exact Caps Lock reason; Num Lock no longer blocks typing |
+| `98f28e0` | Word-level switcher rows |
+| `7a0bb34` | Per-row strips within the dialog |
+| `73f50a8` | Unreadable server label deferred to the opened channel |
+| `5fbad06` | Scrollbar glyph ignored |
+| `05fdc0c` | Wait for the switcher to close; caret re-reads |
+| `f0c2653` | Closed-check bounded to the dialog |
+| `112af36` | Fragment rejoining; Discord's declared server chevron |
+| `2fc99d6` | Declared layout, keyboard selection, no vision model |
+| `b5d719d` | No accessibility waits; caret-free frames; exact-draft reuse |
+| `3b9b7c8` | Switcher toggle retry |
+| `11cf593` | Group-start delivery echo |
+| `c665bbf` | Shared word-level header check |
+
+The owner then authorized test sends in their personal server `D SERVER`. Live
+results (`evidence/final-unified/discord-live.json`, account redacted):
+
+- **Draft:** the exact draft in `#gen-chat` was recognised in 9.7 s.
+- **SEND-2, "hello from OLIVE":** delivered, but reported *uncertain* because
+  of the group-start row layout. It was not retried. Commit `11cf593` fixed the
+  echo check.
+- **SEND-4, "OLIVE send test 2":** the verified draft was sent once and the
+  echo verified, in 13.8 s.
+- **SEND-5, "OLIVE send test 3":** typed, read back exactly, header re-verified,
+  sent once and the echo verified, in 16.1 s.
+
+Earlier attempts took about 28 s just to reach a stop. Discord now needs no
+vision model. Its Enter-to-send convention is confirmed on this client by
+SEND-4 and SEND-5. Discord web in Firefox was not re-tested live after these
+changes.

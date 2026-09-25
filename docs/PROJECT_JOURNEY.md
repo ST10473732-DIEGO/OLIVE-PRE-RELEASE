@@ -205,3 +205,24 @@ first real, user-specified send to be confirmed. Python passed 1,352 tests with
 typecheck, lint and build passed; 766 repository sources compile. No C9, C10,
 OLIVE OS, push, merge, tag or release. See
 [the final closeout](OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md).
+
+Later that day, native Discord messaging was made to work end to end on the
+owner's machine. Real runs surfaced one reading or timing problem after another:
+
+- switcher animation;
+- Caps Lock;
+- small-caps server labels;
+- a scrollbar read as a letter;
+- a pointer click the list ignored;
+- the blinking caret;
+- a split placeholder;
+- the server-menu chevron;
+- the row layout at the start of a message group.
+
+Every stop along the way was safe. The final route reads Discord's declared
+layout by OCR, with no vision model, and selects by keyboard when the verified
+row is highlighted. It verified three owner-authorized test messages; one was
+delivered but first reported as uncertain and was not retried. A draft now
+takes about 10 s and a typed send about 16 s, where earlier attempts took about
+28 s just to reach a stop.
+
