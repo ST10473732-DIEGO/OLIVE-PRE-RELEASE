@@ -185,6 +185,25 @@ class CapabilityRouter:
             if verified.get('text') != text:
                 raise ValueError('The file write completed but exact content was not verified')
             return 'The requested file contents were saved and read back exactly.'
+        if intent == 'filesystem.create_directory':
+            path = self.path(self.required(e, 'path'), context)
+            info = await self.s.agent.tool('filesystem.stat', {'path': path, 'allow_missing': True}, 'Check the requested folder')
+            if info.get('exists'):
+                raise ValueError('That folder or file already exists; nothing was changed.')
+            await self.s.agent.tool('filesystem.create_directory', {'path': path}, 'Create the requested folder')
+            info = await self.s.agent.tool('filesystem.stat', {'path': path}, 'Verify the new folder')
+            if not info.get('is_directory'):
+                raise ValueError('The folder creation could not be verified.')
+            context.entities['path'] = path
+            return 'Created the folder ' + path + ' and verified it exists.'
+        if intent == 'filesystem.list':
+            path = self.path(self.required(e, 'path'), context)
+            result = await self.s.agent.tool('filesystem.list', {'path': path}, 'List the requested folder')
+            entries = result.get('entries', result.get('items', []))
+            names = [x.get('name', str(x)) if isinstance(x, dict) else str(x) for x in entries][:200]
+            return (path + ' contains:\n' + '\n'.join(names)) if names else path + ' is empty.'
+        if intent == 'code.git':
+            return await self.git(e, context)
         if intent == 'filesystem.trash':
             path = self.path(self.required(e,'path'),context)
             await self.s.agent.tool('filesystem.trash',{'path':path},'Move the requested file to Trash')
@@ -356,6 +375,35 @@ class CapabilityRouter:
             destination = values["recipient"] or " / ".join(v for v in (values["server"], values["channel"]) if v)
             return f"Draft for {destination}:\n\n{values['message']}\n\nNothing has been sent."
         raise ValueError("I don't have a connected action for that request yet.")
+
+    async def git(self, e, context):
+        if not context.workspace_id:
+            raise ValueError('Select the project workspace in Studio first; no Git operation was run.')
+        operation = e.get('operation')
+        arguments = {'add': lambda: {'files': ['.']}, 'commit': lambda: {'message': self.required(e, 'message')},
+                     'create_branch': lambda: {'name': self.required(e, 'target')},
+                     'checkout': lambda: {'name': self.required(e, 'target')},
+                     'status': dict, 'diff': dict, 'log': lambda: {'limit': 10}, 'branch_list': dict}
+        if operation not in arguments:
+            raise ValueError('That Git operation is not supported from Chat.')
+        result = await self.s.studio.git(context.workspace_id, operation, **arguments[operation]())
+        if operation == 'status':
+            rows = [f"{r.get('index','')}{r.get('worktree','')} {r.get('path','')}" for r in result.get('entries', [])][:200]
+            return ('Git status on ' + (result.get('branch') or 'unknown branch') + ':\n' +
+                    ('\n'.join(rows) if rows else 'Working tree clean.'))
+        if operation == 'log':
+            rows = result.get('commits', [])
+            return 'Recent commits:\n' + '\n'.join(
+                (f"{c.get('short_hash', '')} {c.get('subject', '')}" if isinstance(c, dict) else str(c))
+                for c in rows) if rows else 'No commits yet.'
+        if operation == 'diff':
+            return ('Git diff:\n' + result.get('diff', ''))[:8000] if result.get('diff') else 'No unstaged changes.'
+        if operation == 'branch_list':
+            return 'Branches:\n' + '\n'.join(('* ' if b.get('current') else '  ') + b.get('name', '')
+                                                for b in result.get('branches', []) if isinstance(b, dict))
+        return {'add': 'Staged the changes.', 'commit': 'Committed: ' + e.get('message', ''),
+                'create_branch': 'Created and switched to branch ' + e.get('target', '') + '.',
+                'checkout': 'Switched to branch ' + e.get('target', '') + '.'}[operation]
 
     @staticmethod
     def required(entities, name):

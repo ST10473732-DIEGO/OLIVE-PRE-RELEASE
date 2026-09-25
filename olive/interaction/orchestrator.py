@@ -152,8 +152,8 @@ class NaturalLanguageOrchestrator:
                     interpretation = {'confidence':1, 'clarification':'', 'steps':[
                         {'intent':'project.create', 'entities':{'project':starter[0], 'language':starter[1], 'query':text}, 'references':{}}]}
                 else:
-                    from .ordinary_requests import file_transfer
-                    transfer = file_transfer(text)
+                    from .ordinary_requests import ordinary_request
+                    transfer = ordinary_request(text)
                     interpretation = transfer or await self.interpreter.interpret(text, snapshot)
             context.last_interpretation = deepcopy({k:v for k,v in interpretation.items() if k != 'native_plan'})
             if chat_id not in self.active:

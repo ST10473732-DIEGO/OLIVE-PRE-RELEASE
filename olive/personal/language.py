@@ -115,18 +115,7 @@ class PersonalLanguage:
                 proposal.update(body=revised,revision=proposal['revision']+1)
                 return self.summary(proposal)
             if action=='commit':
-                # Capture this proposal revision. Existing executor binds approval to
-                # immutable canonical args; any concurrent correction cancels the call.
-                revision=proposal['revision'];args=deepcopy(proposal['arguments'])
-                if 'body' in args:args['body']=deepcopy(proposal['body'])
-                result=await self.p.call(proposal['method'],args)
-                if proposal['revision']!=revision:raise RuntimeError('Proposal changed while saving; inspect current records before retrying')
-                del pending[identity]
-                record=result.get('task',result)
-                slot={'contact':'person_id','event':'event_id','task':'personal_task_id'}.get(proposal['kind'])
-                if slot and record.get('id'):context.entities[slot]=record['id']
-                outcome='Deleted locally: ' if proposal['method'].split('.')[1].startswith('delete') else 'Saved locally: '
-                return outcome+str(record.get('display_name') or record.get('title') or proposal['body'].get('title') or proposal['domain'])+'. No communication or invitation was sent.'
+                return await self.commit(identity,context)
         if intent=='profile.get':
             profile=await self.p.call(intent,{})
             return f"Local profile: {profile['display_name'] or 'Not set'}; {profile['timezone']}; {profile['locale']}."
@@ -208,7 +197,29 @@ class PersonalLanguage:
             # must not quietly resolve to an older selected event/person/task.
             slot={'contact':'person_id','event':'event_id','task':'personal_task_id'}.get(kind)
             if slot:context.entities.pop(slot,None)
+        # Owner Mode: the literal local request already authorizes this ordinary
+        # single-record change. Deletions and remote contexts keep the review.
+        from ..authority.owner import current_policy
+        policy=current_policy()
+        if policy and action!='delete' and policy.authorize(method,deepcopy(args)):
+            return await self.commit(identity,context)
         return self.summary(proposal)
+
+
+    async def commit(self,identity,context):
+        pending=context.personal_pending;proposal=pending[identity]
+        # Capture this proposal revision. Existing executor binds approval to
+        # immutable canonical args; any concurrent correction cancels the call.
+        revision=proposal['revision'];args=deepcopy(proposal['arguments'])
+        if 'body' in args:args['body']=deepcopy(proposal['body'])
+        result=await self.p.call(proposal['method'],args)
+        if proposal['revision']!=revision:raise RuntimeError('Proposal changed while saving; inspect current records before retrying')
+        del pending[identity]
+        record=result.get('task',result)
+        slot={'contact':'person_id','event':'event_id','task':'personal_task_id'}.get(proposal['kind'])
+        if slot and record.get('id'):context.entities[slot]=record['id']
+        outcome='Deleted locally: ' if proposal['method'].split('.')[1].startswith('delete') else 'Saved locally: '
+        return outcome+str(record.get('display_name') or record.get('title') or proposal['body'].get('title') or proposal['domain'])+'. No communication or invitation was sent.'
 
     def project(self,e,context):
         if not e.get('project'):return context.project_id or ''

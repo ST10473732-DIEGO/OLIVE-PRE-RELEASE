@@ -21,6 +21,9 @@ FORBIDDEN_FIELDS = {'approved','owner_mode','permission','ignore_user_policy','d
 SCOPED_EFFECTS = {'filesystem.copy','filesystem.move','filesystem.write_text','filesystem.trash','filesystem.delete','code.apply_patch',
                   'studio.run','workspace.run_validation','studio.new_project'}
 READ_TOOLS = {'filesystem.stat', 'filesystem.read_text', 'git.status', 'git.diff', 'git.log', 'git.branch_list'}
+from .owner_scope import CODE_READ, FS_READ, RESEARCH_READ
+NON_RESERVING = READ_TOOLS | FS_READ | CODE_READ | RESEARCH_READ | {
+    'system.list_running_applications', 'system.audio_status', 'system.bluetooth_status'}
 
 
 def starter_request(text):
@@ -55,12 +58,14 @@ class OwnerGrant:
     cancellation_epoch: int
     project_spec: tuple = ()
     content_sha256: str = ''
+    bindings: dict = None
 
 
 class OwnerPolicy:
     def __init__(self, settings, clock=time.monotonic):
         self.settings,self.clock=settings,clock
-        self.epochs={};self.active={};self.used=set();self.lock=threading.RLock()
+        self.epochs={};self.active={};self.used={};self.lock=threading.RLock()
+        self.workspace_repo=None
 
     def enabled(self):
         settings=self.settings();identity=settings.get('owner_installation',{})
@@ -73,6 +78,7 @@ class OwnerPolicy:
             from ..interaction.deliverable import instruction_text, direct_deliverable
             instruction=instruction_text(text)
             answer_only = direct_deliverable(text, {}) is not None
+            negated = frozenset(re.findall(r"\b(?:do not|don't|never)\s+(\w+)", instruction))
             forbidden_verbs = set(re.findall(r"\b(?:do not|don't|never)\s+(copy|move|rename|save|edit|fix|run|test|build|create|delete|trash)\b", instruction))
             # Negations constrain authority before capability extraction.
             instruction=re.sub(r"\b(?:do not|don't|never)\s+[^.;\n]+",'',instruction)
@@ -122,6 +128,11 @@ class OwnerPolicy:
                                          'log':'git.log', 'branches':'git.branch_list'}.items():
                     if re.search(r'\b'+word+r'\b', instruction) and re.search(r'\b(?:show|read|check|inspect|list)\b', instruction):
                         capabilities.add(capability)
+            from .owner_scope import extend
+            extra, bindings = extend(text, instruction, workspace=workspace, answer_only=answer_only, forbidden=negated)
+            capabilities.update(extra)
+            if 'rename' in bindings and effect in {'rename', 'answer'}:
+                effect = 'rename'
             project_spec = ()
             from ..interaction.ordinary_requests import file_transfer
             literal = file_transfer(text)
@@ -137,7 +148,8 @@ class OwnerPolicy:
                 epoch=self.epochs.get(chat_id,0)
                 grant=OwnerGrant(uuid.uuid4().hex,chat_id,owner_identity(),self.settings()['owner_installation']['id'],
                     hashlib.sha256(text.encode()).hexdigest(),effect,frozenset(capabilities),paths,
-                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch,project_spec,content_sha256)
+                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch,project_spec,content_sha256,
+                    bindings)
                 self.active[grant.id]=grant
             from ..interaction.trace import event
             event('owner_task_grant', task_id=grant.id, effect=effect, capabilities=sorted(capabilities),
@@ -149,7 +161,7 @@ class OwnerPolicy:
             if grant:
                 with self.lock:
                     self.active.pop(grant.id,None)
-                    self.used.discard(grant.id)
+                    for key in [k for k in self.used if k[0]==grant.id]:self.used.pop(key,None)
 
     def cancel(self,chat_id):
         with self.lock:
@@ -179,14 +191,110 @@ class OwnerPolicy:
         return ''
 
     def consume(self, tool, arguments):
-        """Reserve one mutation before dispatch; uncertain effects never replay."""
+        """Reserve a bounded mutation before dispatch; uncertain effects never replay."""
         if not self.authorize(tool, arguments):return False
-        if tool in READ_TOOLS:return True
+        if tool in NON_RESERVING:return True
         grant = _current.get()[1]
+        from .owner_scope import BUDGETS
         with self.lock:
-            if grant.id in self.used:return False
-            self.used.add(grant.id)
+            key=(grant.id,tool)
+            if self.used.get(key,0) >= BUDGETS.get(tool,1):return False
+            self.used[key]=self.used.get(key,0)+1
             return True
+
+    def _family(self, grant, tool, arguments):
+        """Validate extended owner families; None means use the file/Studio rules below."""
+        from . import owner_scope as scope
+        bindings = grant.bindings or {}
+        def owned_target(raw):
+            raw = Path(raw).expanduser()
+            path = raw.resolve()
+            if any(p.is_symlink() for p in (raw, *raw.parents)):return False
+            if any(part in {'.ssh', '.gnupg', '.pki'} for part in path.parts):return False
+            existing = path
+            while not existing.exists() and existing != existing.parent:existing = existing.parent
+            return not hasattr(os, 'getuid') or existing.stat().st_uid == os.getuid()
+        if tool in scope.FS_READ and bindings.get('read_roots'):
+            path = arguments.get('path')
+            if isinstance(path, str) and scope.within(path, bindings['read_roots']) and owned_target(path):
+                return True
+            if tool in {'filesystem.list', 'filesystem.search'}:return False
+            return None
+        if tool == 'filesystem.create_directory':
+            path = arguments.get('path')
+            return (isinstance(path, str) and str(Path(path).expanduser().resolve()) in bindings.get('directories', ())
+                    and set(arguments) <= {'path', 'parents'} and owned_target(path)
+                    and not Path(path).expanduser().exists())
+        if tool == 'filesystem.move' and bindings.get('rename') and not grant.source:
+            source, destination = bindings['rename']
+            return (set(arguments) == {'path', 'destination'} and
+                    str(Path(str(arguments['path'])).expanduser().resolve()) == source and
+                    str(Path(str(arguments['destination'])).expanduser().resolve()) == destination and
+                    Path(source).exists() and not Path(destination).exists() and
+                    owned_target(source) and owned_target(destination))
+        workspace_argument = arguments.get('workspace', arguments.get('workspace_id'))
+        if tool in scope.CODE_READ | scope.CODE_WRITE | {'studio.build', 'studio.debug'}:
+            if not scope.workspace_matches(workspace_argument, grant.workspace, self.workspace_repo):return False
+            path = arguments.get('path', '')
+            if not isinstance(path, str) or '..' in Path(path).parts:return False
+            if path and Path(path).is_absolute() and not scope.within(path, {grant.workspace}):return False
+            return True
+        if tool in scope.GIT_WRITE:
+            if not scope.workspace_matches(workspace_argument, grant.workspace, self.workspace_repo):return False
+            bound = bindings.get('git', {}).get(tool)
+            if tool == 'git.commit':
+                message = arguments.get('message')
+                return (set(arguments) == {'workspace', 'message'} and isinstance(message, str) and
+                        1 <= len(message.strip()) <= 200 and not any(ord(c) < 32 for c in message) and
+                        (not bound or message == bound))
+            if tool == 'git.add':
+                files = arguments.get('files')
+                return (set(arguments) == {'workspace', 'files'} and isinstance(files, list) and 1 <= len(files) <= 200 and
+                        all(isinstance(f, str) and f and not Path(f).is_absolute() and '..' not in Path(f).parts
+                            and not f.startswith('-') for f in files))
+            return set(arguments) == {'workspace', 'name'} and arguments['name'] == bound
+        if tool in {'system.open_application', 'system.close_application'}:
+            name = bindings.get('open' if tool == 'system.open_application' else 'close', '')
+            value = arguments.get('application')
+            return (set(arguments) == {'application'} and isinstance(value, str) and bool(name) and
+                    value.strip().casefold().removesuffix('.exe') == name.casefold())
+        if tool in {'system.open_path', 'ide.open_file', 'ide.open_workspace'}:
+            if tool == 'ide.open_workspace' and scope.workspace_matches(workspace_argument or arguments.get('path'),
+                                                                        grant.workspace, self.workspace_repo):
+                return True
+            path = arguments.get('path')
+            roots = set(grant.paths) | set(bindings.get('read_roots', ()))
+            return isinstance(path, str) and (scope.within(path, roots) or
+                   bool(grant.workspace) and tool == 'ide.open_file' and scope.workspace_matches(
+                       workspace_argument, grant.workspace, self.workspace_repo))
+        if tool == 'system.list_running_applications':
+            return not arguments
+        if tool in {'system.audio_status', 'system.bluetooth_status'}:
+            return not arguments
+        if tool in {'system.audio_set_volume', 'system.audio_set_mute', 'system.bluetooth_set_power'}:
+            bound = bindings.get('system', {})
+            key = {'system.audio_set_volume': 'percent', 'system.audio_set_mute': 'muted',
+                   'system.bluetooth_set_power': 'powered'}[tool]
+            return tool in bound and set(arguments) == {key} and arguments[key] == bound[tool] and \
+                type(arguments[key]) is type(bound[tool])
+        if tool in scope.RESEARCH_READ:
+            return True
+        if tool == 'mail.send':
+            bound = bindings.get('mail')
+            preview = arguments.get('preview')
+            if not bound or set(arguments) != {'submission_id', 'expected_fingerprint', 'preview'} or not isinstance(preview, dict):
+                return False
+            from email.utils import getaddresses
+            fields = [preview.get(k) for k in ('to', 'cc', 'bcc')]
+            values = [v for f in fields for v in (f if isinstance(f, list) else [f] if f else [])]
+            recipients = {address.casefold() for _, address in getaddresses([str(v) for v in values]) if address}
+            body_ok = bound['body'] is None or str(preview.get('body', '')).strip() == bound['body'].strip()
+            return bool(recipients) and recipients <= bound['recipients'] and not preview.get('attachments') and body_ok
+        if tool in {'mail.save_draft', 'mail.reply', 'mail.prepare'}:
+            return True
+        if tool in scope.PERSONAL_WRITE:
+            return set(arguments) <= {'body', 'record_id', 'revision', 'delivery_id', 'minutes'}
+        return None
 
     def authorize(self,tool,arguments):
         current=_current.get()
@@ -194,8 +302,12 @@ class OwnerPolicy:
         grant=current[1]
         with self.lock:
             if self.active.get(grant.id) is not grant or self.epochs.get(grant.chat_id,0)!=grant.cancellation_epoch or self.clock()>=grant.expiry:return False
-        if tool not in READ_TOOLS and grant.id in self.used:return False
+        if tool not in NON_RESERVING:
+            from .owner_scope import BUDGETS
+            if self.used.get((grant.id,tool),0) >= BUDGETS.get(tool,1):return False
         if tool not in grant.capabilities or FORBIDDEN_FIELDS & arguments.keys():return False
+        family = self._family(grant, tool, arguments)
+        if family is not None:return family
         if tool in {'git.status', 'git.diff', 'git.log', 'git.branch_list'}:
             if not grant.workspace or str(Path(arguments.get('workspace','')).resolve()) != grant.workspace:return False
             allowed = {'workspace'} | ({'staged'} if tool == 'git.diff' else {'limit'} if tool == 'git.log' else set())
@@ -235,6 +347,12 @@ class OwnerPolicy:
             if hasattr(os,'getuid') and existing.stat().st_uid!=os.getuid():return False
         if arguments.get('overwrite') and not (tool == 'filesystem.write_text' and grant.effect in {'edit','fix'}):return False  # Changed/colliding target needs separate resolution.
         return True
+
+
+def current_policy():
+    """The active local owner policy for this request context, or None."""
+    current = _current.get()
+    return current[0] if current else None
 
 
 def owner_request(function):

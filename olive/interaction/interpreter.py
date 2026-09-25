@@ -58,7 +58,8 @@ code.test runs EXISTING tests; creating or adding test code is code.modify.
 Opening a media application is application.launch, not playback of its name as a song.
 An explicit request to fix something is code.modify even when the failing function
 needs clarification. Do not change the intended action just because an entity is missing.
-filesystem.search/open/move/copy = locate/open/relocate/copy files. project.open = select a project.
+filesystem.search/open/move/copy = locate/open/relocate/copy files. filesystem.create_directory
+creates one new folder at an explicit path; filesystem.list lists one explicit folder. project.open = select a project.
 project.create = create a NEW application project in OLIVE Studio. Include its
 short project name, requested language if given, and FULL implementation goal in query.
 Studio is OLIVE's built-in workspace, NOT an external application to launch or click.

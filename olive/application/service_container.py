@@ -138,6 +138,7 @@ class ServiceContainer:
         self.project_repo = ProjectRepository(data / "projects.json")
         self.workspace_repo = WorkspaceRepository(data / "workspaces.json")
         self.workspace_service = WorkspaceService(self.workspace_repo)
+        self.owner_policy.workspace_repo = self.workspace_repo
         self.repository_service = RepositoryService()
         self.code_index_service = CodeIndexService()
         self.repository_maps = RepositoryMapService(
