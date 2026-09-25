@@ -53,6 +53,7 @@ class EIS:
         self.sequence = 0
         self.keyboard_group = 0
         self.keyboard_modifiers = 0
+        self.keyboard_pressed = self.keyboard_locked = 0
         self.last_pong = 0
         self.lib.ei_configure_name(self.context, b'OLIVE local user-directed control')
         # Transfer a duplicate to libei; retain no portal FD in this caller.
@@ -84,9 +85,10 @@ class EIS:
                         fn = getattr(self.lib, 'ei_event_keyboard_get_xkb_' + suffix)
                         fn.restype, fn.argtypes = C.c_uint32, [C.c_void_p]
                     self.keyboard_group = self.lib.ei_event_keyboard_get_xkb_group(event)
-                    self.keyboard_modifiers = (self.lib.ei_event_keyboard_get_xkb_mods_depressed(event) |
-                        self.lib.ei_event_keyboard_get_xkb_mods_latched(event) |
-                        self.lib.ei_event_keyboard_get_xkb_mods_locked(event))
+                    self.keyboard_pressed = (self.lib.ei_event_keyboard_get_xkb_mods_depressed(event) |
+                        self.lib.ei_event_keyboard_get_xkb_mods_latched(event))
+                    self.keyboard_locked = self.lib.ei_event_keyboard_get_xkb_mods_locked(event)
+                    self.keyboard_modifiers = self.keyboard_pressed | self.keyboard_locked
                 elif kind == 90:  # EI_EVENT_PONG: all earlier keys/modifier replies processed.
                     self.last_pong = self.lib.ei_ping_get_id(self.lib.ei_event_pong_get_ping(event))
                 elif kind in (2, 4, 6, 7):
@@ -168,9 +170,11 @@ class EIS:
         from .keymap import strokes
         device = self.device(4)
         self.synchronize()
-        if self.keyboard_modifiers:
+        if self.keyboard_pressed:
             raise PermissionError('Release keyboard modifiers before literal input')
-        sequence = strokes(self, device, value)
+        # Locks are checked against the compositor keymap: Caps Lock would change
+        # the typed text, while Num Lock cannot (keypad keys are never used).
+        sequence = strokes(self, device, value, self.keyboard_locked)
         for code, shift in sequence:
             if self.stopped.is_set():
                 raise InterruptedError('Literal input stopped')

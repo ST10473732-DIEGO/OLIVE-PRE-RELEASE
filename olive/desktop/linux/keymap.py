@@ -7,7 +7,11 @@ import ctypes as C
 import os
 
 
-def strokes(eis, device, text):
+# Keypad keys (evdev codes) depend on Num Lock; literal text never uses them.
+KEYPAD = frozenset({55, *range(71, 84), 96, 98, 117, 118, 121, 179, 180})
+
+
+def strokes(eis, device, text, locked=0):
     lib = eis.lib
     pointer = C.c_void_p
     for name, result, args in (
@@ -33,6 +37,7 @@ def strokes(eis, device, text):
         'xkb_keymap_max_keycode': (C.c_uint32, [pointer]),
         'xkb_keymap_key_get_syms_by_level': (C.c_int, [pointer, C.c_uint32, C.c_uint32, C.c_uint32, C.POINTER(C.POINTER(C.c_uint32))]),
         'xkb_keysym_to_utf32': (C.c_uint32, [C.c_uint32]),
+        'xkb_keymap_mod_get_index': (C.c_uint32, [pointer, C.c_char_p]),
     }
     for name, (result, args) in definitions.items():
         function = getattr(xkb, name)
@@ -42,8 +47,17 @@ def strokes(eis, device, text):
         mapping = xkb.xkb_keymap_new_from_string(context, data, 1, 0)
         if not mapping:
             raise ValueError('Compositor keymap could not be read')
+        mask = lambda name: (lambda index: 1 << index if index < 32 else 0)(xkb.xkb_keymap_mod_get_index(mapping, name))
+        if locked & mask(b'Lock'):
+            raise PermissionError('Caps Lock is on, so the typed text would change case. Turn Caps Lock off and ask '
+                                  'again; nothing was typed.')
+        if locked & ~mask(b'Mod2'):
+            raise PermissionError('A keyboard lock other than Num Lock is active. Turn it off and ask again; '
+                                  'nothing was typed.')
         characters = {}
         for code in range(xkb.xkb_keymap_min_keycode(mapping), xkb.xkb_keymap_max_keycode(mapping)+1):
+            if code - 8 in KEYPAD:
+                continue
             for level in (0, 1):
                 syms = C.POINTER(C.c_uint32)()
                 count = xkb.xkb_keymap_key_get_syms_by_level(mapping, code, eis.keyboard_group, level, C.byref(syms))
