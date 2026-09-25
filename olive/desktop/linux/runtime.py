@@ -272,6 +272,9 @@ class LinuxRuntime:
                 fingerprint = hashlib.sha256(json.dumps(observation['controls'], sort_keys=True).encode()).hexdigest()
                 states[fingerprint] = states.get(fingerprint, 0) + 1
                 if states[fingerprint] > 3:
+                    if grant.scope.effect == 'click':
+                        raise ValueError('TARGET_NOT_VISIBLE: "' + grant.scope.content + '" was not found after bounded '
+                                         'navigation; nothing was clicked')
                     raise ValueError('No observable progress; human handoff required')
                 d.record.current_action = 'Verifying' if submitted else 'Finding the next control'
                 d.publish()

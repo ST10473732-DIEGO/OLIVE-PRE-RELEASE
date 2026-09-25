@@ -239,3 +239,10 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ComposerClassificationTests(unittest.TestCase):
+    def test_many_unrelated_rows_are_not_a_composer(self):
+        adapter = adapter_for('Discord')
+        rows = [line('Friends', 10), line('Nitro', 40), line('Shop', 70), line('Direct Messages', 100)]
+        self.assertEqual(composer_state(rows, adapter)[0], 'unknown')

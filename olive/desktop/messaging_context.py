@@ -119,7 +119,9 @@ def composer_state(lines, adapter):
     text = [l for l in rows if not re.fullmatch(r'[\W\d_]{1,3}', l['text'])]
     if len(text) == 1:
         return 'draft', '', text[0]['text'].strip(), text[0]
-    return ('unknown', '', '', None) if not text else ('draft', '', ' '.join(l['text'] for l in text), text[0])
+    # Several unrelated rows mean this band is not a composer (for example a
+    # contacts/home view); never report that as a verified composer or draft.
+    return 'unknown', '', '', None
 
 
 def resolve_destination(scope, composer):

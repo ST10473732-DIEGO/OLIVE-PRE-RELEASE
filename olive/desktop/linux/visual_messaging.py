@@ -131,10 +131,11 @@ class VisualMessaging:
         candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
         if len(candidates) != 1:
             await self.escape()
-            raise ValueError(('TARGET_AMBIGUOUS: several destinations are named ' if candidates else
-                              'TARGET_NOT_VISIBLE: no exact destination row for ') + self.scope.destination +
-                             (' in ' + self.scope.server if self.scope.server else '') +
-                             '. Tell me which one; nothing was selected or sent.')
+            where = self.scope.destination + (' in ' + self.scope.server if self.scope.server else '')
+            raise ValueError('TARGET_AMBIGUOUS: several destinations are named ' + where +
+                             '. Tell me which one; nothing was selected or sent.' if candidates else
+                             'TARGET_NOT_VISIBLE: no exact destination row for ' + where +
+                             ' was found; nothing was selected or sent.')
         if not select:
             await self.escape()
             self.history.append({'operation': 'visual_uniqueness', 'status': 'destination name unique in client'})
