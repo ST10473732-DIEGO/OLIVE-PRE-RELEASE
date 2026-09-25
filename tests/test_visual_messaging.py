@@ -192,11 +192,29 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse([c for c in client.calls if c[0] == 'visual_click'])
         self.assertEqual(client.sent, [])
 
+    def no_message_effect(self, client):
+        self.assertEqual(client.sent, [])
+        self.assertFalse(self.keys(client, 'Enter'))
+        self.assertFalse([c for c in client.calls if c[0] == 'visual_click'])
+        self.assertFalse(any(client.drafts.values()))
+
     async def test_channel_without_server_asks_first(self):
         client = Client(current=1)
-        with self.assertRaisesRegex(ValueError, 'NEEDS_USER_CLARIFICATION'):
+        with self.assertRaisesRegex(ValueError, 'TARGET_AMBIGUOUS'):
             await self.run_task('Send "hi" to #general in Visual Messenger', client)
-        self.assertFalse([c for c in client.calls if c[0] in {'visual_click', 'visual_text', 'visual_key'}])
+        self.no_message_effect(client)
+
+    async def test_current_view_match_is_not_enough_when_name_repeats(self):
+        client = Client(current=2)  # Already showing Heron Lab #general.
+        with self.assertRaisesRegex(ValueError, 'TARGET_AMBIGUOUS'):
+            await self.run_task('Send "status ok" to general in Visual Messenger', client)
+        self.no_message_effect(client)
+
+    async def test_globally_unique_name_needs_no_server(self):
+        client = Client(current=0)
+        outcome, _ = await self.run_task('Send "notes" to #releases in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Osprey Workshop', 'releases', 'notes')])
 
     async def test_existing_draft_is_preserved(self):
         client = Client(current=0, draft='unrelated draft')

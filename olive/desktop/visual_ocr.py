@@ -34,17 +34,9 @@ def band(frame, point, half_height, half_width=None):
     return clamp_box(frame, (x - half_width, y - half_height, x + half_width, y + half_height))
 
 
-def ocr_lines(frame, box, scale=3):
-    from PIL import Image, ImageOps, ImageStat
-    left, top, right, bottom = clamp_box(frame, box)
-    with Image.open(io.BytesIO(base64.b64decode(frame['png'], validate=True))) as image:
-        crop = ImageOps.grayscale(image.crop((left, top, right, bottom)))
-        if ImageStat.Stat(crop).mean[0] < 128:
-            crop = ImageOps.invert(crop)
-        crop = ImageOps.autocontrast(crop, cutoff=1)
-        crop = crop.resize((crop.width * scale, crop.height * scale))
-        data = io.BytesIO()
-        crop.save(data, format='PNG')
+def _tesseract(image, scale, left, top):
+    data = io.BytesIO()
+    image.save(data, format='PNG')
     output = subprocess.run(['tesseract', 'stdin', 'stdout', '--psm', '11', 'tsv'], input=data.getvalue(),
                             capture_output=True, timeout=10, check=True)
     grouped = {}
@@ -63,8 +55,39 @@ def ocr_lines(frame, box, scale=3):
         b = max(int(w['top']) + int(w['height']) for w in words) / scale + top
         lines.append({'text': ' '.join(w['text'] for w in words), 'box': (l, t, r, b),
                       'confidence': min(float(w['conf']) for w in words)})
-    lines.sort(key=lambda line: (line['box'][1], line['box'][0]))
     return lines
+
+
+def ocr_lines(frame, box, scale=3):
+    """Two independent passes: global contrast, and text isolated from its local background.
+
+    The second pass keeps low-contrast placeholders readable when a crop spans
+    several background shades. Lines are merged; duplicates keep the higher confidence.
+    """
+    from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
+    left, top, right, bottom = clamp_box(frame, box)
+    with Image.open(io.BytesIO(base64.b64decode(frame['png'], validate=True))) as image:
+        gray = ImageOps.grayscale(image.crop((left, top, right, bottom)))
+    size = (gray.width * scale, gray.height * scale)
+    basic = ImageOps.invert(gray) if ImageStat.Stat(gray).mean[0] < 128 else gray
+    basic = ImageOps.autocontrast(basic).resize(size)  # No cutoff: sparse text is the extreme 1%.
+    large = gray.resize(size, Image.LANCZOS)
+    background = large.filter(ImageFilter.MedianFilter(21)).filter(ImageFilter.BoxBlur(30))
+    isolated = ImageChops.difference(large, background).point(lambda v: 0 if v > 30 else 255)
+    merged = []
+    for line in _tesseract(basic, scale, left, top) + _tesseract(isolated, scale, left, top):
+        duplicate = next((m for m in merged if normalize(m['text']) == normalize(line['text']) and
+                          _overlap(m['box'], line['box'])), None)
+        if duplicate is None:
+            merged.append(line)
+        elif line['confidence'] > duplicate['confidence']:
+            merged[merged.index(duplicate)] = line
+    merged.sort(key=lambda line: (line['box'][1], line['box'][0]))
+    return merged
+
+
+def _overlap(a, b):
+    return max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])
 
 
 def confident(lines):

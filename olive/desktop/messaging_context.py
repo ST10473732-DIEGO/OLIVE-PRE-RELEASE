@@ -136,7 +136,7 @@ def resolve_destination(scope, composer):
     return Layer(VERIFIED, name, line['box'], 'composer placeholder ' + sigil + name)
 
 
-def resolve_exact(lines, expected, what):
+def resolve_exact(lines, expected, what, anchor=None):
     """One confident OCR line equal to the user's literal name (sigils ignored)."""
     wanted = bare(expected)
     rows = confident(lines)
@@ -146,6 +146,11 @@ def resolve_exact(lines, expected, what):
     if len(matches) > 1:
         return Layer(AMBIGUOUS, evidence='duplicate ' + what + ' labels')
     observed = [l for l in rows if len(bare(l['text'])) >= 2]
+    if anchor is not None and observed:
+        # The label at the proposed region names something else.
+        nearest = min(observed, key=lambda l: abs((l['box'][1] + l['box'][3]) / 2 - anchor[1]) +
+                      max(0, l['box'][0] - anchor[0], anchor[0] - l['box'][2]))
+        return Layer(MISMATCH, bare(nearest['text']), nearest['box'], 'another ' + what + ' is shown')
     if len(observed) == 1:
         return Layer(MISMATCH, bare(observed[0]['text']), observed[0]['box'], 'another ' + what + ' is shown')
     return Layer(NOT_VISIBLE, evidence=what + ' not read')

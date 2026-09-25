@@ -3,6 +3,7 @@
  */
 #include <gtk/gtk.h>
 static GtkWidget *amber, *status;
+static const char *log_path;
 static void reveal(GtkButton *button, gpointer data) {
     (void)data;
     gtk_widget_show(amber);
@@ -12,9 +13,14 @@ static void selected(GtkButton *button, gpointer data) {
     (void)data;
     gtk_label_set_text(GTK_LABEL(status),gtk_button_get_label(button));
     g_print("activated:%s\n",gtk_button_get_label(button));
+    if (log_path) {  /* Optional owned evidence log for acceptance (argv[1]). */
+        FILE *log=fopen(log_path,"a");
+        if (log) { fprintf(log,"activated:%s\n",gtk_button_get_label(button)); fclose(log); }
+    }
 }
 int main(int argc, char **argv) {
     gtk_init(&argc,&argv);
+    log_path=argc>1?argv[1]:NULL;
     GtkWidget *window=gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window),"OLIVE owned freeform controls");
     gtk_window_set_default_size(GTK_WINDOW(window),760,540);

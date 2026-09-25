@@ -61,8 +61,19 @@ class VisualMessaging:
         x, y = action['coordinate']
         point = (x * frame['width'] / 1000, y * frame['height'] / 1000)
         half_height, half_width = SIZES.get(role, (18, 280))
+        if half_width is None:
+            half_width = frame['width'] * .4  # The composer, not side panels at the same height.
         lines = await asyncio.to_thread(ocr_lines, frame, band(frame, point, half_height, half_width))
+        self.diagnose(role, point, lines)
         return point, lines
+
+    def diagnose(self, role, point, lines):
+        """Owned fixtures only: keep OCR text for debugging. Real clients record states, never text."""
+        entry = {'operation': 'visual_region', 'role': role, 'point': [round(v) for v in point] if point else None,
+                 'lines': len(lines)}
+        if self.adapter.key.endswith('fixture'):
+            entry['text'] = [(l['text'], round(l['confidence'])) for l in lines][:12]
+        self.history.append(entry)
 
     async def resolve(self):
         frame = await self.frame()
@@ -73,13 +84,13 @@ class VisualMessaging:
         ctx.draft = '' if composer[0] == 'empty' else composer[2] if composer[0] == 'draft' else None
         if composer[0] == 'draft':
             # A draft hides the placeholder; confirm the conversation from its header instead.
-            _, lines = await self.region(frame, 'header')
-            ctx.destination = resolve_exact(lines, self.scope.destination, 'destination header')
+            anchor, lines = await self.region(frame, 'header')
+            ctx.destination = resolve_exact(lines, self.scope.destination, 'destination header', anchor)
         ctx.composer = (Layer(VERIFIED, 'composer', composer[3]['box'], 'placeholder/draft read in proposed band')
                         if composer[0] in {'empty', 'draft'} else Layer(evidence='composer band not readable'))
         if self.scope.server:
-            _, lines = await self.region(frame, 'server')
-            ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace')
+            anchor, lines = await self.region(frame, 'server')
+            ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace', anchor)
         _, lines = await self.region(frame, 'account')
         observed = observed_account(lines)
         if self.scope.account:
@@ -92,8 +103,12 @@ class VisualMessaging:
         self.history.append({'operation': 'visual_messaging_resolve', 'context': ctx.summary()})
         return frame, point
 
-    async def navigate(self):
-        """One bounded quick-switcher attempt; exact unique row or no click."""
+    async def navigate(self, select=True):
+        """One bounded quick-switcher attempt; exact unique row or no click.
+
+        With select=False it only proves the destination name is unique in this
+        client (the current view alone is not evidence: names repeat across servers).
+        """
         self.progress('Finding ' + self.scope.destination + '…')
         frame = await self.frame()
         await self.runtime.native.call('visual_key', {'revision': frame['revision'], 'value': self.adapter.switcher_key})
@@ -120,6 +135,10 @@ class VisualMessaging:
                               'TARGET_NOT_VISIBLE: no exact destination row for ') + self.scope.destination +
                              (' in ' + self.scope.server if self.scope.server else '') +
                              '. Tell me which one; nothing was selected or sent.')
+        if not select:
+            await self.escape()
+            self.history.append({'operation': 'visual_uniqueness', 'status': 'destination name unique in client'})
+            return
         # The model only anchored the search band; the click targets the row that
         # OCR independently verified as the unique exact destination.
         left, top, right, bottom = candidates[0]['box']
@@ -139,10 +158,12 @@ class VisualMessaging:
         sending = scope.effect == 'send'
         self.progress('Checking the conversation…')
         frame, point = await self.resolve()
-        if ctx.destination.state != VERIFIED or scope.server and ctx.workspace.state != VERIFIED:
-            if not scope.server and scope.destination.startswith('#'):
-                raise ValueError('NEEDS_USER_CLARIFICATION: which server contains ' + scope.destination +
-                                 '? Channel names repeat across servers; nothing was selected or sent.')
+        needs_navigation = ctx.destination.state != VERIFIED or scope.server and ctx.workspace.state != VERIFIED
+        if not scope.server:
+            # Without a server, the name must be unique across the whole client.
+            await self.navigate(select=needs_navigation)
+            frame, point = await self.resolve()
+        elif needs_navigation:
             await self.navigate()
             frame, point = await self.resolve()
         if ctx.draft and ctx.destination.state == VERIFIED:
@@ -167,7 +188,7 @@ class VisualMessaging:
         await self.runtime.native.call('visual_text', {'revision': fresh['revision'], 'value': scope.content})
         self.progress('Verifying…')
         after = await self.frame()
-        typed = await asyncio.to_thread(ocr_lines, after, band(after, point, 32))
+        typed = await asyncio.to_thread(ocr_lines, after, band(after, point, 32, after['width'] * .4))
         state = composer_state(typed, self.adapter)
         if state[0] != 'draft' or normalize(state[2]) != normalize(scope.content):
             raise ValueError('COMPOSER_UNVERIFIED: the exact requested text was not verified in the composer; '
@@ -203,7 +224,8 @@ class VisualMessaging:
         for _ in range(3):
             await asyncio.sleep(.4)
             frame = await self.frame()
-            composer = composer_state(await asyncio.to_thread(ocr_lines, frame, band(frame, point, 32)), self.adapter)
+            composer = composer_state(await asyncio.to_thread(ocr_lines, frame, band(frame, point, 32, frame['width'] * .4)),
+                                      self.adapter)
             echoed = await self.echoes(frame, point)
             if composer[0] == 'empty' and echoed == self.baseline + 1:
                 ctx.delivery = 'SENT_UI'
