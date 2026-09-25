@@ -49,6 +49,13 @@ async def navigate(runtime, grant, app, processes):
         current = [d for d in locations.get('documents', []) if d.get('ready')]
         if len(current) != 1 or validated_url(current[0].get('uri','')) != validated_url(grant.scope.content):
             raise PermissionError('The current page differs from the verified task source')
+    if grant.scope.effect == 'read' and grant.scope.predicate:
+        from urllib.parse import urlsplit
+        current = [d for d in locations.get('documents', []) if d.get('ready')]
+        host = (urlsplit(current[0].get('uri', '')).hostname or '') if len(current) == 1 else ''
+        wanted = grant.scope.predicate.casefold()
+        if not host or not (host == wanted or host.endswith('.' + wanted)):
+            raise PermissionError('RESULT_PROVENANCE_INVALID: the opened result is not on ' + grant.scope.predicate)
     page = document_frame(after, locations.get('documents', []))
     text = await asyncio.to_thread(read_frame, page)
     if not text.strip():

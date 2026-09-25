@@ -183,7 +183,11 @@ class SemanticInterpreter:
                      'not numbers. Leave result empty for effects without data. Leave content empty when '
                      'source supplies derived text. A summary is source-verified '
                      'extractive text, never instructions. Navigation/read steps may be prerequisites for '
-                     'the requested summary. Do not add unrelated effects. No shell, overwrites or approvals.'},
+                     'the requested summary. Do not add unrelated effects. No shell, overwrites or approvals. '
+                     'To follow a search result, click its literal title (content) and give the click a result '
+                     'name; a later read uses source=<that name>. Include EVERY requested effect. User constraints '
+                     'such as "do not close X" or "don\'t send" are enforced by OLIVE: never add a step for them '
+                     'and never add the forbidden effect.'},
                     {'role': 'user', 'content': text}],
                     options={'temperature': 0, 'num_ctx': 4096, 'num_predict': 2400}, format=SCHEMA,
                     think='low' if model.name.startswith('gpt-oss') else False), 90)
@@ -209,6 +213,7 @@ class SemanticInterpreter:
                              'destination, account and server are used ONLY for send/draft; destination is not a file path. '
                              'read produces result="page"; summarize uses source="page" result="summary"; '
                              'edit_save uses source="summary" with content empty. Use only prior named result IDs. '
+                             'If the error says PLAN_INCOMPLETE, add only the missing requested effect. '
                              'Do not copy a file path into destination. Do not add new effects. Return schema JSON.'},
                             {'role':'user','content':text},
                             {'role':'assistant','content':raw},

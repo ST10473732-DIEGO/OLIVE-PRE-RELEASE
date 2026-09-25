@@ -12,6 +12,16 @@ from .trace import traced_request, event as trace_event
 from .workspace_reference import selected_workspace_reference
 
 
+def step_activity(scope):
+    """Concise inline progress, never reasoning."""
+    app = scope.application or 'the application'
+    return {'open': f'Opening {app}…', 'visit': f'Opening the page in {app}…', 'read': f'Reading the page in {app}…',
+            'search': f'Searching in {app}…', 'click': f'Finding {scope.content} in {app}…',
+            'edit_save': f'Writing and saving in {app}…', 'paste_save': f'Pasting and saving in {app}…',
+            'send': f'Sending in {app}…', 'draft': f'Typing the draft in {app}…', 'summarize': 'Summarizing the verified page…',
+            'copy': f'Copying in {app}…', 'move': f'Moving in {app}…'}.get(scope.effect, 'Working…')
+
+
 class NaturalLanguageOrchestrator:
     def __init__(self, services, interpreter=None, router=None):
         self.s = services
@@ -89,6 +99,8 @@ class NaturalLanguageOrchestrator:
             raise ValueError("Unknown research mode")
         chat_id = chat_id or self.s.current_chat_id
         context = self.context(chat_id)
+        from .task_goal import derive_goal
+        goal = derive_goal(text)  # Typed constraints/conditions from literal user bytes only.
         # Only literal local user input reaches native task authority. Remote targets
         # and Studio selection never acquire desktop scope through interpretation.
         native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
@@ -154,6 +166,9 @@ class NaturalLanguageOrchestrator:
                 else:
                     from .ordinary_requests import ordinary_request
                     transfer = ordinary_request(text)
+                    if transfer is None:
+                        from .goal_program import conditional_test_program
+                        transfer = conditional_test_program(text, goal)
                     interpretation = transfer or await self.interpreter.interpret(text, snapshot)
             context.last_interpretation = deepcopy({k:v for k,v in interpretation.items() if k != 'native_plan'})
             if chat_id not in self.active:
@@ -291,7 +306,7 @@ class NaturalLanguageOrchestrator:
             if not context.last_steps:
                 return self.reply(chat_id, text, "Which action would you like me to repeat?")
             steps = deepcopy(context.last_steps)
-        return await self._execute_steps(text, chat_id, steps)
+        return await self._execute_steps(text, chat_id, steps, goal=goal)
 
     async def _native_submit(self, text, chat_id, interpretation=None, plan=None):
         trace_event("desktop_attempt")
@@ -313,32 +328,77 @@ class NaturalLanguageOrchestrator:
             elif hasattr(plan, 'steps'):
                 from ..desktop.task_results import TaskResults
                 from ..desktop.freeform_plan import summarize_result
+                from .task_goal import COMPLETED, FAILED, recoverable, running_applications
+                goal = getattr(plan, 'goal', None)
+                protected = running_applications(goal) if goal else {}
                 results, epoch = [], None
                 bindings = TaskResults(text, native.authority.epoch)
+                stopped_early = ''
                 try:
                     async with asyncio.timeout(600):
                         for index, step in enumerate(plan.steps):
                             if epoch is not None and (epoch != native.authority.epoch or self.s.desktop.stop_event.is_set()):
                                 raise InterruptedError('Task stopped; remaining effects discarded')
+                            if goal:
+                                goal.check_effect(step.scope.effect, step.scope.application)
+                            self.s.publish('interaction_activity', {'chat_id': chat_id, 'message': step_activity(step.scope)})
                             bindings.epoch = native.authority.epoch
                             if step.scope.effect == 'summarize':
                                 result = await summarize_result(self.s, text, step, bindings, str(index))
                             else:
-                                result = await native.run(text, message.id, continuation_epoch=epoch,
-                                    bound_step=step, results=bindings)
+                                attempts = 0
+                                while True:
+                                    result = await native.run(text, message.id, continuation_epoch=epoch,
+                                        bound_step=step, results=bindings)
+                                    status = self.s.desktop.record.status
+                                    # Bounded repair only when no effect was attempted and the
+                                    # failure is a transient observation/launch condition.
+                                    if (status == 'needs-human' and goal and attempts == 0 and recoverable(result)
+                                            and not self.s.desktop.stop_event.is_set()
+                                            and asyncio.current_task() is self.active.get(chat_id)
+                                            and goal.repair(f'step {index + 1}: {result}')):
+                                        attempts += 1
+                                        trace_event('step_replanned', index=index)
+                                        epoch = native.authority.epoch
+                                        continue
+                                    break
                                 if self.s.desktop.record.status != 'completed':
                                     results.append(result)
+                                    stopped_early = result
+                                    if goal:
+                                        from .error_categories import labelled
+                                        goal.mark(step.scope.effect, FAILED, labelled(result), step.scope.application)
                                     break
                                 bindings.epoch = native.authority.epoch
                                 if step.scope.effect == 'visit':
                                     bindings.location(str(index), step.scope.content, step.scope.application,
                                         self.s.desktop.record.window.get('window_id'), bindings.epoch)
+                                if step.scope.effect == 'click' and step.scope.application:
+                                    bindings.link(str(index), step.scope.content, step.scope.application,
+                                        self.s.desktop.record.window.get('window_id'), bindings.epoch)
                                 if step.scope.effect == 'read':
                                     bindings.observation(str(index), result, bindings.epoch, step.source)
                             results.append(result)
+                            if goal:
+                                goal.mark(step.scope.effect, COMPLETED,
+                                          target=step.scope.application + ' ' + step.scope.content)
                             epoch = native.authority.epoch
                             trace_event('subgoal_verified', index=index, remaining=len(plan.steps)-index-1)
                     result = '\n\n'.join(f'{i+1}. {value}' for i, value in enumerate(results))
+                    if goal and (len(goal.requested_effects) >= 2 or goal.constraints):
+                        still = running_applications(goal)
+                        for app, before in protected.items():
+                            if before and not still.get(app):
+                                goal.unresolved_requirements.append(app + ' is no longer running')
+                        report = goal.finish(failed_detail=stopped_early)
+                        kept = [app for app, before in protected.items() if before and still.get(app)]
+                        if kept:
+                            report += '\n- Verified still running: ' + ', '.join(kept)
+                        if goal.unresolved_requirements:
+                            report += '\n- Constraint check failed: ' + '; '.join(goal.unresolved_requirements)
+                        if goal.replans:
+                            report += '\n- Recovered steps: ' + '; '.join(goal.replans)
+                        result += '\n\n' + report
                 finally:
                     bindings.close()
             else:
@@ -373,14 +433,21 @@ class NaturalLanguageOrchestrator:
                 result = '\n\n'.join(f'{i+1}. {value}' for i,value in enumerate(results))
             return self.reply(chat_id, text, result, append_user=False)
         except (ValueError, PermissionError, InterruptedError, TimeoutError, RuntimeError) as error:
+            from .error_categories import labelled
             completed = locals().get('results', [])
             prefix = '\n\n'.join(f'{i+1}. {value}' for i, value in enumerate(completed))
+            goal = getattr(plan, 'goal', None) if plan is not None else None
+            report = ('\n\n' + goal.finish(cancelled=isinstance(error, InterruptedError), failed_detail=labelled(error))
+                      if goal and (len(goal.requested_effects) >= 2 or goal.constraints) else '')
             return self.reply(chat_id, text, (prefix + '\n\n' if prefix else '') +
-                              'Task incomplete: ' + str(error), append_user=False)
+                              'Task incomplete: ' + labelled(error) + report, append_user=False)
         except asyncio.CancelledError:
             prefix = '\n\n'.join(f'{i+1}. {value}' for i,value in enumerate(locals().get('results', [])))
+            goal = getattr(plan, 'goal', None) if plan is not None else None
+            report = ('\n\n' + goal.finish(cancelled=True)
+                      if goal and (len(goal.requested_effects) >= 2 or goal.constraints) else '')
             return self.reply(chat_id, text, (prefix + '\n\n' if prefix else '') +
-                'Stopped. Inspect any uncertain effect before requesting it again.', append_user=False)
+                'Stopped. Inspect any uncertain effect before requesting it again.' + report, append_user=False)
         finally:
             native.chat_id = None
             self.active.pop(chat_id, None)
@@ -408,8 +475,18 @@ class NaturalLanguageOrchestrator:
         context.last_interpretation = {'source': 'Explicit user Research form', 'steps': deepcopy(steps)}
         return await self._execute_steps(question, chat_id, steps)
 
-    async def _execute_steps(self, text, chat_id, steps):
+    async def _execute_steps(self, text, chat_id, steps, goal=None):
+        from .goal_program import gate as branch_gate, skip, step_effect, MUTATION_GOALS, INTERNAL_SURFACES
+        from .task_goal import COMPLETED, FAILED
         context = self.context(chat_id)
+        compound = bool(goal and (len(goal.requested_effects) >= 2 or goal.constraints or goal.conditions))
+        if goal and len(goal.requested_effects) >= 2:
+            # A multi-effect request must not silently lose a requested change.
+            missing = [m for m in goal.completeness([(step_effect(s), '') for s in steps]) if m.effect in MUTATION_GOALS]
+            if missing:
+                return self.reply(chat_id, text, 'PLAN_INCOMPLETE: I could not map every requested change to a '
+                                  'supported step (' + ', '.join(m.effect.replace('_', ' ') for m in missing) +
+                                  '). Nothing was changed. Please split or rephrase the request.')
         self.active[chat_id] = asyncio.current_task()
         gate = self.gates[chat_id] = asyncio.Event()
         gate.set()
@@ -420,31 +497,57 @@ class NaturalLanguageOrchestrator:
         messages = []
         executed_steps = []
         context.resolved_steps = executed_steps
+        context.last_outcome = None
+        cancelled = False
+        failure = ''
         try:
             for step in steps:
                 await gate.wait()
+                reason = branch_gate(step, context.last_outcome, goal) if goal else ''
+                if reason:
+                    skip(goal, step, reason)
+                    trace_event('branch_skipped', capability=step['intent'])
+                    continue
+                if goal:
+                    goal.check_effect(step_effect(step))  # Constraints re-evaluated before each effect.
                 resolved = context.resolve(step)
                 executed_steps.append(deepcopy(resolved))
                 self.s.publish("interaction_activity", {"chat_id": chat_id, "message": "Working on your request…"})
                 trace_event("capability_attempt", capability=resolved["intent"])
                 messages.append(await self.router.execute(resolved, context))
                 context.accept(resolved)
+                if goal:
+                    goal.mark(step_effect(step), COMPLETED)
             context.last_steps = deepcopy(executed_steps)
             context.clarification = None
         except asyncio.CancelledError:
+            cancelled = True
             messages.append("Stopped. Completed actions have not been undone.")
         except TimeoutError:
+            failure = 'timeout'
             messages.append("The action could not be verified before the timeout. I've stopped; please check the application before retrying.")
         except ObservationUnavailable:
+            failure = 'observation changed'
             messages.append("The application's controls changed while I was reading them. I've stopped; let the page settle before continuing.")
         except (ValueError, LookupError, PermissionError) as error:
+            failure = str(error)
             messages.append(str(error))
             if isinstance(error, (ValueError, LookupError)):
                 context.clarification = {"request": text[:2000], "question": str(error)[:500]}
         finally:
             self.active.pop(chat_id, None)
             self.gates.pop(chat_id, None)
-        return self.reply(chat_id, text, "\n\n".join(messages), append_user=False)
+        if compound:
+            if any(step_effect(s) in {'test', 'run', 'code_edit', 'commit', 'stage', 'create_project'} for s in executed_steps):
+                for required in goal.requested_effects:
+                    if required.effect == 'open' and required.target in INTERNAL_SURFACES and required.status == 'PENDING':
+                        required.status = COMPLETED
+            if failure:
+                pending = next((r for r in goal.requested_effects if r.status == 'PENDING'), None)
+                if pending:
+                    pending.status, pending.detail = FAILED, failure[:300]
+            messages.append(goal.finish(cancelled=cancelled, failed_detail=failure))
+        return self.reply(chat_id, text, "\n\n".join(m for m in messages if m), append_user=False)
 
     def cancel(self, chat_id):
         if getattr(self.s, 'owner_policy', None):

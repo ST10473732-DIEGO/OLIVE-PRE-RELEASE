@@ -22,6 +22,7 @@ class TaskScope:
     account: str = ''
     server: str = ''
     path: str = ''
+    predicate: str = ''  # Literal user domain predicate for a result-derived location.
 
 
 def interpreted_scope(request, steps):

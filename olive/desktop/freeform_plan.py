@@ -29,6 +29,13 @@ SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': ['steps']
         'properties': {k: {'type': 'string', **({'enum': list(VERBS)} if k == 'effect' else {})} for k in FIELDS}}}}}
 
 
+def domain_predicate(request):
+    """A literal 'from/on example.com' in the user's own words, outside quotes."""
+    text = instruction_text(request)
+    match = re.search(r'\b(?:from|on|at)\s+((?:[a-z0-9-]+\.)+[a-z]{2,})\b', text)
+    return match.group(1) if match else ''
+
+
 @dataclass(frozen=True)
 class BoundStep:
     request_digest: str
@@ -44,6 +51,10 @@ class BoundStep:
             if results is None or results.request_digest != self.request_digest:
                 raise PermissionError('Missing task-local location provenance')
             location = results.source_location(self.source, self.scope.application, epoch)
+            if location.kind == 'link':
+                # The followed link's URL is observed at read time; only a literal
+                # user domain predicate (never page text) can constrain it.
+                return replace(self.scope, content='', predicate=domain_predicate(request))
             return replace(self.scope, content=location.text)
         if self.scope.effect != 'edit_save' or results is None or results.request_digest != self.request_digest:
             raise PermissionError('Result binding cannot supply this effect')
@@ -54,6 +65,7 @@ class BoundStep:
 class FreeformPlan:
     original: str
     steps: tuple[BoundStep, ...]
+    goal: object = None
 
 
 def validate_plan(request, proposal):
@@ -97,9 +109,11 @@ def validate_plan(request, proposal):
     if len(rows) > 24:
         raise ValueError('Task step budget exceeded after required observations')
     instruction = instruction_text(request)
-    # Retain constraints in the original task. Until their semantics can be
-    # established independently, never silently discard a negative clause.
-    if re.search(r"\b(?:without|unless|except|not|never)\b|don['’]t", instruction):
+    # Retain constraints in the original task. Typed constraints/conditions are
+    # enforced before every effect; any other negative clause still fails closed.
+    from ..interaction.task_goal import derive_goal, residual_negation
+    goal = derive_goal(request)
+    if residual_negation(request, goal):
         raise ValueError('This constrained task needs effect-specific resolution')
     if re.match(r'(?:explain|describe|how\b|what\b|summarize (?:this instruction|the instruction))', instruction):
         raise PermissionError('An informational request cannot authorize desktop effects')
@@ -127,13 +141,13 @@ def validate_plan(request, proposal):
         source = row['source']
         if effect == 'read' and not source:
             candidates = [i for i,s in enumerate(steps) if s.scope.application == row['application']
-                          and s.scope.effect == 'visit']
+                          and s.scope.effect in {'visit', 'click'}]
             if candidates:
                 source = str(candidates[-1])
         if source:
             if not source.isdecimal() or int(source) >= index or str(int(source)) != source:
                 raise ValueError('A binding must reference an earlier step')
-            expected = {'read'} if effect == 'summarize' else {'summarize'} if effect == 'edit_save' else {'visit'} if effect == 'read' else set()
+            expected = {'read'} if effect == 'summarize' else {'summarize'} if effect == 'edit_save' else {'visit', 'click'} if effect == 'read' else set()
             if steps[int(source)].scope.effect not in expected:
                 raise PermissionError('Invalid derived result type')
             if effect == 'edit_save':
@@ -174,6 +188,7 @@ def validate_plan(request, proposal):
             raise ValueError('Invalid scroll direction')
         if effect == 'tab' and row['content'] not in {'next', 'previous'}:
             raise ValueError('Invalid tab direction')
+        goal.check_effect(effect, row['application'])
         scope = TaskScope(**{k: row[k] for k in FIELDS if k not in {'source','result'}})
         if effect in {'send','draft','copy','move'} or effect == 'edit_save' and not source:
             # Literal occurrence alone cannot prove directional/recipient
@@ -193,7 +208,14 @@ def validate_plan(request, proposal):
                 raise PermissionError('Directional or recipient binding needs explicit resolution')
             consumed_effects.append(scope)
         steps.append(BoundStep(digest, scope, source))
-    return FreeformPlan(request, tuple(steps))
+    missing = goal.completeness([(s.scope.effect, s.scope.application + ' ' + s.scope.content) for s in steps])
+    if missing:
+        raise ValueError('PLAN_INCOMPLETE: the plan omits requested effects: ' + ', '.join(
+            (m.effect + (' ' + m.target if m.target else '')) for m in missing))
+    expanded = goal.expansion([(s.scope.effect, s.scope.application) for s in steps])
+    if expanded:
+        raise PermissionError('PLAN_SCOPE_EXPANSION: the plan adds unrequested effects: ' + ', '.join(expanded))
+    return FreeformPlan(request, tuple(steps), goal)
 
 
 async def summarize_result(services, request, step, results, key):

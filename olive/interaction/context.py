@@ -38,6 +38,7 @@ class InteractionContext:
     chat_id: str | None = None
     last_interpretation: dict = field(default_factory=dict)
     resolved_steps: list = field(default_factory=list)
+    last_outcome: dict | None = None  # Verified typed outcome of the previous step in this task only.
 
     def snapshot(self):
         return deepcopy({"entities": self.entities, "recent_user_turns": self.recent[-6:],
