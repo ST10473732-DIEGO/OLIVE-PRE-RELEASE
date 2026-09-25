@@ -90,8 +90,11 @@ class Capture:
             sample, static = self.held, True
         self.held = sample
         buffer = sample.get_buffer()
-        if buffer.pts == Gst.CLOCK_TIME_NONE or (buffer.pts == self.last_pts and not static):
+        if buffer.pts == Gst.CLOCK_TIME_NONE:
             raise ValueError('Capture timestamp is stale or missing')
+        # A resent buffer with the last producer timestamp is the same frame:
+        # the screen is unchanged, never new evidence.
+        static = static or buffer.pts == self.last_pts
         self.last_pts = buffer.pts
         data, width, height = encode_sample(sample)
         source = self.pipeline.get_by_name('source').get_static_pad('src').get_current_caps().get_structure(0)

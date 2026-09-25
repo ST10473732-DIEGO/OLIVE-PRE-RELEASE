@@ -93,12 +93,11 @@ class CaptureFreshnessTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             self.capture.frame()
 
-    def test_a_repeated_producer_timestamp_is_still_rejected_when_new(self):
+    def test_a_resent_frame_is_unchanged_never_new_and_missing_timestamps_fail(self):
         self.capture.sink.arriving = [Sample(10)]
         self.capture.frame()
         self.capture.sink.arriving = [Sample(10)]
-        with self.assertRaisesRegex(ValueError, 'stale'):
-            self.capture.frame()
+        self.assertTrue(self.capture.frame()['static'])
         self.capture.sink.arriving = [Sample(NONE)]
         with self.assertRaisesRegex(ValueError, 'missing'):
             self.capture.frame()

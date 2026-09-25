@@ -191,6 +191,7 @@ class VisualMessaging:
         self.progress('Verifying…')
         after = await self.frame()
         typed = await asyncio.to_thread(ocr_lines, after, band(after, point, 32, after['width'] * .4))
+        self.diagnose('typed', point, typed)
         state = composer_state(typed, self.adapter)
         if state[0] != 'draft' or normalize(state[2]) != normalize(scope.content):
             raise ValueError('COMPOSER_UNVERIFIED: the exact requested text was not verified in the composer; '
