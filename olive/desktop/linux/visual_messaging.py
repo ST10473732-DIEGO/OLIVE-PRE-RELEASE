@@ -205,7 +205,8 @@ class VisualMessaging:
         for _ in range(SETTLE_READS):
             await asyncio.sleep(SETTLE_SECONDS)
             after = await self.frame()
-            still = await asyncio.to_thread(ocr_words, after, (0, search_box[1], after['width'], search_box[3]))
+            # Only inside the dialog: the opened channel list may show the same name.
+            still = await asyncio.to_thread(ocr_words, after, (results[0], search_box[1], results[2], search_box[3]))
             if not any(bare(w['text']) == bare(self.scope.destination) for w in still):
                 break
         else:

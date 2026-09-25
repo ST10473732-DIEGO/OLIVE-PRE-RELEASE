@@ -74,7 +74,7 @@ class Client:
         if role == 'header':
             return [line('# ' + channel, 20)]
         if role == 'switcher':
-            return [line(self.query or 'Where would you like to go?', 150)]
+            return [line(self.query or 'Where would you like to go?', 150, left=300)]
         if role == 'wide':
             rows = [(s, c) for s, c in self.CHANNELS if not self.query or self.query in c]
             return [x for i, (s, c) in enumerate(rows)
@@ -161,12 +161,16 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             if bottom < 600 and top > 400:
                 return client.lines('above')
             return []
-        remaining = {'open': open_reads}
+        remaining, checked = {'open': open_reads}, []
+        self.closing_checks = checked
 
         def words(frame, box, scale=4):
             # The search box row after selection: the query stays visible while the
             # switcher is (simulated as) still closing.
-            if box[0] == 0 and box[3] - box[1] < 40 and client.focus and remaining['open']:
+            closing = box[3] - box[1] < 40 and box[1] < 200 and client.focus
+            if closing:
+                checked.append(box)
+            if closing and remaining['open']:
                 remaining['open'] -= 1
                 return [{'text': client.query or 'x', 'confidence': 90, 'box': (20, box[1], 90, box[3])}]
             return ocr(frame, box)
@@ -520,3 +524,11 @@ class CaretTests(unittest.IsolatedAsyncioTestCase):
             await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
         self.assertEqual(client.sent, [])
         self.assertFalse(any(client.drafts.values()))
+
+    async def test_closing_check_stays_inside_the_dialog(self):
+        client = Client(current=0)
+        await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertTrue(self.closing_checks)
+        for left, _, right, _ in self.closing_checks:
+            self.assertGreater(left, 0)           # Not the channel list on the left.
+            self.assertLess(right, 1000)          # Not panels on the right.
