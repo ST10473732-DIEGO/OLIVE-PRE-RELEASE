@@ -31,16 +31,26 @@ def evidence(frame, label):
             continue
         key = tuple(word[k] for k in ('page_num', 'block_num', 'par_num', 'line_num'))
         lines.setdefault(key, []).append(word)
-    matches, all_boxes = [], []
+    read = []
     for words in lines.values():
         left = min(int(w['left']) for w in words)
         top = min(int(w['top']) for w in words)
         right = max(int(w['left'])+int(w['width']) for w in words)
         bottom = max(int(w['top'])+int(w['height']) for w in words)
-        box = (left/2, top/2, right/2, bottom/2)
-        all_boxes.append(box)
-        if normalize(' '.join(w['text'] for w in words)) == normalize(label) and min(float(w['conf']) for w in words) >= 70:
-            matches.append(box)
+        read.append({'text': ' '.join(w['text'] for w in words), 'box': (left/2, top/2, right/2, bottom/2),
+                     'confidence': min(float(w['conf']) for w in words)})
+    def admitted(lines):
+        return [line['box'] for line in lines if normalize(line['text']) == normalize(label) and line['confidence'] >= 70]
+    matches = admitted(read)
+    if not matches:
+        # Fallback only: a region-first reading (each filled area read on its
+        # own) for light labels on dark filled controls in a light UI.
+        # Used alone, never merged, so the unchanged gate below (exact label,
+        # confidence, uniqueness, one closed filled region) sees one reading.
+        from .visual_ocr import region_lines
+        read = region_lines(frame)
+        matches = admitted(read)
+    all_boxes = [line['box'] for line in read]
     from .target_region import TargetEvidence, TargetState, filled_region
     if not matches:
         return TargetEvidence(TargetState.NOT_VISIBLE_HERE)

@@ -58,7 +58,7 @@ def _tesseract(image, scale, left, top):
     return lines
 
 
-def ocr_lines(frame, box, scale=3):
+def ocr_lines(frame, box, scale=3, isolate=True):
     """Two independent passes: global contrast, and text isolated from its local background.
 
     The second pass keeps low-contrast placeholders readable when a crop spans
@@ -75,7 +75,7 @@ def ocr_lines(frame, box, scale=3):
     background = large.filter(ImageFilter.MedianFilter(21)).filter(ImageFilter.BoxBlur(30))
     isolated = ImageChops.difference(large, background).point(lambda v: 0 if v > 30 else 255)
     merged = []
-    for line in _tesseract(basic, scale, left, top) + _tesseract(isolated, scale, left, top):
+    for line in _tesseract(basic, scale, left, top) + (_tesseract(isolated, scale, left, top) if isolate else []):
         duplicate = next((m for m in merged if normalize(m['text']) == normalize(line['text']) and
                           _overlap(m['box'], line['box'])), None)
         if duplicate is None:
@@ -92,3 +92,52 @@ def _overlap(a, b):
 
 def confident(lines):
     return [line for line in lines if line['confidence'] >= MIN_CONFIDENCE]
+
+
+def region_lines(frame, limit=24):
+    """Region-first reading: OCR each filled area that differs from the page background.
+
+    For labels inside filled controls whose polarity differs from the page (for
+    example white text on dark buttons in a light UI). Pure PIL; bounded number
+    of regions. Lines keep frame coordinates. Evidence only, never authority.
+    """
+    from PIL import Image, ImageChops
+    with Image.open(io.BytesIO(base64.b64decode(frame['png'], validate=True))) as image:
+        rgb = image.convert('RGB')
+    step = 4
+    small = rgb.resize((max(1, rgb.width // step), max(1, rgb.height // step)), Image.NEAREST)
+    colors = small.getcolors(small.width * small.height) or []
+    if not colors:
+        return []
+    background = max(colors)[1]
+    difference = ImageChops.difference(small, Image.new('RGB', small.size, background)).convert('L')
+    mask = difference.point(lambda v: 255 if v > 40 else 0).load()
+    seen, boxes = set(), []
+    for y in range(small.height):
+        for x in range(small.width):
+            if mask[x, y] == 0 or (x, y) in seen:
+                continue
+            stack, left, top, right, bottom, count = [(x, y)], x, y, x, y, 0
+            seen.add((x, y))
+            while stack:
+                cx, cy = stack.pop()
+                count += 1
+                left, top, right, bottom = min(left, cx), min(top, cy), max(right, cx), max(bottom, cy)
+                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                    if 0 <= nx < small.width and 0 <= ny < small.height and mask[nx, ny] and (nx, ny) not in seen:
+                        seen.add((nx, ny))
+                        stack.append((nx, ny))
+            width, height = (right - left + 1) * step, (bottom - top + 1) * step
+            # Control-sized, mostly filled components only (not page chrome or text specks).
+            if 16 <= height <= 160 and 24 <= width <= rgb.width * .9 and count * step * step >= .6 * width * height:
+                boxes.append((left * step, top * step, (right + 1) * step, (bottom + 1) * step))
+    lines = []
+    scale_x, scale_y = frame['width'] / rgb.width, frame['height'] / rgb.height
+    for left, top, right, bottom in sorted(boxes, key=lambda b: (b[1], b[0]))[:limit]:
+        # Inset past the control's own border; its uniform fill needs one pass.
+        inset = (left + 3) * scale_x, (top + 3) * scale_y, (right - 3) * scale_x, (bottom - 3) * scale_y
+        try:
+            lines.extend(ocr_lines(frame, inset, scale=3, isolate=False))
+        except ValueError:
+            continue
+    return lines
