@@ -406,3 +406,54 @@ class RowReadingTests(unittest.TestCase):
         self.assertEqual(len(switcher_matches(words, '#gen-chat', 'D SERVER')), 1)
         self.assertEqual(len(switcher_matches(words, '#gen-chat')), 2)  # Same name in two servers: ambiguous.
         self.assertEqual(switcher_matches(words, '#gen-chat', 'C SERVER'), [])
+
+
+class UnreadServerLabelTests(unittest.IsolatedAsyncioTestCase):
+    """A switcher server label too small to read defers the server check to the opened conversation."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    def unread_servers(self, client):
+        original = client.lines
+        def lines(role):
+            rows = original(role)
+            if role == 'wide':
+                return [dict(l, confidence=20) if l['box'][0] >= 300 else l for l in rows]
+            return rows
+        client.lines = lines
+
+    async def test_single_exact_row_navigates_then_the_server_is_verified_before_typing(self):
+        client = Client(current=1)
+        client.CHANNELS = [('Osprey Workshop', 'general'), ('Osprey Workshop', 'releases')]
+        self.unread_servers(client)
+        outcome, _ = await self.run_task('Send "hello" to #general in Osprey Workshop in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Osprey Workshop', 'general', 'hello')])
+
+    async def test_wrong_server_found_after_navigation_types_nothing(self):
+        client = Client(current=1)
+        client.CHANNELS = [('Osprey Workshop', 'general'), ('Osprey Workshop', 'releases')]
+        self.unread_servers(client)
+        with self.assertRaisesRegex(ValueError, 'DESTINATION_UNVERIFIED'):
+            await self.run_task('Send "hello" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
+        self.assertFalse(any(client.drafts.values()))
+
+    async def test_two_exact_rows_with_unread_servers_stay_ambiguous(self):
+        client = Client(current=1)
+        self.unread_servers(client)
+        with self.assertRaisesRegex(ValueError, 'TARGET_AMBIGUOUS'):
+            await self.run_task('Send "hello" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
+
+
+class ServerStateTests(unittest.TestCase):
+    words = SwitcherRowTests.words
+
+    def test_server_states(self):
+        from olive.desktop.messaging_context import switcher_candidates
+        unread = self.words(184, ('##', 20, 397), ('gen-chat', 89, 411), ('DSFRVER', 0, 766), ('|', 74, 815))
+        other = self.words(208, ('#', 87, 397), ('gen-chat', 88, 411), ('perrito', 87, 752), ('bonito', 90, 782))
+        right = self.words(232, ('#', 87, 397), ('gen-chat', 88, 411), ('D', 84, 766), ('SERVER', 84, 780))
+        states = [r['server'] for r in switcher_candidates(unread + other + right, '#gen-chat', 'D SERVER')]
+        self.assertEqual(states, ['unread', 'other', 'confirmed'])
+        self.assertEqual(len(switcher_matches(unread + other + right, '#gen-chat', 'D SERVER')), 1)

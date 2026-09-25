@@ -195,14 +195,17 @@ def rows(lines, tolerance=8, minimum=None):
     return result
 
 
-def switcher_matches(entries, destination, server=''):
-    """Result rows whose first confident label is exactly the destination and, when a
-    server is requested, whose last confident label is exactly that server.
+def switcher_candidates(entries, destination, server=''):
+    """Result rows whose first confident label is exactly the destination.
 
-    Words between them (for example a category such as "TEXT CHANNELS") identify
-    neither and are ignored. Leading icon glyphs are skipped only when they carry
-    no word characters or were not read confidently. Entries may be OCR words or
-    whole lines; each is split into tokens that keep its confidence and box.
+    Each row carries the state of its right-aligned server label: 'confirmed'
+    (exactly the requested server), 'unread' (no confidently read label there) or
+    'other' (a confidently read label that is not the requested server). Words
+    between name and server (for example a category such as "TEXT CHANNELS")
+    identify neither and are ignored; glyph-only tokens (icons, scrollbars) carry
+    nothing. Leading icon glyphs are skipped only when they carry no word
+    characters or were not read confidently. Entries may be OCR words or whole
+    lines; each is split into tokens that keep its confidence and box.
     """
     wanted, workspace = bare(destination).split(), bare(server).split() if server else []
     tokens = [{'text': part, 'confidence': entry['confidence'], 'box': entry['box']}
@@ -218,12 +221,19 @@ def switcher_matches(entries, destination, server=''):
         name = words[:len(wanted)]
         if [bare(w['text']) for w in name] != wanted or any(w['confidence'] < MIN_CONFIDENCE for w in name):
             continue
-        if workspace:
-            rest = words[len(wanted):]
-            while rest and rest[-1]['confidence'] < MIN_CONFIDENCE:
-                rest.pop()  # Trailing unreadable glyphs (for example an overflow mark).
-            tail = rest[-len(workspace):] if len(rest) >= len(workspace) else []
-            if [bare(w['text']) for w in tail] != workspace or any(w['confidence'] < MIN_CONFIDENCE for w in tail):
-                continue
+        rest = [w for w in words[len(wanted):] if bare(w['text'])]
+        tail = rest[-len(workspace):] if workspace and len(rest) >= len(workspace) else []
+        if not workspace or not rest or rest[-1]['confidence'] < MIN_CONFIDENCE:
+            row['server'] = 'unread'
+        elif [bare(w['text']) for w in tail] == workspace and all(w['confidence'] >= MIN_CONFIDENCE for w in tail):
+            row['server'] = 'confirmed'
+        else:
+            row['server'] = 'other'
         found.append(row)
     return found
+
+
+def switcher_matches(entries, destination, server=''):
+    """Rows exactly naming the destination and, when requested, confirming the server."""
+    return [row for row in switcher_candidates(entries, destination, server)
+            if not server or row['server'] == 'confirmed']

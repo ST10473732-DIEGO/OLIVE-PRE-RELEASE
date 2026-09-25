@@ -11,7 +11,7 @@ import asyncio
 
 from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
-                                 switcher_matches)
+                                 switcher_candidates)
 from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .4
@@ -130,6 +130,7 @@ class VisualMessaging:
                          if normalize(w['text']) == self.adapter.switcher_prompt.split()[0]]
                 left = (first[0]['box'][0] if len(first) == 1 else min(l['box'][0] for l in prompt)) - 16
                 results = (max(0, left), max(l['box'][3] for l in prompt) + 6, frame['width'] - max(0, left))
+                search_box = box
                 break
         else:
             await self.escape()
@@ -138,7 +139,7 @@ class VisualMessaging:
         await self.runtime.native.call('visual_text', {'revision': frame['revision'],
                                                        'value': self.scope.destination.lstrip('#@')})
         # Results load asynchronously after the query; wait (bounded) for an exact row.
-        candidates, point = [], None
+        candidates, point, anchored = [], None, False
         for attempt in range(SETTLE_READS):
             if attempt:
                 await asyncio.sleep(SETTLE_SECONDS)
@@ -148,14 +149,24 @@ class VisualMessaging:
                 continue
             # Uniqueness is judged from a wide band around the proposal, so a second
             # visible row with the same name (other server) stays ambiguous.
+            if not anchored:
+                anchored = True
+                # The typed query starts exactly where the dialog's content starts;
+                # it is the most precise anchor for the dialog bounds when readable.
+                query = [w for w in await asyncio.to_thread(ocr_words, frame, (0, search_box[1], frame['width'],
+                                                                                 search_box[3]))
+                         if bare(w['text']) == bare(self.scope.destination) and w['confidence'] >= 60]
+                if len(query) == 1:
+                    left = max(0, query[0]['box'][0] - 16)
+                    results = (left, results[1], frame['width'] - left)
             wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results))
-            candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
+            candidates = self.row_candidates(wide)
             if candidates:
                 # One confirmation read so a late-loading duplicate is still counted.
                 await asyncio.sleep(SETTLE_SECONDS)
                 frame = await self.frame()
                 wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results))
-                candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
+                candidates = self.row_candidates(wide)
                 break
         if point is None:
             await self.escape()
@@ -179,7 +190,19 @@ class VisualMessaging:
             raise ValueError('WINDOW_CHANGED: the window changed before selection; nothing was selected')
         target = ((left + right) / 2, (top + bottom) / 2)
         await self.click(fresh, target)
-        self.history.append({'operation': 'visual_navigation', 'status': 'selected exact destination row'})
+        self.history.append({'operation': 'visual_navigation', 'status': 'selected exact destination row',
+                             'server_in_switcher': candidates[0]['server'] if self.scope.server else 'not requested'})
+
+    def row_candidates(self, words):
+        """Exact-name rows not contradicting the requested server.
+
+        The switcher only navigates. A server label too small to read there does
+        not disqualify the single exact row: after selection the destination and
+        server must still read exactly in the opened conversation before any text
+        is entered. A confidently read different server always disqualifies.
+        """
+        return [row for row in switcher_candidates(words, self.scope.destination, self.scope.server)
+                if row['server'] != 'other']
 
     async def escape(self):
         frame = await self.frame()
