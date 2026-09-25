@@ -116,7 +116,7 @@ class Client:
 
 
 class ExecutorTests(unittest.IsolatedAsyncioTestCase):
-    async def run_task(self, request, client, unchanged=False):
+    async def run_task(self, request, client, unchanged=False, open_reads=0):
         scope = direct_scope(request)
         record = SimpleNamespace(history=[], application=scope.application, current_action='', status='running',
                                  verification='')
@@ -161,8 +161,17 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             if bottom < 600 and top > 400:
                 return client.lines('above')
             return []
+        remaining = {'open': open_reads}
+
+        def words(frame, box, scale=4):
+            # The search box row after selection: the query stays visible while the
+            # switcher is (simulated as) still closing.
+            if box[0] == 0 and box[3] - box[1] < 40 and client.focus and remaining['open']:
+                remaining['open'] -= 1
+                return [{'text': client.query or 'x', 'confidence': 90, 'box': (20, box[1], 90, box[3])}]
+            return ocr(frame, box)
         with patch.object(visual_messaging, 'ocr_lines', ocr), \
-                patch.object(visual_messaging, 'ocr_words', lambda frame, box, scale=4: ocr(frame, box)), \
+                patch.object(visual_messaging, 'ocr_words', words), \
                 patch.object(visual_messaging, 'ocr_rows', lambda frame, box, scale=4: ocr(frame, box)), \
                 patch.object(visual_messaging.asyncio, 'sleep',
                                                                              return_value=None), \
@@ -469,3 +478,45 @@ class ScrollbarGlyphTests(unittest.TestCase):
         two = row[:3] + [{'text': 'Server', 'confidence': 90, 'box': (760, 324, 795, 335)},
                          {'text': '2', 'confidence': 90, 'box': (798, 324, 804, 335)}] + row[5:]
         self.assertEqual([r['server'] for r in switcher_candidates(two, '#gen-chat', 'Server 2')], ['confirmed'])
+
+
+class SelectionSettleTests(unittest.IsolatedAsyncioTestCase):
+    """The opened conversation is checked only after the switcher has closed."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+
+    async def test_switcher_closing_slowly_is_waited_for(self):
+        client = Client(current=0)
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client,
+                                         open_reads=1)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+
+    async def test_switcher_that_never_closes_types_nothing(self):
+        client = Client(current=0)
+        with self.assertRaisesRegex(ValueError, 'did not open its conversation'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client,
+                                open_reads=99)
+        self.assertEqual(client.sent, [])
+        self.assertFalse(any(client.drafts.values()))
+        self.assertTrue(self.keys(client, 'Escape'))
+
+
+class CaretTests(unittest.IsolatedAsyncioTestCase):
+    """A blinking caret spoiling one read of the composer is re-read, never guessed."""
+    run_task, keys = ExecutorTests.run_task, ExecutorTests.keys
+    delay = SettleTests.delay
+
+    async def test_caret_hidden_placeholder_is_read_on_the_next_frame(self):
+        client = Client(current=2)  # Already in Heron Lab #general.
+        self.delay(client, 'composer', 1)
+        outcome, _ = await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertIn('appears once', outcome)
+        self.assertEqual(client.sent, [('Heron Lab', 'general', 'field update')])
+
+    async def test_composer_never_readable_types_nothing(self):
+        client = Client(current=2)
+        self.delay(client, 'composer', 99)
+        with self.assertRaisesRegex(ValueError, 'UNVERIFIED'):
+            await self.run_task('Send "field update" to #general in Heron Lab in Visual Messenger', client)
+        self.assertEqual(client.sent, [])
+        self.assertFalse(any(client.drafts.values()))

@@ -15,6 +15,7 @@ from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, Messaging
 from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .4
+CARET_READS, CARET_SECONDS = 2, .35
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
          'switcher': (30, 300)}
 
@@ -80,6 +81,15 @@ class VisualMessaging:
         frame = await self.frame()
         point, lines = await self.region(frame, 'composer')
         composer = composer_state(lines, self.adapter)
+        for _ in range(CARET_READS):
+            # A blinking caret can hide the placeholder's first letter. Re-read the
+            # same band on fresh frames; a real draft never shows a placeholder.
+            if composer[0] == 'empty' or point is None:
+                break
+            await asyncio.sleep(CARET_SECONDS)
+            frame = await self.frame()
+            lines = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 32, frame['width'] * .4))
+            composer = composer_state(lines, self.adapter)
         ctx = self.context
         ctx.destination = resolve_destination(self.scope, composer)
         ctx.draft = '' if composer[0] == 'empty' else composer[2] if composer[0] == 'draft' else None
@@ -190,6 +200,17 @@ class VisualMessaging:
             raise ValueError('WINDOW_CHANGED: the window changed before selection; nothing was selected')
         target = ((left + right) / 2, (top + bottom) / 2)
         await self.click(fresh, target)
+        # The switcher closes and the conversation opens asynchronously; the
+        # destination is only checked once the typed query has left the screen.
+        for _ in range(SETTLE_READS):
+            await asyncio.sleep(SETTLE_SECONDS)
+            after = await self.frame()
+            still = await asyncio.to_thread(ocr_words, after, (0, search_box[1], after['width'], search_box[3]))
+            if not any(bare(w['text']) == bare(self.scope.destination) for w in still):
+                break
+        else:
+            await self.escape()
+            raise ValueError('DESTINATION_UNVERIFIED: the selected row did not open its conversation; nothing was typed')
         self.history.append({'operation': 'visual_navigation', 'status': 'selected exact destination row',
                              'server_in_switcher': candidates[0]['server'] if self.scope.server else 'not requested'})
 
@@ -244,9 +265,16 @@ class VisualMessaging:
         await self.runtime.native.call('visual_text', {'revision': fresh['revision'], 'value': scope.content})
         self.progress('Verifying…')
         after = await self.frame()
-        typed = await asyncio.to_thread(ocr_lines, after, band(after, point, 32, after['width'] * .4))
-        self.diagnose('typed', point, typed)
-        state = composer_state(typed, self.adapter)
+        for attempt in range(CARET_READS + 1):
+            if attempt:
+                # The caret now sits after the typed text; re-read a fresh frame.
+                await asyncio.sleep(CARET_SECONDS)
+                after = await self.frame()
+            typed = await asyncio.to_thread(ocr_lines, after, band(after, point, 32, after['width'] * .4))
+            self.diagnose('typed', point, typed)
+            state = composer_state(typed, self.adapter)
+            if state[0] == 'draft' and normalize(state[2]) == normalize(scope.content):
+                break
         if state[0] != 'draft' or normalize(state[2]) != normalize(scope.content):
             raise ValueError('COMPOSER_UNVERIFIED: the exact requested text was not verified in the composer; '
                              'the draft was left for you to inspect and nothing was sent.')
