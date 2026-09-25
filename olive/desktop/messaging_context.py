@@ -25,6 +25,8 @@ class MessagingAdapter:
     submit: str = 'enter'
     submit_provenance: str = ''
     prompts: dict = field(default_factory=dict)
+    # Icons the client always draws after the server name (read by OCR as a letter).
+    header_decorations: tuple = ()
 
 
 REGION_PROMPTS = {
@@ -38,7 +40,8 @@ REGION_PROMPTS = {
 ADAPTERS = (
     MessagingAdapter('discord', ('discord', 'com.discordapp.discord', 'discord canary', 'discord ptb'),
                      ('discord.com',), submit_provenance='Client convention (Enter sends, Shift+Enter newline); '
-                     'not verified against a real send in this milestone', prompts=REGION_PROMPTS),
+                     'not verified against a real send in this milestone', prompts=REGION_PROMPTS,
+                     header_decorations=('v', 'x')),  # The server menu's chevron / close icon.
     MessagingAdapter('visual-messenger-fixture', ('visual messenger', 'olive-visual-messenger-fixture'),
                      submit_provenance='Owned fixture: Enter sends; verified by its owned sent log',
                      prompts=REGION_PROMPTS),
@@ -103,9 +106,42 @@ def bare(name):
     return normalize(str(name).lstrip('#@ '))
 
 
+def segments(lines):
+    """Rejoin OCR fragments of one text run: touching pieces on a row are one word.
+
+    Tesseract sometimes splits a clean line into abutting pieces ('M', 'essag',
+    'e #gen-chat'). Pieces within a quarter of the text height (at least 2 px) are
+    joined without a space, up to about half the height with a space; larger gaps
+    keep separate runs (for example a user panel beside the composer). Two readings
+    of the same glyphs (overlapping boxes) keep the more confident one. Confidence
+    is the lowest of the joined pieces.
+    """
+    joined = []
+    for row in rows(lines):
+        run = None
+        for line in row['lines']:
+            height = line['box'][3] - line['box'][1]
+            gap = line['box'][0] - run['box'][2] if run else None
+            if run and gap < 0 and -gap > (line['box'][2] - line['box'][0]) / 2:
+                # The same glyphs read twice: a single piece keeps the more confident reading.
+                if run['pieces'] == 1 and line['confidence'] > run['confidence']:
+                    run = joined[-1] = dict(line, pieces=1)
+                continue
+            if run and gap <= max(3, height * .6):
+                glue = '' if gap <= max(2, height / 4) else ' '
+                run = joined[-1] = {'text': run['text'] + glue + line['text'], 'pieces': run['pieces'] + 1,
+                                    'confidence': min(run['confidence'], line['confidence']),
+                                    'box': (run['box'][0], min(run['box'][1], line['box'][1]), line['box'][2],
+                                            max(run['box'][3], line['box'][3]))}
+            else:
+                run = dict(line, pieces=1)
+                joined.append(run)
+    return joined
+
+
 def composer_state(lines, adapter):
     """(kind, sigil, name_or_text) from OCR lines of the composer band."""
-    rows = [l for l in confident(lines) if len(l['text'].strip()) >= 2]
+    rows = [l for l in segments(lines) if len(l['text'].strip()) >= 2]
     placeholders = []
     for line in rows:
         match = re.match(adapter.placeholder, normalize(line['text']))
@@ -138,11 +174,19 @@ def resolve_destination(scope, composer):
     return Layer(VERIFIED, name, line['box'], 'composer placeholder ' + sigil + name)
 
 
-def resolve_exact(lines, expected, what, anchor=None):
-    """One confident OCR line equal to the user's literal name (sigils ignored)."""
+def resolve_exact(lines, expected, what, anchor=None, decorations=()):
+    """One confident OCR line equal to the user's literal name (sigils ignored).
+
+    `decorations` are icon glyphs the client always draws after this label; one
+    trailing decoration token is ignored, nothing else is.
+    """
     wanted = bare(expected)
     rows = confident(lines)
-    matches = [l for l in rows if bare(l['text']) == wanted]
+    def names(text):
+        text = bare(text)
+        parts = text.split()
+        return {text, ' '.join(parts[:-1])} if len(parts) > 1 and parts[-1] in decorations else {text}
+    matches = [l for l in rows if wanted in names(l['text'])]
     if len(matches) == 1:
         return Layer(VERIFIED, expected, matches[0]['box'], what + ' text matches')
     if len(matches) > 1:

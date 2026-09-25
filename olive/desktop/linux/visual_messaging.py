@@ -101,7 +101,8 @@ class VisualMessaging:
                         if composer[0] in {'empty', 'draft'} else Layer(evidence='composer band not readable'))
         if self.scope.server:
             anchor, lines = await self.region(frame, 'server')
-            ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace', anchor)
+            ctx.workspace = resolve_exact(lines, self.scope.server, 'workspace', anchor,
+                                          self.adapter.header_decorations)
         _, lines = await self.region(frame, 'account')
         observed = observed_account(lines, ctx.composer.box if ctx.composer.state == VERIFIED else None)
         if self.scope.account:

@@ -532,3 +532,33 @@ class CaretTests(unittest.IsolatedAsyncioTestCase):
         for left, _, right, _ in self.closing_checks:
             self.assertGreater(left, 0)           # Not the channel list on the left.
             self.assertLess(right, 1000)          # Not panels on the right.
+
+
+class ChannelViewReadingTests(unittest.TestCase):
+    """Real Discord readings: a placeholder split into touching fragments, and the server chevron."""
+
+    def test_touching_fragments_form_the_placeholder(self):
+        from olive.desktop.messaging_context import resolve_destination
+        pieces = [{'text': t, 'confidence': c, 'box': b} for t, c, b in (
+            ('&', 82, (219, 636, 231, 649)), ('+', 83, (269, 637, 280, 648)), ('-+', 80, (269, 637, 280, 648)),
+            ('M', 96, (299, 638, 306, 646)), ('essag', 76, (308, 640, 332, 648)),
+            ('e #gen-chat', 91, (333, 638, 387, 648)))]
+        state = composer_state(pieces, adapter_for('Discord'))
+        self.assertEqual(state[:3], ('empty', '#', 'gen-chat'))
+        scope = TaskScope('Discord', 'draft', 'hi', '#gen-chat', server='D SERVER')
+        self.assertEqual(resolve_destination(scope, state).state, VERIFIED)
+        self.assertEqual(resolve_destination(TaskScope('Discord', 'draft', 'hi', '#general'), state).state, MISMATCH)
+
+    def test_distant_text_is_not_joined(self):
+        pieces = [line('deeayygoo', 630, left=40), line('Message #gen-chat', 638, left=299)]
+        self.assertEqual(composer_state(pieces, adapter_for('Discord'))[:3], ('empty', '#', 'gen-chat'))
+
+    def test_declared_server_chevron_is_ignored_only_for_its_client(self):
+        header = [line('D SERVER v', 29)]
+        self.assertEqual(resolve_exact(header, 'D SERVER', 'workspace', None,
+                                       adapter_for('Discord').header_decorations).state, VERIFIED)
+        self.assertEqual(resolve_exact(header, 'D SERVER', 'workspace').state, MISMATCH)
+        self.assertEqual(resolve_exact(header, 'C SERVER', 'workspace', None,
+                                       adapter_for('Discord').header_decorations).state, MISMATCH)
+        self.assertEqual(resolve_exact([line('D SERVER V v', 29)], 'D SERVER', 'workspace', None,
+                                       adapter_for('Discord').header_decorations).state, MISMATCH)
