@@ -21,7 +21,7 @@ test("LIVE LOCAL FAST NORMAL MAX DEEP FAST handoff without executing code", asyn
     for (const [preset, model, prompt] of [
       ["fast", "qwen3:8b", "What is recursion? Answer in two short sentences."],
       ["normal", "gpt-oss:20b", "Explain Btrfs in two short sentences."],
-      ["max", "qwen3-coder:30b", "Give me Python code for a function that adds two numbers. Show the code here."],
+      ["max", "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M", "Give me Python code for a function that adds two numbers. Show the code here."],
       ["deep", "gpt-oss:20b", "Explain why a document answer needs evidence in two short sentences. No document is attached; do not invent a citation."],
       ["fast", "qwen3:8b", "Explain what a Python return statement does in two short sentences."],
     ]) {

@@ -1,0 +1,176 @@
+{
+ "declaration": {
+  "role": "OLIVE MAX (heavy answer + code); FAST/NORMAL/DEEP/REIMAGINE/GUI grounding unchanged",
+  "profile": "production preset max: temperature 0.2, max_tokens 8192, think=false, coding-role context budget",
+  "cases": {
+   "M1_python": "parse_duration: compiled behaviour in sandbox (6 assertions)",
+   "M2_javascript": "slugify: compiled behaviour in sandbox (5 assertions)",
+   "M3_rust_no_run": "one rust code block; no claim that it was executed",
+   "M4_follow_up": "is_palindrome then follow-up adding a length rule; both rules checked in sandbox",
+   "M5_long_answer": "complete (not truncated), >= 8 numbered sections",
+   "M6_table": "markdown table with the three requested columns and three rows",
+   "M7_cancel_recover": "Stop after first streamed text: no stream events after Stop, then a fresh exact answer",
+   "M8_residency_handoff": "candidate -> GUI-Owl -> candidate, never both resident; handoff and first-token times",
+   "M9_resource": "no OOM or provider error at MAX settings on the 16 GiB GPU; cold first token <= 60 s, warm <= 10 s"
+  },
+  "pass_rule": "every case passes; any failure blocks promotion and is reported as FAILED_GATE"
+ },
+ "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+ "expected_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+ "cases": {
+  "M1_python": {
+   "answer": "```python\nimport re\n\n\ndef parse_duration(text: str) -> int:\n    \"\"\"Convert a duration string like '1h30m', '45s', '2h' into total seconds.\n\n    Raises ValueError for empty, negative, or malformed input.\n    \"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"Input must be a string\")\n\n    text = text.strip()\n    if not text:\n        raise ValueError(\"Empty duration string\")\n\n    # Match sequences of <number><unit> where unit is h, m, or s\n    pattern = re.compile(r'^(\\d+[hms])+$')\n    if not pattern.match(text):\n        raise ValueError(f\"Malformed duration string: {text!r}\")\n\n    total_seconds = 0\n    # Extract all number-unit pairs\n    matches = re.findall(r'(\\d+)([hms])', text)\n\n    for num_str, unit in matches:\n        value = int(num_str)\n        if value < 0:\n            raise ValueError(\"Negative duration component\")\n\n        if unit == 'h':\n            total_seconds += value * 3600\n        elif unit == 'm':\n            total_seconds += value * 60\n        elif unit == 's':\n            total_seconds += value\n\n    return total_seconds\n```",
+   "completion_state": "complete",
+   "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+   "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+   "seconds": 16.885,
+   "first_token_seconds": 3.537,
+   "answer_sha256": "be6fbe619de2b7d6e6ae4aba8b73786a6fa837a6854778934d58099beee2e734",
+   "behaviour": {
+    "passed": true,
+    "exit_code": 0,
+    "diagnostic": ""
+   },
+   "gpu_peak_mib": 14963,
+   "passed": true
+  },
+  "M2_javascript": {
+   "answer": "```javascript\nfunction slugify(title) {\n  return String(title)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '-')\n    .replace(/^-+|-+$/g, '');\n}\n```",
+   "completion_state": "complete",
+   "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+   "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+   "seconds": 4.532,
+   "first_token_seconds": 0.689,
+   "answer_sha256": "e404d392ae25595f075382e85942e3205e9ae186ea1c8c63c3b937e2784667d2",
+   "behaviour": {
+    "passed": true,
+    "exit_code": 0,
+    "diagnostic": ""
+   },
+   "passed": true
+  },
+  "M3_rust_no_run": {
+   "answer": "```rust\nfn reverse_words(sentence: &str) -> String {\n    sentence\n        .split_whitespace()\n        .rev()\n        .collect::<Vec<&str>>()\n        .join(\" \")\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn reverses_simple_sentence() {\n        assert_eq!(reverse_words(\"hello world\"), \"world hello\");\n    }\n\n    #[test]\n    fn handles_multiple_spaces() {\n        assert_eq!(reverse_words(\"a  b   c\"), \"c b a\");\n    }\n\n    #[test]\n    fn single_word() {\n        assert_eq!(reverse_words(\"hello\"), \"hello\");\n    }\n\n    #[test]\n    fn empty_string() {\n        assert_eq!(reverse_words(\"\"), \"\");\n    }\n}\n```\n\nThis function splits the input on whitespace, reverses the word order, and joins them back with single spaces. It normalizes multiple consecutive spaces into one, which is a reasonable default for \"words in a sentence.\" If you need to preserve original spacing exactly, that requires a different approach (e.g., tracking token positions).",
+   "completion_state": "complete",
+   "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+   "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+   "seconds": 12.372,
+   "first_token_seconds": 0.608,
+   "answer_sha256": "797e5424631ac2f408e782744030205b3b92e0f3beca647dcf6699e402511b71",
+   "rust_blocks": 1,
+   "execution_claim": false,
+   "passed": true
+  },
+  "M4_follow_up": {
+   "first": {
+    "answer": "```python\ndef is_palindrome(s: str) -> bool:\n    cleaned = ''.join(ch.lower() for ch in s if ch.isalnum())\n    return cleaned == cleaned[::-1]\n```",
+    "completion_state": "complete",
+    "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+    "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+    "seconds": 2.63,
+    "first_token_seconds": 0.608,
+    "answer_sha256": "0254b61f0a1fffe0e34bfaaf3fabcef14ffde60a8a48506536a58cb6bee369e5"
+   },
+   "second": {
+    "answer": "```python\ndef is_palindrome(s: str) -> bool:\n    cleaned = ''.join(ch.lower() for ch in s if ch.isalnum())\n    return len(cleaned) >= 3 and cleaned == cleaned[::-1]\n```",
+    "completion_state": "complete",
+    "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+    "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+    "seconds": 2.67,
+    "first_token_seconds": 0.263,
+    "answer_sha256": "d29b3ee98e6608ab18cf66761bcc62a5f482fdfb0166907bd55c5614a8457626",
+    "behaviour": {
+     "passed": true,
+     "exit_code": 0,
+     "diagnostic": ""
+    }
+   },
+   "passed": true
+  },
+  "M5_long_answer": {
+   "answer": "Here is a detailed explanation of the TLS 1.3 handshake process, organized into eight distinct sections.\n\n### 1. Protocol Overview and Design Goals\nTLS 1.3 (RFC 8446) was designed to improve security, reduce latency, and simplify the protocol compared to its predecessor, TLS 1.2. The primary design goals include:\n*   **Reduced Round-Trips:** TLS 1.3 allows for a 1-RTT (Round-Trip Time) handshake in most cases, and even 0-RTT data transmission if session resumption is used.\n*   **Mandatory Forward Secrecy:** All key exchanges must use ephemeral keys (typically ECDHE), ensuring that past sessions cannot be decrypted if the long-term private key is compromised later.\n*   **Simplified Cipher Suites:** TLS 1.3 removes support for weak or complex cipher suites, standardizing on a small set of strong AEAD (Authenticated Encryption with Associated Data) ciphers like AES-128-GCM and ChaCha20-Poly1305.\n*   **Explicit Key Schedule:** The derivation of session keys is more explicit and less prone to implementation errors than in TLS 1.2.\n\n### 2. Initial Client Hello Message\nThe handshake begins when the client sends a `ClientHello` message to the server. This message contains critical information required for negotiation:\n*   **Protocol Version:** The client indicates it supports TLS 1.3 (version number `0x0304`).\n*   **Random Values:** A 32-byte random value (`client_random`) used in key derivation.\n*   **Cipher Suites:** A list of supported cipher suites (e.g., `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`).\n*   **Key Share Extension:** This is a crucial difference from TLS 1.2. The client includes one or more public keys for supported key exchange groups (e.g., X25519, secp256r1) in the `key_share` extension. This allows the server to immediately compute the shared secret without waiting for an additional round trip.\n*   **Signature Algorithms:** A list of signature algorithms the client can verify.\n*   **Session ID/Resumption Data:** If resuming a previous session, the client may include a pre-shared key (PSK) binder or session ticket data.\n\n### 3. Server Hello and Key Exchange Response\nUpon receiving the `ClientHello`, the server selects parameters and responds with a `ServerHello` message:\n*   **Protocol Version:** Confirms TLS 1.3 support (`0x0304`).\n*   **Random Values:** A 32-byte random value (`server_random`).\n*   **Cipher Suite:** The specific cipher suite chosen from the client\u2019s list.\n*   **Key Share Extension:** If the server supports one of the key exchange groups offered by the client, it includes its own public key in the `key_share` extension. This completes the Diffie-Hellman (or ECDH) exchange.\n    *   *Note:* If the server does not support any of the client\u2019s proposed groups, it sends a `HelloRetryRequest` message instead, asking the client to retry with a different group. This is rare in modern deployments.\n*   **Certificate Request:** If mutual TLS (mTLS) is required, the server may include a `certificate_request` extension specifying which certificate types and signature algorithms are acceptable.\n\n### 4. Server Certificate and Finished Message\nFollowing the `ServerHello`, the server sends additional messages in a single flight:\n1.  **EncryptedExtensions:** An empty message that allows the server to send extensions after the key exchange is established but before sending certificates. It is encrypted using the handshake traffic keys.\n2.  **Certificate:** The server\u2019s X.509 certificate chain, starting with its leaf certificate and ending with a trusted root CA (or an intermediate CA if the client has it cached). This message is also encrypted.\n3.  **CertificateVerify:** A digital signature over the handshake transcript so far, proving possession of the private key corresponding to the public key in the certificate. The signature algorithm used must be one from the list provided by the client.\n4.  **Finished:** This message contains a `verify_data` field, which is a hash of the entire handshake transcript up to this point, encrypted with the server\u2019s handshake traffic key. This ensures integrity and authenticity of the handshake messages exchanged so far.\n\n### 5. Client Authentication (Optional)\nIf the server requested client authentication in step 3, the client now sends its own credentials:\n1.  **Certificate:** The client\u2019s X.509 certificate chain.\n2.  **CertificateVerify:** A signature over the handshake transcript using the client\u2019s private key.\n3.  **Finished:** Similar to the server\u2019s `Finished`, this contains a hash of the transcript encrypted with the client\u2019s handshake traffic key.\n\nIf mutual TLS is not required, the client skips these messages and proceeds directly to sending its own `Finished` message (which may be combined with application data in some implementations).\n\n### 6. Key Derivation Process\nThe security of TLS 1.3 relies on a deterministic key schedule that derives all necessary keys from the shared secret established during the key exchange:\n1.  **Shared Secret:** Computed using the Diffie-Hellman (or ECDH) algorithm from the client and server public keys exchanged in the `key_share` extensions.\n2.  **Handshake Traffic Keys:** Derived using a HKDF (HMAC-based Key Derivation Function) extract-and-expand process:\n    *   `handshake_secret = HKDF-Extract(PSK, shared_secret)` (if PSK is used) or `HKDF-Extract(\"\", shared_secret)` (for full handshake).\n    *   Client and server handshake traffic keys are derived from this secret.\n3.  **Application Traffic Keys:** After the handshake is complete, new secrets are derived:\n    *   `master_secret = HKDF-Expand(PSK, \"tls13 master\", ...)` (conceptually; actual derivation uses specific labels).\n    *   Client and server application traffic keys are derived from the master secret.\n4.  **Key Rotation:** TLS 1.3 supports key rotation during a session, allowing both parties to update their traffic keys without interrupting communication.\n\n### 7. Completion and Application Data\nOnce both sides have sent and verified their `Finished` messages:\n*   The handshake is complete.\n*   Both client and server switch from using **handshake traffic keys** to **application traffic keys**.\n*   All subsequent data (HTTP requests, WebSocket frames, etc.) is encrypted and authenticated using the AEAD cipher suite selected in step 3.\n*   In a 1-RTT handshake, the client can send application data immediately after sending its `Finished` message, overlapping with the server\u2019s processing of the client\u2019s authentication messages. This reduces perceived latency.\n\n### 8. Security Properties and Edge Cases\nTLS 1.3 provides several critical security guarantees:\n*   **Forward Secrecy:** Because ephemeral keys are used for every handshake, compromising the long-term private key does not allow decryption of past sessions.\n*   **Perfect Forward Secrecy (PFS):** Ensured by the mandatory use of ECDHE/DH key exchange.\n*   **Authentication:** The `CertificateVerify` messages prove that both parties possess the private keys corresponding to their certificates.\n*   **Integrity and Confidentiality:** AEAD ciphers ensure that data cannot be tampered with or read without detection.\n*   **0-RTT Data:** If a session ticket is presented, the client can send application data in the first flight (alongside `ClientHello`). This data is encrypted using keys derived from the PSK. However, 0-RTT data is vulnerable to replay attacks because it lacks forward secrecy for that specific message; servers must implement replay protection mechanisms.\n*   **Downgrade Protection:** The protocol includes mechanisms to detect if a server forces a downgrade to TLS 1.2 (e.g., via the `renegotiation_info` extension or specific cipher suite choices), preventing man-in-the-middle attacks that exploit weaker older versions.\n\nThis structured handshake ensures a secure, efficient, and authenticated channel for data exchange between client and server.",
+   "completion_state": "complete",
+   "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+   "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+   "seconds": 83.699,
+   "first_token_seconds": 0.611,
+   "answer_sha256": "bb179ac23760cc9e3ae3771ab1c58de291ac31688948e09b0877295011af7ddf",
+   "numbered_sections": 19,
+   "characters": 7909,
+   "gpu_peak_mib": 14969,
+   "passed": true
+  },
+  "M6_table": {
+   "answer": "| Type | Mutability | Ordered | Duplicates |\n| :--- | :--- | :--- | :--- |\n| List | Mutable | Yes | Allowed |\n| Tuple | Immutable | Yes | Allowed |\n| Set | Mutable | No | Not allowed |",
+   "completion_state": "complete",
+   "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+   "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+   "seconds": 3.406,
+   "first_token_seconds": 0.689,
+   "answer_sha256": "4495a4b5a07de36ee99f5552330342e8f627144ca9b820a7719e83d1df936544",
+   "table_rows": 3,
+   "passed": true
+  },
+  "M7_cancel_recover": {
+   "stop_seconds": 0.001,
+   "late_stream_events": 0,
+   "stopped_state": "incomplete",
+   "recovery": {
+    "answer": "recovered",
+    "completion_state": "complete",
+    "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+    "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+    "seconds": 0.689,
+    "first_token_seconds": 0.587,
+    "answer_sha256": "f6e09cc89f85dcd21d987a4c4af142fe5bbb741de93d375af548f1d4f1d2063b"
+   },
+   "passed": true
+  },
+  "M8_residency_handoff": {
+   "gui_action": {
+    "action": "left_click",
+    "coordinate": [
+     498,
+     488
+    ]
+   },
+   "candidate_to_gui_seconds": 3.06,
+   "gui_to_candidate_answer_seconds": 3.419,
+   "first_token_after_reacquire": 3.275,
+   "gui_peak_mib": 8311,
+   "residency_owners_seen": [
+    "GUI-Owl-1.5-8B-Instruct-Q5_K_M",
+    "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M"
+   ],
+   "back": {
+    "answer": "back on max",
+    "completion_state": "complete",
+    "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+    "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+    "seconds": 3.419,
+    "first_token_seconds": 3.275,
+    "answer_sha256": "51b22ea451f1d262918f643e2cafc57299ae5d8ddf635491eb88ea8aa2202509"
+   },
+   "after_cancelled_handoff": {
+    "answer": "after cancel",
+    "completion_state": "complete",
+    "provider_model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+    "provider_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+    "seconds": 3.533,
+    "first_token_seconds": 3.43,
+    "answer_sha256": "5cf728ea3c63e46b328a699951102748dbe33a4b167987483a26b54360fef672"
+   },
+   "passed": true
+  },
+  "M9_resource": {
+   "gpu_peak_mib_overall": 14969,
+   "gpu_total_mib": 16384,
+   "first_token_cold": 3.537,
+   "first_token_warm": 3.43,
+   "provider_digest_matches": true,
+   "passed": true
+  }
+ },
+ "observed_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+ "passed": true
+}

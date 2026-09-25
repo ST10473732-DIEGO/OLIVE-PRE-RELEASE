@@ -1,0 +1,109 @@
+{
+ "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+ "path": "olive-inference/1 via ordinary Chat on requester and target",
+ "checks": {
+  "preset_contract": {
+   "passed": true,
+   "presets": {
+    "fast": true,
+    "max": true,
+    "normal": true
+   }
+  },
+  "ask_deny_no_invocation": {
+   "passed": true,
+   "error": "Remote AI is Off or this request was denied on the selected device.",
+   "target": {
+    "invocations": 0,
+    "messages": 0,
+    "streams": 0,
+    "active": false,
+    "queued": 0,
+    "tasks": 0,
+    "residency_active": false,
+    "provider_stopped": false,
+    "models": []
+   }
+  },
+  "approved_max_answer_attribution": {
+   "passed": true,
+   "seconds": 1.427,
+   "error": null,
+   "completion": "complete",
+   "provider": {
+    "runtime": "OLIVE Connect",
+    "preset": "max",
+    "device_id": "38f81850-a0d4-4ffc-b0e3-9b2c80b6c205",
+    "device_name": "Paired device",
+    "request_id": "0ec09afb-e8a0-403a-93e3-a0e33140ae39"
+   },
+   "visible_text": "OLIVE remote inference works.",
+   "target_models": [
+    "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M"
+   ],
+   "target_messages": 0,
+   "requester_local_invocations": 0,
+   "permission_after": "ask"
+  },
+  "no_tools_or_private_context": {
+   "passed": true,
+   "visible_text": "I have no tools or access to files, clipboard, screen, or applications. I cannot list files, read your clipboard, or tell you which applications are open.",
+   "target_messages": 0
+  },
+  "requester_stop_cancels_target": {
+   "passed": true,
+   "stop_to_target_stopped_seconds": 0.063,
+   "target": {
+    "invocations": 3,
+    "messages": 0,
+    "streams": 0,
+    "active": false,
+    "queued": 0,
+    "tasks": 0,
+    "residency_active": false,
+    "provider_stopped": true,
+    "models": [
+     "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+     "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M",
+     "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M"
+    ]
+   },
+   "requester": {
+    "invocations": 0,
+    "messages": 7,
+    "streams": 10,
+    "active": false,
+    "queued": 0,
+    "tasks": 0,
+    "residency_active": false,
+    "provider_stopped": false,
+    "models": []
+   }
+  },
+  "target_disconnect_fails_cleanly": {
+   "passed": true,
+   "error": "Connection lost. Remote generation stopped; the partial answer is incomplete.",
+   "completion": "incomplete"
+  },
+  "reconnect_fresh_target": {
+   "passed": true,
+   "error": null,
+   "visible_text": "OLIVE remote inference works.",
+   "target_models": [
+    "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M"
+   ]
+  },
+  "unchanged_fast": {
+   "passed": true,
+   "target_model": "qwen3:8b",
+   "error": null
+  },
+  "unchanged_normal": {
+   "passed": true,
+   "target_model": "gpt-oss:20b",
+   "error": null
+  }
+ },
+ "clean_shutdown": true,
+ "passed": true
+}

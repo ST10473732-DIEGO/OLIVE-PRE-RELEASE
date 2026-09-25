@@ -19,7 +19,7 @@ model reliability. The role remains inspectable in Advanced Settings.
 | --- | --- | --- |
 | OLIVE FAST | qwen3:8b | Direct text/code; 4,096 output-token ceiling |
 | OLIVE NORMAL | gpt-oss:20b | Direct text/reasoning; 4,096 output-token ceiling |
-| OLIVE MAX | qwen3-coder:30b | Direct text/code; 8,192 output-token ceiling |
+| OLIVE MAX | orcarouter/Qwen3.8-27B-Uncensored:q3_K_M (pinned digest `4da593b4…bcd`) | Direct text/code; 8,192 output-token ceiling; think=false |
 | OLIVE DEEP | gpt-oss:20b + qwen3-vl:8b when relevant | Native extraction, bounded retrieval, source/page metadata, up to three relevant images/pages via vision, then text synthesis |
 | OLIVE REIMAGINE | Pillow; approved ComfyUI 0.35.0 / SDXL base 1.0 | Verified local crop/resize and real 1024×1024 generation/image-to-image; per-profile engine setup, progress/cancel and measured GPU handoff. Video remains unavailable. See BROWSER_AND_MEDIA.md |
 
@@ -80,3 +80,20 @@ The four active preset models, qwen3-embedding:0.6b and devstral:24b remain with
 unchanged digests. Old chat records are preserved; selecting a removed tag needs
 setup. See [verified storage measurements](STORAGE_REVIEW.md). The separately
 approved SDXL checkpoint is a media-engine model, not an Ollama display alias.
+
+## MAX promotion, 2026-09-25
+
+Candidate B (`orcarouter/Qwen3.8-27B-Uncensored:q3_K_M`, manifest digest
+`4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd`, model and
+projector blobs re-hashed) passed the declared MAX gate (9/9 through production
+Chat in an isolated profile: sandboxed Python/JavaScript behaviour, non-installed
+language without execution claims, follow-up retention, a complete long answer,
+table formatting, Stop without late output, residency handoff with GUI-Owl and a
+cancelled handoff, and 16 GiB resource limits) and the candidate-specific C7
+validation over `olive-inference/1` (9/9). It is now the public MAX mapping. The
+preset is pinned: an artifact with the same tag but another digest makes MAX
+report Needs setup instead of silently substituting weights. FAST, NORMAL, DEEP,
+REIMAGINE, the coding/reasoning roles and GUI-Owl are unchanged. The previous
+mapping (`qwen3-coder:30b`) is kept as `PREVIOUS_MAX` in
+`olive/services/presets.py`; rollback is a local revert of the promotion commit.
+Evidence: `docs/evidence/final-unified/max-gate.json` and `max-c7.json`.

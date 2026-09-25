@@ -31,7 +31,10 @@ class Engine:
         self.parts = ['First visible delta. ' * 20, 'Second visible delta. ' * 20]
 
     async def list(self):
-        return {'models': [{'model': name} for name in sorted(self.names)]}
+        # A pinned public preset reports its exact artifact digest, as Ollama does.
+        pins = {PRESETS[p]['model']: PRESETS[p].get('pinned_digest', '') for p in PRESETS}
+        return {'models': [{'model': name, **({'digest': pins[name]} if pins.get(name) else {})}
+                           for name in sorted(self.names)]}
 
     async def show(self, model):
         return {'capabilities': ['completion'], 'model_info': {'test.context_length': 8192}}

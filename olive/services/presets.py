@@ -6,14 +6,20 @@ PRESETS = {
              "params": {"temperature": .3, "max_tokens": 4096}, "description": "Quick answers and code, with lower resource use."},
     "normal": {"name": "OLIVE NORMAL", "model": "gpt-oss:20b", "pipeline": "chat", "role": "general",
                "params": {"temperature": .4, "max_tokens": 4096}, "description": "Everyday answers and reasoning."},
-    "max": {"name": "OLIVE MAX", "model": "qwen3-coder:30b", "pipeline": "chat", "role": "coding",
-            "params": {"temperature": .2, "max_tokens": 8192}, "description": "The strongest locally tested Qwen coding configuration."},
+    "max": {"name": "OLIVE MAX", "model": "orcarouter/Qwen3.8-27B-Uncensored:q3_K_M", "pipeline": "chat", "role": "coding",
+            "pinned_digest": "4da593b4aaed076b41e22b07f680075ff3856c46802f64866c353ac2b1a4fbcd",
+            "params": {"temperature": .2, "max_tokens": 8192},
+            "description": "Heavy answers and code; passed the declared local MAX and Remote AI gates."},
     "deep": {"name": "OLIVE DEEP", "model": "gpt-oss:20b", "pipeline": "documents", "role": "reasoning",
              "params": {"temperature": .2, "max_tokens": 8192, "rag_top_k": 8},
              "description": "Native document text, bounded retrieval and citations. Image reading depends on available vision/OCR."},
     "reimagine": {"name": "OLIVE REIMAGINE", "model": "", "pipeline": "media", "role": "media",
                   "params": {}, "description": "Local image generation and editing. Needs a configured media engine."},
 }
+
+# Rollback: the MAX mapping before the 2026-09-25 promotion (see
+# docs/OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md). Restoring it is a one-line revert.
+PREVIOUS_MAX = {"model": "qwen3-coder:30b", "pinned_digest": ""}
 
 
 class PresetCatalog:
@@ -27,6 +33,9 @@ class PresetCatalog:
         model = self.s.model_registry.get(result["model"])
         info = next((m for m in self.s.model_infos if m.name == result["model"]), None)
         ready = bool(model and model.installed and not model.supports_embeddings)
+        pinned = result.pop("pinned_digest", "")
+        if pinned and getattr(info, "digest", "") != pinned:
+            ready = False  # Same tag, different artifact: never silently substitute weights.
         result.update(id=key, runtime="Ollama" if key != "reimagine" else "Not configured",
                       thinking=False if key in {"fast", "max"} else "low" if key in {"normal", "deep"} else None,
                       digest=getattr(info, "digest", ""), capabilities=list(model.capabilities) if model else [],

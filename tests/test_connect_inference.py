@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 import tempfile
 import unittest
+from olive.services.presets import PRESETS
 from unittest.mock import patch
 
 from olive.bridge.host import Host
@@ -329,7 +330,7 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         await self.policy('allow')
         status = (await self.send(self.client.make(self.b.local_id, 'status')))['result']
         self.assertEqual(status['presets'], {'fast': True, 'normal': True, 'max': True})
-        self.eb.names.remove('qwen3-coder:30b')
+        self.eb.names.remove(PRESETS['max']['model'])
         await self.sb.model_registry.refresh()
         targets = await self.client.targets()
         self.assertFalse(targets[0]['presets']['max'])
@@ -412,7 +413,7 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
             model = 'gpt-oss:20b' if preset == 'fast' else 'qwen3:8b'
             output = [v async for v in self.sb.ollama.chat_stream(model, [{'role': 'user', 'content': 'Local'}])]
             self.assertTrue(output)
-        self.assertEqual([c['model'] for c in self.eb.calls], ['qwen3:8b', 'gpt-oss:20b', 'qwen3-coder:30b', 'qwen3:8b'])
+        self.assertEqual([c['model'] for c in self.eb.calls], ['qwen3:8b', 'gpt-oss:20b', PRESETS['max']['model'], 'qwen3:8b'])
         self.assertIsNone(self.sb.ollama.residency.active)
 
     async def test_changed_ask_request_withdraws_exact_approval(self):
