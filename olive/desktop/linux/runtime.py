@@ -233,8 +233,7 @@ class LinuxRuntime:
                 observation = await self.observe_app(app, processes)
             except (ValueError, LookupError):
                 if grant.scope.effect in {'send','draft'}:
-                    from .messaging_observation import visual_candidates
-                    return await visual_candidates(self, grant, processes[0][0])
+                    return await self.visual_messaging(grant, app, processes)
                 if grant.scope.effect != 'click':
                     raise
                 for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
@@ -242,12 +241,13 @@ class LinuxRuntime:
                 from .visual_task import click
                 return await click(self, grant, processes[0][0])
             try:
+                if grant.scope.predicate and grant.scope.effect in {'send', 'draft'}:
+                    raise ValueError('Web messaging uses the verified visual route')
                 grant = self.authority.bind_account(grant, observation, d.configuration())
             except ValueError:
                 if grant.scope.effect not in {'send', 'draft'}:
                     raise
-                from .messaging_observation import visual_candidates
-                return await visual_candidates(self, grant, processes[0][0])
+                return await self.visual_messaging(grant, app, processes)
             observation['destination'] = messaging_destination(grant.scope, observation)
             if grant.scope.effect == 'open':
                 d.record.status = 'completed'
@@ -364,6 +364,26 @@ class LinuxRuntime:
             self.session = None
             self.owner = None
             d.publish()
+
+    async def visual_messaging(self, grant, app, processes):
+        """Visible-UI messaging after semantic context proved insufficient."""
+        d = self.desktop
+        for permission in ('desktop.keyboard_input', 'desktop.mouse_input', 'desktop.control_application'):
+            d.gateway.require_not_denied(self.permission_session, permission)
+        if grant.scope.effect == 'send':
+            d.gateway.require_not_denied(self.permission_session, 'communication.send')
+        host, documents = '', None
+        if grant.scope.predicate:
+            from urllib.parse import urlsplit
+            locations = await self.native.call('document_locations', {'pid': processes[0][0]})
+            documents = [x for x in locations.get('documents', []) if x.get('ready')]
+            host = (urlsplit(documents[0].get('uri', '')).hostname or '') if len(documents) == 1 else ''
+            wanted = grant.scope.predicate
+            if not host or not (host == wanted or host.endswith('.' + wanted)):
+                raise ValueError('DESTINATION_UNVERIFIED: the browser is not showing the official ' + wanted +
+                                 ' page; nothing was typed or sent.')
+        from .visual_messaging import visual_message
+        return await visual_message(self, grant, processes[0][0], app.name, host, documents)
 
     def check_task(self, grant):
         d = self.desktop

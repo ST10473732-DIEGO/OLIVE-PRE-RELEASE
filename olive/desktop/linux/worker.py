@@ -238,6 +238,29 @@ class Worker:
             point = pixel_point(self.window['bounds'], [frame['width'], frame['height']], args['point'])
             self.eis.click(*point)
             return {'dispatched': True}
+        if method in {'visual_text', 'visual_key'} and set(args) == {'revision', 'value'}:
+            # Visual-only clients: literal text into the focused field, or one key
+            # from a fixed allowlist. Requires the latest unconsumed frame of the
+            # same pinned window; the runtime binds values to the task scope.
+            from olive.desktop.linux.kwin import windows
+            frame, self.visual_frame = self.visual_frame, None
+            if not frame or args['revision'] != frame['revision'] or time.monotonic()-frame['captured_at'] > 10:
+                raise ValueError('Stale visual observation')
+            current = windows(self.portal.bus, self.window['pid'], self.stopped)
+            if len(current) != 1 or not current[0]['active'] or any(current[0][k] != frame['window'][k] for k in ('id', 'bounds', 'output', 'title')):
+                raise PermissionError('Visual target focus or geometry changed')
+            value = args['value']
+            if method == 'visual_text':
+                if not isinstance(value, str) or not 1 <= len(value) <= 4000 or any(ord(c) < 32 for c in value):
+                    raise ValueError('Invalid literal text')
+                self.eis.text(value)
+            elif value == 'ctrl+k':
+                self.eis.chord_codes([29, 37])
+            elif value in {'Enter', 'Escape'}:
+                self.eis.key(value)
+            else:
+                raise ValueError('Unsupported visual key')
+            return {'dispatched': True}
         if method == 'browser_visit' and set(args) == {'pid', 'url'}:
             from olive.desktop.browser_url import validated_url
             if not self.window or self.window['pid'] != args['pid']:

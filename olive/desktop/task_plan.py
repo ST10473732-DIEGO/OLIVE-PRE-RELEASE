@@ -32,6 +32,15 @@ def explicit_plan(request):
         i+=1
     if quote:return None
     parts.append(request[start:].strip())
+    if len(parts) == 1:
+        # A web messaging request names its official origin explicitly; open it first.
+        try:
+            scope = direct_scope(parts[0])
+        except ValueError:
+            return None
+        if scope.effect in {'send', 'draft'} and scope.predicate == 'discord.com':
+            return DesktopPlan(request, ('Open Discord in ' + scope.application, parts[0]))
+        return None
     if not 2 <= len(parts) <= 8 or any(not p for p in parts):return None
     summarize = bool(re.fullmatch(r'(?:summari[sz]e|give me a summary of) (?:it|that page|the page|the results)(?: in Chat)?[.]?', parts[-1], re.I))
     if summarize:

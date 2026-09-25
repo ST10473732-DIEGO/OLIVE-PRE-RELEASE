@@ -116,6 +116,22 @@ def direct_scope(request):
         if query and re.search(r'\b(?:then|but|without|do not|never)\b|don[\'’]t', query, re.I):
             raise ValueError('The search text includes a possible task constraint; clarify the exact query before input')
         return TaskScope(app.strip(), 'search' if query else 'open', query or '')
+    # Official web route for a named messaging service inside an explicit browser.
+    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#+-]{1,100}?)(?: in ([\w .\'+-]{1,100}?))? '
+                         r'in Discord (?:web )?in ([\w .+-]{1,60}?)(?: using account (.{1,100}))?', text, re.I | re.S)
+    if match:
+        verb, quote, content, destination, server, app, account = match.groups()
+        if not content or any(re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', field or '', re.I)
+                              for field in (account, app, destination, server)):
+            raise ValueError('Clarify the exact message, account and additional constraints')
+        return TaskScope(app, verb.lower(), content, destination, account or '', server or '', predicate='discord.com')
+    match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#+-]{1,100}?) in ([\w .\'+-]{1,100}?) in ([\w .+-]{1,80}?)(?: using account (.{1,100}))?', text, re.I | re.S)
+    if match and not re.search(r'\bin\b', match.group(6), re.I):
+        verb, quote, content, destination, server, app, account = match.groups()
+        if not content or any(re.search(r'[,;\n]|\b(?:then|but|without|do not|never)\b|don[\'’]t', field or '', re.I)
+                              for field in (account, app, destination, server)):
+            raise ValueError('Clarify the exact message, account and additional constraints')
+        return TaskScope(app, verb.lower(), content, destination, account or '', server)
     match = re.fullmatch(r'(Send|Draft) ([\'\"])(.*?)\2 to ([\w .@#+-]{1,100}?) in ([\w .+-]{1,80}?)(?: using account (.{1,100}))?', text, re.I | re.S)
     if match:
         verb, quote, content, destination, app, account = match.groups()
