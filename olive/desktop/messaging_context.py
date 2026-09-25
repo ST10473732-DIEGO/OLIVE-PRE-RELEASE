@@ -9,7 +9,7 @@ never inferred from a model answer. Nothing here performs input.
 from dataclasses import asdict, dataclass, field
 import re
 
-from .visual_ocr import confident, normalize
+from .visual_ocr import MIN_CONFIDENCE, confident, normalize
 
 VERIFIED, UNVERIFIED, AMBIGUOUS, NOT_VISIBLE, MISMATCH = 'VERIFIED', 'UNVERIFIED', 'AMBIGUOUS', 'NOT_VISIBLE', 'MISMATCH'
 
@@ -173,10 +173,11 @@ def observed_account(lines, composer_box=None):
     return Layer(AMBIGUOUS if rows else NOT_VISIBLE, evidence='account panel not uniquely readable')
 
 
-def rows(lines, tolerance=8):
+def rows(lines, tolerance=8, minimum=None):
     """Group OCR lines into visual rows by vertical overlap."""
     grouped = []
-    for line in sorted(confident(lines), key=lambda l: l['box'][1]):
+    kept = confident(lines) if minimum is None else [l for l in lines if l['confidence'] >= minimum]
+    for line in sorted(kept, key=lambda l: l['box'][1]):
         middle = (line['box'][1] + line['box'][3]) / 2
         for row in grouped:
             if abs(row['middle'] - middle) <= tolerance:
@@ -194,15 +195,35 @@ def rows(lines, tolerance=8):
     return result
 
 
-def switcher_matches(lines, destination, server=''):
-    """Rows whose FIRST label is exactly the destination (and server, if requested)."""
-    wanted, workspace = bare(destination), bare(server)
+def switcher_matches(entries, destination, server=''):
+    """Result rows whose first confident label is exactly the destination and, when a
+    server is requested, whose last confident label is exactly that server.
+
+    Words between them (for example a category such as "TEXT CHANNELS") identify
+    neither and are ignored. Leading icon glyphs are skipped only when they carry
+    no word characters or were not read confidently. Entries may be OCR words or
+    whole lines; each is split into tokens that keep its confidence and box.
+    """
+    wanted, workspace = bare(destination).split(), bare(server).split() if server else []
+    tokens = [{'text': part, 'confidence': entry['confidence'], 'box': entry['box']}
+              for entry in entries for part in str(entry['text']).split()]
     found = []
-    for row in rows(lines):
-        text = bare(row['text'])
+    for row in rows(tokens, minimum=0):
+        words = list(row['lines'])
+        # Skip only sigils and short unreadable icon glyphs, never a word that
+        # could be part of another channel's name.
+        while words and (not bare(words[0]['text']) or
+                         len(bare(words[0]['text'])) <= 2 and words[0]['confidence'] < MIN_CONFIDENCE):
+            words.pop(0)
+        name = words[:len(wanted)]
+        if [bare(w['text']) for w in name] != wanted or any(w['confidence'] < MIN_CONFIDENCE for w in name):
+            continue
         if workspace:
-            if text == wanted + ' ' + workspace:
-                found.append(row)
-        elif text == wanted or text.startswith(wanted + ' '):
-            found.append(row)
+            rest = words[len(wanted):]
+            while rest and rest[-1]['confidence'] < MIN_CONFIDENCE:
+                rest.pop()  # Trailing unreadable glyphs (for example an overflow mark).
+            tail = rest[-len(workspace):] if len(rest) >= len(workspace) else []
+            if [bare(w['text']) for w in tail] != workspace or any(w['confidence'] < MIN_CONFIDENCE for w in tail):
+                continue
+        found.append(row)
     return found

@@ -12,7 +12,7 @@ import asyncio
 from ..messaging_context import (AMBIGUOUS, MISMATCH, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
                                  switcher_matches)
-from ..visual_ocr import band, normalize, ocr_lines, unchanged_outside
+from ..visual_ocr import band, normalize, ocr_lines, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .4
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
@@ -119,7 +119,12 @@ class VisualMessaging:
                 await asyncio.sleep(SETTLE_SECONDS)
             frame = await self.frame()
             _, lines = await self.region(frame, 'switcher')
-            if any(self.adapter.switcher_prompt in normalize(l['text']) for l in lines):
+            prompt = [l for l in lines if self.adapter.switcher_prompt in normalize(l['text'])]
+            if prompt:
+                # Results are listed below the search box; the box itself (which will
+                # hold the typed query) and anything left of the dialog are excluded.
+                results_left = min(l['box'][0] for l in prompt) - 40
+                results_top = max(l['box'][3] for l in prompt) + 6
                 break
         else:
             await self.escape()
@@ -138,13 +143,13 @@ class VisualMessaging:
                 continue
             # Uniqueness is judged from a wide band around the proposal, so a second
             # visible row with the same name (other server) stays ambiguous.
-            wide = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 140, 300))
+            wide = await asyncio.to_thread(ocr_words, frame, results_band(frame, point, results_left, results_top))
             candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
             if candidates:
                 # One confirmation read so a late-loading duplicate is still counted.
                 await asyncio.sleep(SETTLE_SECONDS)
                 frame = await self.frame()
-                wide = await asyncio.to_thread(ocr_lines, frame, band(frame, point, 140, 300))
+                wide = await asyncio.to_thread(ocr_words, frame, results_band(frame, point, results_left, results_top))
                 candidates = switcher_matches(wide, self.scope.destination, self.scope.server)
                 break
         if point is None:
@@ -282,6 +287,12 @@ class VisualMessaging:
         return ', '.join(f'{name} {layer.state.lower()}' for name, layer in
                          (('destination', ctx.destination), ('workspace', ctx.workspace),
                           ('composer', ctx.composer), ('account', ctx.account)))
+
+
+def results_band(frame, point, left, top):
+    """Switcher results: below the search box, from its left edge to the window's right edge."""
+    _, _, _, bottom = band(frame, point, 140)
+    return (max(0, left), max(0, top), frame['width'], max(top + 8, bottom))
 
 
 def crop_document(frame, documents):

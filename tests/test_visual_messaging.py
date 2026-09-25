@@ -152,7 +152,7 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         def ocr(frame, box):
             left, top, right, bottom = box
             middle = (top + bottom) / 2
-            if bottom - top > 200:
+            if bottom - top > 150:  # the switcher results read
                 return client.lines('wide')
             center = (left + right) / 2
             for role, (x, y) in roles.items():
@@ -161,7 +161,9 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             if bottom < 600 and top > 400:
                 return client.lines('above')
             return []
-        with patch.object(visual_messaging, 'ocr_lines', ocr), patch.object(visual_messaging.asyncio, 'sleep',
+        with patch.object(visual_messaging, 'ocr_lines', ocr), \
+                patch.object(visual_messaging, 'ocr_words', lambda frame, box, scale=4: ocr(frame, box)), \
+                patch.object(visual_messaging.asyncio, 'sleep',
                                                                              return_value=None), \
                 patch.object(visual_messaging, 'unchanged_outside', lambda before, after, box: unchanged):
             outcome = await visual_messaging.visual_message(runtime, grant, 1, scope.application)
@@ -350,3 +352,33 @@ class SettleTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, 'TARGET_AMBIGUOUS'):
             await self.run_task('Send "hi" to general in Visual Messenger', client)
         self.assertEqual(client.sent, [])
+
+
+class SwitcherRowTests(unittest.TestCase):
+    """Rows as Discord lists them: icon, channel, category, right-aligned server (word-level OCR)."""
+
+    def words(self, top, *items):
+        return [{'text': text, 'confidence': conf, 'box': (left, top, left + 8 * len(text), top + 12)}
+                for text, conf, left in items]
+
+    def test_category_between_channel_and_server_is_ignored(self):
+        row = self.words(184, ('3?', 20, 200), ('gen-chat', 86, 223), ('TEXT', 12, 280), ('CHANNELS', 5, 310),
+                         ('D', 88, 590), ('SERVER', 90, 602))
+        decorated = self.words(208, ('#', 91, 200), ('®gen-chat+"+', 44, 223), ('CHAT', 30, 300),
+                               ('perrito', 90, 560), ('boni', 78, 600))
+        self.assertEqual(len(switcher_matches(row + decorated, '#gen-chat', 'D SERVER')), 1)
+        self.assertEqual(len(switcher_matches(row + decorated, '#gen-chat')), 1)
+        self.assertEqual(switcher_matches(row, '#gen-chat', 'C SERVER'), [])
+
+    def test_a_readable_prefix_word_is_never_skipped(self):
+        row = self.words(184, ('#', 91, 200), ('old', 50, 214), ('gen-chat', 86, 240), ('D', 88, 590), ('SERVER', 90, 602))
+        self.assertEqual(switcher_matches(row, '#gen-chat', 'D SERVER'), [])
+
+    def test_server_words_must_be_read_confidently(self):
+        row = self.words(184, ('#', 91, 200), ('gen-chat', 86, 223), ('D', 88, 590), ('SERVER', 40, 602))
+        self.assertEqual(switcher_matches(row, '#gen-chat', 'D SERVER'), [])
+
+    def test_results_band_starts_below_the_search_box(self):
+        from olive.desktop.linux.visual_messaging import results_band
+        frame = {'width': 900, 'height': 480}
+        self.assertEqual(results_band(frame, (324, 190), 180, 160), (180, 160, 900, 330))

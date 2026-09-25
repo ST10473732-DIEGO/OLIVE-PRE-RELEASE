@@ -34,7 +34,7 @@ def band(frame, point, half_height, half_width=None):
     return clamp_box(frame, (x - half_width, y - half_height, x + half_width, y + half_height))
 
 
-def _tesseract(image, scale, left, top):
+def _tesseract(image, scale, left, top, words=False):
     data = io.BytesIO()
     image.save(data, format='PNG')
     output = subprocess.run(['tesseract', 'stdin', 'stdout', '--psm', '11', 'tsv'], input=data.getvalue(),
@@ -46,6 +46,14 @@ def _tesseract(image, scale, left, top):
             continue
         key = tuple(word[k] for k in ('page_num', 'block_num', 'par_num', 'line_num'))
         grouped.setdefault(key, []).append(word)
+    if words:
+        # Each word keeps its own confidence, so one unreadable word (for example a
+        # small-caps category label) never hides a clearly read neighbour.
+        return [{'text': w['text'], 'confidence': float(w['conf']),
+                 'box': (int(w['left']) / scale + left, int(w['top']) / scale + top,
+                         (int(w['left']) + int(w['width'])) / scale + left,
+                         (int(w['top']) + int(w['height'])) / scale + top)}
+                for group in grouped.values() for w in group]
     lines = []
     for words in grouped.values():
         words.sort(key=lambda w: int(w['left']))
@@ -58,11 +66,12 @@ def _tesseract(image, scale, left, top):
     return lines
 
 
-def ocr_lines(frame, box, scale=3, isolate=True):
+def ocr_lines(frame, box, scale=3, isolate=True, words=False):
     """Two independent passes: global contrast, and text isolated from its local background.
 
     The second pass keeps low-contrast placeholders readable when a crop spans
     several background shades. Lines are merged; duplicates keep the higher confidence.
+    With words=True the same passes return individual words with their own confidence.
     """
     from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
     left, top, right, bottom = clamp_box(frame, box)
@@ -75,7 +84,8 @@ def ocr_lines(frame, box, scale=3, isolate=True):
     background = large.filter(ImageFilter.MedianFilter(21)).filter(ImageFilter.BoxBlur(30))
     isolated = ImageChops.difference(large, background).point(lambda v: 0 if v > 30 else 255)
     merged = []
-    for line in _tesseract(basic, scale, left, top) + (_tesseract(isolated, scale, left, top) if isolate else []):
+    for line in (_tesseract(basic, scale, left, top, words) +
+                 (_tesseract(isolated, scale, left, top, words) if isolate else [])):
         duplicate = next((m for m in merged if normalize(m['text']) == normalize(line['text']) and
                           _overlap(m['box'], line['box'])), None)
         if duplicate is None:
@@ -160,3 +170,7 @@ def unchanged_outside(before, after, box):
         ImageDraw.Draw(rgb).rectangle((left, top, right - 1, bottom - 1), fill=(0, 0, 0))
         images.append(rgb)
     return images[0].size == images[1].size and ImageChops.difference(*images).getbbox() is None
+
+
+def ocr_words(frame, box, scale=4):
+    return ocr_lines(frame, box, scale=scale, words=True)
