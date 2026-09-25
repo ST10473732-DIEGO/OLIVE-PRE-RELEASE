@@ -116,5 +116,16 @@ def system_request(text):
     return None
 
 
+def personal_request(text):
+    """'Create a task to/called X' is a task; the title is the user's literal words."""
+    match = re.fullmatch(r'(?:please\s+)?(?:create|add|make)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do)\s+'
+                         r'(?:to\s+|called\s+|named\s+|titled\s+)?([^\n]{1,160}?)[.!]?', text.strip(), re.I)
+    if not match or re.search(r'\b(?:tomorrow|today|at \d|on \w+day|due|remind|every)\b', match.group(1), re.I):
+        return None  # Dates, recurrence and reminders keep the full semantic interpretation.
+    title = match.group(1).strip().strip('"\'')
+    return _step('tasks.create', title=title[:1].upper() + title[1:])
+
+
 def ordinary_request(text):
-    return file_transfer(text) or directory_request(text) or git_request(text) or system_request(text)
+    return (file_transfer(text) or directory_request(text) or git_request(text) or system_request(text)
+            or personal_request(text))

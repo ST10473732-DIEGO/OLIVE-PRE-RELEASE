@@ -138,12 +138,18 @@ def extend(text, instruction, *, workspace='', answer_only=False, forbidden=froz
             re.search(r'\b(?:what|show|check|status|is|are)\b', positive):
         capabilities.update(SYSTEM_READ)
     # Ordinary local personal records: one explicit create/update/complete.
-    if re.search(r'\b(?:task|tasks|to-?do|event|meeting|appointment|reminder|calendar)\b|\bremind me\b', positive):
+    # The record kind is bound to the user's own noun: a model that turns "a task"
+    # into a calendar event falls back to the ordinary review proposal.
+    kinds = {prefix for prefix, pattern in (('tasks', r'\b(?:task|tasks|to-?dos?)\b'),
+                                            ('calendar', r'\b(?:event|events|meeting|meetings|appointment|calendar)\b'),
+                                            ('reminders', r'\b(?:reminder|reminders)\b|\bremind me\b'))
+             if re.search(pattern, positive)}
+    if kinds:
         personal = set()
         if re.search(r'\b(?:add|create|make|schedule|book|set|remind)\b', positive):
-            personal |= {'tasks.create', 'calendar.create', 'reminders.create', 'tasks.schedule'}
+            personal |= {k + '.create' for k in kinds} | ({'tasks.schedule'} if 'tasks' in kinds else set())
         if re.search(r'\b(?:update|change|move|reschedule|rename|edit)\b', positive):
-            personal |= {'tasks.update', 'calendar.update', 'reminders.update'}
+            personal |= {k + '.update' for k in kinds}
         if re.search(r'\b(?:complete|finish|mark\b.*\b(?:done|complete|completed))\b', positive):
             personal.add('tasks.complete')
         if re.search(r'\breopen\b', positive):

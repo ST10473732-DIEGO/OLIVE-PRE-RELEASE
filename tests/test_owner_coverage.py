@@ -361,3 +361,18 @@ class FolderSourceRegressionTests(unittest.TestCase):
                                                                       'destination': str(root / 'project' / 'report.pdf')}))
             with policy.request(f'Copy {root}/files to {root}/project', 'chat', local=True) as grant:
                 self.assertNotIn('filesystem.copy', grant.capabilities)
+
+
+class PersonalKindBindingTests(unittest.TestCase):
+    def test_record_kind_follows_the_users_noun(self):
+        policy = OwnerPolicy(lambda: {'owner_mode': True, 'owner_installation': {'id': 'f', 'owner': owner_identity()}})
+        with policy.request('Create a task to review the report', 'chat', local=True) as grant:
+            self.assertIn('tasks.create', grant.capabilities)
+            self.assertNotIn('calendar.create', grant.capabilities)
+            self.assertFalse(policy.authorize('calendar.create', {'body': {'title': 'x'}}))
+        with policy.request('Schedule a meeting with Sam tomorrow at 10', 'chat', local=True) as grant:
+            self.assertIn('calendar.create', grant.capabilities)
+            self.assertNotIn('tasks.create', grant.capabilities)
+        with policy.request('Remind me to call Sam at 5', 'chat', local=True) as grant:
+            self.assertEqual(grant.capabilities & {'tasks.create', 'calendar.create', 'reminders.create'},
+                             {'reminders.create'})
