@@ -14,6 +14,16 @@ def file_transfer(text):
     if trash:
         return {'confidence':1, 'clarification':'', 'steps':[
             {'intent':'filesystem.trash','entities':{'path':trash.group(1)},'references':{}}]}
+    found = re.fullmatch(r'(?:Find|Locate) ([\w][\w.-]{0,200}) in ((?:/|~/)[^\s\x00]+) and (copy|move) it (?:to|into) ((?:/|~/)[^\s\x00]+?)[.]?',
+                         text.strip(), re.I)
+    if found:
+        name, folder, verb, destination = found.groups()
+        # A literal filename in a named folder: search that folder, then transfer
+        # the single verified result (never the folder itself).
+        return {'confidence': 1, 'clarification': '', 'steps': [
+            {'intent': 'filesystem.search', 'entities': {'query': name, 'path': folder}, 'references': {}},
+            {'intent': 'filesystem.' + verb.lower(), 'entities': {'destination': destination},
+             'references': {'path': 'path'}}]}
     # Unquoted absolute paths without spaces are unambiguous. Other phrasing,
     # relative references and quoted filenames use the existing interpreter.
     match = re.fullmatch(r'(Copy|Move) ((?:/|~/)[^\s\x00]+) (?:to|into) ((?:/|~/)[^\s\x00]+)', text.strip(), re.I)

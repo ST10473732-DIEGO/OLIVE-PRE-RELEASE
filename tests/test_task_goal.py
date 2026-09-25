@@ -244,3 +244,13 @@ class DirectPathClauseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             direct_scope('Paste the clipboard in Kate and save as /tmp/a.txt and then close Firefox')
         self.assertEqual(direct_scope('Write "x" in Kate and save it as /tmp/My Notes/a.txt').path, '/tmp/My Notes/a.txt')
+
+
+class FindTransferRouteTests(unittest.TestCase):
+    def test_literal_find_then_transfer_references_the_search_result(self):
+        from olive.interaction.ordinary_requests import file_transfer
+        steps = file_transfer('Find report.pdf in /tmp/a/files and copy it to /tmp/a/project')['steps']
+        self.assertEqual([s['intent'] for s in steps], ['filesystem.search', 'filesystem.copy'])
+        self.assertEqual(steps[1]['references'], {'path': 'path'})
+        self.assertNotIn('path', steps[1]['entities'])
+        self.assertIsNone(file_transfer('Find *.pdf in /tmp/a and copy it to /tmp/b'))
