@@ -399,3 +399,27 @@ no longer covers the listener. Replacement of just the phone-specific rule,
 followed by Reconnect with the saved pairing, was requested. A successful retry
 would verify retained trust; unattended restart recovery remains uncertified
 while the desktop selects a new port outside the exact firewall allowance.
+
+The owner confirms the new main-listener rule was added and the old rule
+deleted. The phone reconnected using its existing pairing, retained Remote AI
+Allow, and answered the arithmetic question without another approval prompt.
+This verifies trust and permission durability across desktop restart after
+host rule repair; unattended restart recovery remains an open limitation.
+
+Follow-up `ac2f3ab` adds an explicit, confirmed identity reset after all computers
+are unpaired, because existing C2 rejects already-known and revoked identities.
+Reset invalidates old local completion receipts and stores a new Keychain key;
+ordinary unpair still preserves the phone identity. The owner's working
+identity has not been reset. At the owner's request, Message OLIVE clears once
+the desktop admits a request and stays empty after Stop. New drafts, including
+text identical to the sent question, survive subsequent response updates.
+
+The follow-up passed simulator and generic-device builds plus **34 unit and
+8 UI tests** on the physical iPhone, then the updated normal app was reopened.
+Python compilation passed. Full Python discovery ran 1,439 tests: 1,376 passed,
+58 skipped, two failures and three errors. The extra Studio SQLite contention
+error also reproduced against the exact C9.1 baseline; the prior four baseline
+issues remain. No desktop runtime source or test expectation was changed.
+The owner then confirmed both live composer checks: clearing after Send while
+retaining the conversation message, and staying empty after Stop. Real
+revocation/unpair remains pending.

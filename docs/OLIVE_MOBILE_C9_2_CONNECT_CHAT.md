@@ -9,8 +9,11 @@ workflow, the owner confirms the correct arithmetic reply on the phone and a
 second Swift answer rendered in a distinct code block. The owner also confirms
 remote cancellation (0.09 s acknowledgement) and a complete subsequent answer.
 App relaunch, background/foreground reconnection and Wi-Fi interruption recovery
-also pass, with no automatic draft submission. Desktop restart, revocation and
-remaining acceptance are pending.
+also pass, with no automatic draft submission. After desktop restart and a
+phone-only firewall rule replacement for its changed listener port, the owner
+confirms reconnect, retained Remote AI Allow and another arithmetic answer with
+no new approval. Unattended desktop restart recovery, revocation and remaining
+acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -20,8 +23,9 @@ Isolated protocol tests and successful builds are not substitutes for those chec
 - `WORKTREE_STATUS`: clean at start; no later commits to preserve.
 - `FINAL_HEAD`: the documentation checkpoint containing this report; resolve
   with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`.
-  Validated implementation: `e1dc9c1ca9f0b4e7aaa9db0b97668c25e52c4a3d`
-  (Connect implementation `004c72f`, composer follow-up `e1dc9c1`).
+  Validated implementation: `ac2f3ab63cb52e962032da7b05fe6837b3b4995a`
+  (Connect implementation `004c72f`, Stop control `e1dc9c1`, identity recovery
+  and clear-on-send/Stop draft follow-up `ac2f3ab`).
 - `COMMITS`: `004c72f` — native Connect client, UI and interop tests; followed by
   `docs: record C9.2 implementation and LAN acceptance blocker` — this report
   and the appended project journey. The exact final checkpoint is also reported
@@ -34,6 +38,8 @@ Isolated protocol tests and successful builds are not substitutes for those chec
   Permission check: `docs: record connected Remote AI Off and pairing-rule cleanup`.
   First real Chat: `docs: record real iPhone arithmetic and Swift code replies`.
   Composer follow-up: `ios(chat): turn the send control into remote Stop while busy`.
+  Recovery/composer follow-up: `ac2f3ab` — explicit identity reset with receipt
+  invalidation, interrupted-reset tests and draft revision/cancellation fixes.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -70,16 +76,16 @@ and [framing above a transport](https://developer.apple.com/documentation/networ
 | `identity.py` | `ConnectPublicIdentity`, `ConnectIdentityStore`, `OliveTLS.c` | `olive-ed25519-x509/1`; canonical lowercase UUID; key_version 1; integer created_at; base64 DER certificate, CN=UUID, self-signed Ed25519, notBefore=created_at−300 s | Python-produced public certs validated on iPhone; generated native cert validated by Python |
 | `identity.fingerprint` / `contracts.canonical` | `ConnectJSON`, public identity fingerprint | SHA-256 of sorted UTF-8 JSON `{algorithm,key_version,device_id,public_key}`; `C2/1:` + uppercase colon-separated 32-byte digest | Byte-for-byte fixture comparison |
 | `pairing_wire.py` | `PairingOffer`, `ConnectTLS` | `olive-pairing-tls13/2`; exact offer fields, 4096-byte ceiling, 120 s expiry, numeric local endpoint; responder echoes endpoint/times/session and replaces only identity/name | Python offer/reply, transcript SHA-256 and receipt-message fixtures; malformed/expired validation |
-| `pairing_transport.py` | `ConnectPairingClient`, `ConnectSocket` | Separate temporary TCP listener; public reply then `!I` length-prefixed TLS records; ≤32768 bytes/frame, ≤262144 received bytes, ≤3000 frames, bounded deadlines | Full Swift/desktop memory-BIO pairing fixture; live carrier still pending |
+| `pairing_transport.py` | `ConnectPairingClient`, `ConnectSocket` | Separate temporary TCP listener; public reply then `!I` length-prefixed TLS records; ≤32768 bytes/frame, ≤262144 received bytes, ≤3000 frames, bounded deadlines | Full Swift/desktop memory-BIO pairing fixture; real paired connection and Chat confirmed by owner |
 | `tls_identity.py` | `OliveTLS.c` | TLS 1.3 only; exact self-signed peer pin with OpenSSL validity verification; Ed25519 client certificate; no system roots, tickets or session cache | Real TLS adapter vs desktop `PairingTLS`; wrong pin rejected |
 | `PairingTLS.comparison` | `ConnectTLS.comparison` | `EXPORTER-OLIVE-PAIRING-v1`, 32 bytes, SHA-256 canonical `[offer,reply]` context; full 256-bit comparison | Swift/desktop exporter equality |
 | `pairing.py`, `pairing_completion.py` | pairing state and `ConnectTrustRepository` | Explicit local comparison on each side; `OLIVE-CONFIRM/1:` + 32-byte binding; newline + 88-character base64 Ed25519 receipt + newline; `olive-pairing-completion/1` signed canonical message | One confirmation creates no desktop trust; full signed receipts complete the fixture |
 | `discovery.py` | `ConnectDiscoveryService` | `_olive-connect._tcp.local.`; opaque instance; TXT exactly `product=OLIVE`, `version=1`; actual SRV port; directory bounded to 64 | Real Mac browse/resolve and real iPhone UI acceptance |
 | `network_wire.py`, `network.Channel` | `ConnectFrame`, `ConnectTransport` | `!IBB` header: payload length, version 1, kind; encrypted empty HELLO kind 4 before online; inference 9/10, CLOSE 3 | Python/Swift exact header/frame bytes, malformed lengths/version/kind tests |
 | `inference_protocol.py` | `InferenceWire` | `olive-inference/1`, `models.remote`, start/poll/cancel/status; public `fast`, `normal`, `max`; exact source/target/job/request UUIDs; start request_id=job_id | Independent Swift encoders decoded by Python; Swift decodes Python responses |
-| `inference_client.py`, `inference.py` | `RemoteInferenceClient`, accumulator | Status: presets/permission/busy. Ordered pull batches at 250 ms; ≤8 events, ≤4096 UTF-8 bytes/event; consecutive sequences; 64000 aggregate bytes | Incremental/duplicate-sequence/terminal suppression tests; real model still pending |
-| C7 cancellation/release | client Stop and C3 close | Cancel exact job; successful target terminal response follows actual coroutine/provider/residency release; uncertain loss closes channel, never replays start | Swift lifecycle fixture and unchanged desktop C7 regression; real Stop still pending |
-| C3 reconnect/revoke | `ConnectSession` | Fresh pinned handshake each connection; finite 0/1/2/4/8/15 s attempts, at most eight candidate routes; remote revoke is rejection/loss, not an invented revocation notification | Real reconnect/revoke acceptance pending |
+| `inference_client.py`, `inference.py` | `RemoteInferenceClient`, accumulator | Status: presets/permission/busy. Ordered pull batches at 250 ms; ≤8 events, ≤4096 UTF-8 bytes/event; consecutive sequences; 64000 aggregate bytes | Incremental/duplicate-sequence/terminal suppression tests; owner confirms arithmetic, code and hash-function replies |
+| C7 cancellation/release | client Stop and C3 close | Cancel exact job; successful target terminal response follows actual coroutine/provider/residency release; uncertain loss closes channel, never replays start | Swift lifecycle fixture and unchanged desktop C7 regression; real Stop acknowledged in 0.09 s and subsequent request succeeds |
+| C3 reconnect/revoke | `ConnectSession` | Fresh pinned handshake each connection; finite 0/1/2/4/8/15 s attempts, at most eight candidate routes; remote revoke is rejection/loss, not an invented revocation notification | Relaunch, foreground and Wi-Fi recovery passed; desktop restart passed after exact-port firewall repair; real revocation pending |
 
 Mobile implements C9.2's client subset. It rejects unsolicited file/Studio
 frames and does not advertise an inbound capability dispatcher. C3 has no
@@ -94,7 +100,7 @@ wire; internal attribution retains Connect runtime, public role, peer and job.
 One atomically stored Keychain envelope contains the Ed25519 seed and matching
 public identity. Service is app-scoped `.connect`; item is nonsynchronizing,
 `WhenUnlockedThisDeviceOnly`. Concurrent loads share provisioning work. Corrupt,
-locked or mismatched existing material fails closed and is never replaced.
+locked or mismatched existing material fails closed and is never automatically replaced.
 A separate public Keychain reservation distinguishes interrupted creation or lost
 private material from first installation. Existing trust history also prevents
 silent identity regeneration. No seed enters UserDefaults, files, stdout,
@@ -112,6 +118,19 @@ commit trust. Unpair removes peer public/pin material including saved receipt
 transcripts, retains replay tombstones and preserves the iPhone's own identity.
 No remote desktop trust removal is claimed. Unsupported/corrupt storage is kept
 without overwrite. Session and peer capacities fail closed.
+
+The existing desktop pairing manager refuses an already-known device identity
+and rejects previously revoked keys, including aliases under new device IDs.
+To support explicit recovery after unpair/revocation, Settings → Advanced
+connection diagnostics now offers **Reset this iPhone's Connect identity**.
+It is disabled until all local peers are unpaired and no Chat is active; a
+destructive confirmation explains the need for new pairing and permissions.
+Reset cancels pairing, invalidates old completion receipts while keeping replay
+tombstones, and replaces the Ed25519 identity in Keychain. It does not change
+desktop records or permissions, or erase the Chat draft. If replacement is
+interrupted between the reservation and identity writes, ordinary loading fails
+closed; only another explicit reset repairs it. Tests use separate disposable
+Keychain services. The owner's production identity has not been reset.
 
 Discovery cannot authenticate names or expose a pairing offer: desktop mDNS
 contains neither. Nearby therefore says **OLIVE computer — identity not yet
@@ -131,6 +150,12 @@ No target-private context or tool authority is requested. C7 batches render as
 received; no timer-generated text. Fenced code uses the existing native code block.
 
 The composer prevents duplicate submit and retains/restores a failed draft.
+It clears the submitted input once the desktop admits the request, while the
+sent message remains in the conversation. Draft revisions ensure that later
+response updates cannot clear a new draft, even when its text matches the sent
+question. Stop leaves the cleared composer empty; a genuine request failure
+restores the submitted text only if the user has not edited the composer since
+it was cleared. No failed draft is automatically resent.
 Completed visible turns supply subsequent context; failed/incomplete output does
 not. Each request has unique IDs and exact response correlation. Failure and
 incomplete status remain visible. Stop sends the actual C7 cancellation and waits
@@ -182,7 +207,7 @@ permission behavior changes.
 | Fresh pairing listener | Owner returned main TCP 47235 and temporary TCP 52643, both in the existing OLIVE process on the selected LAN interface. Provided a phone-only rule for that exact temporary port, followed by immediate scan/two-sided confirmation instructions |
 | First connection report | Owner first reports “ok they connected,” then confirms the phone shows Connected / Remote AI Off. This is owner-observed production UI evidence; no Chat response or pairing/session timing is claimed |
 | Pairing-rule cleanup | Owner confirms deletion of only the phone-to-temporary-port 52643 rule after this attempt. Main-listener allowance remains. The Mac remains excluded |
-| Both confirmations / denial / abort | Pending real-device verification |
+| Both confirmations / denial / abort | The owner followed the two-sided confirmation flow and obtained an authenticated paired connection. Separate denial/abort checks on the real devices remain pending |
 | Paired record / app relaunch | **Passed, real-device screenshot reviewed:** after installing the composer update and relaunching the normal app, Devices shows the retained desktop under Paired with Connected / Remote AI Allow. No new pairing ceremony was performed |
 | Background / foreground reconnect | **Passed, owner-observed:** after about ten seconds in the background, the phone returns to Connected / Remote AI Allow without re-pairing, and an explicitly submitted hash-function question receives another answer. Reconnection described as almost instant; no numeric timing claimed |
 | Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
@@ -194,7 +219,7 @@ permission behavior changes.
 | Hash prompt / new request after Stop | **Passed, owner-observed:** after cancellation, “Explain in two sentences what a hash function does” returns a complete answer. Exact answer text has not been collected |
 | Remote Stop | **Passed, owner-observed C7 cancellation:** phone output stops, desktop activity reports Remote AI cancelled, and phone diagnostic reports Stop acknowledgement **0.09 s** for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. This is the displayed rounded acknowledgement duration, not a separate provider-internal timing |
 | Wi-Fi interruption / offline draft | **Passed, owner-observed:** Wi-Fi Off produces Offline with disabled Send and a preserved draft; restoring Wi-Fi reconnects with the draft still unsent; pressing Send explicitly produces an answer |
-| Desktop restart | Owner restarted OLIVE: main listener moved from TCP 47235 to TCP 33823 in a new process, and the phone shows Offline. The existing exact-port UFW rule does not admit the new port. Requested replacement of only the phone-specific rule and explicit Reconnect using the saved pairing; result pending. Unattended restart recovery is not certified |
+| Desktop restart | **Retained trust and Chat passed after host rule repair:** main listener moved from TCP 47235 to TCP 33823 in a new process; phone initially Offline. Owner confirms the phone-specific rule for 33823 was added and the old 47235 rule deleted, then the phone reconnected with Remote AI Allow and answered the arithmetic prompt without another approval. Unattended restart recovery is not certified; no numeric reconnect time measured |
 | Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -289,8 +314,10 @@ listener is TCP 33823, whereas the phone-specific rule allowed the previous
 TCP 47235. The phone correctly reports Offline. The requested repair adds the
 same interface/source/destination-scoped permission for the new existing port
 and deletes the old exact rule; it does not allow a range or add a listener.
-Reconnection after this repair would establish retained trust, not unattended
-firewall compatibility across future restarts. Source inspection confirms C3
+The owner confirms both rule changes, reconnection, retained Remote AI Allow
+and a subsequent arithmetic answer without another approval. This establishes
+retained trust but not unattended firewall compatibility across future restarts.
+Source inspection confirms C3
 supports an explicit listener port internally, but the existing Devices enable
 workflow passes only address/discovery and therefore selects an OS-assigned
 port. No desktop listener, persistence or startup behavior was changed to mask
@@ -300,13 +327,22 @@ this host-configuration limitation.
 
 - Pinned TLS libraries built for iPhone arm64 and both simulator architectures.
 - `xcodebuild -list` succeeded. Final simulator app/test build and generic iOS
-  Release build passed again after the composer update
-  (`olive-c92-composer-simulator.log`, `olive-c92-composer-generic.log`).
-- Final physical signed build/install/test: **28 unit tests + 8 UI tests passed**
-  in `/tmp/olive-c92-device-tests-6.xcresult`, 88.283 s overall, including explicit
-  real-LAN discovery. Existing seven shell UI tests remain exercised. The final
-  app was reopened normally without test arguments. Prior successful runs 3/4/5
-  remain as evidence, with 23/25/28 unit tests respectively.
+  Release build passed after the identity recovery and draft update
+  (`olive-c92-recovery-composer-simulator.log`,
+  `olive-c92-recovery-composer-generic.log`). The initial sandboxed recovery
+  build could not run Xcode's Observation macro plugin; the same source built
+  successfully with the required host Xcode access.
+- Final physical signed build/install/test: **34 unit tests + 8 UI tests passed**
+  in `/tmp/olive-c92-device-tests-8.xcresult` (unit 2.409 s, UI 72.749 s),
+  including real-LAN discovery. The app was reopened normally without test
+  arguments. The two new identity tests cover durable replacement and
+  interrupted replacement; receipt tests also prevent old trust recovery after
+  reset. Four new Chat tests cover Stop keeping input empty, preservation of a
+  new identical draft, failed admission and explicit retry after connection loss.
+  Earlier runs 3/4/5/6/7 remain as evidence, with 23/25/28/28/30 unit tests and
+  eight UI tests each. The owner then confirmed that sending clears Message
+  OLIVE while retaining the question in the conversation, and Stop leaves the
+  input empty. Both live composer checks passed.
 - Run 6 screenshot `artifacts/mobile-c9-2/device-6/4401A306-2E53-4CC7-8720-F0FC1133C33D.png`
   was reviewed: retained real pairing, Connected and Remote AI Allow after
   relaunch. Screenshots stay ignored locally. The same run checks multiline,
@@ -325,22 +361,32 @@ this host-configuration limitation.
   `79fb23c90e6a59a6c6e7c25c63ac2f4f2e1cce304cd90747baac10d978d9bcba`.
   Contains disposable public certificates only, no private seeds or user data.
 - `python -m compileall -q .`: passed using disposable writable bytecode cache.
-- Fresh full Python regression after the composer update: **1439 run, 1377
+- Earlier full Python regression after the Stop control update: **1439 run, 1377
   passed, 58 skipped, 2 failures, 2 errors**, 191.512 s
   (`/tmp/olive-c92-composer-python.log`). The extra opt-in Swift-process test is skipped during
   ordinary discovery and passes separately in the interop harness. The same
   four failures/errors were already reproduced against a fresh `git archive`
   of exact `BASELINE_HEAD`; no desktop source change or test weakening.
+- Latest full Python regression during the recovery/composer follow-up:
+  **1439 run, 1376 passed, 58 skipped, 2 failures, 3 errors**, 196.638 s
+  (`/tmp/olive-c92-reset-python.log`). In addition to those four failures/errors,
+  Studio's `test_save_receipt_commit_precedes_success_acknowledgement` hit
+  `connection_closed` after injected SQLite contention. It also failed in an
+  isolated current run. Baseline initially passed, then reproduced the same
+  error in one of three bounded repeats
+  (`/tmp/olive-c92-reset-studio-baseline-repeat.log`). The test and Connect
+  runtime source are unchanged from C9.1. No test expectations were weakened.
 - First Python run used `/tmp` instead of canonical `/private/tmp` for temporary
   files, causing path equality failures. Retained as failed evidence; corrected
   environment rerun above is the comparison run.
 
-Within full discovery, the Connect subset ran **238 tests: 237 passed, one
+Within the earlier full discovery, the Connect subset ran **238 tests: 237 passed, one
 baseline Studio descendant timeout**. The final focused Python/native protocol
 run passed all eight tests.
 
-Remaining baseline failures: Connect Studio descendant timeout, Linux ELF check
-on macOS, Owner Chat project run, and missing-toolchain JDK wording. The desktop
+Remaining baseline failures: Connect Studio descendant timeout and intermittent
+receipt/SQLite contention, Linux ELF check on macOS, Owner Chat project run,
+and missing-toolchain JDK wording. The desktop
 gate is **not fully green on this Mac**. No native CachyOS regression is claimed.
 
 ## Reproduction
@@ -362,8 +408,10 @@ requires C7 acknowledgement/actual job cleanup, not just a terminal database row
 
 ## Completion gate
 
-C9.2 remains **incomplete** until the real iPhone and real CachyOS desktop finish
-secure pairing, permission-respecting streamed Chat, actual Stop, new request,
-reconnect, revocation/unpair and final relevant tests. LAN reachability is being
-investigated, not classified as an Apple platform limitation. No C9.3/C10 work
+C9.2 remains **incomplete**. Real pairing, permission-respecting Chat/code,
+Stop, subsequent requests and mobile interruption recovery have passed as
+recorded above. Live revocation/unpair, remaining security acceptance and
+final relevant tests remain. Desktop restart retains trust and permission,
+but its changing port requires host firewall rule repair in this setup.
+This is not classified as an Apple platform limitation. No C9.3/C10 work
 begins and no release claim is made.
