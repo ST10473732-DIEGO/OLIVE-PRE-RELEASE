@@ -15,7 +15,9 @@ import { Navigation, navModeFor } from "../src/app/Navigation";
 import { PaletteRow } from "../src/app/CommandPalette";
 import { TitleBar } from "../src/app/TitleBar";
 import { connectSummary, modelStatus, runtimeState } from "../src/services/runtimeState";
-import { corePaletteMode } from "../src/components/olive-core/geometry";
+import { activeState } from "../src/components/Core";
+import { SpaceHeader } from "../src/components/SpaceHeader";
+import { spaceOf } from "../src/navigation/features";
 import type { Snapshot } from "../src/services/api";
 
 const run = () => undefined;
@@ -139,19 +141,27 @@ describe("title bar", () => {
     expect(html).toContain('aria-label="Find anything"');
     expect(html).toContain('aria-label="OLIVE activity"');
     expect(html).toContain('aria-label="Model: NORMAL ready"');
-    expect(html).toContain('aria-label="Connect: Connect off"');
+    expect(html).not.toContain("Connect:");
     expect(html).toContain("Notifications: nothing needs you");
+    // One status chip, written the way the artifact shows it.
+    expect(html).toContain("NORMAL · ready");
     // With navigation visible there is no competing space selector.
     expect(html).not.toContain("Switch space");
     expect(html).not.toContain("Open navigation");
   });
-  it("switches between a space's views from the title bar", () => {
+  it("shows where you are as Space › view, with the views as tabs in the space header", () => {
     const html = bar({ route: "tasks" });
-    expect(html).toContain('aria-label="Plan views"');
-    expect(html).toMatch(/aria-pressed="true"[^>]*>Tasks</);
-    for (const view of ["Calendar", "Reminders"]) expect(html).toContain(`>${view}</button>`);
+    expect(html).toContain(">Plan</span>");
+    expect(html).toContain(">Tasks</span>");
+    expect(html).not.toContain('aria-label="Plan views"');
     expect(html).toContain('aria-label="Use light theme"');
-    expect(bar({ route: "home" })).not.toContain(" views\"");
+    const header = renderToStaticMarkup(createElement(SpaceHeader, {
+      space: spaceOf("tasks"), route: "tasks", navigate: run, setActions: run,
+    }));
+    expect(header).toContain('role="tablist"');
+    expect(header).toContain('aria-label="Plan views"');
+    expect(header).toMatch(/aria-selected="true"[^>]*>Tasks</);
+    for (const view of ["Calendar", "Reminders"]) expect(header).toContain(`>${view}</button>`);
   });
   it("offers the space switcher and navigation only when the pane is hidden", () => {
     const html = bar({ navHidden: true, route: "studio", compactStatus: true });
@@ -190,12 +200,9 @@ describe("truthful status summaries", () => {
     ];
     expect(connectSummary({ network: { state: "on" }, devices })).toMatchObject({ label: "1 device online", tone: "ok" });
   });
-  it("lights the compact Core cyan only for real work and amber for approvals", () => {
-    expect(corePaletteMode("Ready")).toBe("rest");
-    expect(corePaletteMode("Idle")).toBe("rest");
-    expect(corePaletteMode("Thinking")).toBe("compute");
-    expect(corePaletteMode("Working")).toBe("compute");
-    expect(corePaletteMode("Approval required")).toBe("attention");
+  it("animates the Core only for real work", () => {
+    for (const state of ["Ready", "Idle", "Approval required", "Paused", "Error"]) expect(activeState(state)).toBe(false);
+    for (const state of ["Thinking", "Working", "Researching"]) expect(activeState(state)).toBe(true);
   });
 });
 

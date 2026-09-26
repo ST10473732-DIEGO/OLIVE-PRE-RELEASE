@@ -14,6 +14,7 @@ import { MotionConfig } from "motion/react";
 import { Moon, Plug, Square, Sun, X } from "lucide-react";
 import { Navigation, navModeFor } from "./Navigation";
 import { TitleBar, TitleBarSlotContext } from "./TitleBar";
+import { SpaceHeader, SpaceSlot } from "../components/SpaceHeader";
 import { CommandPalette } from "./CommandPalette";
 import { usePaletteProvider, type PaletteItem } from "./commands";
 import { featureById, features, spaceOf, spaces, footSpaces } from "../navigation/features";
@@ -161,6 +162,7 @@ export default function App() {
     setPalette(open);
   }, []);
   const [contextSlot, setContextSlot] = useState<HTMLElement | null>(null);
+  const [spaceActions, setSpaceActions] = useState<HTMLElement | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [developer, setDeveloper] = useState(
     localStorage.getItem("developerMode") === "true",
@@ -168,7 +170,17 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("developerMode", String(developer));
   }, [developer]);
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || "dark");
+  // The theme preference may follow the system; `theme` is always the
+  // resolved "dark" or "light" that surfaces (Monaco, OLIVE GO) read.
+  const [themePreference, setTheme] = useState(localStorage.getItem("theme") || "dark");
+  const [systemDark, setSystemDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const query = matchMedia("(prefers-color-scheme: dark)");
+    const change = () => setSystemDark(query.matches);
+    query.addEventListener("change", change);
+    return () => query.removeEventListener("change", change);
+  }, []);
+  const theme = themePreference === "system" ? (systemDark ? "dark" : "light") : themePreference;
   const [reduced, setReduced] = useState(
     localStorage.getItem("reducedMotion") === "true",
   );
@@ -323,9 +335,9 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.reduced = String(reduced);
-    localStorage.setItem("theme", theme);
+    localStorage.setItem("theme", themePreference);
     localStorage.setItem("reducedMotion", String(reduced));
-  }, [theme, reduced]);
+  }, [theme, themePreference, reduced]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if (
@@ -499,10 +511,11 @@ export default function App() {
     };
   }, [entered]);
   const today = useResource(
-    () => call<{ reminders: unknown[] }>("personal.today", {}),
+    () => call<{ reminders: unknown[]; tasks?: { status?: string }[] }>("personal.today", {}),
     ["personal.changed", "personal.reminders"],
   );
   const dueReminders = today.data?.reminders.length || 0;
+  const dueTasks = (today.data?.tasks || []).filter((t) => t.status !== "completed").length;
   const connectApprovals = approvals.filter((a) => a.tool_name === "connect.request").length;
   const runOnName = connectState?.devices?.find((d) => d.device_id === chat?.run_on)?.display_name || "";
   const navMode = navModeFor(width, route, navCompact);
@@ -590,7 +603,8 @@ export default function App() {
                 route={route}
                 openSpace={openSpace}
                 navigate={navigate}
-                badges={{ reminders: dueReminders, devices: connectApprovals }}
+                activity={state}
+                badges={{ reminders: dueReminders, tasks: dueTasks, devices: connectApprovals }}
                 compact={navMode === "rail"}
                 setCompact={setNavCompact}
                 canExpand={navMode !== "hidden" && width >= 1280 && route !== "studio"}
@@ -621,6 +635,9 @@ export default function App() {
               setActionsSlot={setActionsSlot}
             />
             <div className="page">
+              {spaceOf(route).routes.length > 1 && route !== "studio" && (
+                <SpaceHeader space={spaceOf(route)} route={route} navigate={navigate} setActions={setSpaceActions} />
+              )}
               {route === "home" && (
                 <HomePage
                   openRecord={(feature,id)=>{setHandoffs(current=>({...current,[feature]:{id,revision:(current[feature]?.revision||0)+1}}));navigate(feature);}}
@@ -659,7 +676,7 @@ export default function App() {
               {route === 'browser' && <Go ask={text => {setRoute('chat'); void submit(text);}} openSettings={() => {setBrowserSettingsRequest(n => n + 1); navigate('settings');}} report={report} />}
               {mounted("agent") && chat && (
                 <div className="route-host" hidden={route !== "agent"}>
-                  <Suspense
+                  <SpaceSlot.Provider value={{ target: spaceActions, active: route === "agent" }}><Suspense
                     fallback={<div className="loading">Opening Agent…</div>}
                   >
                     <AgentPage
@@ -674,7 +691,7 @@ export default function App() {
                       cancel={cancel}
                       report={report}
                     />
-                  </Suspense>
+                  </Suspense></SpaceSlot.Provider>
                 </div>
               )}
               {mounted("research") && chat && (
@@ -692,20 +709,20 @@ export default function App() {
               )}
               {mounted("memory") && (
                 <div className="route-host" hidden={route !== "memory"}>
-                  <Suspense
+                  <SpaceSlot.Provider value={{ target: spaceActions, active: route === "memory" }}><Suspense
                     fallback={<div className="loading">Opening Memory…</div>}
                   >
                     <MemoryPage target={handoffs.memory} report={report} />
-                  </Suspense>
+                  </Suspense></SpaceSlot.Provider>
                 </div>
               )}
               {mounted("mail") && <div className="route-host" hidden={route!=="mail"}><Suspense fallback={<p>Opening Mail…</p>}><MailPage target={handoffs.mail}/></Suspense></div>}
-              {mounted("calendar") && <div className="route-host" hidden={route!=="calendar"}><Suspense fallback={<p>Opening Calendar…</p>}><CalendarPage target={handoffs.calendar} createRequest={nativeCreate.calendar}/></Suspense></div>}
-              {mounted("tasks") && <div className="route-host" hidden={route!=="tasks"}><Suspense fallback={<p>Opening Tasks…</p>}><TasksPage target={handoffs.tasks} createRequest={nativeCreate.tasks}/></Suspense></div>}
-              {mounted("reminders") && <div className="route-host" hidden={route!=="reminders"}><Suspense fallback={<p>Opening Reminders…</p>}><RemindersPage openRecord={(kind,id)=>{const feature=kind==="event"?"calendar":"tasks";setHandoffs(current=>({...current,[feature]:{id,revision:(current[feature]?.revision||0)+1}}));navigate(feature);}}/></Suspense></div>}
+              {mounted("calendar") && <div className="route-host" hidden={route!=="calendar"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "calendar" }}><Suspense fallback={<p>Opening Calendar…</p>}><CalendarPage target={handoffs.calendar} createRequest={nativeCreate.calendar}/></Suspense></SpaceSlot.Provider></div>}
+              {mounted("tasks") && <div className="route-host" hidden={route!=="tasks"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "tasks" }}><Suspense fallback={<p>Opening Tasks…</p>}><TasksPage target={handoffs.tasks} createRequest={nativeCreate.tasks}/></Suspense></SpaceSlot.Provider></div>}
+              {mounted("reminders") && <div className="route-host" hidden={route!=="reminders"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "reminders" }}><Suspense fallback={<p>Opening Reminders…</p>}><RemindersPage openRecord={(kind,id)=>{const feature=kind==="event"?"calendar":"tasks";setHandoffs(current=>({...current,[feature]:{id,revision:(current[feature]?.revision||0)+1}}));navigate(feature);}}/></Suspense></SpaceSlot.Provider></div>}
               {mounted("knowledge") && chat && (
                 <div className="route-host" hidden={route !== "knowledge"}>
-                  <Suspense
+                  <SpaceSlot.Provider value={{ target: spaceActions, active: route === "knowledge" }}><Suspense
                     fallback={<div className="loading">Opening Knowledge…</div>}
                   >
                     <KnowledgePage
@@ -713,12 +730,12 @@ export default function App() {
                       chatId={chat.id}
                       report={report}
                     />
-                  </Suspense>
+                  </Suspense></SpaceSlot.Provider>
                 </div>
               )}
               {mounted("projects") && (
                 <div className="route-host" hidden={route !== "projects"}>
-                  <Suspense
+                  <SpaceSlot.Provider value={{ target: spaceActions, active: route === "projects" }}><Suspense
                     fallback={<div className="loading">Opening Projects…</div>}
                   >
                     <ProjectsPage
@@ -748,7 +765,7 @@ export default function App() {
                             .catch(report);
                       }}
                     />
-                  </Suspense>
+                  </Suspense></SpaceSlot.Provider>
                 </div>
               )}
               {mounted("settings") && chat && (
@@ -765,7 +782,7 @@ export default function App() {
                       setDeveloper={setDeveloper}
                       chatId={chat.id}
                       report={report}
-                      theme={theme}
+                      theme={themePreference}
                       setTheme={setTheme}
                       reduced={reduced}
                       setReduced={setReduced}

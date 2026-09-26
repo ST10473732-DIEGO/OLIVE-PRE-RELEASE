@@ -196,6 +196,7 @@ export default function Settings({
       layout="fill"
       className="settings-v2"
       title="Settings"
+      bare
       description="Your preferences, local services and permissions."
       rail={
         <aside className="ws-rail settings-rail" aria-label="Settings navigation">
@@ -265,21 +266,20 @@ export default function Settings({
                 <h2>Appearance</h2>
                 <p>How OLIVE looks on this device.</p>
               </header>
-              <h3 className="settings-group-title">Theme and text</h3>
+              <h3 className="settings-group-title">Theme</h3>
+              <div className="settings-group theme-pick" role="group" aria-label="Theme">
+                {(["system", "light", "dark"] as const).map((t) => (
+                  <button key={t} className="theme-opt" data-theme-opt={t} aria-pressed={theme === t} onClick={() => setTheme(t)}>
+                    <span className="theme-prev" aria-hidden="true">
+                      <i />
+                      <i />
+                    </span>
+                    {t === "system" ? "Match system" : t === "dark" ? "Dark" : "Light"}
+                  </button>
+                ))}
+              </div>
+              <h3 className="settings-group-title">Text</h3>
               <div className="settings-group">
-                <div className="setting-row">
-                  <span className="setting-text">
-                    <strong>Theme</strong>
-                    <span>Dark is the default. Light is a native palette, not an inversion.</span>
-                  </span>
-                  <div className="segmented" role="group" aria-label="Theme">
-                    {(["dark", "light"] as const).map((t) => (
-                      <button key={t} aria-pressed={theme === t} onClick={() => setTheme(t)}>
-                        {t === "dark" ? "Dark" : "Light"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <label className="setting-row">
                   <span className="setting-text">
                     <strong>Text and interface size</strong>

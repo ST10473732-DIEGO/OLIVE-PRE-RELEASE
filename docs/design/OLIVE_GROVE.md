@@ -22,6 +22,28 @@ Grove changes what they look like and how the navigation is organised.
     transform and opacity.
   - Reduce Motion removes all of it.
 
+## The mark
+
+- **Source:** the OLIVE mark is a green olive with its pimento. The canonical
+  drawing is `assets/branding/olive-mark.svg`.
+- **Icons:** every icon is rendered from it: `olive-16` to `olive-512.png`,
+  `olive-source.png` at 1024 px and `olive.ico`. The window icon and reminder
+  notifications use those files.
+- **In the app:** `OliveLogo` draws the same SVG inline wherever the mark
+  appears: the navigation brand, Chat and Studio attribution, and OLIVE GO's
+  tab icon, new tab page and error page.
+- **The Core** is that mark with its state:
+  - it draws itself in on Welcome;
+  - a ring turns only while OLIVE really works (Thinking, Working,
+    Researching); OLIVE GO's loading tab uses the same ring;
+  - attention states carry a badge;
+  - it rests in the navigation brand and moves to the title bar when the pane
+    is hidden.
+- **Motion:** it is all CSS. Reduce Motion (OLIVE's setting or the system's)
+  stops it. A minimised or hidden window pauses every animation through
+  `data-window-visible`, which the main process sets, because Chromium can
+  report a minimised page as visible.
+
 ## Shell
 
 - **Layout:** one grid holds the navigation rail (full height), the title bar
@@ -38,11 +60,22 @@ Grove changes what they look like and how the navigation is organised.
   - One highlight glides to the current space.
   - A space reopens the view you last used in it, remembered in
     `spaceViews`.
-- **Title bar:** the space name, then a switcher for the space's views
-  ("Plan views": Calendar, Tasks, Reminders). A centred **Search or ask OLIVE**
-  field opens the palette, bound to Ctrl+K, which is left to Monaco and the
-  terminal while they have focus, plus the existing Ctrl+Shift+P. The existing
-  activity, model and Connect chips follow, then a theme toggle and the bell.
+- **Title bar:** where you are ("Plan › Calendar"), then the centred **Search
+  or ask OLIVE** field. It opens the palette, bound to Ctrl+K (left to Monaco
+  and the terminal while they have focus), plus the existing Ctrl+Shift+P. Then
+  one model chip with a live dot ("NORMAL · ready"), the theme toggle, and the
+  bell, which opens Activity and keeps the name "OLIVE activity".
+- **Space header:** a multi-view space shows the space title, one line of
+  context and the current view's actions, with the views as tabs underneath.
+  A view built on `WorkspacePage` notices it is inside a space, portals its
+  actions and status into the header, and keeps its own title as an accessible
+  heading. Studio takes the whole window and keeps an Agent / Studio switcher
+  in the title bar.
+- **Page headers:** Mail and Settings have none (`bare`), as in the
+  prototype. Mail's Compose sits at the top of its mailbox column, with an
+  account card at the foot.
+- **Theme:** Settings offers Match system, Light and Dark as preview cards;
+  Match system follows the operating system live.
 - **Narrow windows and Studio:** the navigation is an overlay and the title
   bar carries the brand and a space menu, as before.
 

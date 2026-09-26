@@ -89,3 +89,18 @@ class ResidentRoutingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConversationListTests(unittest.TestCase):
+    def test_the_list_carries_the_day_and_one_line_of_the_latest_message(self):
+        from olive.application.chat_controller import last_line
+        from olive.bridge.chat_routes import search
+        chat = Chat(title="Plan")
+        chat.add_message("user", "What does my week look like?")
+        chat.add_message("assistant", "Here is your week:\n\n- Today: standup at 09:30")
+        self.assertEqual(last_line(chat), "Here is your week: - Today: standup at 09:30")
+        chat.add_message("assistant", "word " * 40)
+        self.assertTrue(last_line(chat).endswith("…") and len(last_line(chat)) <= 90)
+        self.assertEqual(last_line(Chat()), "")
+        record = search(SimpleNamespace(chats={chat.id: chat}), "")[0]
+        self.assertEqual((record["updated_at"], record["last"]), (chat.updated_at, last_line(chat)))

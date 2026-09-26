@@ -87,7 +87,7 @@ export interface Snapshot {
     count: number;
   };
   chat: Chat;
-  chats: { id: string; title: string }[];
+  chats: { id: string; title: string; updated_at?: string; last?: string }[];
   models: { name: string; alias: string }[];
   workspaces: Workspace[];
   approvals: Approval[];

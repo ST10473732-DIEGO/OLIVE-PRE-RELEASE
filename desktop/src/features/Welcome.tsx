@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { ArrowRight, Check, Cpu, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Cpu, ShieldCheck, Smartphone } from "lucide-react";
+import { call } from "../services/api";
 import { Core } from "../components/Core";
 import type { RuntimeState } from "../services/runtimeState";
 
@@ -22,6 +23,22 @@ export function Welcome({
   enter: () => void;
 }) {
   const [skip, setSkip] = useState(() => localStorage.getItem("skipWelcome") === "true");
+  // Your devices: the real Connect state, read once; never a guess.
+  const [devices, setDevices] = useState<{ on: boolean; paired: string[] } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const read = () =>
+      call<{ network?: { state?: string }; devices?: { display_name: string; trust_state: string }[] }>("connect.snapshot", {})
+        .then((value) => {
+          if (alive) setDevices({ on: value.network?.state === "on", paired: (value.devices || []).filter((d) => d.trust_state === "paired").map((d) => d.display_name) });
+        })
+        .catch(() => alive && setDevices({ on: false, paired: [] }));
+    const timer = setTimeout(read, 300);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, []);
   const aiReady = ready && runtime.tone !== "error" && runtime.detail !== "AI offline" && runtime.detail !== "no model installed";
   const checks = [
     {
@@ -39,6 +56,19 @@ export function Welcome({
       detail: "Chats, files and memory stay on this device",
       done: true,
       waiting: false,
+    },
+    {
+      id: "devices",
+      icon: Smartphone,
+      title: "Your devices",
+      detail: !devices
+        ? "Checking OLIVE Connect…"
+        : devices.paired.length
+          ? `${devices.paired.slice(0, 2).join(", ")}${devices.paired.length > 2 ? ` and ${devices.paired.length - 2} more` : ""} paired${devices.on ? "" : " · Connect is off"}`
+          : "None paired yet · pair a phone from Devices",
+      done: Boolean(devices?.paired.length && devices.on),
+      waiting: !devices,
+      optional: true,
     },
   ];
   return (
@@ -60,8 +90,8 @@ export function Welcome({
                 <strong>{check.title}</strong>
                 <small>{check.detail}</small>
               </span>
-              <span className="welcome-check-state" aria-label={check.waiting ? "Starting" : check.done ? "Ready" : "Needs attention"}>
-                {check.waiting ? <span className="welcome-spinner" /> : check.done ? <span className="welcome-tick"><Check size={11} strokeWidth={3} /></span> : <span className="welcome-warn">!</span>}
+              <span className="welcome-check-state" aria-label={check.waiting ? "Starting" : check.done ? "Ready" : "optional" in check ? "Optional" : "Needs attention"}>
+                {check.waiting ? <span className="welcome-spinner" /> : check.done ? <span className="welcome-tick"><Check size={11} strokeWidth={3} /></span> : "optional" in check ? <span className="welcome-idle" /> : <span className="welcome-warn">!</span>}
               </span>
             </li>
           ))}

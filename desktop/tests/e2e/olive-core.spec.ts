@@ -1,15 +1,26 @@
-import { test, expect, _electron as electron } from "@playwright/test";
+import { test, expect, _electron as electron, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { record } from "./recording";
-import type { CoreMetrics } from "../../src/components/olive-core/renderer";
 import { openSpace } from "./shell";
-test("dot olive renders depth, follows real validation, and stops when idle hidden or reduced", async () => {
+
+// The Core is the OLIVE mark (the same drawing as the app icon) with its state:
+// it draws itself in on Welcome, a ring turns only while OLIVE really works,
+// attention states carry a badge, and every animation pauses while hidden and
+// stops under Reduce Motion.
+const animations = (page: Page, selector: string) =>
+  page.locator(selector).first().evaluate((el) =>
+    el.getAnimations({ subtree: true }).map((a) => ({
+      name: (a as CSSAnimation).animationName,
+      state: a.playState,
+    })),
+  );
+
+test("the OLIVE mark draws in, turns only for real work, and pauses hidden or reduced", async () => {
   test.setTimeout(120000);
   const root = path.resolve(".."),
-    profile = await mkdtemp(path.join(tmpdir(), "olive-dot-core-"));
+    profile = await mkdtemp(path.join(tmpdir(), "olive-logo-core-"));
   const seed = spawnSync(
     path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"),
     [path.join(root, "scripts/seed_electron_fixture.py"), profile],
@@ -24,200 +35,42 @@ test("dot olive renders depth, follows real validation, and stops when idle hidd
   await mkdir(evidence, { recursive: true });
   const app = await electron.launch({
     args: [path.resolve(".")],
-    env: {
-      ...process.env,
-      OLIVE_DATA_DIR: profile,
-      OLIVE_OLLAMA_HOST: "http://127.0.0.1:1",
-    },
+    env: { ...process.env, OLIVE_DATA_DIR: profile, OLIVE_OLLAMA_HOST: "http://127.0.0.1:1" },
   });
   try {
     const page = await app.firstWindow();
-    const metrics = () =>
-      page
-        .locator(".olive-core-canvas:visible")
-        .first()
-        .evaluate((el) => ({
-          ...(el as HTMLCanvasElement & { oliveCoreMetrics: CoreMetrics })
-            .oliveCoreMetrics,
-          sampledAt: performance.now(),
-          pixelRatio: devicePixelRatio,
-          bitmapWidth: (el as HTMLCanvasElement).width,
-        }));
-    await expect(
-      page.getByRole("button", { name: "Enter OLIVE", exact: true }),
-    ).toBeEnabled();
-    await expect.poll(async () => (await metrics()).frames).toBeGreaterThan(2);
-    const stopRecording = await record(page, evidence, "olive-core.mp4");
-    const angles = [];
-    for (const angle of [0.5, 1.6, 3.1, 5.5]) {
-      await expect
-        .poll(async () => (await metrics()).angle, { timeout: 15000 })
-        .toBeGreaterThan(angle);
-      angles.push(await metrics());
-      await page.screenshot({
-        path: path.join(evidence, `welcome-${angle}.png`),
-      });
-    }
-    await page
-      .getByRole("button", { name: "Enter OLIVE", exact: true })
-      .click();
-    await expect.poll(async () => (await metrics()).running).toBe(false);
-    await expect(page.locator("main.home")).toHaveCSS("opacity", "1");
+    const core = ".core-transit-stage .core";
+    // Welcome: the mark draws itself in (olive, then pimento and shine).
+    await expect(page.locator(".welcome-core .core-logo")).toBeVisible();
+    const welcome = await animations(page, ".welcome-core .core");
+    expect(welcome.map((a) => a.name)).toEqual(
+      expect.arrayContaining(["grove-olive-grow", "grove-pim-pop"]),
+    );
+    await page.screenshot({ path: path.join(evidence, "welcome-mark.png") });
+    await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();
+    await expect(page.locator("main.home")).toBeVisible();
+    // At rest in the navigation brand: small, and nothing turns.
     await expect
-      .poll(() =>
-        page
-          .locator(".core-transit-stage .core")
-          .evaluate((el) => el.getBoundingClientRect().width),
-      )
-      .toBeLessThan(50);
+      .poll(() => page.locator(core).evaluate((el) => el.getBoundingClientRect().width))
+      .toBeLessThan(30);
+    await expect(page.locator(`${core} .core-ring`)).toHaveCount(0);
+    expect((await animations(page, core)).filter((a) => a.state === "running")).toEqual([]);
     await page.screenshot({ path: path.join(evidence, "compact-idle.png") });
-    const idle = await metrics();
-    await page.waitForTimeout(350);
-    expect((await metrics()).frames).toBe(idle.frames);
+    // Real work: a Python unittest run in Studio turns the ring, then it stops.
     await openSpace(page, "Studio");
-    await page
-      .getByRole("button", { name: /Fixture.*local Python project/ })
-      .click();
+    await page.getByRole("button", { name: /Fixture.*local Python project/ }).click();
     await page.getByRole("button", { name: "Test", exact: true }).click();
-    await expect(page.locator(".core-transit-stage .core")).toHaveAttribute(
-      "data-state",
-      "Working",
-    );
-    await expect.poll(async () => (await metrics()).running).toBe(true);
-    await page.screenshot({
-      path: path.join(evidence, "compact-live-working.png"),
-    });
-    const active = await metrics();
-    await expect(page.locator(".output-terminal")).toContainText("OK", {
-      timeout: 15000,
-    });
-    await expect(page.locator(".core-transit-stage .core")).toHaveAttribute(
-      "data-state",
-      "Ready",
-    );
-    await expect
-      .poll(async () => (await metrics()).running, { timeout: 10000 })
-      .toBe(false);
-    await page.screenshot({
-      path: path.join(evidence, "compact-completed.png"),
-    });
-    const recording = await stopRecording();
-    // Real system preference changes apply without restarting the renderer.
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect.poll(async () => (await metrics()).reduced).toBe(true);
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page
-      .getByRole("button", { name: "OLIVE activity", exact: true })
-      .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.keyboard.press("Escape");
-    expect(await page.locator(".olive-core-canvas:visible").count()).toBe(1);
-    // Reopen Welcome to inspect the live decorative loop under native visibility.
-    await page.reload();
-    await expect(
-      page.getByRole("button", { name: "Enter OLIVE", exact: true }),
-    ).toBeVisible();
-    await expect.poll(async () => (await metrics()).running).toBe(true);
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].minimize(),
-    );
-    await expect
-      .poll(() =>
-        app.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows()[0].isMinimized(),
-        ),
-      )
-      .toBe(true);
-    await expect
-      .poll(
-        async () =>
-          await page
-            .locator(".olive-core-canvas")
-            .first()
-            .evaluate(
-              (el) =>
-                (el as HTMLCanvasElement & { oliveCoreMetrics: CoreMetrics })
-                  .oliveCoreMetrics.running,
-            ),
-      )
-      .toBe(false);
-    const hidden = await page
-      .locator(".olive-core-canvas")
-      .first()
-      .evaluate((el) => ({
-        ...(el as HTMLCanvasElement & { oliveCoreMetrics: CoreMetrics })
-          .oliveCoreMetrics,
-      }));
-    await page.waitForTimeout(350);
-    expect(
-      await page
-        .locator(".olive-core-canvas")
-        .first()
-        .evaluate(
-          (el) =>
-            (el as HTMLCanvasElement & { oliveCoreMetrics: CoreMetrics })
-              .oliveCoreMetrics.frames,
-        ),
-    ).toBe(hidden.frames);
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].restore(),
-    );
-    await expect.poll(async () => (await metrics()).running).toBe(true);
-    await page.evaluate(
-      () => (document.documentElement.dataset.reduced = "true"),
-    );
-    // The user's Welcome exception keeps its display rotation always on.
-    await expect.poll(async () => (await metrics()).running).toBe(true);
-    for (const light of [false, true]) {
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].setSize(1366, 768),
-      );
-      await page.evaluate(
-        (v) => (document.documentElement.dataset.theme = v ? "light" : "dark"),
-        light,
-      );
-      await page.screenshot({
-        path: path.join(evidence, `reduced-${light ? "light" : "dark"}.png`),
-      });
-    }
-    const densitySession = await page.context().newCDPSession(page);
-    await densitySession.send("Emulation.setDeviceMetricsOverride", {
-      width: 1366,
-      height: 768,
-      deviceScaleFactor: 3,
-      mobile: false,
-    });
-    await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(3);
-    await expect
-      .poll(() =>
-        page
-          .locator(".olive-core-canvas")
-          .first()
-          .evaluate((el) => (el as HTMLCanvasElement).width),
-      )
-      .toBeLessThanOrEqual(600);
-    await page.screenshot({
-      path: path.join(evidence, "reduced-light-dpr3.png"),
-    });
-    await densitySession.send("Emulation.clearDeviceMetricsOverride");
-    await densitySession.detach();
-    await page.evaluate(
-      () => (document.documentElement.dataset.reduced = "false"),
-    );
-    await page
-      .getByRole("button", { name: "Enter OLIVE", exact: true })
-      .click();
-    // Explicit presentation fixtures through the existing event path, not live task evidence.
-    const variants = [];
-    for (const state of [
-      "Thinking",
-      "Researching",
-      "Approval required",
-      "Paused",
-      "Error",
-      "Degraded",
-      "Ready",
-    ]) {
+    await expect(page.locator(core)).toHaveAttribute("data-state", "Working");
+    await expect(page.locator(`${core} .core-ring`)).toBeVisible();
+    expect(await animations(page, core)).toContainEqual({ name: "grove-spin", state: "running" });
+    await page.screenshot({ path: path.join(evidence, "compact-live-working.png") });
+    await expect(page.locator(".output-terminal")).toContainText("OK", { timeout: 15000 });
+    await expect(page.locator(core)).toHaveAttribute("data-state", "Ready", { timeout: 10000 });
+    await expect(page.locator(`${core} .core-ring`)).toHaveCount(0);
+    // Presentation fixtures through the real event path: only work turns;
+    // approvals, pauses and errors carry a badge instead.
+    const states = ["Thinking", "Researching", "Approval required", "Paused", "Error", "Degraded", "Ready"];
+    for (const [index, state] of states.entries()) {
       await app.evaluate(
         ({ BrowserWindow }, value) =>
           BrowserWindow.getAllWindows()[0].webContents.send("olive:event", {
@@ -225,97 +78,44 @@ test("dot olive renders depth, follows real validation, and stops when idle hidd
             kind: "event",
             seq: value.seq,
             topic: "runtime.activity",
-            data: {
-              state: value.state,
-              items: [],
-              count: 0,
-              summary: "Synthetic Core presentation fixture; no task executed.",
-            },
+            data: { state: value.state, items: [], count: 0, summary: "Synthetic Core presentation fixture; no task executed." },
           }),
-        { state, seq: 90000 + variants.length },
+        { state, seq: 90000 + index },
       );
-      await expect(page.locator(".core-transit-stage .core")).toHaveAttribute(
-        "data-state",
-        state,
+      await expect(page.locator(core)).toHaveAttribute("data-state", state);
+      await expect(page.locator(`${core} .core-ring`)).toHaveCount(["Thinking", "Researching"].includes(state) ? 1 : 0);
+      await expect(page.locator(`${core} .olive-core-status`)).toHaveCount(
+        ["Approval required", "Paused", "Error", "Degraded"].includes(state) ? 1 : 0,
       );
-      await expect
-        .poll(async () => (await metrics()).running, { timeout: 10000 })
-        .toBe(["Thinking", "Researching"].includes(state));
-      await page.screenshot({
-        path: path.join(
-          evidence,
-          `fixture-${state.toLowerCase().replaceAll(" ", "-")}.png`,
-        ),
-      });
-      variants.push({
-        state,
-        ...(await metrics()),
-        classification: "synthetic main-process presentation event",
-      });
+      await page.screenshot({ path: path.join(evidence, `fixture-${state.toLowerCase().replaceAll(" ", "-")}.png`) });
     }
-    await page
-      .getByRole("button", { name: "OLIVE activity", exact: true })
-      .click();
-    await page.evaluate(() => window.olive.setInterfaceScale(1.5));
-    await expect.poll(() => page.evaluate(() => innerWidth)).toBeLessThan(950);
-    await expect
-      .poll(() =>
-        page
-          .locator(".sheet")
-          .evaluate((el) => el.getBoundingClientRect().right <= innerWidth + 1),
-      )
-      .toBe(true);
-    // Native capture retains physical window bounds after Chromium zoom/DPR changes.
-    const enlarged = await app.evaluate(async ({ BrowserWindow }) =>
-      (await BrowserWindow.getAllWindows()[0].capturePage()).toDataURL(),
-    );
-    await writeFile(
-      path.join(evidence, "enlarged-activity.png"),
-      Buffer.from(enlarged.split(",")[1], "base64"),
-    );
-    await page
-      .getByRole("checkbox", { name: "Reduced motion", exact: true })
-      .check();
-    await expect.poll(async () => (await metrics()).reduced).toBe(true);
-    await page
-      .getByRole("checkbox", { name: "Reduced motion", exact: true })
-      .uncheck();
-    await page.keyboard.press("Escape");
-    // Canvas failure substitution is confined to this isolated page; SVG must remain usable.
-    await page.addInitScript(() =>
-      Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
-        value: () => null,
+    // A hidden window pauses the turning ring; showing it again resumes it.
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.send("olive:event", {
+        v: 1, kind: "event", seq: 90100, topic: "runtime.activity",
+        data: { state: "Thinking", items: [], count: 0, summary: "Synthetic Core presentation fixture; no task executed." },
       }),
     );
-    await page.reload();
-    await expect(page.locator(".olive-core-fallback")).toBeVisible();
-    await expect(page.locator(".olive-core-canvas")).not.toBeVisible();
-    await page.screenshot({
-      path: path.join(evidence, "fixture-canvas-unavailable.png"),
-    });
-    await page
-      .getByRole("button", { name: "Enter OLIVE", exact: true })
-      .click();
-    await expect(
-      page.getByRole("textbox", { name: "Ask OLIVE anything", exact: true }),
-    ).toBeVisible();
+    await expect(page.locator(`${core} .core-ring`)).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].minimize());
+    await expect
+      .poll(async () => (await animations(page, core)).find((a) => a.name === "grove-spin")?.state)
+      .toBe("paused");
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].restore());
+    await expect
+      .poll(async () => (await animations(page, core)).find((a) => a.name === "grove-spin")?.state)
+      .toBe("running");
+    // Reduce Motion (the setting or the system preference) stops the ring.
+    await page.evaluate(() => (document.documentElement.dataset.reduced = "true"));
+    await expect.poll(async () => (await animations(page, core)).length).toBe(0);
+    await page.evaluate(() => (document.documentElement.dataset.reduced = "false"));
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect.poll(async () => (await animations(page, core)).length).toBe(0);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect.poll(async () => (await animations(page, core)).length).toBeGreaterThan(0);
     await writeFile(
       path.join(evidence, "result.json"),
-      JSON.stringify(
-        {
-          classification:
-            "real Electron renderer; actual Python unittest validation in synthetic workspace; no local model required",
-          angles,
-          idle,
-          active,
-          hidden,
-          recording,
-          variants,
-          fallbackUsable: true,
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({ classification: "real Electron renderer; actual Python unittest validation in synthetic workspace; no local model required", states }, null, 2),
     );
   } finally {
     await app.close();

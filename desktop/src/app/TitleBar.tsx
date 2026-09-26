@@ -1,7 +1,8 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bell, ChevronDown, Cpu, Menu, MonitorSmartphone, Moon, Search, Sun } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, Menu, Moon, Search, Sun } from "lucide-react";
 import { RailCore } from "../components/RailCore";
+import { OliveLogo } from "../components/OliveLogo";
 import { MenuButton } from "../components/MenuButton";
 import { featureById, footSpaces, spaceOf, spaces } from "../navigation/features";
 import type { RuntimeState, StatusSummary } from "../services/runtimeState";
@@ -19,16 +20,14 @@ export function TitleBarPortal({ slot, children }: { slot: keyof TitleBarSlots; 
   return target ? createPortal(children, target) : null;
 }
 
-/** The olive mark: the app identity, drawn in CSS (no image asset). */
-export function OliveMark({ size = 14 }: { size?: number }) {
-  return <span className="olive-mark" style={{ width: size, height: size + 1 }} aria-hidden="true" />;
+/** The olive mark: the app identity (the same drawing as the app icon). */
+export function OliveMark({ size = 16 }: { size?: number }) {
+  return <OliveLogo className="olive-mark" size={size} />;
 }
 
-// Grove title bar, shared by every space: where you are (with the space's views
-// as a switcher), the command centre, and a status cluster that only reports
-// real state. The brand lives in the navigation unless the pane is hidden.
-// Window controls stay with the operating system's own frame (see
-// docs/OLIVE_DESIGN_V2_IMPLEMENTATION.md, "Window controls").
+// Grove title bar: where you are (Space › view), the centred command field,
+// one status chip for the local AI, the theme toggle and Activity. The living
+// Core sits in the navigation brand; when the pane is hidden it moves here.
 export function TitleBar({
   route,
   navigate,
@@ -40,9 +39,7 @@ export function TitleBar({
   runtime,
   openActivity,
   model,
-  connect,
   attention,
-  developer,
   compactStatus,
   setContextSlot,
   setActionsSlot,
@@ -50,9 +47,6 @@ export function TitleBar({
   theme,
   toggleTheme,
 }: {
-  openSpace: (space: string) => void;
-  theme: string;
-  toggleTheme: () => void;
   route: string;
   navigate: (id: string) => void;
   /** The navigation pane is not on screen (narrow window or Studio). */
@@ -66,21 +60,22 @@ export function TitleBar({
   runtime: RuntimeState;
   openActivity: () => void;
   model: StatusSummary;
-  connect: StatusSummary;
   /** Items that need the person: approvals and due reminders. */
   attention: number;
-  developer: boolean;
-  /** Hide the model/Connect cluster (Studio uses the room for run controls). */
+  /** Hide the model chip (Studio uses the room for run controls). */
   compactStatus: boolean;
   setContextSlot: (element: HTMLElement | null) => void;
   setActionsSlot: (element: HTMLElement | null) => void;
+  openSpace: (space: string) => void;
+  theme: string;
+  toggleTheme: () => void;
+  /** Accepted for call-site compatibility; the bar no longer shows them. */
+  connect?: StatusSummary;
+  developer?: boolean;
 }) {
   const space = spaceOf(route);
-  const all = developer ? [...spaces, ...footSpaces] : [...spaces, ...footSpaces];
-  const activityLabel =
-    runtime.tone === "attention" || runtime.tone === "error" || runtime.tone === "working"
-      ? runtime.label
-      : "Idle";
+  const view = space.routes.length > 1 ? featureById(route)?.label : undefined;
+  const working = runtime.tone === "working";
   return (
     <header className="titlebar" data-route={route}>
       {navHidden && (
@@ -95,38 +90,46 @@ export function TitleBar({
       )}
       {navHidden && (
         <button className="tb-brand" aria-label="OLIVE Home" title="Home" onClick={() => openSpace("home")}>
-          <OliveMark />
+          <RailCore state={activity} />
           <span className="tb-wordmark">OLIVE</span>
         </button>
       )}
-      {navHidden ? (
-        <MenuButton
-          label={`Space: ${space.label}. Switch space`}
-          className="tb-space"
-          title="Switch space"
-          items={all.map((item) => ({
-            id: item.id,
-            label: item.label,
-            icon: <item.icon size={14} aria-hidden="true" />,
-            current: item.id === space.id,
-            onSelect: () => openSpace(item.id),
-          }))}
-        >
-          <span>{space.label}</span>
-          <ChevronDown size={13} aria-hidden="true" />
-        </MenuButton>
-      ) : (
-        <span className="tb-space static">{space.label}</span>
-      )}
-      {space.routes.length > 1 && (
-        <span className="tb-views" role="group" aria-label={`${space.label} views`}>
-          {space.routes.map((id) => (
-            <button key={id} aria-pressed={route === id} onClick={() => navigate(id)}>
-              {featureById(id)?.label}
-            </button>
-          ))}
-        </span>
-      )}
+      <nav className="tb-crumb-trail" aria-label="Location">
+        {navHidden ? (
+          <MenuButton
+            label={`Space: ${space.label}. Switch space`}
+            className="tb-space"
+            title="Switch space"
+            items={[...spaces, ...footSpaces].map((item) => ({
+              id: item.id,
+              label: item.label,
+              icon: <item.icon size={14} aria-hidden="true" />,
+              current: item.id === space.id,
+              onSelect: () => openSpace(item.id),
+            }))}
+          >
+            <span>{space.label}</span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </MenuButton>
+        ) : (
+          <span className="tb-space static">{space.label}</span>
+        )}
+        {view && route !== "studio" && (
+          <>
+            <ChevronRight size={14} className="tb-crumb-sep" aria-hidden="true" />
+            <span className="tb-view">{view}</span>
+          </>
+        )}
+        {route === "studio" && (
+          <span className="tb-views" role="group" aria-label={`${space.label} views`}>
+            {space.routes.map((id) => (
+              <button key={id} aria-pressed={route === id} onClick={() => navigate(id)}>
+                {featureById(id)?.label}
+              </button>
+            ))}
+          </span>
+        )}
+      </nav>
       <span className="tb-context" ref={setContextSlot}>
         {context && <span className="tb-crumb" title={context}>{context}</span>}
       </span>
@@ -138,60 +141,35 @@ export function TitleBar({
       </button>
       <span className="tb-grow" />
       <span className="tb-actions" ref={setActionsSlot} />
-      <button
-        className="tb-status tb-activity activity-button"
-        aria-label="OLIVE activity"
-        data-tone={runtime.tone}
-        title={`${runtime.label}${runtime.detail ? ` · ${runtime.detail}` : ""} — open activity`}
-        onClick={openActivity}
-      >
-        <RailCore state={activity} />
-        <span className="tb-status-text" aria-hidden="true">{activityLabel}</span>
-      </button>
       {!compactStatus && (
-        <>
-          <button
-            className="tb-status"
-            data-tone={model.tone}
-            aria-label={`Model: ${model.label}`}
-            title={`${model.full} Open Settings › Models.`}
-            onClick={() => navigate("settings")}
-          >
-            <Cpu size={13} aria-hidden="true" />
-            <span className="tb-status-text">{model.label}</span>
-          </button>
-          <button
-            className="tb-status"
-            data-tone={connect.tone}
-            aria-label={`Connect: ${connect.label}`}
-            title={`${connect.full} Open Devices.`}
-            onClick={() => navigate("devices")}
-          >
-            <MonitorSmartphone size={13} aria-hidden="true" />
-            <span className="tb-status-text">{connect.label}</span>
-          </button>
-        </>
+        <button
+          className="tb-status tb-model"
+          data-tone={model.tone}
+          aria-label={`Model: ${model.label}`}
+          title={`${model.full} Open Settings › Models.`}
+          onClick={() => navigate("settings")}
+        >
+          <span className="tb-live" data-busy={working || undefined} aria-hidden="true" />
+          <span className="tb-status-text">{working ? `${model.label.split(" ")[0]} · working` : model.label.replace(/ ready$/, " · ready")}</span>
+        </button>
       )}
       <button
         className="tb-icon tb-theme"
         aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
-        title="Switch theme"
+        title="Switch theme (Ctrl+Shift+L)"
         onClick={toggleTheme}
       >
-        {theme === "dark" ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
+        {theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
       </button>
       <button
         className="tb-icon tb-bell"
-        aria-label={attention ? `Notifications: ${attention} need your attention` : "Notifications: nothing needs you"}
-        title="Approvals and reminders"
+        aria-label="OLIVE activity"
+        aria-description={attention ? `Notifications: ${attention} need your attention` : "Notifications: nothing needs you"}
+        title={`${runtime.label}${runtime.detail ? ` · ${runtime.detail}` : ""} — activity and approvals`}
         onClick={openActivity}
       >
-        <Bell size={15} aria-hidden="true" />
-        {attention > 0 && (
-          <span className="count" data-tone="warning" aria-hidden="true">
-            {attention > 99 ? "99+" : attention}
-          </span>
-        )}
+        <Bell size={16} aria-hidden="true" />
+        {attention > 0 && <span className="tb-bell-dot" aria-hidden="true" />}
       </button>
     </header>
   );

@@ -5,6 +5,7 @@ import { GrowingComposer } from "../../components/GrowingComposer";
 import { Markdown } from "../../components/Markdown";
 import type { Chat, Snapshot } from "../../services/api";
 import { messageAttribution } from "../chat/RemoteTarget";
+import { OliveLogo } from "../../components/OliveLogo";
 
 // Drafts and threads survive the panel being closed or Studio leaving the
 // screen; they are keyed by workspace, not by mount.
@@ -126,7 +127,7 @@ export function StudioAssistant({
   return (
     <div className="assistant-panel">
       <div className="assistant-head">
-        <span className="olive-mark" aria-hidden="true" />
+        <OliveLogo className="olive-mark" />
         <strong>OLIVE</strong>
         <span className="assistant-model" title={chat.run_on ? "Runs on the paired device chosen in Chat" : "Runs on this device"}>
           {preset ? preset.name : "Previous selection"} · {chat.run_on ? "paired device" : "This device"}
@@ -190,7 +191,7 @@ export function StudioAssistant({
           ) : (
             <div className="assistant-turn olive" key={message.id}>
               <div className="message-attribution">
-                <span className="olive-mark" aria-hidden="true" />
+                <OliveLogo className="olive-mark" />
                 <b>OLIVE</b>
                 {messageAttribution(message.provider) && <span className="attribution-meta">{messageAttribution(message.provider)}</span>}
               </div>
@@ -202,7 +203,7 @@ export function StudioAssistant({
         {busy && anchor?.chatId === chat.id && (
           <div className="assistant-turn olive">
             <div className="message-attribution message-writing">
-              <span className="olive-mark" aria-hidden="true" />
+              <OliveLogo className="olive-mark" />
               <span>OLIVE · writing</span>
             </div>
             {chat.partial ? <Markdown text={chat.partial} /> : null}

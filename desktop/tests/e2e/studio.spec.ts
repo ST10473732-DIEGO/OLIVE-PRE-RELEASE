@@ -36,7 +36,7 @@ test("direct Monaco save and test need no duplicate approval and retain conflict
     });
     await openSpace(page, "Chat");
     await expect(
-      page.getByText("Start with one clear behaviour and a test."),
+      page.locator(".messages").getByText("Start with one clear behaviour and a test."),
     ).toBeVisible();
     await page.screenshot({
       path: path.join(evidence, "chat-populated-fixture.png"),

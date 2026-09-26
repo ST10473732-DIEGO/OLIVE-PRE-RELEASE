@@ -153,7 +153,7 @@ test("M1 corrected layout, retained output, real approval cancellation and proce
       page.getByRole("heading", { name: "Your approval is needed" }),
     ).toBeVisible();
     await expect(page.locator(".approval-content")).toContainText("unittest");
-    await expect(page.locator(".activity-button")).toContainText("Approval required");
+    await expect(page.locator(".core-transit-stage .core")).toHaveAttribute("data-state", "Approval required");
     await expect(
       page.getByText("Technical details", { exact: true }),
     ).toBeVisible();

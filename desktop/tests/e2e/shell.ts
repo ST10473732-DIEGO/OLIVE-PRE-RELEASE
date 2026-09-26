@@ -36,15 +36,18 @@ export async function openSpace(page: Page, name: string) {
     await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await mainNav(page).getByRole("button", { name: space, exact: true }).click();
   if (SPACE_OF[name] && name !== "OLIVE GO") {
-    const view = page.getByRole("group", { name: `${space} views` }).getByRole("button", { name, exact: true });
-    // Narrow windows hide the view switcher; the palette reaches every view.
-    if (await view.isVisible().catch(() => false)) {
-      await view.click();
-      await expect(view).toHaveAttribute("aria-pressed", "true");
-    } else {
+    // Views are tabs under the space header; Studio takes the whole window and
+    // keeps a title-bar switcher (hidden on narrow windows), so the palette is
+    // the last resort. Arrival is checked by route, which every path shares.
+    const tab = page.getByRole("tablist", { name: `${space} views` }).getByRole("tab", { name, exact: true });
+    const toggle = page.getByRole("group", { name: `${space} views` }).getByRole("button", { name, exact: true });
+    if (await tab.isVisible().catch(() => false)) await tab.click();
+    else if (await toggle.isVisible().catch(() => false)) await toggle.click();
+    else {
       await page.getByRole("button", { name: "Find anything", exact: true }).click();
       await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
     }
+    await expect(page.locator(".shell")).toHaveAttribute("data-route", name.toLowerCase());
   }
 }
 

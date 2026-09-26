@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { Activity, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { footSpaces, spaceOf, spaces, type Space } from "../navigation/features";
 import { OliveMark } from "./TitleBar";
+import { RailCore } from "../components/RailCore";
 
 /** Where the navigation pane sits for a window width and space.
  *  "expanded" 232 px, "rail" 64 px icons, "hidden" (overlay on demand). */
@@ -27,7 +28,10 @@ export function Navigation({
   overlay,
   closeOverlay,
   navigate,
+  activity = "Ready",
 }: {
+  /** Raw runtime activity; drives the Core in the brand. */
+  activity?: string;
   route: string;
   openSpace: (space: string) => void;
   /** Attention counts per route id (approvals, due reminders). */
@@ -112,7 +116,7 @@ export function Navigation({
         <span ref={pill} className="nav-pill" aria-hidden="true" />
         <div className="nav-head">
           <button className="nav-brand" aria-label="OLIVE Home" title="Home" onClick={() => openSpace("home")} tabIndex={-1}>
-            <OliveMark size={20} />
+            {overlay ? <OliveMark size={22} /> : <RailCore state={activity} />}
             <span className="nav-wordmark">OLIVE</span>
           </button>
           {overlay && (

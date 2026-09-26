@@ -36,6 +36,7 @@ import {NativeProposals} from './personal/Proposals';
 import { ResearchEvidence } from "./chat/ResearchEvidence";
 import { MediaTools } from './chat/MediaTools';
 import { RemoteTarget, RemoteAttribution, messageAttribution } from './chat/RemoteTarget';
+import { OliveLogo } from "../components/OliveLogo";
 
 const HISTORY_KEY = "olive.chat.history";
 // The conversation rail is docked open on a wide window and remembered;
@@ -115,8 +116,16 @@ export function Chat({
     return () => clearTimeout(timer);
   }, [search]);
   const end = useRef<HTMLDivElement>(null);
-  const conversations: { id: string; title: string; excerpt?: string }[] =
+  const conversations: { id: string; title: string; excerpt?: string; updated_at?: string; last?: string }[] =
     results.data || snapshot.chats;
+  // Grove: the list is grouped by day (Today, Yesterday, weekday, date).
+  const groups: { label: string; items: typeof conversations }[] = [];
+  for (const c of conversations) {
+    const label = debouncedSearch ? "Results" : dayGroup(c.updated_at);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(c);
+    else groups.push({ label, items: [c] });
+  }
   useEffect(
     () => () => {
       if (deleting.current) return;
@@ -186,7 +195,7 @@ export function Chat({
       )}
       <aside className="conversation-list ws-rail" aria-label="Conversation history" hidden={!historyOpen}>
         <div className="ws-rail-head">
-          <h2>Conversations</h2>
+          <h2>Chats</h2>
           <button
             className="icon-button"
             aria-label="New chat"
@@ -209,24 +218,31 @@ export function Chat({
             <Search size={15} />
             <input
               aria-label="Search conversations"
-              placeholder="Find a conversation"
+              placeholder="Search chats"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </label>
         </div>
         <div className="conversation-items ws-rail-scroll">
-          {conversations.map((c) => (
-            <button
-              key={c.id}
-              className={c.id === chat.id ? "selected" : ""}
-              aria-current={c.id === chat.id ? "true" : undefined}
-              disabled={switchingChat}
-              onClick={() => void changeConversation("chat.select", { chat_id: c.id }, true)}
-            >
-              <span className="conversation-title" title={c.title}>{c.title}</span>
-              {c.excerpt && <span className="small muted">{c.excerpt}</span>}
-            </button>
+          {groups.map((group) => (
+            <div className="conversation-group" key={group.label} role="group" aria-label={group.label}>
+              <p className="conversation-day" aria-hidden="true">{group.label}</p>
+              {group.items.map((c) => (
+                <button
+                  key={c.id}
+                  className={c.id === chat.id ? "selected" : ""}
+                  aria-current={c.id === chat.id ? "true" : undefined}
+                  aria-label={c.title}
+                  aria-description={c.excerpt || c.last || undefined}
+                  disabled={switchingChat}
+                  onClick={() => void changeConversation("chat.select", { chat_id: c.id }, true)}
+                >
+                  <span className="conversation-title" title={c.title}>{c.title}</span>
+                  {(c.excerpt || c.last) && <span className="small muted">{c.excerpt || c.last}</span>}
+                </button>
+              ))}
+            </div>
           ))}
           {!conversations.length && (
             <p className="conversation-none">
@@ -428,7 +444,7 @@ export function Chat({
                 <div className="message-label sr-only">You</div>
               ) : (
                 <div className="message-label message-attribution">
-                  <span className="olive-mark" aria-hidden="true" />
+                  <OliveLogo className="olive-mark" />
                   <b>OLIVE</b>
                   {messageAttribution(m.provider) && <span className="attribution-meta">{messageAttribution(m.provider)}</span>}
                 </div>
@@ -520,7 +536,7 @@ export function Chat({
           {chat.partial && (
             <article className="message message-assistant">
               <div className="message-label message-attribution message-writing">
-                <span className="olive-mark" aria-hidden="true" />
+                <OliveLogo className="olive-mark" />
                 <span>OLIVE · writing</span>
               </div>
               <div className="message-body">
@@ -724,4 +740,17 @@ export function Chat({
       </Sheet>
     </div>
   );
+}
+
+/** "Today", "Yesterday", a weekday within the week, otherwise a short date. */
+export function dayGroup(value?: string, now = new Date()): string {
+  if (!value) return "Earlier";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Earlier";
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((start(now) - start(date)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return date.toLocaleDateString([], { weekday: "long" });
+  return date.toLocaleDateString([], { day: "numeric", month: "short", ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }) });
 }

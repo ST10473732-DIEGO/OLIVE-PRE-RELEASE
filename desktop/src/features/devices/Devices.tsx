@@ -142,12 +142,16 @@ export function Devices() {
       <header className="devices-head">
         <div>
           <h1>Devices</h1>
-          <p>OLIVE Connect · local pairing and permissions</p>
+          <p>Pair your phone and other computers over your own network.</p>
         </div>
         <span className="devices-pill" data-tone={data?.network.state === "on" ? "on" : undefined}>
           <span className="status-dot" data-tone={data?.network.state === "on" ? "online" : "offline"} aria-hidden="true" />
           Connect {data?.network.state || "unavailable"}
         </span>
+        <button className="primary devices-pair-primary" disabled={busy || !data} onClick={startPairing}>
+          <Plus size={16} aria-hidden="true" />
+          Pair a device
+        </button>
       </header>
       {error && (
         <div className="devices-error" role="alert">

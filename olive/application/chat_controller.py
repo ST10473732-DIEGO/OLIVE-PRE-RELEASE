@@ -10,6 +10,15 @@ import time
 from ..models import Chat, chat_title
 
 
+def last_line(chat, limit=90):
+    """One line of the latest message, for the conversation list."""
+    for message in reversed(chat.messages):
+        text = " ".join((message.content or "").split())
+        if text:
+            return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+    return ""
+
+
 class ChatController:
     def __init__(self, services):
         self.s = services
@@ -22,7 +31,8 @@ class ChatController:
 
     def list(self):
         return [
-            {"id": c.id, "title": c.title, "model": c.model, "project_id": c.project_id}
+            {"id": c.id, "title": c.title, "model": c.model, "project_id": c.project_id,
+             "updated_at": c.updated_at, "last": last_line(c)}
             for c in sorted(self.s.chats.values(), key=lambda c: c.updated_at, reverse=True)
         ]
 

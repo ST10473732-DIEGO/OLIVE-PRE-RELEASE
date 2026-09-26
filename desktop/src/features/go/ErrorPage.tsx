@@ -1,7 +1,8 @@
 import {RotateCw, SquareArrowOutUpRight} from 'lucide-react';
 import type {BrowserTab} from '../../../electron/browser';
 import {describeLoadError} from '../../../electron/browser';
-import {OLIVE_MARK, hostOf} from './shared';
+import {OliveLogo} from '../../components/OliveLogo';
+import {hostOf} from './shared';
 
 export function ErrorPage({tab, onRetry, onExternal}:{tab:BrowserTab; onRetry:()=>void; onExternal:()=>void}) {
   const host=hostOf(tab.url).replace(/^www\./,'');
@@ -9,7 +10,7 @@ export function ErrorPage({tab, onRetry, onExternal}:{tab:BrowserTab; onRetry:()
   const own=tab.errorCode<=-1000;
   const described=own?{title:'OLIVE GO stopped here',detail:tab.error}:describeLoadError(tab.errorCode, tab.error, host);
   return <div className="go-error" role="alert">
-    <img className="go-mark" src={OLIVE_MARK} alt="" width={40} height={40}/>
+    <OliveLogo className="go-mark" size={40}/>
     <h2>{described.title}</h2>
     <p>{described.detail}</p>
     <div className="row">

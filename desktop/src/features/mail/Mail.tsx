@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   Plus,
@@ -206,11 +207,56 @@ export default function Mail({
       className={`mail ${selected ? "has-selection" : ""} ${selected?.kind === "draft" ? "composing" : ""} ${total > 0 ? "populated" : ""}`}
       icon={<MailIcon size={18} />}
       title="Mail"
+      bare
       description="Local drafts, imports and cached mail. Server connections are optional."
       status={connections.data?.items.length ? `${connections.data.items.length} account${connections.data.items.length === 1 ? "" : "s"}` : "Local only"}
       statusTone={connections.data?.items.length ? "live" : "idle"}
       rail={
-        <Rail title="Mailboxes" className="mail-folders" label="Mail folders">
+        <Rail
+          className="mail-folders"
+          label="Mail folders"
+          foot={
+            <div className="mail-account-card">
+              <strong>
+                <Lock size={13} aria-hidden="true" />
+                {connections.data?.items.length
+                  ? `${connections.data.items.length} account${connections.data.items.length === 1 ? "" : "s"} connected`
+                  : "Local only"}
+              </strong>
+              <span>Mail is cached on this device. OLIVE never sends without you pressing Send.</span>
+            </div>
+          }
+        >
+          <div className="mail-rail-actions">
+        <>
+          <button className="primary" onClick={compose}>
+            <Plus size={16} aria-hidden="true" />
+            Compose
+          </button>
+          <button
+            onClick={() =>
+              void op.run(async () => {
+                await flush.current?.();
+                const value = (await window.olive.fileAction({
+                  action: "mail-import",
+                })) as ImportPreview | null;
+                if (value) setPreview(value);
+              }, "")
+            }
+          >
+            <Upload size={16} aria-hidden="true" />
+            Import EML
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Mail connections"
+            title="Mail connections"
+            onClick={() => setSettings(true)}
+          >
+            <Settings size={17} aria-hidden="true" />
+          </button>
+        </>
+          </div>
           <select
             aria-label="Mail connection"
             value={connection}
@@ -585,36 +631,6 @@ export default function Mail({
             </EmptyState>
           )}
         </section>
-      }
-      actions={
-        <>
-          <button className="primary" onClick={compose}>
-            <Plus size={16} aria-hidden="true" />
-            Compose
-          </button>
-          <button
-            onClick={() =>
-              void op.run(async () => {
-                await flush.current?.();
-                const value = (await window.olive.fileAction({
-                  action: "mail-import",
-                })) as ImportPreview | null;
-                if (value) setPreview(value);
-              }, "")
-            }
-          >
-            <Upload size={16} aria-hidden="true" />
-            Import EML
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Mail connections"
-            title="Mail connections"
-            onClick={() => setSettings(true)}
-          >
-            <Settings size={17} aria-hidden="true" />
-          </button>
-        </>
       }
     >
       <Main className="mail-list" label="Message list" pad={false}>

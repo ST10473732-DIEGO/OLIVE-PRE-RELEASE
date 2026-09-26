@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
+import { SpacePortal, SpaceSlot } from "./SpaceHeader";
 import "../design/workspace.css";
 import "../design/pages.css";
 
@@ -22,7 +23,11 @@ export function WorkspacePage({
   rail,
   side,
   toolbar,
+  bare = false,
 }: {
+  /** No header band: the page draws its own identity (Grove Mail, Chat). The
+   *  title stays as an accessible heading. */
+  bare?: boolean;
   title: string;
   description?: string;
   actions?: ReactNode;
@@ -36,35 +41,62 @@ export function WorkspacePage({
   side?: ReactNode;
   toolbar?: ReactNode;
 }) {
+  // Inside a multi-view space the space header shows the title and tabs; this
+  // view keeps an accessible heading and hands its status and actions over.
+  const space = useContext(SpaceSlot);
+  const handed = space && (
+    <SpacePortal target={space.target} active={space.active}>
+      {status && (
+        <span className="ws-head-status" data-tone={statusTone ?? "idle"} role="status">
+          {status}
+        </span>
+      )}
+      {actions}
+    </SpacePortal>
+  );
   if (layout === "legacy") {
     return (
-      <main className={`feature-page ${className}`.trim()}>
-        <header className="page-header">
-          <div>
-            <h1>{title}</h1>
-            {description && <p>{description}</p>}
-          </div>
-          {actions && <div className="row page-actions">{actions}</div>}
-        </header>
+      <main className={`feature-page ${space ? "in-space" : ""} ${className}`.trim()}>
+        {space ? (
+          <>
+            <h1 className="sr-only">{title}</h1>
+            {handed}
+          </>
+        ) : (
+          <header className="page-header">
+            <div>
+              <h1>{title}</h1>
+              {description && <p>{description}</p>}
+            </div>
+            {actions && <div className="row page-actions">{actions}</div>}
+          </header>
+        )}
         <div className="page-body">{children}</div>
       </main>
     );
   }
   return (
-    <main className={`feature-page ws ${layout} ${className}`.trim()}>
-      <header className="page-header ws-head">
-        {icon && <span className="ws-head-mark" aria-hidden="true">{icon}</span>}
-        <div className="ws-head-text">
-          <h1>{title}</h1>
-          {description && <p>{description}</p>}
-        </div>
-        {status && (
-          <span className="ws-head-status" data-tone={statusTone ?? "idle"} role="status">
-            {status}
-          </span>
-        )}
-        {actions && <div className="row page-actions ws-actions">{actions}</div>}
-      </header>
+    <main className={`feature-page ws ${layout} ${space ? "in-space" : ""} ${className}`.trim()}>
+      {space || bare ? (
+        <>
+          <h1 className="sr-only">{title}</h1>
+          {handed}
+        </>
+      ) : (
+        <header className="page-header ws-head">
+          {icon && <span className="ws-head-mark" aria-hidden="true">{icon}</span>}
+          <div className="ws-head-text">
+            <h1>{title}</h1>
+            {description && <p>{description}</p>}
+          </div>
+          {status && (
+            <span className="ws-head-status" data-tone={statusTone ?? "idle"} role="status">
+              {status}
+            </span>
+          )}
+          {actions && <div className="row page-actions ws-actions">{actions}</div>}
+        </header>
+      )}
       {toolbar && <div className="ws-toolbar">{toolbar}</div>}
       {layout === "fill" ? (
         <div className="ws-body">

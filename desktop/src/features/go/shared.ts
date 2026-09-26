@@ -1,6 +1,6 @@
 import {createContext, useContext, useEffect, useRef, type RefObject} from 'react';
 import type {BrowserAction, BrowserState, BrowserTab} from '../../../electron/browser';
-import logo from '../../../../assets/branding/olive-128.png';
+import logo from '../../../../assets/branding/olive-mark.svg';
 
 /** The OLIVE desktop icon, reused byte-for-byte as OLIVE GO's mark. */
 export const OLIVE_MARK = logo;

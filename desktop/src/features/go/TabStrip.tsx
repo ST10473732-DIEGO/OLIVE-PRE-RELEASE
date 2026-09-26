@@ -1,7 +1,8 @@
 import {useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent} from 'react';
 import {Plus, X, BrushCleaning, Pin, PinOff, Copy, RotateCcw, EyeOff} from 'lucide-react';
 import type {BrowserTab} from '../../../electron/browser';
-import {OLIVE_MARK, hostOf, hostColor, hostLetter, useDismiss, useOverlay} from './shared';
+import {OliveLogo} from '../../components/OliveLogo';
+import {hostOf, hostColor, hostLetter, useDismiss, useOverlay} from './shared';
 
 type Actions = {
   select:(id:string)=>void; close:(id:string)=>void; add:(after?:string)=>void; addPrivate:()=>void; reopen:()=>void;
@@ -10,8 +11,8 @@ type Actions = {
 };
 
 function TabIcon({tab}:{tab:BrowserTab}) {
-  if(tab.loading && tab.url!=='about:blank') return <span className="go-favicon"><span className="go-spinner" aria-hidden="true"/></span>;
-  if(tab.url==='about:blank') return <span className="go-favicon"><img src={OLIVE_MARK} alt=""/></span>;
+  if(tab.loading && tab.url!=='about:blank') return <span className="go-favicon go-loading"><OliveLogo/><span className="go-spinner" aria-hidden="true"/></span>;
+  if(tab.url==='about:blank') return <span className="go-favicon"><OliveLogo/></span>;
   if(tab.favicon) return <span className="go-favicon"><img src={tab.favicon} alt=""/></span>;
   const host=hostOf(tab.url);
   return <span className="go-favicon" style={{background:hostColor(host),color:'#fff',fontSize:9,fontWeight:600}}>{hostLetter(host)}</span>;
