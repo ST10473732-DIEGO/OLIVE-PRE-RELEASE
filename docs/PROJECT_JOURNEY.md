@@ -243,3 +243,41 @@ then:
   loaded model, and preloading it while the person types, cut a short reply
   from 8 s to 2 s and fixed a prompt that had been misread as a calendar
   search.
+
+
+## 2026-09-26 — C9.1 native OLIVE iPhone foundation
+
+Started from clean `feature/olive-mobile-c9` at
+`dd1a041dc0353710be83f2f02a1fad913265faf6`, preserving the completed unified-agent
+and Grove changes. Inspected historical C9 through Git objects without switching
+branches. Added the native SwiftUI project in `mobile/ios`, using the newer Grove
+palette and canonical olive mark. Home, Chat draft/composer, truthful Devices
+empty state and Settings run locally. Protected draft persistence, Observation
+state, Keychain storage abstraction and disconnected Connect interfaces prepare
+C9.2. No backend, credentials, paired devices, remote answers or model streaming
+are simulated. Desktop code and C1–C8 are unchanged.
+
+Implementation commits are `5fa928c` and `2ba328a`. Xcode 27.0 built the iOS 17+
+app and test bundles for the simulator and the app for generic iOS devices.
+No simulator runtime was installed. Automatic signing initially provisioned only
+the Mac; a build for the actual phone corrected the profile. After the owner
+unlocked the phone and trusted the development certificate, OLIVE installed and
+ran on the **iPhone 15 Pro Max, iOS 27.0 (24A437)**.
+
+The first live run passed 11 unit tests and 6/7 UI tests; its Settings accessibility
+assertion was corrected, and screenshot review improved the large-text composer.
+The final complete run passed **11 unit and 7 UI tests, zero failures/skips**.
+A separate visible-keyboard check also passed. Real-device evidence covers
+navigation, multiline editing, disabled Send, version/about, draft relaunch,
+background/foreground, landscape and accessibility text size. The normal app
+was launched again without test arguments for handoff.
+
+Python compilation passed in an isolated Python 3.13.15 environment. Desktop
+unittest discovery ran 1,430 tests: 1,369 passed, 57 skipped, two failures and two
+errors. All four nonpassing tests reproduce against an exported untouched baseline
+on this Mac; no desktop fixes or new skips were introduced to hide them. The
+full desktop gate is therefore not green here. See
+[the C9.1 report](OLIVE_MOBILE_C9_1_FOUNDATION.md) for exact tests, evidence,
+reproduction commands, signing state and the C9.2 TLS/receipt interoperability
+requirements. No pairing, real remote Chat, C10, OLIVE OS, push, merge, tag or
+release occurred.
