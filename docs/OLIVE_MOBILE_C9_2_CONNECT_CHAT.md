@@ -17,6 +17,7 @@ successful builds are not substitutes for real paired Chat acceptance.
   `docs: record C9.2 implementation and LAN acceptance blocker` — this report
   and the appended project journey. The exact final checkpoint is also reported
   in the handoff; it cannot contain its own commit hash.
+  Subsequent documentation checkpoint: `docs: record desktop SYN arrival and next read-only checks`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -149,7 +150,8 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | TCP versus IP reachability | Scoped Mac TCP checks of both observed main and temporary ports timed out at 3 s. Two ICMP replies succeeded in 4.433/3.568 ms. This does not identify which hop drops TCP |
 | Firewall service check | Owner reports `systemctl is-active firewalld` → `inactive`; no claim that all filtering is absent, no firewall changes |
 | Fresh listener evidence | Owner confirmed main listener (backlog 8) and temporary pairing listener (backlog 2), both on the selected LAN address in the same Python process. Scoped Mac TCP checks to both timed out again |
-| Next diagnostic | Requested a 15-second, header-only SYN/RST trace restricted to the Mac and existing main Connect listener; bounded Mac connection attempts, no new listener or security change |
+| Desktop packet trace, 22:29 SAST | Owner captured 15 seconds on the selected Ethernet interface during Mac connection attempts to the existing main listener. Eight incoming SYN packets, no SYN-ACK or RST in either direction, zero capture drops; all eight packets share one source port and initial sequence number |
+| Next diagnostic | Read-only listener snapshot, return-route lookup to the Mac, and existing nftables ruleset inspection. No firewall/security change authorized by this evidence |
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / relaunch / reconnect | Pending |
 | Remote AI Off / Allow | Pending |
@@ -161,6 +163,35 @@ request/Stop timings, without prompts, responses, keys or certificates.
 No proxy, simulator, fixture response or mock peer was substituted for these
 pending steps. No SSH, extra remote-access method, firewall change, or exposure
 of Ollama was introduced. Public routing diagnostics stay local in ignored logs.
+
+### SYN trace interpretation (owner-supplied, 2026-09-26)
+
+The capture spans incoming packets at 22:29:44.809855 through 22:29:55.812874
+SAST. These are one connection attempt and its seven retransmissions, not eight
+independent connections. The first SYN has ECE/CWR flags; the retransmissions
+are plain SYNs. None receives a captured SYN-ACK or RST on that interface.
+
+This proves the Mac's SYN reaches the desktop capture point. It does **not**
+prove delivery to the listening TCP socket or identify a dropping rule. No
+desktop response is visible on the selected interface, so desktop input/output
+filtering, routing (including a different egress interface), and local TCP
+handling remain to be distinguished. TLS, pin validation, two-sided confirmation
+and inference have not started. This trace observes the Mac/main-listener path;
+it does not independently certify the iPhone/temporary-listener path.
+
+The next read-only checks preserve OLIVE's running process: verify current `ss`
+listener state, inspect `ip -4 route get` to the Mac using the desktop LAN source,
+and list the existing nftables ruleset. An inactive firewalld service does not
+establish the absence of other installed packet-filter rules. If route/rules
+do not explain the evidence, a bounded capture on `any`, still restricted to
+this Mac and Connect port, can test whether a reply leaves another interface.
+No rule insertion, flushing, tracing rule, sysctl write, extra port or service
+restart is part of these checks.
+
+The owner's Mac command used `nc -w 3`; its trace still covered one attempt
+retransmitting for over eleven seconds. The installed Mac `nc -h` documents
+`-G` as its connection-timeout option. Future manual probes use `nc -vz -G 3`
+to bound each connect; this is a diagnostic correction, not a transport change.
 
 ## Validation so far
 

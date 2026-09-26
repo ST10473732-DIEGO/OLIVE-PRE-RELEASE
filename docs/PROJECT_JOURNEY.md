@@ -311,3 +311,11 @@ port, SSH service or other remote-access method was introduced. Actual paired
 Chat, Stop/provider cleanup, Off/Allow enforcement, reconnect and revocation
 remain pending real LAN acceptance. See [the C9.2 report](OLIVE_MOBILE_C9_2_CONNECT_CHAT.md)
 for the protocol matrix, exact results, retained failures and remaining gate.
+
+The owner's subsequent 15-second desktop trace recorded eight incoming SYNs
+(one Mac connection attempt with retransmissions) and no SYN-ACK or RST on the
+selected Ethernet interface, with no capture drops. This locates the observed
+stop after arrival at the desktop capture point and before a visible TCP reply;
+it does not identify a firewall rule or exclude a different return interface.
+Read-only listener, return-route and existing nftables inspections are next.
+TLS and pairing still have not started, and no security setting was changed.
