@@ -3,8 +3,9 @@
 **Status: in progress; completion gate has not passed.** Real iPhone Bonjour
 acceptance passed. After identifying UFW admission as the initial TCP blocker
 and providing phone-only rules for the existing listeners, the owner reports
-that the devices connected. Exact Paired/Connected and capability states are
-being verified; real Chat, cancellation and remaining acceptance are pending.
+that the phone shows Connected / Remote AI Off. With Off unchanged, the harmless
+arithmetic draft stays visible and Send is disabled. Real Chat under Allow,
+cancellation and remaining acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -24,6 +25,7 @@ Isolated protocol tests and successful builds are not substitutes for those chec
   Confirmed cause: `docs: identify UFW admission blocker for real LAN pairing`.
   Owner action: `docs: record phone-only main-listener UFW allowance`.
   First connection report: `docs: record owner-reported LAN connection and pending policy check`.
+  Permission check: `docs: record connected Remote AI Off and pairing-rule cleanup`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -160,13 +162,14 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | Listener and return route | Owner confirms the existing main listener remains in the same process; the route to the Mac from the desktop LAN source uses the selected Ethernet interface |
 | Installed filtering | IPv4 INPUT has policy drop in an iptables-nft-managed table containing UFW chains. mDNS UDP 5353 has an explicit accept rule; the sole user TCP allow rule has zero matches and its multiport details are opaque in the nft listing. IPv4 OUTPUT has policy accept |
 | Decoded UFW rules | Owner reports UFW active, incoming deny/outgoing allow. The only user allowances are KDE Connect TCP/UDP 1714–1764; `iptables-nft -S` confirms those exact destination ranges. They do not admit OLIVE's observed main or temporary pairing ports |
-| Main-listener allowance | Owner supplied the iPhone's current DHCP IPv4 address and executed the proposed rule limited to that source, the selected desktop LAN interface/address and TCP 47235. After removing an accidental extra `prototcp` argument, owner reports `Rule added`. TCP success has not yet been verified |
+| Main-listener allowance | Owner supplied the iPhone's current DHCP IPv4 address and executed the proposed rule limited to that source, the selected desktop LAN interface/address and TCP 47235. After removing an accidental extra `prototcp` argument, owner reports `Rule added`; subsequent phone state is Connected / Remote AI Off |
 | Fresh pairing listener | Owner returned main TCP 47235 and temporary TCP 52643, both in the existing OLIVE process on the selected LAN interface. Provided a phone-only rule for that exact temporary port, followed by immediate scan/two-sided confirmation instructions |
-| First connection report | Owner reports “ok they connected.” Exact Paired/Connected labels, both confirmations and negotiated C7 policy are awaiting verification; no Chat response or timing is claimed |
-| Pairing-rule cleanup | Requested removal of only the phone-to-temporary-port 52643 rule after this attempt; result pending. Main-listener allowance remains. The Mac remains excluded |
+| First connection report | Owner first reports “ok they connected,” then confirms the phone shows Connected / Remote AI Off. This is owner-observed production UI evidence; no Chat response or pairing/session timing is claimed |
+| Pairing-rule cleanup | Owner confirms deletion of only the phone-to-temporary-port 52643 rule after this attempt. Main-listener allowance remains. The Mac remains excluded |
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / relaunch / reconnect | Pending |
-| Remote AI Off / Allow | Pending |
+| Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
+| Remote AI Allow | Requested enablement through the existing desktop Devices → paired iPhone → Permissions workflow, followed by one explicit submission of the preserved arithmetic draft. Result pending |
 | Arithmetic / Swift code / hash prompt | Pending actual desktop model execution |
 | Remote Stop / new request | Pending actual desktop cleanup acknowledgement |
 | Background / desktop restart / Wi-Fi loss | Pending paired-session acceptance |

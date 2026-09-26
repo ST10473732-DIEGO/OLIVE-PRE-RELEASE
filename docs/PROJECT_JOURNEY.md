@@ -348,3 +348,10 @@ report of real LAN connection; the next checks establish the actual Paired and
 Connected labels and Remote AI Off behavior before sending a real question.
 Removal of the temporary pairing-port rule has been requested; confirmation is
 pending. Real Chat, Stop, persistence/reconnect and revocation remain unaccepted.
+
+The owner confirmed removal of the temporary pairing-port rule and reported
+the phone's Connected / Remote AI Off state. With Remote AI still Off, the
+arithmetic question remained visible in Chat and Send stayed disabled. This
+passes the real mobile Off UI/draft check. The next step uses the desktop's
+existing paired-device Permissions screen to enable Allow and explicitly send
+the preserved question once. No real answer or Allow result is claimed yet.
