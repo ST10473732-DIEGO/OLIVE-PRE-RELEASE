@@ -6,6 +6,9 @@ export default defineConfig({
   build: {
     outDir: "out/renderer",
     emptyOutDir: true,
+    // Fonts are always emitted as files: the renderer's CSP allows
+    // font-src 'self' and blocks data: fonts. Other small assets may inline.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/i.test(file) ? false : undefined),
     rollupOptions: {
       output: {
         // The Studio tooling store is shared by the eager App shell (which owns

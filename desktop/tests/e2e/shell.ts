@@ -5,8 +5,18 @@ import { expect, type Page } from "@playwright/test";
 export const mainNav = (page: Page) =>
   page.getByRole("navigation", { name: "Main navigation" });
 
-/** Open a feature by its visible navigation label. On narrow windows the same
- *  pane is an overlay, so open it first. */
+/** Views that live inside a space: the space's navigation row opens it and
+ *  the title bar's "<Space> views" switcher selects the view. */
+export const SPACE_OF: Record<string, string> = {
+  Calendar: "Plan", Tasks: "Plan", Reminders: "Plan",
+  Knowledge: "Library", Memory: "Library", Projects: "Library",
+  Agent: "Build", Studio: "Build",
+  "OLIVE GO": "Web",
+};
+
+/** Open a feature by its visible label: a space in the navigation, or a view
+ *  inside one. On narrow windows (and in Studio) the pane is an overlay, so
+ *  open it first. */
 export async function openSpace(page: Page, name: string) {
   const history = page.getByRole("dialog", { name: "Research history" });
   if (await history.isVisible())
@@ -16,9 +26,26 @@ export async function openSpace(page: Page, name: string) {
     await page.getByRole("button", { name: "Saved research & evidence", exact: true }).click();
     return;
   }
+  if (name === "Connections") {
+    await page.getByRole("button", { name: "Find anything", exact: true }).click();
+    await page.getByRole("button", { name: "Open Connections", exact: true }).click();
+    return;
+  }
+  const space = SPACE_OF[name] || name;
   if (!(await mainNav(page).isVisible().catch(() => false)))
     await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-  await mainNav(page).getByRole("button", { name, exact: true }).click();
+  await mainNav(page).getByRole("button", { name: space, exact: true }).click();
+  if (SPACE_OF[name] && name !== "OLIVE GO") {
+    const view = page.getByRole("group", { name: `${space} views` }).getByRole("button", { name, exact: true });
+    // Narrow windows hide the view switcher; the palette reaches every view.
+    if (await view.isVisible().catch(() => false)) {
+      await view.click();
+      await expect(view).toHaveAttribute("aria-pressed", "true");
+    } else {
+      await page.getByRole("button", { name: "Find anything", exact: true }).click();
+      await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
+    }
+  }
 }
 
 /** Make sure the Chat conversation rail is showing. It docks open by default

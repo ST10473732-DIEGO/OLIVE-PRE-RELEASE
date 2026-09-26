@@ -1,9 +1,9 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bell, ChevronDown, Command, Cpu, Menu, MonitorSmartphone } from "lucide-react";
+import { Bell, ChevronDown, Cpu, Menu, MonitorSmartphone, Moon, Search, Sun } from "lucide-react";
 import { RailCore } from "../components/RailCore";
 import { MenuButton } from "../components/MenuButton";
-import { featureById, navigationRows } from "../navigation/features";
+import { featureById, footSpaces, spaceOf, spaces } from "../navigation/features";
 import type { RuntimeState, StatusSummary } from "../services/runtimeState";
 
 // Workspaces that need title-bar controls (Studio: workspace switcher, Local /
@@ -24,8 +24,9 @@ export function OliveMark({ size = 14 }: { size?: number }) {
   return <span className="olive-mark" style={{ width: size, height: size + 1 }} aria-hidden="true" />;
 }
 
-// V2 §13: one 34 px title bar shared by every space. Identity, where you are,
-// the command centre, and a status cluster that only reports real state.
+// Grove title bar, shared by every space: where you are (with the space's views
+// as a switcher), the command centre, and a status cluster that only reports
+// real state. The brand lives in the navigation unless the pane is hidden.
 // Window controls stay with the operating system's own frame (see
 // docs/OLIVE_DESIGN_V2_IMPLEMENTATION.md, "Window controls").
 export function TitleBar({
@@ -45,7 +46,13 @@ export function TitleBar({
   compactStatus,
   setContextSlot,
   setActionsSlot,
+  openSpace,
+  theme,
+  toggleTheme,
 }: {
+  openSpace: (space: string) => void;
+  theme: string;
+  toggleTheme: () => void;
   route: string;
   navigate: (id: string) => void;
   /** The navigation pane is not on screen (narrow window or Studio). */
@@ -68,8 +75,8 @@ export function TitleBar({
   setContextSlot: (element: HTMLElement | null) => void;
   setActionsSlot: (element: HTMLElement | null) => void;
 }) {
-  const feature = featureById(route);
-  const spaces = navigationRows(developer);
+  const space = spaceOf(route);
+  const all = developer ? [...spaces, ...footSpaces] : [...spaces, ...footSpaces];
   const activityLabel =
     runtime.tone === "attention" || runtime.tone === "error" || runtime.tone === "working"
       ? runtime.label
@@ -86,38 +93,48 @@ export function TitleBar({
           <Menu size={16} aria-hidden="true" />
         </button>
       )}
-      <button className="tb-brand" aria-label="OLIVE Home" title="Home" onClick={() => navigate("home")}>
-        <OliveMark />
-        <span className="tb-wordmark">OLIVE</span>
-      </button>
-      <span className="tb-sep" aria-hidden="true" />
+      {navHidden && (
+        <button className="tb-brand" aria-label="OLIVE Home" title="Home" onClick={() => openSpace("home")}>
+          <OliveMark />
+          <span className="tb-wordmark">OLIVE</span>
+        </button>
+      )}
       {navHidden ? (
         <MenuButton
-          label={`Space: ${feature?.label || "Home"}. Switch space`}
+          label={`Space: ${space.label}. Switch space`}
           className="tb-space"
           title="Switch space"
-          items={spaces.map((space) => ({
-            id: space.id,
-            label: space.label,
-            icon: <space.icon size={14} aria-hidden="true" />,
-            current: space.id === route,
-            onSelect: () => navigate(space.id),
+          items={all.map((item) => ({
+            id: item.id,
+            label: item.label,
+            icon: <item.icon size={14} aria-hidden="true" />,
+            current: item.id === space.id,
+            onSelect: () => openSpace(item.id),
           }))}
         >
-          <span>{feature?.label || "Home"}</span>
+          <span>{space.label}</span>
           <ChevronDown size={13} aria-hidden="true" />
         </MenuButton>
       ) : (
-        <span className="tb-space static">{feature?.label || "Home"}</span>
+        <span className="tb-space static">{space.label}</span>
+      )}
+      {space.routes.length > 1 && (
+        <span className="tb-views" role="group" aria-label={`${space.label} views`}>
+          {space.routes.map((id) => (
+            <button key={id} aria-pressed={route === id} onClick={() => navigate(id)}>
+              {featureById(id)?.label}
+            </button>
+          ))}
+        </span>
       )}
       <span className="tb-context" ref={setContextSlot}>
         {context && <span className="tb-crumb" title={context}>{context}</span>}
       </span>
       <span className="tb-grow" />
-      <button className="tb-command" aria-label="Find anything" title="Search or run a command (Ctrl+Shift+P)" onClick={openPalette}>
-        <Command size={13} aria-hidden="true" />
-        <span className="tb-command-text">Search or run a command</span>
-        <kbd className="kbd">Ctrl+Shift+P</kbd>
+      <button className="tb-command" aria-label="Find anything" title="Search, ask OLIVE or run a command (Ctrl+K)" onClick={openPalette}>
+        <Search size={14} aria-hidden="true" />
+        <span className="tb-command-text">Search or ask OLIVE</span>
+        <kbd className="kbd">Ctrl K</kbd>
       </button>
       <span className="tb-grow" />
       <span className="tb-actions" ref={setActionsSlot} />
@@ -155,6 +172,14 @@ export function TitleBar({
           </button>
         </>
       )}
+      <button
+        className="tb-icon tb-theme"
+        aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+        title="Switch theme"
+        onClick={toggleTheme}
+      >
+        {theme === "dark" ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
+      </button>
       <button
         className="tb-icon tb-bell"
         aria-label={attention ? `Notifications: ${attention} need your attention` : "Notifications: nothing needs you"}

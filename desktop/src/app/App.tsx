@@ -16,7 +16,7 @@ import { Navigation, navModeFor } from "./Navigation";
 import { TitleBar, TitleBarSlotContext } from "./TitleBar";
 import { CommandPalette } from "./CommandPalette";
 import { usePaletteProvider, type PaletteItem } from "./commands";
-import { featureById, features } from "../navigation/features";
+import { featureById, features, spaceOf, spaces, footSpaces } from "../navigation/features";
 import {
   outputReducer,
   validationChannel,
@@ -92,6 +92,13 @@ export default function App() {
     localStorage.setItem("navigationCompact", String(navCompact));
   }, [navCompact]);
   const [navOverlay, setNavOverlay] = useState(false);
+  // Each space reopens the view you last used in it (Plan › Tasks, for example).
+  const [spaceViews, setSpaceViews] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("spaceViews") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    localStorage.setItem("spaceViews", JSON.stringify(spaceViews));
+  }, [spaceViews]);
   // V2 §15: the pane is expanded, a 48 px rail, or hidden (an overlay opened
   // from the title bar) depending on the window width and the space.
   const [width, setWidth] = useState(() => window.innerWidth);
@@ -332,6 +339,17 @@ export default function App() {
       }
       if (
         (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === "k" &&
+        !(e.target instanceof Element && e.target.closest(".monaco-editor, .xterm"))
+      ) {
+        e.preventDefault();
+        if (palette) setPalette(false);
+        else openPalette(true);
+      }
+      if (
+        (e.ctrlKey || e.metaKey) &&
         e.shiftKey &&
         e.key.toLowerCase() === "o"
       ) {
@@ -445,6 +463,17 @@ export default function App() {
         .then(refresh)
         .catch(report);
   };
+  useEffect(() => {
+    const space = spaceOf(route);
+    if (space.routes.includes(route) && space.routes.length > 1)
+      setSpaceViews((current) => (current[space.id] === route ? current : { ...current, [space.id]: route }));
+  }, [route]);
+  const openSpace = (id: string) => {
+    const space = [...spaces, ...footSpaces].find((s) => s.id === id);
+    if (!space) return;
+    const remembered = spaceViews[id];
+    navigate(remembered && space.routes.includes(remembered) ? remembered : space.routes[0]);
+  };
   const runtimeState = describeRuntime(state, snapshot, approvals.length, busy);
   const currentApproval = approvals[0];
   // Title-bar Connect status: the real Connect snapshot, polled gently. It is
@@ -550,11 +579,30 @@ export default function App() {
             state={state}
             ready={Boolean(snapshot)}
             runtime={runtimeState}
+            model={modelStatus(snapshot, "").label}
             enter={() => setEntered(true)}
           />
         ) : (
           <TitleBarSlotContext.Provider value={{ context: contextSlot, actions: actionsSlot }}>
+            <div className="shell" data-nav={navMode} data-route={route}>
+            {(!navHidden || navOverlay) && (
+              <Navigation
+                route={route}
+                openSpace={openSpace}
+                navigate={navigate}
+                badges={{ reminders: dueReminders, devices: connectApprovals }}
+                compact={navMode === "rail"}
+                setCompact={setNavCompact}
+                canExpand={navMode !== "hidden" && width >= 1280 && route !== "studio"}
+                developer={developer}
+                overlay={navHidden && navOverlay}
+                closeOverlay={() => setNavOverlay(false)}
+              />
+            )}
             <TitleBar
+              openSpace={openSpace}
+              theme={theme}
+              toggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
               route={route}
               navigate={navigate}
               navHidden={navHidden}
@@ -572,20 +620,6 @@ export default function App() {
               setContextSlot={setContextSlot}
               setActionsSlot={setActionsSlot}
             />
-            <div className="app-body" data-nav={navMode}>
-            {(!navHidden || navOverlay) && (
-              <Navigation
-                route={route}
-                navigate={navigate}
-                badges={{ reminders: dueReminders, devices: connectApprovals }}
-                compact={navMode === "rail"}
-                setCompact={setNavCompact}
-                canExpand={navMode !== "hidden" && width >= 1280 && route !== "studio"}
-                developer={developer}
-                overlay={navHidden && navOverlay}
-                closeOverlay={() => setNavOverlay(false)}
-              />
-            )}
             <div className="page">
               {route === "home" && (
                 <HomePage

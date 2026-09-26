@@ -1,8 +1,12 @@
 import { createRoot } from "react-dom/client";
 import App from "./app/App";
+import "@fontsource-variable/onest";
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/jetbrains-mono";
 import "./design/tokens.css";
 import "./design/app.css";
 import "./design/workspaces.css";
+import "./design/grove.css";
 document.addEventListener("visibilitychange", () => {
   document.documentElement.dataset.hidden = String(document.hidden);
 });

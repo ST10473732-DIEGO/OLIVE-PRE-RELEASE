@@ -13,7 +13,9 @@ import {
   FilePenLine,
   Hand,
   Laptop,
+  Library,
   Loader2,
+  Mail as MailIcon,
   MessageSquare,
   Monitor,
   Smartphone,
@@ -59,7 +61,14 @@ type TodayData = {
   display_name: string;
   format: Pick<Profile, "timezone" | "locale" | "date_format" | "time_format">;
 };
-const RECENT_LIMIT = 5;
+const RECENT_LIMIT = 4;
+// Starting points that fill the composer for you to finish; none sends by itself.
+const SUGGESTIONS: { icon: typeof Bell; text: string; fill: string }[] = [
+  { icon: CalendarDays, text: "What does my week look like?", fill: "What does my week look like?" },
+  { icon: Bell, text: "Remind me to…", fill: "Remind me to " },
+  { icon: MailIcon, text: "Draft a reply to my latest email", fill: "Draft a reply to my latest email" },
+  { icon: Library, text: "Search my documents for…", fill: "Search my documents for " },
+];
 
 // Home V2 answers "what matters now": ask, what needs you, what OLIVE is
 // doing, where you left off, and today. Sections with nothing real to show
@@ -118,7 +127,7 @@ export function HomePage({
           </header>
 
           <section className="home-ask" aria-label="Ask OLIVE">
-            <div className="composer home-composer">
+            <div className="composer home-composer grove-ask">
               <GrowingComposer
                 aria-label="Ask OLIVE anything"
                 placeholder="Ask OLIVE, or describe what you want done"
@@ -179,6 +188,25 @@ export function HomePage({
                   {busy ? <Square size={14} aria-hidden="true" /> : <ArrowUp size={16} aria-hidden="true" />}
                 </button>
               </div>
+            </div>
+            <div className="home-suggest" aria-label="Suggestions">
+              {SUGGESTIONS.map((item) => (
+                <button
+                  key={item.text}
+                  onClick={() => {
+                    setDraft(item.fill);
+                    warm();
+                    requestAnimationFrame(() => {
+                      const box = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Ask OLIVE anything"]');
+                      box?.focus();
+                      box?.setSelectionRange(item.fill.length, item.fill.length);
+                    });
+                  }}
+                >
+                  <item.icon size={14} aria-hidden="true" />
+                  {item.text}
+                </button>
+              ))}
             </div>
           </section>
 
@@ -296,10 +324,10 @@ export function HomePage({
                   </button>
                 )}
               </h2>
-              <div className="home-rows continue-list">
+              <div className="continue-grid">
                 {visibleRecent.map((item) => (
                   <button
-                    className="home-row continue-row"
+                    className="continue-row"
                     key={item.key}
                     title={item.title}
                     onClick={() => {
@@ -310,13 +338,11 @@ export function HomePage({
                       else openStudio(item.key);
                     }}
                   >
-                    <span className="home-row-icon" aria-hidden="true">
-                      {item.kind === "chat" ? <MessageSquare size={15} /> : <Code2 size={15} />}
+                    <span className="continue-kind">
+                      {item.kind === "chat" ? <MessageSquare size={13} aria-hidden="true" /> : <Code2 size={13} aria-hidden="true" />}
+                      {item.kind === "chat" ? "Chat" : "Studio"} · {item.subtitle}
                     </span>
-                    <span className="home-row-text">
-                      <strong>{item.title}</strong>
-                      <small>{item.kind === "chat" ? "Chat" : "Studio"} · {item.subtitle}</small>
-                    </span>
+                    <strong>{item.title}</strong>
                   </button>
                 ))}
               </div>
@@ -377,14 +403,13 @@ function TodayRail({
   connect: ConnectSnapshotLike | null;
 }) {
   const events = useMemo(
-    () =>
-      [...(data?.events || [])]
-        .filter((e) => e.all_day || new Date(e.end || e.start).getTime() >= now.getTime())
-        .sort((a, b) => a.start.localeCompare(b.start)),
-    [data?.events, now],
+    () => [...(data?.events || [])].sort((a, b) => (a.all_day === b.all_day ? a.start.localeCompare(b.start) : a.all_day ? -1 : 1)),
+    [data?.events],
   );
-  const next = events.find((e) => !e.all_day);
-  const rest = events.filter((e) => e !== next);
+  const timed = events.filter((e) => !e.all_day);
+  const upcoming = timed.filter((e) => new Date(e.end || e.start).getTime() >= now.getTime());
+  const next = upcoming.find((e) => new Date(e.start).getTime() > now.getTime()) || upcoming[0];
+  const nowIndex = timed.findIndex((e) => new Date(e.start).getTime() > now.getTime());
   const tasks = data?.tasks || [];
   const devices = (connect?.devices || []).filter((d) => d.trust_state === "paired");
   return (
@@ -401,28 +426,47 @@ function TodayRail({
       {error && <p className="small muted">{error}</p>}
       {data && (
         <>
-          {next ? (
-            <button className="today-next" onClick={() => openRecord("calendar", next.id)}>
-              <span className="today-next-time">{timeOf(next.start, data.format)}</span>
-              <span className="today-next-text">
-                <strong>{next.title}</strong>
-                <small>{countdown(next.start, now)}{next.location ? ` · ${next.location}` : ""}</small>
-              </span>
-            </button>
-          ) : (
-            !rest.length && <p className="today-empty-line">No more events today.</p>
-          )}
-          {rest.length > 0 && (
-            <ul className="today-agenda" aria-label="Agenda">
-              {rest.map((e) => (
-                <li key={e.id + (e.occurrence_id || "")}>
+          {events.length ? (
+            <ol className="today-timeline" aria-label="Agenda">
+              {events.filter((e) => e.all_day).map((e) => (
+                <li key={e.id + (e.occurrence_id || "")} className="tl-item" data-all-day="true">
                   <button onClick={() => openRecord("calendar", e.id)}>
-                    <span className="today-time">{e.all_day ? "All day" : timeOf(e.start, data.format)}</span>
-                    <span className="today-title">{e.title}</span>
+                    <span className="tl-time">All day</span>
+                    <span className="tl-rail" aria-hidden="true"><span className="tl-dot" /></span>
+                    <span className="tl-text"><strong>{e.title}</strong>{e.location && <small>{e.location}</small>}</span>
                   </button>
                 </li>
               ))}
-            </ul>
+              {timed.map((e, index) => {
+                const past = new Date(e.end || e.start).getTime() < now.getTime();
+                return (
+                  <li key={e.id + (e.occurrence_id || "")} className="tl-group">
+                    {index === (nowIndex < 0 ? -2 : nowIndex) && <NowMarker now={now} format={data.format} />}
+                    <div className="tl-item" data-past={past || undefined}>
+                      <button onClick={() => openRecord("calendar", e.id)}>
+                        <span className="tl-time">{timeOf(e.start, data.format)}</span>
+                        <span className="tl-rail" aria-hidden="true"><span className="tl-dot" /></span>
+                        <span className="tl-text">
+                          <strong>{e.title}</strong>
+                          <small>
+                            {e === next ? countdown(e.start, now) : `${timeOf(e.start, data.format)}${e.end ? `–${timeOf(e.end, data.format)}` : ""}`}
+                            {e.location ? ` · ${e.location}` : ""}
+                          </small>
+                        </span>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+              {nowIndex < 0 && timed.length > 0 && (
+                <li className="tl-group"><NowMarker now={now} format={data.format} /></li>
+              )}
+            </ol>
+          ) : (
+            <p className="today-empty-line">No events today.</p>
+          )}
+          {events.length > 0 && !upcoming.length && !events.some((e) => e.all_day) && (
+            <p className="today-empty-line">No more events today.</p>
           )}
           <div className="today-group">
             <h3>
@@ -499,5 +543,15 @@ function TodayRail({
         <button className="quiet compact" onClick={() => navigate("reminders")}><Bell size={13} aria-hidden="true" /> Reminders</button>
       </div>
     </section>
+  );
+}
+
+function NowMarker({ now, format }: { now: Date; format?: TodayData["format"] }) {
+  return (
+    <div className="tl-now" aria-label={`Now, ${timeOf(now.toISOString(), format)}`}>
+      <span className="tl-time">{timeOf(now.toISOString(), format)}</span>
+      <span className="tl-now-dot" aria-hidden="true" />
+      <span className="tl-now-line" aria-hidden="true" />
+    </div>
   );
 }

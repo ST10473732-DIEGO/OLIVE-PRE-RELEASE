@@ -1,4 +1,4 @@
-/* OLIVE Design System V2 tokens.
+/* OLIVE Design System V2 tokens, carrying the Grove palette (2026-09-26 redesign).
    The V2 semantic names (background.*, border.*, text.*, accent.*, status.*)
    are the source of truth; see docs/design/OLIVE_DESIGN_SYSTEM_V2.md §3–§10.
    Every earlier name (--bg, --surface, --muted, --faint, --accent, …) stays as
@@ -6,50 +6,50 @@
 :root {
   color-scheme: dark;
   /* background.* — surfaces step back to front */
-  --bg-base: #0b0f16;
-  --bg-panel: #0f141b;
-  --bg-surface: #11171f;
-  --bg-elevated: #182029;
-  --bg-raised: #1f2933;
-  --bg-hover: rgba(197, 216, 240, 0.06);
-  --bg-active: rgba(197, 216, 240, 0.1);
-  --bg-selected: rgba(124, 196, 255, 0.13);
-  --bg-field: #0b1018;
+  --bg-base: #0b0d09;
+  --bg-panel: #0f120c;
+  --bg-surface: #121510;
+  --bg-elevated: #1a1e16;
+  --bg-raised: #20251b;
+  --bg-hover: rgba(226, 236, 200, 0.05);
+  --bg-active: rgba(226, 236, 200, 0.085);
+  --bg-selected: rgba(185, 198, 124, 0.13);
+  --bg-field: #161a12;
   /* border.* */
-  --border-subtle: rgba(197, 216, 240, 0.09);
-  --border-default: rgba(197, 216, 240, 0.13);
-  --border-strong: rgba(197, 216, 240, 0.2);
-  --border-active: #7cc4ff;
+  --border-subtle: rgba(226, 236, 200, 0.08);
+  --border-default: rgba(226, 236, 200, 0.12);
+  --border-strong: rgba(226, 236, 200, 0.19);
+  --border-active: #b9c67c;
   /* text.* */
-  --text-primary: #e8eef7;
-  --text-secondary: #9db0c7;
-  --text-muted: #8093aa;
-  --text-disabled: #4d596b;
+  --text-primary: #e9ece1;
+  --text-secondary: #bfc5b3;
+  --text-muted: #939a87;
+  --text-disabled: #5f6655;
   --text-on-fill: #ffffff;
   /* accent.* — blue interacts, cyan computes, green is OLIVE */
-  --accent-blue: #7cc4ff;
-  --accent-blue-fill: #2f74d0;
-  --accent-blue-fill-hover: #3a80dc;
-  --accent-blue-soft: rgba(124, 196, 255, 0.13);
-  --accent-cyan: #5ad1e0;
-  --accent-cyan-soft: rgba(90, 209, 224, 0.13);
-  --accent-green: #9ab534;
-  --accent-green-soft: rgba(154, 181, 52, 0.14);
-  --pimento: #c0232a;
+  --accent-blue: #b9c67c;
+  --accent-blue-fill: #b9c67c;
+  --accent-blue-fill-hover: #c8d48c;
+  --accent-blue-soft: rgba(185, 198, 124, 0.13);
+  --accent-cyan: #86b3ec;
+  --accent-cyan-soft: rgba(134, 179, 236, 0.13);
+  --accent-green: #b9c67c;
+  --accent-green-soft: rgba(185, 198, 124, 0.14);
+  --pimento: #ef6e51;
   /* status.* — never colour alone: always paired with an icon or a word */
-  --status-success: #7fd8a8;
-  --status-online: #7fd8a8;
-  --status-offline: #8093aa;
-  --status-warning: #f0c36b;
-  --status-ask: #f0c36b;
-  --status-busy: #f0c36b;
-  --status-error: #ff8f8f;
-  --status-computing: #5ad1e0;
-  --status-success-soft: rgba(127, 216, 168, 0.13);
-  --status-warning-soft: rgba(240, 195, 107, 0.13);
-  --status-error-soft: rgba(255, 143, 143, 0.13);
-  --badge-error: #c2413f;
-  --focus-ring: #7cc4ff;
+  --status-success: #8acb92;
+  --status-online: #8acb92;
+  --status-offline: #939a87;
+  --status-warning: #e6b964;
+  --status-ask: #e6b964;
+  --status-busy: #e6b964;
+  --status-error: #f07a63;
+  --status-computing: #86b3ec;
+  --status-success-soft: rgba(138, 203, 146, 0.12);
+  --status-warning-soft: rgba(230, 185, 100, 0.12);
+  --status-error-soft: rgba(240, 122, 99, 0.13);
+  --badge-error: #d9492f;
+  --focus-ring: #b9c67c;
   /* OLIVE Night syntax (Studio §17) */
   --syn-text: #d6deea;
   --syn-comment: #7486a0;
@@ -66,15 +66,15 @@
   --editor-line: #6e7d93;
   --editor-line-active: #c9d4e2;
   --editor-current: rgba(197, 216, 240, 0.045);
-  --editor-selection: rgba(124, 196, 255, 0.22);
+  --editor-selection: rgba(185, 198, 124, 0.2);
   --git-modified: #e2c08d;
-  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 2px 8px rgba(0, 0, 0, 0.4), 0 28px 70px rgba(0, 0, 0, 0.55);
   /* radii (r.xs … r.xl); 16 is retired */
-  --r-xs: 3px;
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
-  --r-xl: 12px;
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
   /* spacing scale: 2 4 6 8 12 16 20 24 32 48 */
   --sp-2: 2px;
   --sp-4: 4px;
@@ -87,23 +87,23 @@
   --sp-32: 32px;
   --sp-48: 48px;
   /* control heights */
-  --control: 28px;
-  --control-compact: 24px;
-  --control-prominent: 32px;
+  --control: 30px;
+  --control-compact: 26px;
+  --control-prominent: 34px;
   /* motion */
   --dur-fast: 120ms;
-  --dur-panel: 160ms;
-  --dur-sheet: 200ms;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-panel: 200ms;
+  --dur-sheet: 260ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   /* shell geometry */
-  --titlebar: 34px;
-  --nav: 216px;
-  --nav-compact: 48px;
-  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui,
+  --titlebar: 48px;
+  --nav: 232px;
+  --nav-compact: 64px;
+  --font: "Onest Variable", "Segoe UI Variable Text", "Segoe UI", system-ui,
     -apple-system, "Noto Sans", Cantarell, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI",
+  --font-display: "Bricolage Grotesque Variable", "Segoe UI Variable Display", "Segoe UI",
     system-ui, -apple-system, "Noto Sans", sans-serif;
-  --mono: "Cascadia Code", "Cascadia Mono", "JetBrains Mono", "Fira Code", Consolas,
+  --mono: "JetBrains Mono Variable", "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas,
     "DejaVu Sans Mono", ui-monospace, monospace;
   --font-mono: var(--mono);
 
@@ -120,8 +120,8 @@
   --accent: var(--accent-blue);
   --accent-strong: var(--accent-blue-fill);
   --accent-soft: var(--bg-selected);
-  --accent-glow: rgba(124, 196, 255, 0.28);
-  --on-accent: var(--text-on-fill);
+  --accent-glow: rgba(185, 198, 124, 0.25);
+  --on-accent: var(--accent-ink);
   --line: var(--border-subtle);
   --line-strong: var(--border-default);
   --success: var(--status-success);
@@ -140,7 +140,7 @@
   --go-field: var(--bg-field);
   --go-line: var(--border-subtle);
   --go-line-strong: var(--border-default);
-  --go-focus: rgba(124, 196, 255, 0.55);
+  --go-focus: rgba(185, 198, 124, 0.5);
   --shadow: var(--shadow-overlay);
   --shadow-soft: none;
   --radius: var(--r-xl);
@@ -159,48 +159,54 @@
   font-size: 13px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  /* Grove additions: ink on the accent fill, a spring for sheets and indicators. */
+  --accent-ink: #151a07;
+  --pimento-soft: rgba(239, 110, 81, 0.13);
+  --spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.35);
 }
 /* Native light set, not an inversion. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-base: #e9edf3;
-  --bg-panel: #f1f4f8;
-  --bg-surface: #ffffff;
-  --bg-elevated: #e6ebf2;
+  --bg-base: #ecede6;
+  --bg-panel: #f1f2ec;
+  --bg-surface: #fafaf6;
+  --bg-elevated: #ffffff;
   --bg-raised: #ffffff;
-  --bg-hover: rgba(20, 32, 47, 0.05);
-  --bg-active: rgba(20, 32, 47, 0.09);
-  --bg-selected: rgba(30, 99, 200, 0.11);
+  --bg-hover: rgba(40, 48, 20, 0.055);
+  --bg-active: rgba(40, 48, 20, 0.09);
+  --bg-selected: rgba(85, 100, 30, 0.11);
   --bg-field: #ffffff;
-  --border-subtle: rgba(20, 32, 47, 0.08);
-  --border-default: rgba(20, 32, 47, 0.13);
-  --border-strong: rgba(20, 32, 47, 0.2);
-  --border-active: #1e63c8;
-  --text-primary: #14202f;
-  --text-secondary: #46566b;
-  --text-muted: #5f6f85;
-  --text-disabled: #9aa6b6;
-  --accent-blue: #1e63c8;
-  --accent-blue-fill: #1e63c8;
-  --accent-blue-fill-hover: #1a57b0;
-  --accent-blue-soft: rgba(30, 99, 200, 0.1);
-  --accent-cyan: #0b7285;
-  --accent-cyan-soft: rgba(11, 114, 133, 0.1);
-  --accent-green: #5f7016;
-  --accent-green-soft: rgba(95, 112, 22, 0.1);
-  --pimento: #b31f26;
-  --status-success: #1c7a4c;
-  --status-online: #1c7a4c;
-  --status-offline: #5f6f85;
-  --status-warning: #8a5a0b;
-  --status-ask: #8a5a0b;
-  --status-busy: #8a5a0b;
-  --status-error: #b3303a;
-  --status-computing: #0b7285;
-  --status-success-soft: rgba(28, 122, 76, 0.1);
-  --status-warning-soft: rgba(138, 90, 11, 0.1);
-  --status-error-soft: rgba(179, 48, 58, 0.09);
-  --focus-ring: #1e63c8;
+  --border-subtle: rgba(40, 48, 20, 0.1);
+  --border-default: rgba(40, 48, 20, 0.16);
+  --border-strong: rgba(40, 48, 20, 0.24);
+  --border-active: #55641e;
+  --text-primary: #171a12;
+  --text-secondary: #444a3b;
+  --text-muted: #666c5c;
+  --text-disabled: #a3a897;
+  --accent-blue: #55641e;
+  --accent-blue-fill: #55641e;
+  --accent-blue-fill-hover: #4a5818;
+  --accent-blue-soft: rgba(85, 100, 30, 0.11);
+  --accent-cyan: #2c68aa;
+  --accent-cyan-soft: rgba(44, 104, 170, 0.1);
+  --accent-green: #55641e;
+  --accent-green-soft: rgba(85, 100, 30, 0.1);
+  --pimento: #c9432a;
+  --status-success: #33703a;
+  --status-online: #33703a;
+  --status-offline: #666c5c;
+  --status-warning: #9a6207;
+  --status-ask: #9a6207;
+  --status-busy: #9a6207;
+  --status-error: #b83a26;
+  --status-computing: #2c68aa;
+  --status-success-soft: rgba(51, 112, 58, 0.1);
+  --status-warning-soft: rgba(154, 98, 7, 0.11);
+  --status-error-soft: rgba(184, 58, 38, 0.1);
+  --focus-ring: #55641e;
   --syn-text: #1f2a37;
   --syn-comment: #5f6f85;
   --syn-keyword: #1557b0;
@@ -216,11 +222,15 @@
   --editor-line: #6a788c;
   --editor-line-active: #14202f;
   --editor-current: rgba(20, 32, 47, 0.04);
-  --editor-selection: rgba(30, 99, 200, 0.18);
+  --editor-selection: rgba(85, 100, 30, 0.18);
   --git-modified: #8a5a0b;
-  --shadow-overlay: 0 12px 32px rgba(20, 32, 47, 0.18), 0 2px 6px rgba(20, 32, 47, 0.08);
-  --accent-glow: rgba(30, 99, 200, 0.22);
-  --go-focus: rgba(30, 99, 200, 0.45);
+  --shadow-overlay: 0 2px 6px rgba(23, 26, 18, 0.06), 0 24px 60px rgba(23, 26, 18, 0.16);
+  --accent-glow: rgba(85, 100, 30, 0.2);
+  --go-focus: rgba(85, 100, 30, 0.45);
+  --accent-ink: #ffffff;
+  --pimento-soft: rgba(201, 67, 42, 0.1);
+  --shadow-sm: 0 1px 2px rgba(23, 26, 18, 0.06);
+  --shadow-md: 0 1px 2px rgba(23, 26, 18, 0.05), 0 6px 18px rgba(23, 26, 18, 0.07);
 }
 * {
   box-sizing: border-box;
@@ -331,7 +341,7 @@ details:not([open]) button {
 }
 .primary {
   background: var(--accent-blue-fill);
-  color: var(--text-on-fill);
+  color: var(--accent-ink);
   border-color: transparent;
   font-weight: 600;
 }
@@ -653,7 +663,7 @@ a,
   border-radius: 8px;
   font: 700 10px/1 var(--font);
   background: var(--accent-blue-fill);
-  color: #fff;
+  color: var(--accent-ink);
   font-variant-numeric: tabular-nums;
 }
 .count[data-tone="error"] {

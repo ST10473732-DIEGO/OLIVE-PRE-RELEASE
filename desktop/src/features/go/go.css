@@ -150,7 +150,7 @@
 .go .go-customize { position: absolute; left: 18px; bottom: 16px; }
 .go .go-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 9px; background: var(--go-raised); color: var(--text); font-size: 13px; font-weight: 500; border: 1px solid var(--go-line); transition: background 100ms var(--go-ease-out), border-color 100ms var(--go-ease-out); }
 .go .go-btn:hover { background: var(--go-hover); border-color: var(--go-line-strong); }
-.go .go-btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.go .go-btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .go .go-btn.primary:hover { background: color-mix(in srgb, var(--accent) 92%, #fff); }
 .go .go-btn.ghost { background: none; border-color: transparent; color: var(--muted); }
 .go .go-btn:disabled { opacity: 0.4; cursor: default; }

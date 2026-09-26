@@ -100,20 +100,22 @@ describe("shell navigation", () => {
     expect(navModeFor(1440, "studio", false)).toBe("hidden");
     expect(navModeFor(1366, "studio", false)).toBe("hidden");
   });
-  it("marks the active space, names every row and shows attention badges", () => {
+  it("shows seven spaces, marks the space of the current view and aggregates badges", () => {
     const html = renderToStaticMarkup(createElement(Navigation, {
-      route: "tasks", navigate: run, badges: { reminders: 2 }, compact: false, setCompact: run,
+      route: "tasks", navigate: run, openSpace: run, badges: { reminders: 2 }, compact: false, setCompact: run,
       canExpand: true, developer: false, overlay: false, closeOverlay: run,
     }));
     expect(html).toContain('aria-label="Main navigation"');
-    expect(html).toMatch(/aria-current="page"[^>]*aria-label="Tasks"|aria-label="Tasks"[^>]*aria-current="page"/);
+    // Tasks is a view of Plan, so Plan is the current space and carries the badge.
+    expect(html).toMatch(/aria-current="page"[^>]*aria-label="Plan"|aria-label="Plan"[^>]*aria-current="page"/);
     expect(html).toContain('aria-description="2 need attention"');
     expect(html).toContain("Collapse navigation");
-    // Desktop tasks use Chat; unrelated workspaces stay reachable.
     expect(html).not.toContain('aria-label="Desktop Control"');
-    for (const label of ["Chat", "OLIVE GO", "Agent", "Studio", "Projects", "Knowledge", "Memory", "Mail", "Calendar", "Tasks", "Reminders", "Devices", "Connections", "Settings"])
+    for (const label of ["Home", "Chat", "Plan", "Mail", "Library", "Build", "Web", "Devices", "Settings"])
       expect(html).toContain(`aria-label="${label}"`);
-    // Find anything lives in the title bar only, so there is exactly one.
+    // Views live in the title bar, not as extra rows.
+    for (const label of ["Calendar", "Tasks", "Studio", "Knowledge"])
+      expect(html).not.toContain(`aria-label="${label}"`);
     expect(html).not.toContain("Find anything");
   });
 });
@@ -129,7 +131,8 @@ describe("title bar", () => {
       route: "home", navigate: run, navHidden: false, openNavigation: run, openPalette: run,
       activity: "Ready", runtime: runtimeState("Ready", snapshot, 0, false), openActivity: run,
       model: modelStatus(snapshot), connect: connectSummary({ network: { state: "off" } }), attention: 0,
-      developer: false, compactStatus: false, setContextSlot: run, setActionsSlot: run, ...overrides,
+      developer: false, compactStatus: false, setContextSlot: run, setActionsSlot: run,
+      openSpace: run, theme: "dark", toggleTheme: run, ...overrides,
     }));
   it("keeps the stable accessible names the suites rely on", () => {
     const html = bar();
@@ -142,9 +145,18 @@ describe("title bar", () => {
     expect(html).not.toContain("Switch space");
     expect(html).not.toContain("Open navigation");
   });
+  it("switches between a space's views from the title bar", () => {
+    const html = bar({ route: "tasks" });
+    expect(html).toContain('aria-label="Plan views"');
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Tasks</);
+    for (const view of ["Calendar", "Reminders"]) expect(html).toContain(`>${view}</button>`);
+    expect(html).toContain('aria-label="Use light theme"');
+    expect(bar({ route: "home" })).not.toContain(" views\"");
+  });
   it("offers the space switcher and navigation only when the pane is hidden", () => {
     const html = bar({ navHidden: true, route: "studio", compactStatus: true });
-    expect(html).toContain("Space: Studio. Switch space");
+    expect(html).toContain("Space: Build. Switch space");
+    expect(html).toContain('aria-label="Build views"');
     expect(html).toContain('aria-label="Open navigation"');
     expect(html).not.toContain("Model:");
   });

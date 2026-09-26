@@ -1,13 +1,10 @@
-import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
-import {
-  categories,
-  navigationRows,
-  type Feature,
-} from "../navigation/features";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { Activity, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { footSpaces, spaceOf, spaces, type Space } from "../navigation/features";
+import { OliveMark } from "./TitleBar";
 
-/** Where the navigation pane sits for a window width and space (V2 §15).
- *  "expanded" 216 px, "rail" 48 px icons, "hidden" (overlay on demand). */
+/** Where the navigation pane sits for a window width and space.
+ *  "expanded" 232 px, "rail" 64 px icons, "hidden" (overlay on demand). */
 export type NavMode = "expanded" | "rail" | "hidden";
 export function navModeFor(width: number, route: string, userCompact: boolean): NavMode {
   if (route === "studio") return width >= 1600 ? "rail" : "hidden";
@@ -16,13 +13,12 @@ export function navModeFor(width: number, route: string, userCompact: boolean): 
   return userCompact ? "rail" : "expanded";
 }
 
-// V2 navigation: 216 px, grouped, 30 px rows, olive 2 px active indicator and
-// badges for attention. Identity and status live in the title bar. The pane
-// collapses to a 48 px icon rail; on narrow windows and in Studio it is an
-// overlay opened from the title bar.
+// Grove navigation: the brand, seven spaces, and Devices and Settings pinned to
+// the foot. One highlight glides to the current space; views within a space
+// (Plan's Calendar, Tasks and Reminders, for example) switch in the title bar.
 export function Navigation({
   route,
-  navigate,
+  openSpace,
   badges,
   compact,
   setCompact,
@@ -30,10 +26,11 @@ export function Navigation({
   developer,
   overlay,
   closeOverlay,
+  navigate,
 }: {
   route: string;
-  navigate: (id: string) => void;
-  /** Attention counts per feature id (approvals, due reminders). */
+  openSpace: (space: string) => void;
+  /** Attention counts per route id (approvals, due reminders). */
   badges: Record<string, number>;
   compact: boolean;
   setCompact: (value: boolean) => void;
@@ -43,8 +40,11 @@ export function Navigation({
   developer: boolean;
   overlay: boolean;
   closeOverlay: () => void;
+  navigate: (id: string) => void;
 }) {
   const pane = useRef<HTMLElement>(null);
+  const pill = useRef<HTMLSpanElement>(null);
+  const current = spaceOf(route).id;
   useEffect(() => {
     if (!overlay) return;
     const onKey = (event: KeyboardEvent) => {
@@ -54,36 +54,47 @@ export function Navigation({
     pane.current?.querySelector<HTMLElement>('[aria-current="page"], .nav-row')?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [overlay, closeOverlay]);
-  const rows = navigationRows(developer);
-  const grouped = categories
-    .map((category) => ({
-      category,
-      // Settings is pinned in the foot so it never needs scrolling to reach.
-      items: rows.filter(
-        (f) => f.category === category && f.id !== "home" && f.id !== "settings",
-      ),
-    }))
-    .filter((group) => group.items.length > 0);
+  // The highlight is one element that moves; it never re-renders per row, so
+  // switching spaces is a single transform on the compositor.
+  useLayoutEffect(() => {
+    const place = () => {
+      const host = pane.current, marker = pill.current;
+      const active = host?.querySelector<HTMLElement>('.nav-row[aria-current="page"]');
+      if (!host || !marker) return;
+      if (!active) { marker.style.opacity = "0"; return; }
+      marker.style.opacity = "1";
+      marker.style.transform = `translateY(${active.offsetTop}px)`;
+      marker.style.height = `${active.offsetHeight}px`;
+    };
+    place();
+    const first = pill.current;
+    if (first?.dataset.placed !== "true" && first) {
+      requestAnimationFrame(() => requestAnimationFrame(() => { first.dataset.placed = "true"; }));
+    }
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [current, compact, overlay, developer]);
   const showCompact = compact && !overlay;
-  const row = (feature: Feature) => {
-    const selected = route === feature.id;
-    const badge = badges[feature.id] || 0;
+  const count = (space: Space) =>
+    [...space.routes, ...(space.also || [])].reduce((sum, id) => sum + (badges[id] || 0), 0);
+  const row = (space: Space) => {
+    const selected = current === space.id;
+    const badge = count(space);
+    const views = space.routes.length > 1 ? ` — ${space.routes.length} views` : "";
     return (
       <button
-        key={feature.id}
+        key={space.id}
         className={`nav-row ${selected ? "selected" : ""}`}
         aria-current={selected ? "page" : undefined}
-        // Compact mode hides the text, so name the row explicitly: the feature
-        // is identified the same way at every width, never only by hovering.
-        aria-label={feature.label}
+        aria-label={space.label}
         aria-description={badge ? `${badge} need${badge === 1 ? "s" : ""} attention` : undefined}
-        title={showCompact ? `${feature.label} — ${feature.description}` : feature.description}
-        onClick={() => navigate(feature.id)}
+        title={showCompact ? `${space.label}${views}` : undefined}
+        onClick={() => openSpace(space.id)}
       >
-        <feature.icon size={16} aria-hidden="true" />
-        <span className="nav-label">{feature.label}</span>
+        <space.icon size={18} aria-hidden="true" />
+        <span className="nav-label">{space.label}</span>
         {badge > 0 && (
-          <span className="count" data-tone={feature.id === "devices" || feature.id === "reminders" ? "warning" : undefined} aria-hidden="true">
+          <span className="count" data-tone={space.id === "devices" || space.id === "plan" ? "warning" : undefined} aria-hidden="true">
             {badge > 99 ? "99+" : badge}
           </span>
         )}
@@ -98,37 +109,44 @@ export function Navigation({
         className={`navigation ${showCompact ? "compact" : ""} ${overlay ? "nav-overlay" : ""}`}
         aria-label="Main navigation"
       >
-        {overlay && (
-          <div className="nav-head">
-            <span className="eyebrow">Spaces</span>
+        <span ref={pill} className="nav-pill" aria-hidden="true" />
+        <div className="nav-head">
+          <button className="nav-brand" aria-label="OLIVE Home" title="Home" onClick={() => openSpace("home")} tabIndex={-1}>
+            <OliveMark size={20} />
+            <span className="nav-wordmark">OLIVE</span>
+          </button>
+          {overlay && (
             <button className="icon-button" aria-label="Close navigation" onClick={closeOverlay}>
               <X size={16} />
             </button>
-          </div>
-        )}
-        <div className="nav-scroll">
-          {row(rows.find((f) => f.id === "home")!)}
-          {grouped.map((group) => (
-            <div className="nav-group" key={group.category} role="group" aria-label={group.category}>
-              <span className="nav-group-label" aria-hidden="true">{group.category}</span>
-              {group.items.map(row)}
-            </div>
-          ))}
+          )}
         </div>
+        <div className="nav-scroll">{spaces.map(row)}</div>
         <div className="nav-foot">
-          {row(rows.find((f) => f.id === "settings")!)}
+          {footSpaces.map(row)}
+          {developer && (
+            <button
+              className="nav-row"
+              aria-label="Diagnostics"
+              title={showCompact ? "Diagnostics" : undefined}
+              onClick={() => navigate("diagnostics")}
+            >
+              <Activity size={18} aria-hidden="true" />
+              <span className="nav-label">Diagnostics</span>
+            </button>
+          )}
           {!overlay && canExpand && (
             <button
               className="nav-row nav-compact-toggle"
               aria-pressed={compact}
               aria-label={compact ? "Expand navigation" : "Collapse navigation"}
-              title={compact ? "Expand navigation" : "Collapse navigation"}
+              title={compact ? "Expand navigation (Ctrl+Shift+O)" : "Collapse navigation (Ctrl+Shift+O)"}
               onClick={() => setCompact(!compact)}
             >
               {compact ? (
-                <PanelLeftOpen size={16} aria-hidden="true" />
+                <PanelLeftOpen size={18} aria-hidden="true" />
               ) : (
-                <PanelLeftClose size={16} aria-hidden="true" />
+                <PanelLeftClose size={18} aria-hidden="true" />
               )}
               <span className="nav-label">Collapse</span>
             </button>

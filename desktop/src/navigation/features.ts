@@ -230,3 +230,34 @@ export function searchFeatures(query: string, list: Feature[] = features): Featu
       .includes(text),
   );
 }
+
+/* ---------- Spaces (Grove redesign) ----------
+   Navigation shows seven spaces instead of one row per feature. A space owns
+   one or more existing routes; routes, handoffs and the palette are unchanged.
+   Multi-route spaces show their views as a switcher in the title bar. */
+export interface Space {
+  id: string;
+  label: string;
+  icon: typeof Home;
+  /** Routes shown as this space's views, in switcher order. */
+  routes: string[];
+  /** Routes that belong to the space without being one of its views. */
+  also?: string[];
+}
+export const spaces: Space[] = [
+  { id: "home", label: "Home", icon: Home, routes: ["home"] },
+  { id: "chat", label: "Chat", icon: MessageSquare, routes: ["chat"], also: ["research", "desktop"] },
+  { id: "plan", label: "Plan", icon: CalendarDays, routes: ["calendar", "tasks", "reminders"] },
+  { id: "mail", label: "Mail", icon: Mail, routes: ["mail"] },
+  { id: "library", label: "Library", icon: BookOpen, routes: ["knowledge", "memory", "projects"] },
+  { id: "build", label: "Build", icon: Code2, routes: ["agent", "studio"] },
+  { id: "web", label: "Web", icon: Globe, routes: ["browser"] },
+];
+/** Pinned to the foot of the navigation. */
+export const footSpaces: Space[] = [
+  { id: "devices", label: "Devices", icon: Monitor, routes: ["devices"] },
+  { id: "settings", label: "Settings", icon: Settings, routes: ["settings"], also: ["diagnostics", "connections"] },
+];
+export function spaceOf(route: string): Space {
+  return [...spaces, ...footSpaces].find((s) => s.routes.includes(route) || s.also?.includes(route)) || spaces[0];
+}

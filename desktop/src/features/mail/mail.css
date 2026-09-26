@@ -84,7 +84,7 @@
 }
 .mail-folder.selected .mail-count {
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-ink);
 }
 .mail-local-folders summary {
   display: flex;

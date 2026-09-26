@@ -187,7 +187,7 @@
 .ws-composer-bottom { display: flex; align-items: center; gap: 6px; }
 .ws-composer-hint { font-size: 12px; color: var(--text-muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-composer-tools { display: flex; align-items: center; gap: 4px; }
-.ws-composer .send { width: 28px; height: 28px; border-radius: var(--r-md); padding: 0; min-height: 0; background: var(--accent-blue-fill); color: var(--text-on-fill); border: 0; display: grid; place-items: center; }
+.ws-composer .send { width: 28px; height: 28px; border-radius: var(--r-md); padding: 0; min-height: 0; background: var(--accent-blue-fill); color: var(--accent-ink); border: 0; display: grid; place-items: center; }
 .ws-composer .send:disabled { background: var(--bg-elevated); color: var(--text-disabled); }
 
 /* ---------- Timeline ---------- */

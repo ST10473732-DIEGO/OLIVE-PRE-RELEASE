@@ -73,10 +73,8 @@ test("clarity acceptance journey: navigation, two independent projects, run, ter
     await shot("A-home");
 
     // ---- B: every feature is found by a visible label, no commands -----
-    for (const label of [
-      "Studio", "Mail", "Calendar", "OLIVE GO", "Knowledge", "Settings",
-      "Chat", "Agent", "Projects", "Memory", "Tasks", "Reminders",
-    ])
+    // Grove: seven spaces and the foot rows; views switch in the title bar.
+    for (const label of ["Home", "Chat", "Plan", "Mail", "Library", "Build", "Web", "Devices", "Settings"])
       await expect(nav().getByRole("button", { name: label, exact: true })).toBeVisible();
     for (const label of ["Mail", "Calendar", "OLIVE GO", "Knowledge", "Settings"]) {
       await go(label);
@@ -366,8 +364,7 @@ test("a language without installed tooling is reported honestly and cannot be cr
     const page = await app.firstWindow();
     page.setDefaultTimeout(45000);
     await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();
-    await page.getByRole("navigation", { name: "Main navigation" })
-      .getByRole("button", { name: "Studio", exact: true }).click();
+    await openSpace(page, "Studio");
     await page.getByRole("button", { name: "New project", exact: true }).first().click();
     await expect(page.locator(".language-card").first()).toBeVisible({ timeout: 120000 });
     const missing: Record<string, string> = {};
@@ -432,8 +429,7 @@ test("closing OLIVE leaves no language server running", async () => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] });
     }, projects);
     await page.getByRole("button", { name: "Enter OLIVE", exact: true }).click();
-    await page.getByRole("navigation", { name: "Main navigation" })
-      .getByRole("button", { name: "Studio", exact: true }).click();
+    await openSpace(page, "Studio");
     await page.getByRole("button", { name: "New project", exact: true }).first().click();
     await expect(page.locator('.language-card[data-language="csharp"]')).toBeEnabled({
       timeout: 120000,

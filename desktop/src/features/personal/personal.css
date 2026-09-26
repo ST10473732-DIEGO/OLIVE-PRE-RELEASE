@@ -115,7 +115,7 @@
 }
 .personal-list-item.selected .personal-initial {
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-ink);
 }
 .personal-list-text {
   display: flex;
@@ -350,7 +350,7 @@
 }
 .calendar-day.today .calendar-day-number {
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 .calendar-day-number {

@@ -74,7 +74,7 @@
   font-size: 15px;
   font-weight: 550;
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--accent-ink);
   border: 0;
 }
 .enter:hover:not(:disabled) {
@@ -869,7 +869,7 @@ button.home-row:hover:not(:disabled) { background: var(--bg-hover); border: 0; }
 .composer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
 .composer-bottom .chips { min-width: 0; flex: 1; }
 .composer-hint { color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
-.send { width: 28px; height: 28px; min-height: 28px; border-radius: var(--r-md); background: var(--accent-blue-fill); color: var(--text-on-fill); border: 0; padding: 0; flex-shrink: 0; }
+.send { width: 28px; height: 28px; min-height: 28px; border-radius: var(--r-md); background: var(--accent-blue-fill); color: var(--accent-ink); border: 0; padding: 0; flex-shrink: 0; }
 .send:hover:not(:disabled) { background: var(--accent-blue-fill-hover); border: 0; }
 .send:disabled { background: var(--bg-elevated); color: var(--text-disabled); border: 0; }
 .send[aria-label="Cancel request"], .send[aria-label="Stop response"] { background: var(--bg-raised); color: var(--status-error); border: 1px solid var(--border-strong); }
@@ -1533,7 +1533,7 @@ button.home-row:hover:not(:disabled) { background: var(--bg-hover); border: 0; }
   padding: 0 8px;
   border-radius: var(--r-sm);
   background: var(--accent-blue-fill);
-  color: #fff;
+  color: var(--accent-ink);
   font-size: 12px;
   font-weight: 550;
   white-space: nowrap;
@@ -3406,7 +3406,7 @@ button.status-item:hover:not(:disabled) {
 }
 .status-remote {
   background: var(--accent-blue-fill);
-  color: #fff;
+  color: var(--accent-ink);
   font-weight: 550;
 }
 .status-remote:not([data-online]) {
