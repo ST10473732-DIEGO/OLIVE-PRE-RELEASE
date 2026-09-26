@@ -392,3 +392,10 @@ with a preserved draft, reconnection without automatically sending that draft,
 and a successful explicit Send afterward. The desktop restart check is next.
 Because C3 currently binds an OS-assigned port, that check must distinguish a
 new listener blocked by the existing exact-port UFW rule from a trust failure.
+
+The desktop restart changed its main listener from TCP 47235 to TCP 33823 in a
+new process, and the phone showed Offline. The current UFW exception therefore
+no longer covers the listener. Replacement of just the phone-specific rule,
+followed by Reconnect with the saved pairing, was requested. A successful retry
+would verify retained trust; unattended restart recovery remains uncertified
+while the desktop selects a new port outside the exact firewall allowance.

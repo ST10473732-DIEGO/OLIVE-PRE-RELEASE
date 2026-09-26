@@ -194,7 +194,7 @@ permission behavior changes.
 | Hash prompt / new request after Stop | **Passed, owner-observed:** after cancellation, “Explain in two sentences what a hash function does” returns a complete answer. Exact answer text has not been collected |
 | Remote Stop | **Passed, owner-observed C7 cancellation:** phone output stops, desktop activity reports Remote AI cancelled, and phone diagnostic reports Stop acknowledgement **0.09 s** for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. This is the displayed rounded acknowledgement duration, not a separate provider-internal timing |
 | Wi-Fi interruption / offline draft | **Passed, owner-observed:** Wi-Fi Off produces Offline with disabled Send and a preserved draft; restoring Wi-Fi reconnects with the draft still unsent; pressing Send explicitly produces an answer |
-| Desktop restart | Check requested. The existing UFW rule covers the current main-listener port only; a new OS-assigned port after desktop restart is a separate host-firewall constraint, not a pin mismatch. Inspect the new listener before changing any narrowly scoped allowance |
+| Desktop restart | Owner restarted OLIVE: main listener moved from TCP 47235 to TCP 33823 in a new process, and the phone shows Offline. The existing exact-port UFW rule does not admit the new port. Requested replacement of only the phone-specific rule and explicit Reconnect using the saved pairing; result pending. Unattended restart recovery is not certified |
 | Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -283,6 +283,18 @@ address or main-listener port requires reviewing/removing the now-stale rule.
 The Mac remains excluded. The fresh QR's separate temporary port must be
 handled before any real pairing/TLS success can be claimed. No app, desktop
 runtime, TLS policy or protocol was changed during this diagnostic repair.
+
+The later desktop restart reproduced the port-lifetime limitation: the new main
+listener is TCP 33823, whereas the phone-specific rule allowed the previous
+TCP 47235. The phone correctly reports Offline. The requested repair adds the
+same interface/source/destination-scoped permission for the new existing port
+and deletes the old exact rule; it does not allow a range or add a listener.
+Reconnection after this repair would establish retained trust, not unattended
+firewall compatibility across future restarts. Source inspection confirms C3
+supports an explicit listener port internally, but the existing Devices enable
+workflow passes only address/discovery and therefore selects an OS-assigned
+port. No desktop listener, persistence or startup behavior was changed to mask
+this host-configuration limitation.
 
 ## Validation so far
 
