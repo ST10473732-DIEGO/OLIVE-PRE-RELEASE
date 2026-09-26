@@ -50,19 +50,25 @@ struct ChatView: View {
                     }.disabled(state.active)
                 }
             }
-            if state.active { Button(state.stopping ? "Stopping…" : "Stop", role: .destructive, action: state.stop).disabled(state.stopping).accessibilityIdentifier("chat.stop") }
             HStack(alignment: .bottom, spacing: 8) {
                 TextField("Message OLIVE", text: $state.draft, axis: .vertical)
                     .lineLimit(1...(typeSize.isAccessibilitySize ? 3 : 6)).font(.body).focused($composerFocused)
                     .padding(.vertical, 10).accessibilityIdentifier("chat.composer")
-                Button(action: state.send) {
-                    Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(OliveTheme.muted)
+                Button {
+                    if state.active { state.stop() } else { state.send() }
+                } label: {
+                    Image(systemName: state.active ? "stop.fill" : "arrow.up")
+                        .font(.system(size: state.active ? 14 : 17, weight: .semibold))
+                        .foregroundStyle(state.active || state.canSend ? OliveTheme.accentInk : OliveTheme.muted)
                         .frame(width: 44, height: 44)
-                        .background(OliveTheme.surface, in: Circle())
-                }.disabled(!state.canSend)
-                    .accessibilityLabel("Send message").accessibilityHint("Requires a paired computer")
-                    .accessibilityIdentifier("chat.send")
+                        .background(state.active || state.canSend ? OliveTheme.accent : OliveTheme.surface, in: Circle())
+                        .contentShape(Circle())
+                }.buttonStyle(.plain)
+                    .disabled(state.active ? state.stopping : !state.canSend)
+                    .opacity(state.stopping ? 0.6 : 1)
+                    .accessibilityLabel(state.active ? (state.stopping ? "Stopping response" : "Stop response") : "Send message")
+                    .accessibilityHint(state.active ? "Cancels the request on your computer" : "Requires a connected computer with Remote AI available")
+                    .accessibilityIdentifier(state.active ? "chat.stop" : "chat.send")
             }.padding(10).background(OliveTheme.raised, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(composerFocused ? OliveTheme.accent : OliveTheme.border))
             Text(state.persistenceNotice ?? (state.chatStatus.isEmpty ? state.session?.status ?? "Not connected · local draft" : state.chatStatus))
