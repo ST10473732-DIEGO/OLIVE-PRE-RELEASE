@@ -333,3 +333,11 @@ accounting for the SYN-only trace before TLS. The next step is a reviewable
 proposal scoped to the iPhone's actual source address and existing OLIVE
 listeners, requiring owner authorization under the original firewall constraint.
 No firewall change or successful pairing is claimed.
+
+The owner then added the reviewed UFW exception for only the current iPhone
+DHCP source address to OLIVE's existing main TCP listener, restricted to the
+selected desktop interface/address. A failed command contained an extra
+`prototcp` token; correcting it produced the owner's `Rule added` report.
+The separate, expiring QR listener still needs a fresh-port allowance before
+pairing. No TCP success, trust grant or Remote AI permission is implied by the
+firewall rule, and no broad subnet or port-range permission was added.

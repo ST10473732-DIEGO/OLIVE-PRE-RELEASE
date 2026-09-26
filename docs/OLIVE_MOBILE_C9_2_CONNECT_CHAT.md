@@ -20,6 +20,7 @@ successful builds are not substitutes for real paired Chat acceptance.
   Subsequent documentation checkpoint: `docs: record desktop SYN arrival and next read-only checks`.
   Follow-up: `docs: record UFW input filtering evidence`.
   Confirmed cause: `docs: identify UFW admission blocker for real LAN pairing`.
+  Owner action: `docs: record phone-only main-listener UFW allowance`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -156,7 +157,8 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | Listener and return route | Owner confirms the existing main listener remains in the same process; the route to the Mac from the desktop LAN source uses the selected Ethernet interface |
 | Installed filtering | IPv4 INPUT has policy drop in an iptables-nft-managed table containing UFW chains. mDNS UDP 5353 has an explicit accept rule; the sole user TCP allow rule has zero matches and its multiport details are opaque in the nft listing. IPv4 OUTPUT has policy accept |
 | Decoded UFW rules | Owner reports UFW active, incoming deny/outgoing allow. The only user allowances are KDE Connect TCP/UDP 1714–1764; `iptables-nft -S` confirms those exact destination ranges. They do not admit OLIVE's observed main or temporary pairing ports |
-| Blocker and next step | Desktop UFW admission blocks the observed new TCP connection before TLS. Preparing a proposed exception restricted to the real iPhone source, selected LAN interface/address and actual existing OLIVE ports; awaiting phone IPv4 address. Any rule change requires owner authorization; none applied |
+| Main-listener allowance | Owner supplied the iPhone's current DHCP IPv4 address and executed the proposed rule limited to that source, the selected desktop LAN interface/address and TCP 47235. After removing an accidental extra `prototcp` argument, owner reports `Rule added`. TCP success has not yet been verified |
+| Next pairing step | Obtain a fresh QR's actual temporary listener port and prepare the corresponding phone-only allowance before scanning. Existing main-listener allowance does not admit the temporary pairing listener or Mac probes |
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / relaunch / reconnect | Pending |
 | Remote AI Off / Allow | Pending |
@@ -166,8 +168,10 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
-pending steps. No SSH, extra remote-access method, firewall change, or exposure
-of Ollama was introduced. Public routing diagnostics stay local in ignored logs.
+pending steps. No SSH, extra remote-access method or exposure of Ollama was
+introduced. The owner's explicit main-listener firewall exception is recorded
+above; there is no blanket LAN or port-range allowance. Public routing
+diagnostics stay local in ignored logs.
 
 ### SYN trace interpretation (owner-supplied, 2026-09-26)
 
@@ -226,7 +230,19 @@ explicit removal commands. A new pairing QR should be created only when ready
 to apply an authorized rule because its listener is temporary. An ordinary UFW
 allow rule has no automatic expiry; it must be removed explicitly, and a rule
 for one OS-assigned port must not be described as covering future restarts or
-fresh pairing offers. No UFW rule, security setting or listener has been changed.
+fresh pairing offers. At that checkpoint no UFW rule, security setting or
+listener had been changed.
+
+The owner subsequently attempted the exact main-listener rule and supplied the
+failed command. An extra `prototcp` token explained UFW 0.36.2's argument-count
+error. After correction, the owner reports `Rule added`. This is an explicit
+owner-applied exception for the current iPhone address to the existing main
+TCP listener only, on the selected desktop interface/address. It grants no
+Connect trust or Remote AI permission. DHCP remains enabled; a changed phone
+address or main-listener port requires reviewing/removing the now-stale rule.
+The Mac remains excluded. The fresh QR's separate temporary port must be
+handled before any real pairing/TLS success can be claimed. No app, desktop
+runtime, TLS policy or protocol was changed during this diagnostic repair.
 
 ## Validation so far
 
