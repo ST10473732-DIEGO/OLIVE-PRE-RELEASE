@@ -4,6 +4,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var state
     private let about = AboutInfo()
+    @State private var confirmIdentityReset = false
+    @State private var identityResetNotice: String?
     var body: some View {
         List {
             Section {
@@ -36,6 +38,15 @@ struct SettingsView: View {
                     if let seconds = state.totalResponseSeconds { Text("Complete response: \(seconds, specifier: "%.2f") s") }
                     if let seconds = state.stopSeconds { Text("Stop acknowledgement: \(seconds, specifier: "%.2f") s") }
                     Text("Unpair removes trust on this iPhone only. Your computer manages its own permissions and revocation.")
+                    if let session = state.session {
+                        Button("Reset this iPhone’s Connect identity", role: .destructive) { confirmIdentityReset = true }
+                            .disabled(!session.canResetIdentity || state.active)
+                            .accessibilityIdentifier("settings.resetIdentity")
+                        Text("Unpair all computers first. Reset is needed before pairing again with a computer that already knows or has revoked this iPhone.")
+                            .font(.caption)
+                        if session.resettingIdentity { ProgressView("Resetting identity…") }
+                        if let identityResetNotice { Text(identityResetNotice).font(.callout) }
+                    }
                 }
             }.listRowBackground(OliveTheme.raised)
             Section {
@@ -47,6 +58,21 @@ struct SettingsView: View {
         }
         .scrollContentBackground(.hidden).background(OliveTheme.surface).foregroundStyle(OliveTheme.text)
         .navigationTitle("Settings").navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Reset this iPhone’s Connect identity?", isPresented: $confirmIdentityReset, titleVisibility: .visible) {
+            Button("Reset identity", role: .destructive) {
+                guard let session = state.session, !state.active else { return }
+                Task {
+                    do {
+                        try await session.resetIdentity()
+                        identityResetNotice = "Identity reset. Pair again from Devices and set permissions on your computer."
+                    } catch {
+                        identityResetNotice = "Could not reset identity. Unlock this iPhone and try again."
+                    }
+                }
+            }
+        } message: {
+            Text("This replaces your saved device key and discards unfinished pairing confirmations. You must pair again and receive new permissions on each computer. Computer-side trust records are unchanged. Your draft stays on this iPhone.")
+        }
         .toolbar { ToolbarItem(placement: .confirmationAction) {
             Button("Done") { dismiss() }.accessibilityIdentifier("settings.done")
         } }

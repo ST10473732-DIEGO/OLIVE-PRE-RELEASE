@@ -103,4 +103,10 @@ final class ConnectTrustRepository {
         }
         try save(peers: peers.filter { $0.id != id }, ledger: next)
     }
+    func prepareIdentityReset() throws {
+        guard peers.isEmpty else { throw ConnectFailure.identityRecoveryRequired }
+        // Old confirmations must never restore trust under a replacement identity.
+        // Keep session tombstones so old offers cannot be reused.
+        try save(peers: [], ledger: ledger.mapValues { _ in .object(["state": .string("cancelled")]) })
+    }
 }

@@ -4,7 +4,7 @@ import Observation
 @MainActor @Observable
 final class AppState {
     var destination: Destination { didSet { store.saveDestination(destination) } }
-    var draft: String { didSet { saveDraft() } }
+    var draft: String { didSet { draftRevision = UUID(); saveDraft() } }
     var isSettingsPresented = false
     private(set) var persistenceNotice: String?
     var connection: MobileConnectionState { session?.connected == true ? .connected : session?.selected != nil ? .offline : .notPaired }
@@ -16,6 +16,9 @@ final class AppState {
     private(set) var stopping = false
     private var chatTask: Task<Void, Never>?
     private var chatGeneration = UUID()
+    private var draftRevision = UUID()
+    private var admittedRequest: UUID?
+    private var clearedDraftRevision: UUID?
     private var currentUserID: UUID?
     private var currentAnswerID: UUID?
     private(set) var lastRequestID: String?
@@ -54,9 +57,11 @@ final class AppState {
     func send() {
         guard canSend, let client = chatConnection?.inference else { return }
         let text = draft, token = UUID(), answerID = UUID()
+        let sentDraftRevision = draftRevision
         let peerID = chatConnection?.selectedID ?? "", selectedPreset = preset
         requestStarted = .now; firstResponseSeconds = nil; totalResponseSeconds = nil; stopSeconds = nil
-        chatGeneration = token; active = true; stopping = false; chatStatus = "Sending"
+        chatGeneration = token; admittedRequest = nil; clearedDraftRevision = nil
+        active = true; stopping = false; chatStatus = "Sending"
         let user = ChatMessage(id: UUID(), role: .user, blocks: [.text(text)])
         messages.append(user)
         currentUserID = user.id; currentAnswerID = answerID
@@ -64,7 +69,7 @@ final class AppState {
         chatTask = Task {
             do {
                 try await client.run(preset: selectedPreset, messages: context) { [self] job, status, answer in
-                    await self.receive(token: token, answerID: answerID, draftSent: text, job: job, status: status, answer: answer, peerID: peerID, preset: selectedPreset)
+                    await self.receive(token: token, answerID: answerID, sentDraftRevision: sentDraftRevision, job: job, status: status, answer: answer, peerID: peerID, preset: selectedPreset)
                 }
                 guard chatGeneration == token else { return }
                 if !stopping {
@@ -78,15 +83,19 @@ final class AppState {
                 if !stopping { chatStatus = "Failed · " + (error as? ConnectFailure ?? .connectionLost).localizedDescription }
                 if let i = messages.firstIndex(where: { $0.id == user.id }) { messages[i].status = chatStatus }
                 if let i = messages.firstIndex(where: { $0.id == answerID }) { messages[i].status = "Incomplete" }
-                // Restore the submitted text only if the user has not started a new draft.
-                if draft.isEmpty { draft = text }
+                // Retain a failed request for explicit retry, but Stop must not
+                // resurrect sent text or overwrite a newer draft.
+                if !stopping, draft.isEmpty, draftRevision == clearedDraftRevision { draft = text }
             }
             if chatGeneration == token && !stopping { active = false; chatTask = nil }
         }
     }
-    private func receive(token: UUID, answerID: UUID, draftSent: String, job: String, status: String, answer: String, peerID: String, preset: String) {
+    private func receive(token: UUID, answerID: UUID, sentDraftRevision: UUID, job: String, status: String, answer: String, peerID: String, preset: String) {
         guard chatGeneration == token, !stopping else { return }
-        if ["queued", "starting", "streaming"].contains(status), draft == draftSent { draft = "" }
+        if admittedRequest != token, ["queued", "starting", "streaming", "completed"].contains(status) {
+            admittedRequest = token
+            if draftRevision == sentDraftRevision { draft = ""; clearedDraftRevision = draftRevision }
+        }
         chatStatus = ["awaiting_approval": "Waiting for approval on computer", "queued": "Queued", "starting": "Starting", "streaming": "Receiving", "completed": "Completed"][status] ?? status
         lastRequestID = job
         if !answer.isEmpty {

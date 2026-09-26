@@ -98,6 +98,45 @@ final class ConnectProtocolTests: XCTestCase {
         try repository.cancel(offer.sessionID)
         XCTAssertThrowsError(try repository.commit(offer: offer, peerReceipt: Data()))
     }
+    func testExplicitIdentityResetPersistsNewKey() async throws {
+        let secrets = KeychainSecretStore(service: "olive.identity.reset.tests.\(UUID().uuidString)")
+        do {
+            let store = ConnectIdentityStore(secrets: secrets)
+            let old = try await store.load()
+            let replacement = try await store.reset()
+            XCTAssertNotEqual(old.publicIdentity.deviceID, replacement.publicIdentity.deviceID)
+            XCTAssertNotEqual(old.publicIdentity.publicKey, replacement.publicIdentity.publicKey)
+            let restored = try await ConnectIdentityStore(secrets: secrets).load(allowCreation: false)
+            XCTAssertEqual(restored.publicIdentity, replacement.publicIdentity)
+            let verifier = try Curve25519.Signing.PublicKey(rawRepresentation: restored.publicIdentity.publicKey)
+            let message = Data("reset acceptance".utf8)
+            XCTAssertTrue(try verifier.isValidSignature(restored.sign(message), for: message))
+            XCTAssertFalse(try verifier.isValidSignature(old.sign(message), for: message))
+            try await secrets.remove(account: "mobile-identity-v1")
+            try await secrets.remove(account: "mobile-identity-reservation-v1")
+        } catch {
+            try? await secrets.remove(account: "mobile-identity-v1")
+            try? await secrets.remove(account: "mobile-identity-reservation-v1")
+            throw error
+        }
+    }
+    func testInterruptedIdentityResetRequiresExplicitRecovery() async throws {
+        let secrets = ResetFaultSecretStore()
+        let store = ConnectIdentityStore(secrets: secrets)
+        let original = try await store.load()
+        let originalEnvelope = try await secrets.read(account: "mobile-identity-v1")
+        await secrets.failNextEnvelopeWrite()
+        do { _ = try await store.reset(); XCTFail("Expected injected Keychain failure") } catch {}
+        let retainedEnvelope = try await secrets.read(account: "mobile-identity-v1")
+        XCTAssertEqual(retainedEnvelope, originalEnvelope)
+        for loader in [store, ConnectIdentityStore(secrets: secrets)] {
+            do { _ = try await loader.load(); XCTFail("Interrupted reset must fail closed") } catch {}
+        }
+        let replacement = try await store.reset()
+        let restored = try await ConnectIdentityStore(secrets: secrets).load(allowCreation: false)
+        XCTAssertEqual(restored.publicIdentity, replacement.publicIdentity)
+        XCTAssertNotEqual(restored.publicIdentity.publicKey, original.publicIdentity.publicKey)
+    }
     @MainActor func testReceiptRecoveryRequiresOriginalLocalConfirmationAndUnpairRemovesPin() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -120,11 +159,22 @@ final class ConnectProtocolTests: XCTestCase {
         XCTAssertTrue(restarted.peers.isEmpty)
         try restarted.importCompletion(completion.canonical)
         XCTAssertEqual(restarted.peers.first?.identity, remote.publicIdentity)
+        XCTAssertThrowsError(try restarted.prepareIdentityReset())
+        XCTAssertFalse(ConnectSession(repository: restarted).canResetIdentity)
         try restarted.unpair(remote.publicIdentity.deviceID)
         XCTAssertTrue(ConnectTrustRepository(directory: dir).peers.isEmpty)
         let raw = try String(contentsOf: dir.appendingPathComponent("trust-v1.json"), encoding: .utf8)
         XCTAssertFalse(raw.contains(remote.publicIdentity.certificate.base64EncodedString()))
         XCTAssertThrowsError(try restarted.importCompletion(completion.canonical))
+        let interrupted = ConnectTrustRepository(directory: dir.appendingPathComponent("interrupted"))
+        try interrupted.reserve(offer)
+        try interrupted.recordConfirmation(offer: offer, reply: reply, receipt: localReceipt)
+        XCTAssertEqual(interrupted.interruptedSessions, [offer.sessionID])
+        try interrupted.prepareIdentityReset()
+        let afterReset = ConnectTrustRepository(directory: dir.appendingPathComponent("interrupted"))
+        XCTAssertTrue(afterReset.interruptedSessions.isEmpty)
+        XCTAssertThrowsError(try afterReset.importCompletion(completion.canonical))
+        XCTAssertThrowsError(try afterReset.reserve(offer))
     }
     @MainActor func testNearbyBoundedDeduplicationAndRemovalSnapshot() {
         let entries = (0..<80).map { NearbyConnectPeer(id: String($0), endpoint: .service(name: String($0), type: "_olive-connect._tcp", domain: "local.", interface: nil)) }
@@ -138,19 +188,39 @@ final class ConnectProtocolTests: XCTestCase {
     }
 }
 
+private actor ResetFaultSecretStore: SecretStore {
+    private var values: [String: Data] = [:]
+    private var failEnvelope = false
+    func failNextEnvelopeWrite() { failEnvelope = true }
+    func read(account: String) throws -> Data? { values[account] }
+    func write(_ data: Data, account: String) throws {
+        if account == "mobile-identity-v1", failEnvelope {
+            failEnvelope = false
+            throw ConnectFailure.identityRecoveryRequired
+        }
+        values[account] = data
+    }
+    func remove(account: String) throws { values.removeValue(forKey: account) }
+}
+
 private actor InferenceTestTransport: InferenceTransport {
     var generating = false
     var released = false
     var calls: [String] = []
     var polls = 0
     var hold = false
-    init(hold: Bool = false) { self.hold = hold }
+    let rejectStart: Bool
+    let failPoll: Bool
+    init(hold: Bool = false, rejectStart: Bool = false, failPoll: Bool = false) {
+        self.hold = hold; self.rejectStart = rejectStart; self.failPoll = failPoll
+    }
     func exchange(_ req: ConnectJSON) async throws -> ConnectJSON {
         let operation = req["operation"].string!
         calls.append(operation)
         var result: ConnectJSON
         switch operation {
         case "start":
+            if rejectStart { throw ConnectFailure.permissionDenied }
             generating = true; released = false; polls = 0
             result = .object(["state": .string("queued"), "events": .array([]), "error": .null])
         case "cancel":
@@ -159,6 +229,7 @@ private actor InferenceTestTransport: InferenceTransport {
             generating = false; released = true; hold = false
             result = .object(["state": .string("cancelled"), "events": .array([]), "error": .string("cancelled")])
         default:
+            if failPoll { throw ConnectFailure.connectionLost }
             if hold { try await Task.sleep(for: .milliseconds(150)) }
             polls += 1
             if !generating { result = .object(["state": .string("cancelled"), "events": .array([]), "error": .string("cancelled")]) }
@@ -244,6 +315,50 @@ final class RemoteLifecycleTests: XCTestCase {
         let calls = await transport.calls
         XCTAssertEqual(calls.filter { $0 == "start" }.count, 1)
         XCTAssertNotNil(state.messages.last?.attribution?.requestID)
+    }
+    func testAdmittedStopKeepsComposerAndSavedDraftEmpty() async throws {
+        let transport = InferenceTestTransport(hold: true), store = ChatTestStore()
+        let state = AppState(store: store, chatConnection: ChatTestConnection(transport))
+        state.draft = "Long request"; state.send()
+        for _ in 0..<100 { if state.draft.isEmpty { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(state.draft.isEmpty); XCTAssertTrue(store.text.isEmpty)
+        XCTAssertEqual(state.messages.first?.plainText, "Long request")
+        state.stop()
+        for _ in 0..<100 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(state.chatStatus, "Cancelled")
+        XCTAssertTrue(state.draft.isEmpty)
+        XCTAssertTrue(AppState(store: store).draft.isEmpty)
+    }
+    func testNewIdenticalDraftSurvivesResponseUpdatesAndStop() async throws {
+        let transport = InferenceTestTransport(hold: true)
+        let state = AppState(store: ChatTestStore(), chatConnection: ChatTestConnection(transport))
+        state.draft = "Question"; state.send()
+        for _ in 0..<100 { if state.draft.isEmpty { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(state.draft.isEmpty)
+        state.draft = "Question" // A new draft may intentionally repeat the sent text.
+        for _ in 0..<100 { if await transport.polls >= 2 { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(state.draft, "Question")
+        state.stop()
+        for _ in 0..<100 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(state.draft, "Question")
+    }
+    func testRejectedStartKeepsDraftAndVisibleFailedTurn() async throws {
+        let store = ChatTestStore()
+        let state = AppState(store: store, chatConnection: ChatTestConnection(InferenceTestTransport(rejectStart: true)))
+        state.draft = "Keep this question"; state.send()
+        for _ in 0..<100 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(state.active); XCTAssertEqual(state.draft, "Keep this question")
+        XCTAssertEqual(store.text, "Keep this question")
+        XCTAssertEqual(state.messages.first?.plainText, "Keep this question")
+        XCTAssertTrue(state.messages.first?.status?.hasPrefix("Failed") == true)
+    }
+    func testConnectionFailureRestoresUntouchedAdmittedDraftForExplicitRetry() async throws {
+        let store = ChatTestStore()
+        let state = AppState(store: store, chatConnection: ChatTestConnection(InferenceTestTransport(failPoll: true)))
+        state.draft = "Retry this question"; state.send()
+        for _ in 0..<100 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(state.active); XCTAssertTrue(state.chatStatus.hasPrefix("Failed"))
+        XCTAssertEqual(state.draft, "Retry this question"); XCTAssertEqual(store.text, state.draft)
     }
     func testStopBackgroundRaceCannotOverwriteNewState() async throws {
         let transport = InferenceTestTransport(hold: true), connection = ChatTestConnection(transport)

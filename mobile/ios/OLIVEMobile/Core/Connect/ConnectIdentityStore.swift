@@ -67,10 +67,13 @@ struct ConnectIdentity: Sendable {
 actor ConnectIdentityStore {
     private let secrets: any SecretStore
     private var loadTask: Task<ConnectIdentity, Error>?
+    private var resetting = false
+    private var revision = UUID()
     init(secrets: any SecretStore = KeychainSecretStore()) { self.secrets = secrets }
     func load(allowCreation: Bool = true) async throws -> ConnectIdentity {
-        if let loadTask { return try await loadTask.value }
-        let task = Task { [secrets] in
+        guard !resetting else { throw ConnectFailure.identityRecoveryRequired }
+        let token = revision
+        let task = loadTask ?? Task { [secrets] in
             if let bytes = try await secrets.read(account: "mobile-identity-v1") {
                 let restored = try ConnectIdentity.restore(bytes)
                 let marker = Data(restored.publicIdentity.deviceID.utf8)
@@ -91,8 +94,30 @@ actor ConnectIdentityStore {
             return identity
         }
         loadTask = task
-        do { return try await task.value }
-        catch { loadTask = nil; throw ConnectFailure.identityRecoveryRequired }
+        do {
+            let identity = try await task.value
+            guard !resetting, revision == token else { throw ConnectFailure.identityRecoveryRequired }
+            return identity
+        } catch {
+            if revision == token { loadTask = nil }
+            throw ConnectFailure.identityRecoveryRequired
+        }
+    }
+    /// Only called after explicit user confirmation and removal of local peer trust.
+    func reset() async throws -> ConnectIdentity {
+        guard !resetting else { throw ConnectFailure.identityRecoveryRequired }
+        resetting = true; revision = UUID()
+        defer { resetting = false }
+        // Finish any initial Keychain write before replacing it.
+        if let loadTask { _ = await loadTask.result }
+        loadTask = nil
+        let identity = try ConnectIdentity.generate()
+        // An interrupted replacement leaves mismatched reservation/envelope and
+        // fails closed on relaunch. Only another explicit reset can repair it.
+        try await secrets.write(Data(identity.publicIdentity.deviceID.utf8), account: "mobile-identity-reservation-v1")
+        try await secrets.write(identity.stored, account: "mobile-identity-v1")
+        loadTask = Task { identity }
+        return identity
     }
 }
 

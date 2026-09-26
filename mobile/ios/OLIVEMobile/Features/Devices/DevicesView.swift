@@ -84,6 +84,8 @@ struct DevicesView: View {
                     if let id = unpairID { do { try state.session?.unpair(id) } catch { notice = "Could not remove saved trust." } }
                     unpairID = nil
                 }
+            } message: {
+                Text("Your computer keeps its device record. To pair with it again, reset this iPhone’s Connect identity in Settings after unpairing all computers, then confirm a new pairing on both devices.")
             }
     }
 }

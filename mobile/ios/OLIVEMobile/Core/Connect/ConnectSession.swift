@@ -22,10 +22,13 @@ final class ConnectSession: ChatRemoteSession {
     private(set) var connected = false
     private(set) var capability: ConnectJSON?
     private(set) var fingerprint: String?
+    private(set) var resettingIdentity = false
+    var canResetIdentity: Bool { repository.isAvailable && peers.isEmpty && !resettingIdentity }
     private(set) var inference: RemoteInferenceClient?
     private var transport: ConnectTransport?
     private var reconnect: Task<Void, Never>?
     private var generation = UUID()
+    private var identityGeneration = UUID()
     private var foreground = false
     var selected: TrustedConnectPeer? { peers.first { $0.id == selectedID } }
     init(repository: ConnectTrustRepository = ConnectTrustRepository(), identities: ConnectIdentityStore = ConnectIdentityStore()) {
@@ -41,7 +44,11 @@ final class ConnectSession: ChatRemoteSession {
     func select(_ id: String) { selectedID = id; disconnect(); if foreground { connect() } }
     func activate() {
         foreground = true; discovery.start()
-        Task { fingerprint = try? await identities.load(allowCreation: repository.isPristine).publicIdentity.fingerprint }
+        let identityToken = identityGeneration
+        Task {
+            let value = try? await identities.load(allowCreation: repository.isPristine).publicIdentity.fingerprint
+            if !resettingIdentity, identityGeneration == identityToken { fingerprint = value }
+        }
         connect()
     }
     func suspend() {
@@ -101,5 +108,21 @@ final class ConnectSession: ChatRemoteSession {
         try repository.unpair(id); peers = repository.peers
         if selectedID == id { selectedID = peers.first?.id }
         if foreground { connect() }
+    }
+    func resetIdentity() async throws {
+        guard canResetIdentity else { throw ConnectFailure.identityRecoveryRequired }
+        resettingIdentity = true
+        identityGeneration = UUID()
+        defer { resettingIdentity = false }
+        pairing.cancel(); disconnect(); fingerprint = nil
+        try repository.prepareIdentityReset()
+        do {
+            let identity = try await identities.reset()
+            fingerprint = identity.publicIdentity.fingerprint
+            diagnostic = "identity_reset"; status = "Not connected"
+        } catch {
+            diagnostic = "identity_reset_failed"
+            throw ConnectFailure.identityRecoveryRequired
+        }
     }
 }
