@@ -6,8 +6,9 @@ and providing phone-only rules for the existing listeners, the owner reports
 that the phone shows Connected / Remote AI Off. With Off unchanged, the harmless
 arithmetic draft stays visible and Send is disabled. After the desktop Allow
 workflow, the owner confirms the correct arithmetic reply on the phone and a
-second Swift answer rendered in a distinct code block. Cancellation, measured
-timings, reconnect and remaining acceptance are pending.
+second Swift answer rendered in a distinct code block. The owner also confirms
+remote cancellation (0.09 s acknowledgement) and a complete subsequent answer.
+Reconnect, revocation and remaining acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -17,7 +18,8 @@ Isolated protocol tests and successful builds are not substitutes for those chec
 - `WORKTREE_STATUS`: clean at start; no later commits to preserve.
 - `FINAL_HEAD`: the documentation checkpoint containing this report; resolve
   with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`.
-  Validated implementation: `004c72feea552208275daada02c9161b01bf9957`.
+  Validated implementation: `e1dc9c1ca9f0b4e7aaa9db0b97668c25e52c4a3d`
+  (Connect implementation `004c72f`, composer follow-up `e1dc9c1`).
 - `COMMITS`: `004c72f` — native Connect client, UI and interop tests; followed by
   `docs: record C9.2 implementation and LAN acceptance blocker` — this report
   and the appended project journey. The exact final checkpoint is also reported
@@ -29,6 +31,7 @@ Isolated protocol tests and successful builds are not substitutes for those chec
   First connection report: `docs: record owner-reported LAN connection and pending policy check`.
   Permission check: `docs: record connected Remote AI Off and pairing-rule cleanup`.
   First real Chat: `docs: record real iPhone arithmetic and Swift code replies`.
+  Composer follow-up: `ios(chat): turn the send control into remote Stop while busy`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -144,6 +147,14 @@ durable. Full history sync, files, Tasks, Studio and broader C9.3 UI remain defe
 Advanced settings expose fixed diagnostic stages, public request IDs and measured
 request/Stop timings, without prompts, responses, keys or certificates.
 
+At the owner's request, the composer now uses one 44-point circular action
+control: send arrow when idle, square Stop icon while a request is active. It
+uses Grove colors and the same `AppState.stop()` C7 cancellation path. While
+awaiting acknowledgement, the square remains visible and disabled, with a
+Stopping response accessibility label. Completion/failure/cancellation restores
+the send control. The separate Stop text button is removed; no transport or
+permission behavior changes.
+
 ## Real device acceptance log
 
 | Check | Result |
@@ -170,15 +181,17 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | First connection report | Owner first reports “ok they connected,” then confirms the phone shows Connected / Remote AI Off. This is owner-observed production UI evidence; no Chat response or pairing/session timing is claimed |
 | Pairing-rule cleanup | Owner confirms deletion of only the phone-to-temporary-port 52643 rule after this attempt. Main-listener allowance remains. The Mac remains excluded |
 | Both confirmations / denial / abort | Pending real-device verification |
-| Paired record / relaunch / reconnect | Pending |
+| Paired record / app relaunch | **Passed, real-device screenshot reviewed:** after installing the composer update and relaunching the normal app, Devices shows the retained desktop under Paired with Connected / Remote AI Allow. No new pairing ceremony was performed |
+| Background / foreground reconnect | Owner check requested after the composer update; pending result |
 | Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
 | Remote AI Allow | Following instructions to enable Allow through desktop Devices → paired iPhone → Permissions and explicitly submit the preserved draft, owner reports successful replies. No mobile policy setter or Owner Mode was used |
 | Arithmetic reply | **Passed, owner-observed real iPhone Chat:** “391 - multiplying 17 by 23 gives 391.” This is the correct answer to the supplied harmless arithmetic prompt |
 | Swift code rendering | **Passed, owner-observed:** the subsequent even-number Swift function reply displays in a distinct code block. Exact function text has not been returned, so this verifies rendering rather than executable correctness |
 | Response timing / delivery | Owner describes the first reply as instant. This is qualitative only: no numerical latency, per-chunk observation, model role confirmation or cross-device request-ID receipt has yet been collected |
-| Hash prompt | Reserved for the new-request-after-Stop check; pending |
-| Remote Stop / new request | Pending actual desktop cleanup acknowledgement |
-| Background / desktop restart / Wi-Fi loss | Pending paired-session acceptance |
+| Updated Send/Stop control | **Passed, owner-observed on the installed update:** send arrow becomes a square inside a circle, tapping it cancels the request, and the arrow returns afterward |
+| Hash prompt / new request after Stop | **Passed, owner-observed:** after cancellation, “Explain in two sentences what a hash function does” returns a complete answer. Exact answer text has not been collected |
+| Remote Stop | **Passed, owner-observed C7 cancellation:** phone output stops, desktop activity reports Remote AI cancelled, and phone diagnostic reports Stop acknowledgement **0.09 s** for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. This is the displayed rounded acknowledgement duration, not a separate provider-internal timing |
+| Desktop restart / Wi-Fi loss | Pending paired-session acceptance. The existing UFW rule covers the current main-listener port only; a new OS-assigned port after desktop restart is a separate host-firewall constraint, not a pin mismatch |
 | Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -187,15 +200,15 @@ introduced. The owner's explicit main-listener firewall exception is recorded
 above; there is no blanket LAN or port-range allowance. Public routing
 diagnostics stay local in ignored logs.
 
-The two real replies are owner-observed acceptance results from the production
+The real replies are owner-observed acceptance results from the production
 phone/desktop path. They are not generated fixtures or locally substituted
-answers. No exact latency is inferred from “instant.” The next live test sends a
-long harmless Swift explanation, presses Stop on the phone while output is
-arriving, and records the phone terminal status, request ID, Stop acknowledgement
-time and desktop Remote AI activity. A disappearing desktop activity row alone
-does not prove resource release: C7's terminal acknowledgement is withheld until
-provider-stream closure and task/lease release. The post-cancellation new request
-is a separate required check.
+answers. No exact reply latency is inferred from “instant.” The owner performed
+the requested Stop test and supplied the request ID, acknowledgement time and
+desktop Remote AI cancelled event, then confirmed a complete new answer. The
+owner did not independently inspect runtime objects or provider telemetry.
+C7's audited terminal acknowledgement is withheld until provider-stream closure
+and task/lease release; desktop activity alone would not establish that release.
+Early/completion-race/drop-during-cancel cases still need live-device coverage.
 
 ### SYN trace interpretation (owner-supplied, 2026-09-26)
 
@@ -272,13 +285,18 @@ runtime, TLS policy or protocol was changed during this diagnostic repair.
 
 - Pinned TLS libraries built for iPhone arm64 and both simulator architectures.
 - `xcodebuild -list` succeeded. Final simulator app/test build and generic iOS
-  Release build passed (`olive-c92-simulator-final4.log`,
-  `olive-c92-generic-final2.log` in local temporary artifacts).
+  Release build passed again after the composer update
+  (`olive-c92-composer-simulator.log`, `olive-c92-composer-generic.log`).
 - Final physical signed build/install/test: **28 unit tests + 8 UI tests passed**
-  in `/tmp/olive-c92-device-tests-5.xcresult`, 79.506 s overall, including explicit
+  in `/tmp/olive-c92-device-tests-6.xcresult`, 88.283 s overall, including explicit
   real-LAN discovery. Existing seven shell UI tests remain exercised. The final
-  app was reopened normally without test arguments. Prior successful runs 3/4
-  remain as evidence, with 23/25 unit tests respectively.
+  app was reopened normally without test arguments. Prior successful runs 3/4/5
+  remain as evidence, with 23/25/28 unit tests respectively.
+- Run 6 screenshot `artifacts/mobile-c9-2/device-6/4401A306-2E53-4CC7-8720-F0FC1133C33D.png`
+  was reviewed: retained real pairing, Connected and Remote AI Allow after
+  relaunch. Screenshots stay ignored locally. The same run checks multiline,
+  disabled Send, large text and landscape. The owner additionally confirmed
+  the real busy-button transition, cancellation and return to Send.
 - First physical attempt failed to compile a throwing test assertion. Next run
   exposed an invalid assumption that repeated Ed25519 signatures must have
   identical bytes on this platform, and an obsolete C9.1 UI text assertion.
@@ -292,10 +310,12 @@ runtime, TLS policy or protocol was changed during this diagnostic repair.
   `79fb23c90e6a59a6c6e7c25c63ac2f4f2e1cce304cd90747baac10d978d9bcba`.
   Contains disposable public certificates only, no private seeds or user data.
 - `python -m compileall -q .`: passed using disposable writable bytecode cache.
-- Full Python regression: **1438 run, 1376 passed, 58 skipped, 2 failures,
-  2 errors**, 193.272 s. The extra opt-in Swift-process test is skipped during
-  ordinary discovery and passes separately in the interop harness. All four reproduce freshly against a `git archive` of
-  exact `BASELINE_HEAD`; no desktop source change or test weakening.
+- Fresh full Python regression after the composer update: **1439 run, 1377
+  passed, 58 skipped, 2 failures, 2 errors**, 191.512 s
+  (`/tmp/olive-c92-composer-python.log`). The extra opt-in Swift-process test is skipped during
+  ordinary discovery and passes separately in the interop harness. The same
+  four failures/errors were already reproduced against a fresh `git archive`
+  of exact `BASELINE_HEAD`; no desktop source change or test weakening.
 - First Python run used `/tmp` instead of canonical `/private/tmp` for temporary
   files, causing path equality failures. Retained as failed evidence; corrected
   environment rerun above is the comparison run.

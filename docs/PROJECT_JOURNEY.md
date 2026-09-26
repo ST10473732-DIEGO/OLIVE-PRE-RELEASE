@@ -363,3 +363,21 @@ Chat acceptance results after the desktop Allow workflow. “Instant” is retai
 as a qualitative observation, not a measured latency. The next live check is
 phone Stop during an active long response, with request/acknowledgement evidence
 and a subsequent successful request; reconnect and revocation remain pending.
+
+The owner confirmed that phone Stop halts the response and desktop activity
+records Remote AI cancelled. Phone diagnostics show a **0.09 s** Stop
+acknowledgement for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. A subsequent
+hash-function question returned a complete answer. At the owner's request, the
+composer's send arrow now becomes a square inside its circular button during
+an active request, using the existing C7 Stop action and acknowledgement state.
+The button retains a 44-point target and accessible Send/Stop/Stopping labels.
+Reconnect, revocation and remaining real-device checks are still pending.
+
+Composer commit `e1dc9c1` passed fresh simulator/device SDK builds and **28 unit
+and 8 UI tests** on the iPhone, then the normal app was reopened. The reviewed
+real-device screenshot confirms the saved desktop remains Paired / Connected
+with Remote AI Allow after the update and relaunch. Python compilation passed;
+fresh full discovery ran 1,439 tests with 1,377 passes, 58 skips and the same
+four baseline failures/errors. The owner confirmed the new control changes
+from send arrow to square-in-circle, cancels when tapped and returns to the
+arrow. Background/foreground reconnection is pending the owner's result.
