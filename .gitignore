@@ -29,3 +29,13 @@ artifacts/rebrand/
 artifacts/core/
 artifacts/connect-c4/
 artifacts/connect-c7/
+
+# Native iOS local build/signing state (shared project and schemes are tracked)
+.DS_Store
+mobile/ios/DerivedData/
+mobile/ios/TestResults/
+mobile/ios/Signing.local.xcconfig
+**/xcuserdata/
+*.xcuserstate
+*.xcresult/
+artifacts/mobile-c9-1/
