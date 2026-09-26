@@ -341,3 +341,10 @@ selected desktop interface/address. A failed command contained an extra
 The separate, expiring QR listener still needs a fresh-port allowance before
 pairing. No TCP success, trust grant or Remote AI permission is implied by the
 firewall rule, and no broad subnet or port-range permission was added.
+
+After the owner supplied a fresh QR listener and received its exact phone-only
+UFW command, they reported that the devices connected. This is the first owner
+report of real LAN connection; the next checks establish the actual Paired and
+Connected labels and Remote AI Off behavior before sending a real question.
+Removal of the temporary pairing-port rule has been requested; confirmation is
+pending. Real Chat, Stop, persistence/reconnect and revocation remain unaccepted.
