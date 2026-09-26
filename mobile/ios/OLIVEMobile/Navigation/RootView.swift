@@ -17,8 +17,11 @@ struct RootView: View {
         .toolbarBackground(OliveTheme.ground, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .sheet(isPresented: $state.isSettingsPresented) { NavigationStack { SettingsView() } }
+        .task { state.activate() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .inactive { state.saveDraft() }
+            if phase == .background { state.suspend() }
+            if phase == .active { state.activate() }
         }
     }
 }

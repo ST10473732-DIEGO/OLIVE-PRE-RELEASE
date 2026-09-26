@@ -14,6 +14,7 @@ struct MessageBubble: View {
                 case .code(let language, let content): CodeBlock(language: language, content: content)
                 }
             }
+            if let status = message.status { Text(status).font(.caption).foregroundStyle(OliveTheme.secondary) }
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .background(message.role == .user ? OliveTheme.raised : OliveTheme.surface,
                         in: RoundedRectangle(cornerRadius: OliveTheme.Radius.card))

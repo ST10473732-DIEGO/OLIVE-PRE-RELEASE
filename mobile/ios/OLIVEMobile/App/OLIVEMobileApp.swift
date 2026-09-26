@@ -16,7 +16,7 @@ struct OLIVEMobileApp: App {
             return
         }
         #endif
-        _state = State(initialValue: AppState(store: LocalShellStore()))
+        _state = State(initialValue: AppState(store: LocalShellStore(), session: ConnectSession()))
     }
     var body: some Scene {
         WindowGroup {

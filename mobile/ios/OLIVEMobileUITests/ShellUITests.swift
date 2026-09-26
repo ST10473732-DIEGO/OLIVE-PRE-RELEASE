@@ -32,7 +32,7 @@ final class ShellUITests: XCTestCase {
     func testRootNavigationAndDevicesEmptyState() {
         app.buttons["home.devices"].tap()
         XCTAssertTrue(app.staticTexts["No paired devices"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Pairing is coming next"].exists)
+        XCTAssertTrue(app.staticTexts["Pair an OLIVE computer to chat."].exists)
         capture("OLIVE Devices")
         tab("Chat")
         XCTAssertTrue(app.textViews["chat.composer"].exists || app.textFields["chat.composer"].exists)
@@ -110,5 +110,29 @@ final class ShellUITests: XCTestCase {
         capture("OLIVE Accessibility keyboard")
         app.buttons["chat.dismissKeyboard"].tap()
         capture("OLIVE Accessibility text size")
+    }
+}
+
+/// Opt in explicitly: TEST_RUNNER_OLIVE_C92_LAN_ACCEPTANCE=1 xcodebuild ...
+/// Uses the normal app and actual LAN; no simulated discovery or peers.
+@MainActor
+final class RealLANAcceptanceTests: XCTestCase {
+    func testRealLANDiscovery() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C92_LAN_ACCEPTANCE"] == "1", "Explicit real-LAN acceptance only")
+        let app = XCUIApplication()
+        let monitor = addUIInterruptionMonitor(withDescription: "OLIVE Local Network permission") { alert in
+            if alert.buttons["Allow"].exists { alert.buttons["Allow"].tap(); return true }
+            if alert.buttons["OK"].exists { alert.buttons["OK"].tap(); return true }
+            return false
+        }
+        defer { removeUIInterruptionMonitor(monitor) }
+        app.launch()
+        app.tabBars.buttons["Devices"].tap()
+        let started = Date()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "devices.nearby").firstMatch.waitForExistence(timeout: 20))
+        let evidence = XCTAttachment(string: "Actual Bonjour discovery visible after \(Date().timeIntervalSince(started)) seconds")
+        evidence.lifetime = .keepAlways; add(evidence)
+        XCTAssertEqual(app.state, .runningForeground)
+        let image = XCTAttachment(screenshot: app.screenshot()); image.lifetime = .keepAlways; add(image)
     }
 }

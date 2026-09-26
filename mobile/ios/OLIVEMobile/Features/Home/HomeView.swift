@@ -36,7 +36,7 @@ struct HomeView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             ConnectionBadge(state: state.connection)
                             Text("Bring your computer along.").font(.headline)
-                            Text("OLIVE uses your paired computer for answers. This iPhone isn’t paired yet.")
+                            Text(state.connection.explanation)
                                 .foregroundStyle(OliveTheme.secondary)
                             Button("View devices") { state.destination = .devices }
                                 .buttonStyle(OliveButtonStyle()).accessibilityIdentifier("home.devices")

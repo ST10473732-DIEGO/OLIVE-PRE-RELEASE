@@ -39,3 +39,5 @@ mobile/ios/Signing.local.xcconfig
 *.xcuserstate
 *.xcresult/
 artifacts/mobile-c9-1/
+artifacts/mobile-c9-2/
+mobile/ios/Vendor/OpenSSL/

@@ -7,8 +7,7 @@ protocol SecretStore: Sendable {
     func remove(account: String) async throws
 }
 
-/// Reserved for C9.2 identity material. No production caller creates credentials
-/// in C9.1. Device-only, unlocked access; no iCloud or shared access group.
+/// Connect identity storage: device-only, unlocked access; no iCloud or shared access group.
 actor KeychainSecretStore: SecretStore {
     struct Failure: Error { let status: OSStatus }
     private let service: String

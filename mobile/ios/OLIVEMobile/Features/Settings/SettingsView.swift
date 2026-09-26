@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var state
     private let about = AboutInfo()
     var body: some View {
         List {
@@ -17,15 +18,29 @@ struct SettingsView: View {
             } header: { Text("About") }
                 .listRowBackground(OliveTheme.raised)
             Section {
-                LabeledContent("Connection", value: "Not connected")
+                LabeledContent("Connection", value: state.connection.title)
                     .accessibilityElement(children: .ignore).accessibilityLabel("Connection")
-                    .accessibilityValue("Not connected").accessibilityIdentifier("settings.connection")
-                Text("Pairing and Chat answers arrive in a later mobile update.").foregroundStyle(OliveTheme.secondary)
+                    .accessibilityValue(state.connection.title).accessibilityIdentifier("settings.connection")
+                Text("Pair computers and manage connections in Devices.").foregroundStyle(OliveTheme.secondary)
+            if let fingerprint = state.session?.fingerprint { Text("Identity: \(fingerprint.prefix(23))…").font(.caption.monospaced()) }
+                Text("Paired devices: \(state.session?.peers.count ?? 0)")
             } header: { Text("OLIVE Connect") }
                 .listRowBackground(OliveTheme.raised)
             Section {
+                DisclosureGroup("Advanced connection diagnostics") {
+                    Text("Connect 1 · Pairing TLS13/2 · Inference 1")
+                    Text(state.session?.diagnostic ?? "idle").font(.caption.monospaced())
+                    Text(state.session?.pairing.diagnostic ?? "idle").font(.caption.monospaced()).textSelection(.enabled)
+                    if let id = state.lastRequestID { Text("Request: \(id)").font(.caption.monospaced()).textSelection(.enabled) }
+                    if let seconds = state.firstResponseSeconds { Text("First visible response: \(seconds, specifier: "%.2f") s") }
+                    if let seconds = state.totalResponseSeconds { Text("Complete response: \(seconds, specifier: "%.2f") s") }
+                    if let seconds = state.stopSeconds { Text("Stop acknowledgement: \(seconds, specifier: "%.2f") s") }
+                    Text("Unpair removes trust on this iPhone only. Your computer manages its own permissions and revocation.")
+                }
+            }.listRowBackground(OliveTheme.raised)
+            Section {
                 Label("Your draft stays on this iPhone", systemImage: "iphone")
-                Text("OLIVE saves your draft locally. No account, model or network connection is used in this version.")
+                Text("OLIVE saves your draft locally. Paired computers provide answers over your local network.")
                     .foregroundStyle(OliveTheme.secondary)
             } header: { Text("Local storage") }
                 .listRowBackground(OliveTheme.raised)

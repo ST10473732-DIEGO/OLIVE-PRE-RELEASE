@@ -38,9 +38,9 @@ enum ConnectCapability: String, CaseIterable, Sendable {
 
 /// Local presentation state, intentionally distinct from C1's peer state.
 enum MobileConnectionState: Equatable {
-    case notPaired
-    var title: String { "Not connected" }
-    var explanation: String { "Pair an OLIVE computer to chat. Pairing is coming in the next mobile update." }
+    case notPaired, connected, offline
+    var title: String { self == .connected ? "Connected" : self == .offline ? "Offline" : "Not connected" }
+    var explanation: String { self == .connected ? "Chat uses your paired computer’s Remote AI capability." : "Pair an OLIVE computer in Devices, then connect to chat. Your draft stays here." }
 }
 
 enum ConnectError: Error, Equatable {
