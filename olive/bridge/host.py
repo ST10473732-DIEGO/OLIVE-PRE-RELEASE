@@ -276,7 +276,7 @@ class Host:
             return {'retained': True}
         if args.get('chat_id') in self.summary_tasks and method in {'interaction.submit','interaction.launch','interaction.studio','interaction.research','chat.regenerate','chat.model','chat.rename','chat.metadata','chat.delete','chat.branch'}:
             raise ValueError('Stop conversation summarisation before changing its context')
-        if method in {'chat.metadata','chat.search','chat.delete','chat.remove_image','chat.summarize','chat.cancel_summary','chat.summary_state','interaction.inspect'}:
+        if method in {'chat.metadata','chat.search','chat.delete','chat.delete_all','chat.remove_image','chat.summarize','chat.cancel_summary','chat.summary_state','interaction.inspect'}:
             from .chat_routes import routes as chat_routes
             result = chat_routes(s, self.summary_tasks)[method](**args)
             return await result if inspect.isawaitable(result) else result

@@ -115,6 +115,7 @@ export const m2Schemas = {
  "desktop.browser_dialog": z.object({ "dismiss": b.optional() }).strict(),
  "desktop.browser_send": z.object({ "fields": o, "expected": s }).strict(),
  "chat.delete": z.object({ "chat_id": s }).strict(),
+ "chat.delete_all": z.object({}).strict(),
  "chat.summarize": z.object({ "chat_id": s }).strict(),
  "chat.cancel_summary": z.object({ "chat_id": s }).strict(),
  "chat.summary_state": z.object({ "chat_id": s }).strict(),

@@ -951,3 +951,14 @@ class SpacingTests(unittest.TestCase):
         self.assertEqual(len(echo_rows(row, 'OLIVE delivery check', 'deeayygoo')), 1)
         self.assertEqual(echo_rows([word('xOLIVE', 10), word('delivery', 60), word('check', 130)],
                                    'OLIVE delivery check', ''), [])
+
+
+class TypedQueryTests(unittest.TestCase):
+    def test_one_trailing_caret_is_forgiven_and_nothing_else(self):
+        from olive.desktop.linux.visual_messaging import typed_query
+        for seen in ['gen-chat', 'gen-chat|', 'gen-chatl', 'gen-chatI', '#gen-chat']:
+            self.assertTrue(typed_query(seen, '#gen-chat'), seen)
+        for seen in ['gen-cha', 'gen-chatx', 'gen-chatll', 'xgen-chat']:
+            self.assertFalse(typed_query(seen, '#gen-chat'), seen)
+        self.assertTrue(typed_query('diegoI', '@diego'))
+        self.assertFalse(typed_query('dieg|', '@diego'))

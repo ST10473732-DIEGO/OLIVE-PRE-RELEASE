@@ -1042,3 +1042,67 @@ input[type="radio"] {
 :root[data-window-visible="false"] *,
 :root[data-window-visible="false"] *::before,
 :root[data-window-visible="false"] *::after { animation-play-state: paused !important; }
+
+/* ---------- Chat list: delete on the row ---------- */
+.ws .conversation-items .conversation-row { position: relative; }
+.ws .conversation-items .conversation-row > button.conversation-open { padding-right: 34px; }
+.ws .conversation-items .conversation-row > button.conversation-delete {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(-50%) scale(0.9);
+  transition: opacity 140ms var(--ease), transform 140ms var(--ease), background 140ms var(--ease), color 140ms var(--ease);
+}
+.ws .conversation-items .conversation-row:hover > button.conversation-delete,
+.ws .conversation-items .conversation-row:focus-within > button.conversation-delete,
+.ws .conversation-items .conversation-row > button.conversation-open.selected + button.conversation-delete {
+  opacity: 1;
+  transform: translateY(-50%);
+}
+.ws .conversation-items .conversation-row > button.conversation-delete:hover:not(:disabled) {
+  background: var(--status-error-soft);
+  color: var(--status-error);
+}
+
+/* ---------- Confirm dialog: a short, centred question ---------- */
+.confirm-overlay { z-index: 60; }
+.confirm-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 61;
+  width: min(380px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-xl);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  transform: translate(-50%, -50%);
+  animation: grove-dialog-in 240ms var(--spring) both;
+}
+.confirm-dialog:focus { outline: none; }
+.confirm-title { margin: 0 0 6px; font: 650 17px/1.25 var(--font-display); }
+.confirm-body { margin: 0; color: var(--text-secondary); font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.confirm-body strong { color: var(--text-primary); font-weight: 600; }
+.confirm-error { margin: 12px 0 0; padding: 8px 10px; border-radius: var(--r-md); background: var(--status-error-soft); color: var(--status-error); font-size: 12.5px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.confirm-actions button { min-width: 84px; }
+.confirm-actions button.danger { background: var(--status-error); border-color: var(--status-error); color: #fff; font-weight: 600; }
+.confirm-actions button.danger:hover:not(:disabled) { filter: brightness(1.08); }
+:root[data-theme="dark"] .confirm-actions button.danger { color: var(--bg-base); }
+.conversation-danger { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border-subtle, var(--border-default)); }
+.conversation-danger h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.conversation-danger p { margin: 0; color: var(--text-muted); font-size: 12.5px; }
+.conversation-danger button { align-self: flex-start; }
+.conversation-danger button.danger-action { color: var(--status-error); background: none; border-color: var(--border-default); }
+.conversation-danger button.danger-action:hover:not(:disabled) { background: var(--status-error-soft); border-color: var(--status-error); }

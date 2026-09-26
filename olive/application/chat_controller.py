@@ -103,20 +103,55 @@ class ChatController:
         self.targets[chat_id] = device_id
         return self.get(chat_id)
 
-    def delete(self, chat_id):
+    def _busy(self, chat_id):
         interaction = getattr(self.s, "interaction", None)
         if interaction and (chat_id in interaction.active or interaction.interpreting.get(chat_id)):
-            raise ValueError("Stop this conversation's active request before deleting it")
+            return "Stop this conversation's active request before deleting it"
         if chat_id in self.generations:
-            raise ValueError("Stop generation before deleting this conversation")
-        if len(self.s.chats) <= 1:
-            raise ValueError("Keep at least one conversation")
+            return "Stop generation before deleting this conversation"
+        return ""
+
+    def _forget(self, chat_id):
         for ref in self.s.chats[chat_id].documents:
             self.s.rag.delete_document(ref.id)
         del self.s.chats[chat_id]
         self.targets.pop(chat_id, None)
         self.images.pop(chat_id, None)
-        self.s.current_chat_id = next(iter(self.s.chats))
+
+    def _fresh(self):
+        chat = Chat()
+        self.s.presets.apply(chat, "normal")
+        self.s.chats[chat.id] = chat
+        return chat.id
+
+    def delete(self, chat_id):
+        """Delete one conversation and its document indexes. Deleting another
+        conversation keeps the current one open; deleting the last one leaves
+        a fresh empty conversation, so there is always one to type into."""
+        busy = self._busy(chat_id)
+        if busy:
+            raise ValueError(busy)
+        if chat_id not in self.s.chats:
+            raise ValueError("That conversation no longer exists")
+        self._forget(chat_id)
+        if not self.s.chats:
+            self._fresh()
+        if self.s.current_chat_id not in self.s.chats:
+            self.s.current_chat_id = next(iter(self.s.chats))
+        self.s.save_chats()
+        return self.get()
+
+    def delete_all(self):
+        """Delete every conversation and its document indexes, leaving one
+        fresh empty conversation. Nothing is deleted while any conversation
+        is still working. Original attached files are kept."""
+        for chat_id in self.s.chats:
+            busy = self._busy(chat_id)
+            if busy:
+                raise ValueError(busy.replace("this conversation's", "every").replace("this conversation", "all conversations"))
+        for chat_id in list(self.s.chats):
+            self._forget(chat_id)
+        self.s.current_chat_id = self._fresh()
         self.s.save_chats()
         return self.get()
 

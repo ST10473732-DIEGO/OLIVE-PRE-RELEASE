@@ -84,12 +84,100 @@ def split_handle(destination):
     return destination, ''
 
 
+MESSAGING_APPS = r'(discord|slack|telegram|whatsapp|signal|element|skype|(?:microsoft )?teams)'
+APP_NAMES = {'discord': 'Discord', 'slack': 'Slack', 'telegram': 'Telegram', 'whatsapp': 'WhatsApp', 'signal': 'Signal',
+             'element': 'Element', 'skype': 'Skype', 'teams': 'Teams', 'microsoft teams': 'Microsoft Teams'}
+_STOP = r'(?:in|on|via|using|through|saying|says|with|to|that)'
+_NAME = r'([@#]?(?:(?!' + _STOP + r'\b)[\w.\'-]+)(?: (?!' + _STOP + r'\b)[\w.\'-]+){0,3}(?: ?\(@?[\w.#-]{1,40}\))?)'
+_PLACE = r'(?:\s+(?:in|on)\s+' + _NAME + r')?'
+_APP = r'\s+(?:in|on|via|using|through)\s+' + MESSAGING_APPS
+_SAYING = r'\s*(?:,\s*)?(?:saying|that says|which says|with the message|with|:)\s*'
+_RISKY = re.compile(r'[\n\x00]|\b(?:then|without|unless|except|never|do not)\b|don[\'’]t', re.I)
+
+
+def _canonical(content, destination, server, app, quoted):
+    """One ordinary send in the literal form `direct_scope` already trusts."""
+    if not content or not quoted and (_RISKY.search(content) or '"' in content):
+        return None
+    quote = '"' if '"' not in content else "'" if "'" not in content else None
+    if quote is None:
+        return None
+    if server and re.fullmatch(MESSAGING_APPS, server, re.I):
+        if app and app.casefold() != server.casefold():
+            return None  # two different applications named
+        app, server = server, ''  # 'to diego on Discord saying hi': the place was the app
+    if not app:
+        return None
+    app = APP_NAMES.get(app.casefold(), app)
+    if app == 'Discord' and destination[0] not in '#@':
+        destination = ('#' if server else '@') + destination
+    return (f'Send {quote}{content}{quote} to {destination}' + (f' in {server}' if server else '') + f' in {app}')
+
+
+def natural_message(text):
+    """Common ways of asking to send one message, rewritten to the literal
+    form: 'message diego on Discord saying hi', 'DM @diego on discord "hi"',
+    'send a discord message to diego saying hi', 'post "hi" in #general on
+    D SERVER in Discord', 'send hi to gen-chat in D SERVER on discord'.
+
+    Only named messaging applications qualify, the message text is always
+    taken verbatim from the request, and anything ambiguous (two readings,
+    an unquoted message carrying a further instruction) returns None so the
+    request asks for clarification instead of guessing.
+    """
+    text = re.sub(r'[“”]', '"', text.strip()).rstrip('.!')
+    if not re.search(r'\b' + MESSAGING_APPS + r'\b', text, re.I):
+        return None
+    quoted = r'"([^"\n]+)"'
+    rest = r'(.+)'
+    forms = [
+        # send/post "hi" to|in DEST [in|on SERVER] in|on APP
+        (r'(?:send|post|write)\s+' + quoted + r'\s+(?:to|in|into)\s+' + _NAME + _PLACE + _APP, 'q'),
+        # message|dm DEST [in|on SERVER] on APP [saying] "hi"
+        (r'(?:message|dm|msg|text)\s+' + _NAME + _PLACE + _APP + r'(?:' + _SAYING + r'|\s+)' + quoted, 'dq'),
+        (r'(?:message|dm|msg|text)\s+' + _NAME + _PLACE + _APP + _SAYING + rest, 'd'),
+        # message|dm DEST [saying] "hi" on APP
+        (r'(?:message|dm|msg|text)\s+' + _NAME + r'(?:' + _SAYING + r'|\s+)' + quoted + _PLACE + _APP, 'dq2'),
+        # send a [APP] message|dm to DEST [in|on SERVER] [on APP] saying hi
+        (r'send\s+(?:a\s+|an\s+)?(?:' + MESSAGING_APPS + r'\s+)?(?:message|msg|dm|text)\s+to\s+' + _NAME + _PLACE +
+         r'(?:' + _APP + r')?' + _SAYING + r'(?:' + quoted + r'|' + rest + r')', 's'),
+        # send hi to DEST [in|on SERVER] in|on APP (unquoted, one reading only)
+        (r'(?:send|post)\s+([^"\n]+?)\s+to\s+' + _NAME + _PLACE + _APP, 'u'),
+    ]
+    for pattern, kind in forms:
+        match = re.fullmatch(pattern, text, re.I | re.S)
+        if not match:
+            continue
+        g = match.groups()
+        if kind == 'q':
+            content, dest, server, app, is_quoted = g[0], g[1], g[2], g[3], True
+        elif kind in {'dq', 'd'}:
+            dest, server, app, content, is_quoted = g[0], g[1], g[2], g[3], kind == 'dq'
+        elif kind == 'dq2':
+            dest, content, server, app, is_quoted = g[0], g[1], g[2], g[3], True
+        elif kind == 's':
+            named, dest, server, app, q, plain = g
+            if named and app and named.casefold() != app.casefold():
+                return None
+            app = app or named or ''
+            content, is_quoted = (q, True) if q else (plain, False)
+        else:
+            content, dest, server, app = g
+            is_quoted = False
+            greedy = re.fullmatch(pattern.replace('([^"\\n]+?)', '([^"\\n]+)', 1), text, re.I | re.S)
+            if not greedy or greedy.groups() != g or re.search(r'^(?:a|an|the)?\s*(?:message|msg|dm|text)\b', content, re.I):
+                return None
+        return _canonical(content.strip(), dest.strip(), (server or '').strip(), app, is_quoted)
+    return None
+
+
 def direct_scope(request):
     if not isinstance(request, str) or not 1 <= len(request) <= 4000:
         raise ValueError('Provide one bounded desktop request')
     text = request.strip()
     if text.casefold().startswith('please '):
         text = text[7:]
+    text = natural_message(text) or text
     # Explicit web route; ordinary "Open Discord" remains native. The public
     # origin is reviewed navigation metadata, not login or sending authority.
     match = re.fullmatch(r'Open Discord in ([\w .+-]{1,80})', text, re.I)

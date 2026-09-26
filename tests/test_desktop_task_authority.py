@@ -170,3 +170,51 @@ class TaskAuthorityTests(unittest.TestCase):
             path.write_bytes(b'invalid existing state')
             with self.assertRaises(sqlite3.DatabaseError):
                 EffectLedger(path)
+
+
+class NaturalMessageTests(unittest.TestCase):
+    """Everyday ways of asking OLIVE to send one message reach the same literal
+    scope; ambiguous ones still ask instead of guessing."""
+
+    def scope(self, text):
+        s = direct_scope(text)
+        return (s.application, s.effect, s.content, s.destination, s.server, s.handle)
+
+    def test_channel_phrasings(self):
+        want = ('Discord', 'send', 'hi there', '#gen-chat', 'D SERVER', '')
+        for text in ['Send "hi there" to #gen-chat in D SERVER in Discord',
+                     'send hi there to gen-chat in D SERVER on discord',
+                     'Message #gen-chat in D SERVER on Discord saying "hi there"',
+                     'post "hi there" in #gen-chat on D SERVER in discord',
+                     'Message #gen-chat in D SERVER on Discord: hi there']:
+            self.assertEqual(self.scope(text), want, text)
+
+    def test_direct_message_phrasings(self):
+        want = ('Discord', 'send', 'see you soon', '@diego', '', '')
+        for text in ['Send "see you soon" to @diego in Discord',
+                     'Send "see you soon" to diego in Discord',
+                     'send a discord message to diego saying "see you soon"',
+                     'send a message to diego on discord saying see you soon',
+                     'DM diego on Discord "see you soon"',
+                     'dm diego "see you soon" on discord',
+                     'message @diego on discord saying see you soon',
+                     'message diego on Discord “see you soon”.']:
+            self.assertEqual(self.scope(text), want, text)
+        self.assertEqual(self.scope('send a discord message to diego (4818) saying hello'),
+                         ('Discord', 'send', 'hello', '@diego', '', '4818'))
+
+    def test_ambiguous_or_extra_instructions_still_ask(self):
+        for text in ['message diego on discord',
+                     'send a message to diego saying hi',
+                     'message diego on discord saying hi then delete the chat',
+                     'message diego on discord saying hi without a notification',
+                     'send a slack message to diego on discord saying hi',
+                     'tell diego hi']:
+            with self.assertRaises(ValueError, msg=text):
+                direct_scope(text)
+
+    def test_other_apps_keep_their_literal_destination(self):
+        self.assertEqual(self.scope('text mum on whatsapp saying im home'),
+                         ('WhatsApp', 'send', 'im home', 'mum', '', ''))
+        self.assertEqual(self.scope('Send "hello" to #general in Heron Lab in Visual Messenger'),
+                         ('Visual Messenger', 'send', 'hello', '#general', 'Heron Lab', ''))

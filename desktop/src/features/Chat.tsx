@@ -23,11 +23,13 @@ import {
   Paperclip as Clip,
   Info,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { call, type Chat as ChatRecord, type Snapshot } from "../services/api";
 import { Markdown } from "../components/Markdown";
 import { CopyButton } from "../components/CopyButton";
 import { Core } from "../components/Core";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ConversationOptions } from "./chat/ConversationOptions";
 import { useResource } from "../services/useResource";
 import { Sheet } from "../components/Sheet";
@@ -99,6 +101,7 @@ export function Chat({
   const [dragging, setDragging] = useState(false);
   const [options, setOptions] = useState(false);
   const deleting = useRef(false);
+  const [doomed, setDoomed] = useState<{ id: string; title: string }>();
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [source, setSource] = useState<unknown>();
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -179,6 +182,19 @@ export function Chat({
     }
   };
   const newChat = (closeAfter: boolean) => void changeConversation("chat.new", {}, closeAfter);
+  // Deleting the open conversation must not flush its draft afterwards (the
+  // view remounts for the next conversation), so the guard only lifts when
+  // the delete fails.
+  const deleteConversation = async (id: string) => {
+    const current = id === chat.id;
+    if (current) deleting.current = true;
+    try {
+      setChat(await call<ChatRecord>("chat.delete", { chat_id: id }));
+    } catch (error) {
+      if (current) deleting.current = false;
+      throw error;
+    }
+  };
   const preset = snapshot.presets?.find((p) => p.id === chat.preset);
   const attachedCount = (chat.documents?.length || 0) + (chat.images?.length || 0);
   // Matches the runtime rule: images go only to DEEP or a vision-capable model.
@@ -229,18 +245,28 @@ export function Chat({
             <div className="conversation-group" key={group.label} role="group" aria-label={group.label}>
               <p className="conversation-day" aria-hidden="true">{group.label}</p>
               {group.items.map((c) => (
-                <button
-                  key={c.id}
-                  className={c.id === chat.id ? "selected" : ""}
-                  aria-current={c.id === chat.id ? "true" : undefined}
-                  aria-label={c.title}
-                  aria-description={c.excerpt || c.last || undefined}
-                  disabled={switchingChat}
-                  onClick={() => void changeConversation("chat.select", { chat_id: c.id }, true)}
-                >
-                  <span className="conversation-title" title={c.title}>{c.title}</span>
-                  {(c.excerpt || c.last) && <span className="small muted">{c.excerpt || c.last}</span>}
-                </button>
+                <div className="conversation-row" key={c.id}>
+                  <button
+                    className={`conversation-open ${c.id === chat.id ? "selected" : ""}`}
+                    aria-current={c.id === chat.id ? "true" : undefined}
+                    aria-label={c.title}
+                    aria-description={c.excerpt || c.last || undefined}
+                    disabled={switchingChat}
+                    onClick={() => void changeConversation("chat.select", { chat_id: c.id }, true)}
+                  >
+                    <span className="conversation-title" title={c.title}>{c.title}</span>
+                    {(c.excerpt || c.last) && <span className="small muted">{c.excerpt || c.last}</span>}
+                  </button>
+                  <button
+                    className="conversation-delete"
+                    aria-label={`Delete ${c.title}`}
+                    title="Delete chat"
+                    disabled={switchingChat}
+                    onClick={() => setDoomed({ id: c.id, title: c.title })}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
+                </div>
               ))}
             </div>
           ))}
@@ -728,6 +754,17 @@ export function Chat({
           }}
         />
       )}
+      <ConfirmDialog
+        open={doomed !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setDoomed(undefined);
+        }}
+        title="Delete this chat?"
+        confirmLabel="Delete chat"
+        onConfirm={() => deleteConversation(doomed!.id)}
+      >
+        <strong>{doomed?.title}</strong> and its document indexes will be removed from this device. Attached original files are kept.
+      </ConfirmDialog>
       <Sheet
         open={source !== undefined}
         onOpenChange={(open) => {

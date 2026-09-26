@@ -22,8 +22,24 @@ SETTLE_READS, SETTLE_SECONDS = 3, .3
 OPEN_SECONDS = .8  # The switcher's opening animation; reading earlier wastes a read.
 CARET_READS = 2  # Extra reads of the caret-off frame when the first read fails.
 CARET_SPAN = .6  # Longer than one caret blink phase.
+VERIFY_SPAN, VERIFY_GAP = 1.6, .15  # Typed-text read-back: about three caret blinks.
+QUERY_SPAN = 1.5  # Switcher query read-back, across caret blinks and result loading.
 SIZES = {'composer': (32, None), 'header': (22, 260), 'server': (20, 150), 'account': (24, 130),
          'switcher': (30, 300)}
+
+
+# The switcher's text caret sits right after the typed query and OCR often reads
+# it as one more glyph ("gen-chat|", "diegol"). Only a single caret-shaped glyph
+# is forgiven; the row that is finally selected must still match exactly.
+CARET_GLYPHS = '|lI1!'
+
+
+def typed_query(text, query):
+    """The search box shows exactly the typed query (ignoring one trailing caret)."""
+    if bare(text) == bare(query):
+        return True
+    text = str(text).rstrip()
+    return len(text) > 1 and text[-1] in CARET_GLYPHS and bare(text[:-1]) == bare(query)
 
 
 class VisualMessaging:
@@ -287,7 +303,7 @@ class VisualMessaging:
                 # it is the most precise anchor for the dialog bounds when readable.
                 query = [w for w in await asyncio.to_thread(ocr_words, frame, (0, search_box[1], frame['width'],
                                                                                  search_box[3]))
-                         if bare(w['text']) == bare(self.scope.destination) and w['confidence'] >= 60]
+                         if typed_query(w['text'], self.scope.destination) and w['confidence'] >= 60]
                 if len(query) == 1:
                     left = max(0, query[0]['box'][0] - 16)
                     results = self.results = (left, results[1], frame['width'] - left)
@@ -386,19 +402,23 @@ class VisualMessaging:
         for attempt in range(2):
             frame = await self.frame()
             await self.runtime.native.call('visual_text', {'revision': frame['revision'], 'value': query})
-            empty = False
-            for check in range(SETTLE_READS):
-                if check:
-                    await asyncio.sleep(SETTLE_SECONDS)
+            empty, strangers = False, 0
+            deadline = time.monotonic() + QUERY_SPAN
+            while True:
                 frame = await self.frame()  # A frame after the typing (the helper waits for one).
                 words = [w for w in await asyncio.to_thread(ocr_words, frame, area, 3) if w['confidence'] >= 60]
-                if any(bare(w['text']) == bare(query) for w in words):
+                if any(typed_query(w['text'], query) for w in words):
                     self.record({'operation': 'visual_query', 'status': 'query visible', 'attempt': attempt + 1})
                     return
+                # A blinking caret read on its own ('|', 'l') is neither the prompt nor other text.
+                words = [w for w in words if bare(w['text']) and w['text'].strip() not in CARET_GLYPHS]
                 empty = any(prompt_word in normalize(w['text']).split() for w in words)
-                partial = any(bare(w['text']) and bare(query).startswith(bare(w['text'])) for w in words)
-                if words and not empty and not partial:
-                    break  # Something other than the query (still rendering) or the empty prompt.
+                partial = any(bare(query).startswith(bare(w['text'])) for w in words)
+                # Other text twice in a row (not a frame caught mid-render) stops the task.
+                strangers = strangers + 1 if words and not empty and not partial else 0
+                if strangers >= 2 or time.monotonic() >= deadline:
+                    break
+                await asyncio.sleep(VERIFY_GAP)
             if not empty:
                 break
         await self.escape()
@@ -503,16 +523,19 @@ class VisualMessaging:
         fresh = await self.frame()
         await self.runtime.native.call('visual_text', {'revision': fresh['revision'], 'value': scope.content})
         self.progress('Verifying…')
-        after = await self.frame()
-        for attempt in range(CARET_READS + 1):
-            # The caret sits right after the typed text: first a plain read, then
-            # the caret-off frame of a blink.
-            after = await (self.frame() if not attempt else self.quiet_frame(lambda f: self.composer_area(f, point)))
+        # The caret blinks right after the typed text and OCR can read it as one
+        # more glyph ("1|" as "{"). Every read is a real observation of the
+        # finished input, so reads continue across several blinks until one frame
+        # shows exactly the requested text (and nothing else) or time runs out.
+        deadline = time.monotonic() + VERIFY_SPAN
+        while True:
+            after = await self.frame()
             typed = await self.composer_text(after, point)
             self.diagnose('typed', point, typed)
             verified = typed_exactly(typed, scope.content, self.adapter)
-            if verified:
+            if verified or time.monotonic() >= deadline:
                 break
+            await asyncio.sleep(VERIFY_GAP)
         if not verified:
             raise ValueError('COMPOSER_UNVERIFIED: the exact requested text was not verified in the composer; '
                              'the draft was left for you to inspect and nothing was sent.')

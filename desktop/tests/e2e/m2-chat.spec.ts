@@ -57,7 +57,7 @@ test("Chat options branches search attachments export and deletion use real loca
       .getByRole("textbox", { name: "Search conversations" })
       .fill("uniquefixturemarker");
     await expect(
-      page.locator(".conversation-items").getByRole("button"),
+      page.locator(".conversation-items .conversation-row"),
     ).toHaveCount(1);
     await page.getByRole("textbox", { name: "Search conversations" }).fill("");
     await page
@@ -176,17 +176,39 @@ test("Chat options branches search attachments export and deletion use real loca
     await expect(
       sheet.getByRole("textbox", { name: "Conversation notes" }),
     ).toHaveValue("Fixture notes retained locally");
-    await sheet.getByText("Delete this conversation", { exact: true }).click();
-    await sheet
-      .getByRole("button", { name: "Delete conversation and indexes" })
-      .click();
+    await expect(sheet.getByText("Delete this conversation", { exact: true })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Close", exact: true }).click();
+    // One chat is deleted from its own row in the list, after a clear question.
+    const list = page.locator(".conversation-items");
+    const bin = list.getByRole("button", { name: "Delete Fixture renamed conversation", exact: true });
+    await list.getByRole("button", { name: "Fixture renamed conversation", exact: true }).hover();
+    await expect(bin).toBeVisible();
+    await bin.click();
+    const question = page.getByRole("alertdialog", { name: "Delete this chat?" });
+    await expect(question).toContainText("Fixture renamed conversation");
+    await expect(question.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await page.screenshot({ path: path.join(evidence, "chat-delete-confirm.png") });
+    await question.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(question).toBeHidden();
+    await expect(list.getByRole("button", { name: "Fixture renamed conversation", exact: true })).toBeVisible();
+    await bin.click();
+    await question.getByRole("button", { name: "Delete chat", exact: true }).click();
+    await expect(question).toBeHidden();
+    await expect(list.getByRole("button", { name: "Fixture renamed conversation", exact: true })).toHaveCount(0);
     await expect(
-      page.getByRole("heading", {
-        name: "Fixture retained conversation",
-        exact: true,
-      }),
+      page.getByRole("heading", { name: "Fixture retained conversation", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("alert")).toBeHidden();
+    // Conversation options now offers deleting the whole history instead.
+    await page.getByRole("button", { name: "Conversation options", exact: true }).click();
+    await sheet.getByRole("button", { name: "Delete all chat history", exact: true }).click();
+    const everything = page.getByRole("alertdialog", { name: "Delete all chat history?" });
+    await expect(everything).toContainText("cannot be undone");
+    await page.screenshot({ path: path.join(evidence, "chat-delete-all-confirm.png") });
+    await everything.getByRole("button", { name: "Delete everything", exact: true }).click();
+    await expect(everything).toBeHidden();
+    await expect(list.locator(".conversation-row")).toHaveCount(1);
+    await expect(list.getByRole("button", { name: "Fixture retained conversation", exact: true })).toHaveCount(0);
   } finally {
     await app.close();
   }

@@ -4,6 +4,7 @@ import { useResource } from "../../services/useResource";
 import { Sheet } from "../../components/Sheet";
 import { Details } from "../../components/WorkspacePage";
 import { Markdown } from "../../components/Markdown";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 export function ConversationOptions({
   chat,
   open,
@@ -40,6 +41,7 @@ export function ConversationOptions({
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [inspection, setInspection] = useState<unknown>();
+  const [confirming, setConfirming] = useState(false);
   const working = busy || pending || resource.data?.summary.active;
   const operation = async (fn: () => Promise<unknown>, message: string) => {
     setPending(true);
@@ -176,33 +178,42 @@ export function ConversationOptions({
         </button>
         {inspection !== undefined && <Details value={inspection} />}
       </details>
-      <details>
-        <summary>Delete this conversation</summary>
+      <section className="conversation-danger" aria-labelledby="delete-all-heading">
+        <h3 id="delete-all-heading">Delete all chat history</h3>
         <p>
-          This removes the conversation and its document indexes. Original
-          attached files are kept. Keep at least one conversation.
+          Removes every conversation and its document indexes from this device.
+          Original attached files are kept. To delete one chat, use the bin next
+          to it in the chat list.
         </p>
         <button
+          className="danger-action"
           disabled={working}
-          onClick={() =>
-            void operation(async () => {
-              beforeDelete(true);
-              try {
-                const next = await call<Chat>("chat.delete", {
-                  chat_id: chat.id,
-                });
-                onOpenChange(false);
-                setChat(next);
-              } catch (error) {
-                beforeDelete(false);
-                throw error;
-              }
-            }, "Conversation deleted.")
-          }
+          onClick={() => setConfirming(true)}
         >
-          Delete conversation and indexes
+          Delete all chat history
         </button>
-      </details>
+      </section>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Delete all chat history?"
+        confirmLabel="Delete everything"
+        onConfirm={async () => {
+          beforeDelete(true);
+          try {
+            const next = await call<Chat>("chat.delete_all", {});
+            setConfirming(false);
+            onOpenChange(false);
+            setChat(next);
+          } catch (error) {
+            beforeDelete(false);
+            throw error;
+          }
+        }}
+      >
+        Every conversation on this device and its document indexes will be
+        removed. This cannot be undone. Attached original files are kept.
+      </ConfirmDialog>
     </Sheet>
   );
 }

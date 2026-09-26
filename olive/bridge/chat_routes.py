@@ -46,6 +46,18 @@ async def summarize(s, tasks, chat_id):
         tasks.pop(chat_id, None)
 
 
+def delete(s, tasks, chat_id):
+    if chat_id in tasks:
+        raise ValueError('Cancel the summary before deleting this conversation')
+    return s.chat.delete(chat_id)
+
+
+def delete_all(s, tasks):
+    if tasks:
+        raise ValueError('Cancel the running summary before deleting all conversations')
+    return s.chat.delete_all()
+
+
 def cancel_summary(tasks, chat_id):
     task = tasks.get(chat_id)
     if task:
@@ -57,7 +69,8 @@ def routes(s, tasks):
     return {
         'chat.metadata': lambda **args: metadata(s, **args),
         'chat.search': lambda query: search(s, query),
-        'chat.delete': s.chat.delete,
+        'chat.delete': lambda chat_id: delete(s, tasks, chat_id),
+        'chat.delete_all': lambda: delete_all(s, tasks),
         'chat.remove_image': s.chat.remove_image,
         'chat.summarize': lambda chat_id: summarize(s, tasks, chat_id),
         'chat.cancel_summary': lambda chat_id: cancel_summary(tasks, chat_id),
