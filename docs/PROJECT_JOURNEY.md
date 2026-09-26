@@ -281,3 +281,33 @@ full desktop gate is therefore not green here. See
 reproduction commands, signing state and the C9.2 TLS/receipt interoperability
 requirements. No pairing, real remote Chat, C10, OLIVE OS, push, merge, tag or
 release occurred.
+
+## 2026-09-26 — C9.2 native Connect client; real pairing acceptance blocked
+
+Continued from clean C9.1 commit `9bc3185` on `feature/olive-mobile-c9`.
+Implementation commit `004c72f` adds the native Bonjour, Keychain Ed25519 identity,
+two-sided C2/C4 pairing and receipt recovery, pinned TLS 1.3 C3 transport, C7
+incremental Chat, remote cancellation, reconnect and local unpair paths. It uses
+the desktop's existing wire contracts; desktop C1–C8 runtime sources remain
+unchanged. The small in-process TLS adapter uses checksum-pinned OpenSSL, with
+no proxy, cloud dependency, mobile Owner Mode or C10 work.
+
+The final real iPhone 15 Pro Max run passed **28 unit and 8 UI tests**, including
+actual LAN Bonjour discovery. Simulator SDK app/test compilation and generic
+device builds passed; no simulator runtime is installed. Python/Swift canonical
+fixtures agree, full two-sided signed receipt interoperability passes, and eight
+focused Python/native tests cover framing and exact certificate rejection.
+Full Python discovery ran 1,438 tests: 1,376 passed, 58 skipped, two failures and
+two errors. All four failures/errors reproduce against the untouched baseline
+on this Mac; the Connect subset has 237 passes and one of those baseline errors.
+
+Real pairing is **not accepted yet**. The owner enabled desktop Connect and Nearby
+on its non-loopback LAN interface. The iPhone discovers it, but scanning a fresh
+QR fails at TCP before TLS comparison. Desktop `ss` confirms both the main and
+temporary pairing listeners in the same OLIVE process. Mac probes time out to
+both despite successful ping; the owner reports firewalld inactive. A narrowly
+filtered handshake trace is the next diagnostic. No firewall setting, extra
+port, SSH service or other remote-access method was introduced. Actual paired
+Chat, Stop/provider cleanup, Off/Allow enforcement, reconnect and revocation
+remain pending real LAN acceptance. See [the C9.2 report](OLIVE_MOBILE_C9_2_CONNECT_CHAT.md)
+for the protocol matrix, exact results, retained failures and remaining gate.

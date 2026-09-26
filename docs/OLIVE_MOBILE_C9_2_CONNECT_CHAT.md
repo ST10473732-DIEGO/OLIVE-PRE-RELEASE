@@ -1,0 +1,228 @@
+# OLIVE Mobile C9.2 — Connect client and real LAN acceptance
+
+**Status: in progress; completion gate has not passed.** Real iPhone Bonjour
+acceptance passed. The first real pairing attempt failed before comparison,
+with both LAN listeners confirmed but TCP reachability still under investigation. Isolated protocol tests and
+successful builds are not substitutes for real paired Chat acceptance.
+
+## Repository checkpoint
+
+- `BASELINE_HEAD`: `9bc3185f1d19bf3b73fcc2632c0d3219eb919b97`
+- `BASELINE_BRANCH`: `feature/olive-mobile-c9`
+- `WORKTREE_STATUS`: clean at start; no later commits to preserve.
+- `FINAL_HEAD`: the documentation checkpoint containing this report; resolve
+  with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`.
+  Validated implementation: `004c72feea552208275daada02c9161b01bf9957`.
+- `COMMITS`: `004c72f` — native Connect client, UI and interop tests; followed by
+  `docs: record C9.2 implementation and LAN acceptance blocker` — this report
+  and the appended project journey. The exact final checkpoint is also reported
+  in the handoff; it cannot contain its own commit hash.
+- No reset, stash, force push, branch deletion, merge, tag, release, or push.
+
+Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
+historical mobile design assumptions. C1–C8 runtime sources remain unchanged.
+No C10, cloud account, model download, mobile Owner Mode or remote desktop tools.
+
+## iOS and native dependency
+
+Project: `mobile/ios/OLIVEMobile.xcodeproj`, scheme `OLIVEMobile`, iOS **17.0**,
+Swift 6, bundle `io.github.st10473732-diego.olive.mobile`. Host: macOS 26.7
+(25G229), Xcode 27.0 (27A266a). Physical device: iPhone 15 Pro Max; C9.1 recorded
+iOS 27.0 (24A437), also verified for C9.2. Signing uses the existing local development identity;
+credentials, team/device identifiers and provisioning profiles are not committed.
+No simulator runtime is installed. Both simulator architectures compile.
+
+`NativeConnect/OliveTLS.c` is a small memory-BIO adapter linked to locally built,
+checksum-pinned OpenSSL **3.5.8**. It does not implement a second wire protocol or
+network service. See [native dependency build and scope](../mobile/ios/NativeConnect/README.md).
+The Apache license is included in the app. Libraries/build outputs are ignored;
+Xcode itself performs no dependency download. Bonjour/TCP use Network.framework.
+
+Apple's native identity APIs require a Security identity, while C2 specifically
+requires Ed25519 and a TLS engine whose records the C4.1 carrier can frame.
+The adapter implements those exact operations using the same TLS implementation
+family as desktop. No CA fallback, accept-any-certificate callback, protocol
+translation, plaintext inference or ATS exception is present. Apple documents
+its [identity wrapper](https://developer.apple.com/documentation/security/sec_identity_create_with_certificates(_:_:))
+and [framing above a transport](https://developer.apple.com/documentation/network/framerprotocol).
+
+## Protocol matrix
+
+| Desktop implementation | Swift/native equivalent | Exact wire/validation | Fixture evidence |
+| --- | --- | --- | --- |
+| `identity.py` | `ConnectPublicIdentity`, `ConnectIdentityStore`, `OliveTLS.c` | `olive-ed25519-x509/1`; canonical lowercase UUID; key_version 1; integer created_at; base64 DER certificate, CN=UUID, self-signed Ed25519, notBefore=created_at−300 s | Python-produced public certs validated on iPhone; generated native cert validated by Python |
+| `identity.fingerprint` / `contracts.canonical` | `ConnectJSON`, public identity fingerprint | SHA-256 of sorted UTF-8 JSON `{algorithm,key_version,device_id,public_key}`; `C2/1:` + uppercase colon-separated 32-byte digest | Byte-for-byte fixture comparison |
+| `pairing_wire.py` | `PairingOffer`, `ConnectTLS` | `olive-pairing-tls13/2`; exact offer fields, 4096-byte ceiling, 120 s expiry, numeric local endpoint; responder echoes endpoint/times/session and replaces only identity/name | Python offer/reply, transcript SHA-256 and receipt-message fixtures; malformed/expired validation |
+| `pairing_transport.py` | `ConnectPairingClient`, `ConnectSocket` | Separate temporary TCP listener; public reply then `!I` length-prefixed TLS records; ≤32768 bytes/frame, ≤262144 received bytes, ≤3000 frames, bounded deadlines | Full Swift/desktop memory-BIO pairing fixture; live carrier still pending |
+| `tls_identity.py` | `OliveTLS.c` | TLS 1.3 only; exact self-signed peer pin with OpenSSL validity verification; Ed25519 client certificate; no system roots, tickets or session cache | Real TLS adapter vs desktop `PairingTLS`; wrong pin rejected |
+| `PairingTLS.comparison` | `ConnectTLS.comparison` | `EXPORTER-OLIVE-PAIRING-v1`, 32 bytes, SHA-256 canonical `[offer,reply]` context; full 256-bit comparison | Swift/desktop exporter equality |
+| `pairing.py`, `pairing_completion.py` | pairing state and `ConnectTrustRepository` | Explicit local comparison on each side; `OLIVE-CONFIRM/1:` + 32-byte binding; newline + 88-character base64 Ed25519 receipt + newline; `olive-pairing-completion/1` signed canonical message | One confirmation creates no desktop trust; full signed receipts complete the fixture |
+| `discovery.py` | `ConnectDiscoveryService` | `_olive-connect._tcp.local.`; opaque instance; TXT exactly `product=OLIVE`, `version=1`; actual SRV port; directory bounded to 64 | Real Mac browse/resolve and real iPhone UI acceptance |
+| `network_wire.py`, `network.Channel` | `ConnectFrame`, `ConnectTransport` | `!IBB` header: payload length, version 1, kind; encrypted empty HELLO kind 4 before online; inference 9/10, CLOSE 3 | Python/Swift exact header/frame bytes, malformed lengths/version/kind tests |
+| `inference_protocol.py` | `InferenceWire` | `olive-inference/1`, `models.remote`, start/poll/cancel/status; public `fast`, `normal`, `max`; exact source/target/job/request UUIDs; start request_id=job_id | Independent Swift encoders decoded by Python; Swift decodes Python responses |
+| `inference_client.py`, `inference.py` | `RemoteInferenceClient`, accumulator | Status: presets/permission/busy. Ordered pull batches at 250 ms; ≤8 events, ≤4096 UTF-8 bytes/event; consecutive sequences; 64000 aggregate bytes | Incremental/duplicate-sequence/terminal suppression tests; real model still pending |
+| C7 cancellation/release | client Stop and C3 close | Cancel exact job; successful target terminal response follows actual coroutine/provider/residency release; uncertain loss closes channel, never replays start | Swift lifecycle fixture and unchanged desktop C7 regression; real Stop still pending |
+| C3 reconnect/revoke | `ConnectSession` | Fresh pinned handshake each connection; finite 0/1/2/4/8/15 s attempts, at most eight candidate routes; remote revoke is rejection/loss, not an invented revocation notification | Real reconnect/revoke acceptance pending |
+
+Mobile implements C9.2's client subset. It rejects unsolicited file/Studio
+frames and does not advertise an inbound capability dispatcher. C3 has no
+separate advertised capability handshake: fixed HELLO completes mutual
+verification; C7 `status` returns actual public roles, busy state and Off/Ask/Allow.
+There is no mobile permission setter. Default mobile role is **Normal**, because
+C7 has no Automatic role. Actual local model tags are intentionally not on the
+wire; internal attribution retains Connect runtime, public role, peer and job.
+
+## Identity, pairing and trust persistence
+
+One atomically stored Keychain envelope contains the Ed25519 seed and matching
+public identity. Service is app-scoped `.connect`; item is nonsynchronizing,
+`WhenUnlockedThisDeviceOnly`. Concurrent loads share provisioning work. Corrupt,
+locked or mismatched existing material fails closed and is never replaced.
+A separate public Keychain reservation distinguishes interrupted creation or lost
+private material from first installation. Existing trust history also prevents
+silent identity regeneration. No seed enters UserDefaults, files, stdout,
+analytics or network messages.
+
+Secure Enclave is not used because the iOS 17 signing API supplies P-256, whereas
+Connect requires Ed25519. See Apple's [Secure Enclave key constraints](https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave).
+Keychain restart/signature verification is tested on the actual iPhone.
+
+Public trust state and signed receipts use an atomic, versioned, protected,
+backup-excluded file behind `ConnectTrustRepository`. A consumed session ID
+cannot be replayed. Pending sessions never appear as trusted peers. Only original
+local confirmation plus a verified peer signature over the same transcript can
+commit trust. Unpair removes peer public/pin material including saved receipt
+transcripts, retains replay tombstones and preserves the iPhone's own identity.
+No remote desktop trust removal is claimed. Unsupported/corrupt storage is kept
+without overwrite. Session and peer capacities fail closed.
+
+Discovery cannot authenticate names or expose a pairing offer: desktop mDNS
+contains neither. Nearby therefore says **OLIVE computer — identity not yet
+verified**, rather than inventing a name. The existing desktop **Connect a device**
+QR is scanned with VisionKit, or its public offer is pasted. The authenticated
+pairing transcript supplies the display name. Both users enter the complete value
+observed on the other device and confirm. No short PIN, TOFU or automatic pairing.
+The mobile network path rejects loopback offers even though the portable desktop
+codec permits them for tests.
+
+## Chat, cancellation and lifecycle
+
+The desktop runs inference and owns model selection/policy. Mobile sends only
+its explicit user/assistant context: ≤24 messages, ≤16000 bytes/message,
+≤48000 aggregate bytes; 2048 max tokens, ≤64000 output bytes, ≤120 s generation.
+No target-private context or tool authority is requested. C7 batches render as
+received; no timer-generated text. Fenced code uses the existing native code block.
+
+The composer prevents duplicate submit and retains/restores a failed draft.
+Completed visible turns supply subsequent context; failed/incomplete output does
+not. Each request has unique IDs and exact response correlation. Failure and
+incomplete status remain visible. Stop sends the actual C7 cancellation and waits
+for acknowledgement; late polls cannot append after Stop. Lost acknowledgement
+is labeled unknown/interrupted, never successful cancellation. New jobs use new IDs.
+
+Foreground enables discovery/reconnect. Background saves drafts, cancels pairing,
+closes active channels and marks active Chat interrupted. No arbitrary background
+networking mode, internet fallback or silent replay is added. Reconnect verifies
+the original exact pin. A paired unavailable computer stays listed Offline.
+Remote revocation is not distinguishable from every other TLS rejection in C3,
+so the app does not invent an authenticated “Revoked” notification.
+
+Chat presentation/history currently stays in app memory; drafts and trust are
+durable. Full history sync, files, Tasks, Studio and broader C9.3 UI remain deferred.
+Advanced settings expose fixed diagnostic stages, public request IDs and measured
+request/Stop timings, without prompts, responses, keys or certificates.
+
+## Real device acceptance log
+
+| Check | Result |
+| --- | --- |
+| Desktop LAN setup | Owner selected non-loopback Ethernet interface, enabled Nearby discovery and Connect; iPhone on same LAN |
+| Mac browse | Actual `_olive-connect._tcp.local.` instance discovered; exact TXT validated; dynamic SRV port resolved |
+| iPhone discovery | **Passed**, production app on physical iPhone, actual Nearby card; XCTest screenshot reviewed |
+| Discovery timing | Nearby element found **1.098 s** after opening Devices in the opt-in test; app launch/permission/bootstrap are not included in this number |
+| Pairing attempt 1 | Owner scanned real desktop QR; phone reported Offline before comparison. No successful pair or trust grant claimed |
+| Connect restart observation | Original mDNS instance withdrawn, new instance advertised; no address/port hardcoded in app |
+| Mac new endpoint check | Fresh mDNS discovery resolves valid TXT, but TCP connect times out before TLS. Mac has direct same-subnet route |
+| Desktop clipboard | Owner reports **Could not copy the public offer**; existing desktop clipboard bug retained as evidence, not treated as a TLS failure |
+| Desktop listener inspection | Owner returned one LAN listener with backlog 8 on the advertised main C3 port. The separate temporary pairing listener was not established by that snapshot |
+| Diagnostic build attempt | Phone reports `pairing_tcp` and the current QR endpoint, then `peer offline`; no TLS comparison reached. Exact public endpoint retained locally, not hardcoded |
+| TCP versus IP reachability | Scoped Mac TCP checks of both observed main and temporary ports timed out at 3 s. Two ICMP replies succeeded in 4.433/3.568 ms. This does not identify which hop drops TCP |
+| Firewall service check | Owner reports `systemctl is-active firewalld` → `inactive`; no claim that all filtering is absent, no firewall changes |
+| Fresh listener evidence | Owner confirmed main listener (backlog 8) and temporary pairing listener (backlog 2), both on the selected LAN address in the same Python process. Scoped Mac TCP checks to both timed out again |
+| Next diagnostic | Requested a 15-second, header-only SYN/RST trace restricted to the Mac and existing main Connect listener; bounded Mac connection attempts, no new listener or security change |
+| Both confirmations / denial / abort | Pending real-device verification |
+| Paired record / relaunch / reconnect | Pending |
+| Remote AI Off / Allow | Pending |
+| Arithmetic / Swift code / hash prompt | Pending actual desktop model execution |
+| Remote Stop / new request | Pending actual desktop cleanup acknowledgement |
+| Background / desktop restart / Wi-Fi loss | Pending paired-session acceptance |
+| Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
+
+No proxy, simulator, fixture response or mock peer was substituted for these
+pending steps. No SSH, extra remote-access method, firewall change, or exposure
+of Ollama was introduced. Public routing diagnostics stay local in ignored logs.
+
+## Validation so far
+
+- Pinned TLS libraries built for iPhone arm64 and both simulator architectures.
+- `xcodebuild -list` succeeded. Final simulator app/test build and generic iOS
+  Release build passed (`olive-c92-simulator-final4.log`,
+  `olive-c92-generic-final2.log` in local temporary artifacts).
+- Final physical signed build/install/test: **28 unit tests + 8 UI tests passed**
+  in `/tmp/olive-c92-device-tests-5.xcresult`, 79.506 s overall, including explicit
+  real-LAN discovery. Existing seven shell UI tests remain exercised. The final
+  app was reopened normally without test arguments. Prior successful runs 3/4
+  remain as evidence, with 23/25 unit tests respectively.
+- First physical attempt failed to compile a throwing test assertion. Next run
+  exposed an invalid assumption that repeated Ed25519 signatures must have
+  identical bytes on this platform, and an obsolete C9.1 UI text assertion.
+  The test now verifies both signatures under the preserved public key; identity
+  equality remains asserted. No trust/security check was removed.
+- Python→Swift and independent Swift→Python C2/C3/C7 fixture checks passed.
+- Native TLS adapter vs desktop: mutual authentication/exporter/confirmation and
+  wrong-pin and same-key/different-certificate rejection tests passed (three
+  native TLS tests). Full Swift/desktop C4.1 two-sided receipt fixture passed.
+- Canonical artifact: `tests/fixtures/mobile_connect/vectors.json`, SHA-256
+  `79fb23c90e6a59a6c6e7c25c63ac2f4f2e1cce304cd90747baac10d978d9bcba`.
+  Contains disposable public certificates only, no private seeds or user data.
+- `python -m compileall -q .`: passed using disposable writable bytecode cache.
+- Full Python regression: **1438 run, 1376 passed, 58 skipped, 2 failures,
+  2 errors**, 193.272 s. The extra opt-in Swift-process test is skipped during
+  ordinary discovery and passes separately in the interop harness. All four reproduce freshly against a `git archive` of
+  exact `BASELINE_HEAD`; no desktop source change or test weakening.
+- First Python run used `/tmp` instead of canonical `/private/tmp` for temporary
+  files, causing path equality failures. Retained as failed evidence; corrected
+  environment rerun above is the comparison run.
+
+Within full discovery, the Connect subset ran **238 tests: 237 passed, one
+baseline Studio descendant timeout**. The final focused Python/native protocol
+run passed all eight tests.
+
+Remaining baseline failures: Connect Studio descendant timeout, Linux ELF check
+on macOS, Owner Chat project run, and missing-toolchain JDK wording. The desktop
+gate is **not fully green on this Mac**. No native CachyOS regression is claimed.
+
+## Reproduction
+
+See [iOS README](../mobile/ios/README.md),
+[native adapter build](../mobile/ios/NativeConnect/README.md), and:
+
+```sh
+OLIVE_PYTHON=/path/to/project/python bash mobile/ios/scripts/check-connect-interop.sh
+python -m unittest tests.test_mobile_connect_vectors tests.test_mobile_connect_tls -v
+```
+
+The standalone `scripts/check_mobile_connect_acceptance.py` reads only the
+selected iPhone's desktop Connect receipt metadata through a read-only SQLite
+connection. It never instantiates the service, opens a listener, loads keys,
+reads chat contents or modifies state. Use the configured profile explicitly if
+both legacy and current profiles exist. Desktop runtime-release evidence still
+requires C7 acknowledgement/actual job cleanup, not just a terminal database row.
+
+## Completion gate
+
+C9.2 remains **incomplete** until the real iPhone and real CachyOS desktop finish
+secure pairing, permission-respecting streamed Chat, actual Stop, new request,
+reconnect, revocation/unpair and final relevant tests. LAN reachability is being
+investigated, not classified as an Apple platform limitation. No C9.3/C10 work
+begins and no release claim is made.
