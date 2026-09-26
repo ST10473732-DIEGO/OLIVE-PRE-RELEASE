@@ -326,3 +326,10 @@ matches. The main listener remains live and the return route uses the selected
 Ethernet interface. Desktop input filtering is now the leading explanation;
 readable UFW/iptables-nft rule output is needed to decode the hidden multiport
 allow list before proposing a narrowly scoped remedy. No rules were changed.
+
+UFW's readable output then confirmed active incoming deny with allowances only
+for KDE Connect TCP/UDP 1714–1764. Those rules exclude OLIVE's observed ports,
+accounting for the SYN-only trace before TLS. The next step is a reviewable
+proposal scoped to the iPhone's actual source address and existing OLIVE
+listeners, requiring owner authorization under the original firewall constraint.
+No firewall change or successful pairing is claimed.

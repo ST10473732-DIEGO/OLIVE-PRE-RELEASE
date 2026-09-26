@@ -19,6 +19,7 @@ successful builds are not substitutes for real paired Chat acceptance.
   in the handoff; it cannot contain its own commit hash.
   Subsequent documentation checkpoint: `docs: record desktop SYN arrival and next read-only checks`.
   Follow-up: `docs: record UFW input filtering evidence`.
+  Confirmed cause: `docs: identify UFW admission blocker for real LAN pairing`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -154,7 +155,8 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | Desktop packet trace, 22:29 SAST | Owner captured 15 seconds on the selected Ethernet interface during Mac connection attempts to the existing main listener. Eight incoming SYN packets, no SYN-ACK or RST in either direction, zero capture drops; all eight packets share one source port and initial sequence number |
 | Listener and return route | Owner confirms the existing main listener remains in the same process; the route to the Mac from the desktop LAN source uses the selected Ethernet interface |
 | Installed filtering | IPv4 INPUT has policy drop in an iptables-nft-managed table containing UFW chains. mDNS UDP 5353 has an explicit accept rule; the sole user TCP allow rule has zero matches and its multiport details are opaque in the nft listing. IPv4 OUTPUT has policy accept |
-| Next diagnostic | Read-only `ufw status verbose` and `iptables-nft -S ufw-user-input` to decode the hidden allow-rule ports. No firewall/security changes made |
+| Decoded UFW rules | Owner reports UFW active, incoming deny/outgoing allow. The only user allowances are KDE Connect TCP/UDP 1714–1764; `iptables-nft -S` confirms those exact destination ranges. They do not admit OLIVE's observed main or temporary pairing ports |
+| Blocker and next step | Desktop UFW admission blocks the observed new TCP connection before TLS. Preparing a proposed exception restricted to the real iPhone source, selected LAN interface/address and actual existing OLIVE ports; awaiting phone IPv4 address. Any rule change requires owner authorization; none applied |
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / relaunch / reconnect | Pending |
 | Remote AI Off / Allow | Pending |
@@ -207,6 +209,24 @@ and the `xt match "multiport"` representation does not reveal allowed ports.
 The next two read-only commands decode that rule through its existing management
 tools. No direct nft edits to the iptables-nft-managed tables, UFW disable/reset,
 broad port-range allowance or application protocol changes are proposed.
+
+The owner then decoded the rules through UFW and iptables-nft: UFW is active
+with incoming deny/outgoing allow, and the only user TCP/UDP allowances are
+KDE Connect destination ports 1714–1764. The observed OLIVE main port and
+temporary pairing ports are outside that range. With the live listener,
+incoming SYN capture, correct ordinary return route and absence of TCP replies,
+the installed UFW input policy accounts for the observed connection failure.
+This establishes the current admission blocker; successful TCP, TLS, pairing
+and Chat still require fresh acceptance after any owner-authorized repair.
+
+No additional broad packet capture or protocol change is needed to explain this
+blocker. The next proposal will use the iPhone's actual Wi-Fi IPv4 address, the
+selected desktop interface/address and only current OLIVE listener ports, with
+explicit removal commands. A new pairing QR should be created only when ready
+to apply an authorized rule because its listener is temporary. An ordinary UFW
+allow rule has no automatic expiry; it must be removed explicitly, and a rule
+for one OS-assigned port must not be described as covering future restarts or
+fresh pairing offers. No UFW rule, security setting or listener has been changed.
 
 ## Validation so far
 
