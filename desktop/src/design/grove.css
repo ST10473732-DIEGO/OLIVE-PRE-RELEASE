@@ -1001,10 +1001,10 @@ input[type="radio"] {
 .theme-opt[data-theme-opt="light"] .theme-prev { background: #ecede6; }
 .theme-opt[data-theme-opt="light"] .theme-prev i:first-child { background: #fafaf6; }
 .theme-opt[data-theme-opt="light"] .theme-prev i:last-child { background: #ffffff; border: 1px solid #dfe1d7; }
-.theme-opt[data-theme-opt="dark"] .theme-prev { background: #0b0d09; }
+.theme-opt[data-theme-opt="dark"] .theme-prev { background: #060705; }
 .theme-opt[data-theme-opt="dark"] .theme-prev i:first-child { background: #1a1e16; }
 .theme-opt[data-theme-opt="dark"] .theme-prev i:last-child { background: #121510; border: 1px solid #242920; }
-.theme-opt[data-theme-opt="system"] .theme-prev { background: linear-gradient(90deg, #ecede6 50%, #0b0d09 50%); }
+.theme-opt[data-theme-opt="system"] .theme-prev { background: linear-gradient(90deg, #ecede6 50%, #060705 50%); }
 .theme-opt[data-theme-opt="system"] .theme-prev i:first-child { background: #fafaf6; }
 .theme-opt[data-theme-opt="system"] .theme-prev i:last-child { background: linear-gradient(90deg, #ffffff 58%, #121510 58%); border: 1px solid #242920; }
 

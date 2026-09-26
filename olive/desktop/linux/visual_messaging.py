@@ -122,7 +122,12 @@ class VisualMessaging:
         box = self.context.composer.box
         if box is None:
             return await asyncio.to_thread(ocr_lines, frame, self.composer_area(frame, point))
-        return await asyncio.to_thread(ocr_words, frame, (max(0, box[0] - 3), max(0, box[1] - 6), frame['width'],
+        # OCR often misses the placeholder's first capital ('essage @diego'), so the
+        # typed text can start up to a glyph or two left of where the read began.
+        # Two line-heights covers that; a button further left reads as its own word
+        # and never joins the exact-text segment.
+        margin = max(3, 2 * (box[3] - box[1]))
+        return await asyncio.to_thread(ocr_words, frame, (max(0, box[0] - margin), max(0, box[1] - 6), frame['width'],
                                                            min(frame['height'], box[3] + 6)))
 
     async def region(self, frame, role, label=''):

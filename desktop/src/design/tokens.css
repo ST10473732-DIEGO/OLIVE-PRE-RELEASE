@@ -6,7 +6,7 @@
 :root {
   color-scheme: dark;
   /* background.* — surfaces step back to front */
-  --bg-base: #0b0d09;
+  --bg-base: #060705;
   --bg-panel: #0f120c;
   --bg-surface: #121510;
   --bg-elevated: #1a1e16;

@@ -962,3 +962,23 @@ class TypedQueryTests(unittest.TestCase):
             self.assertFalse(typed_query(seen, '#gen-chat'), seen)
         self.assertTrue(typed_query('diegoI', '@diego'))
         self.assertFalse(typed_query('dieg|', '@diego'))
+
+
+class DirectMessageReadTests(unittest.TestCase):
+    """Readings logged from a real Discord DM view (user profile panel open)."""
+
+    def test_account_ignores_panel_junk_and_a_stray_status_glyph(self):
+        from olive.desktop.messaging_context import observed_account
+        W = lambda t, c, b: {'text': t, 'confidence': c, 'box': b}
+        junk = [W('Wy,', 80, [59, 614, 80, 623]), W('deeayygoo', 91, [40, 632, 88, 642]), W('Imisible', 53, [40, 645, 67, 651])]
+        self.assertEqual(observed_account(junk, None, True).value, 'deeayygoo')
+        dot = [W('O', 82, [28, 633, 31, 642]), W('deeayygoo', 92, [40, 632, 88, 645])]
+        self.assertEqual(observed_account(dot, None, True).value, 'deeayygoo')
+
+    def test_first_message_of_a_group_is_counted_for_this_account_only(self):
+        from olive.desktop.messaging_context import echo_rows
+        W = lambda t, x: {'text': t, 'confidence': 90, 'box': [x, 500, x + 20, 510]}
+        row = [W('4:25', 300), W('PM', 322), W('deeayygoo', 340), W('win', 395), W('OLIVE', 420), W('DM', 455), W('test', 480)]
+        self.assertEqual(len(echo_rows(row, 'OLIVE DM test', 'deeayygoo')), 1)
+        self.assertEqual(len(echo_rows(row, 'OLIVE DM test', 'Odeeayygoo')), 1)
+        self.assertEqual(len(echo_rows(row, 'OLIVE DM test', 'sam')), 0)

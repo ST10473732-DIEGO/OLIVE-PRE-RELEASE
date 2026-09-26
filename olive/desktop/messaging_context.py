@@ -275,14 +275,20 @@ def observed_account(lines, composer_box=None, first_line=False):
         # clipped by the account band) is never account identity.
         rows = [l for l in rows if not overlaps(l['box'], composer_box)]
     if first_line:
-        # Icon glyphs read as punctuation plus one letter are not a name.
-        rows = [l for l in rows if len(re.findall(r'[^\W_]', l['text'])) >= 2]
+        # Icon glyphs read as punctuation plus a letter or two, or read with low
+        # confidence (panel decorations above the name), are not a name.
+        rows = [l for l in rows if len(re.findall(r'[^\W_]', l['text'])) >= 3 and l['confidence'] >= 70]
     if first_line and rows:
         # Declared panel structure: the name is the top-left run; a status line
         # follows below and panel buttons sit to its right.
         top = min(l['box'][1] for l in rows)
         name = min((l for l in rows if l['box'][1] - top <= 6), key=lambda l: l['box'][0])
-        return Layer(VERIFIED, name['text'].strip(), name['box'], 'account name line of the user panel')
+        text = name['text'].strip()
+        # The avatar's status dot beside the name can be read as one leading glyph ('O deeayygoo').
+        parts = text.split()
+        if len(parts) > 1 and len(parts[0]) == 1 and len(re.findall(r'[^\W_]', ' '.join(parts[1:]))) >= 3:
+            text = ' '.join(parts[1:])
+        return Layer(VERIFIED, text, name['box'], 'account name line of the user panel')
     if len(rows) == 1:
         return Layer(VERIFIED, rows[0]['text'].strip(), rows[0]['box'], 'single visible account name')
     return Layer(AMBIGUOUS if rows else NOT_VISIBLE, evidence='account panel not uniquely readable')
@@ -421,9 +427,10 @@ def echo_rows(words, content, account=''):
         if length != len(target):
             continue
         prefix = tokens[:len(tokens) - count]
-        # The sender's name may be read truncated at its end (coloured names); a
-        # leading fragment of at least four characters still names this account.
+        # The sender's name may be read truncated at its end (coloured names), or the
+        # account read with a stray glyph beside it; a fragment of at least four
+        # characters that the account name starts with or contains still names it.
         if not prefix or name and (name in ''.join(prefix) or
-                                   any(len(t) >= 4 and name.startswith(t) for t in prefix)):
+                                   any(len(t) >= 4 and (name.startswith(t) or t in name) for t in prefix)):
             found.append(row)
     return found

@@ -109,7 +109,7 @@ else {
       height: 920,
       minWidth: 640,
       minHeight: 480,
-      backgroundColor: "#090d14",
+      backgroundColor: "#060705",
       title: identity.name,
       icon: app.isPackaged
         ? path.join(process.resourcesPath, iconName())

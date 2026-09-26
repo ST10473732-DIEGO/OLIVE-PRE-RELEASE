@@ -105,7 +105,7 @@ which maps a view to its space and the switcher.
 
 | Token | Dark | Light |
 |---|---|---|
-| `--bg-base` (ground) | `#0b0d09` | `#ecede6` |
+| `--bg-base` (ground) | `#060705` | `#ecede6` |
 | `--bg-surface` (page sheet) | `#121510` | `#fafaf6` |
 | `--bg-raised` | `#20251b` | `#ffffff` |
 | `--accent-blue*` (interaction) | olive `#b9c67c` | olive `#55641e` |
