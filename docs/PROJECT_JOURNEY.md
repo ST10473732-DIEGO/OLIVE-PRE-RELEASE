@@ -381,3 +381,8 @@ fresh full discovery ran 1,439 tests with 1,377 passes, 58 skips and the same
 four baseline failures/errors. The owner confirmed the new control changes
 from send arrow to square-in-circle, cancels when tapped and returns to the
 arrow. Background/foreground reconnection is pending the owner's result.
+
+The owner then confirmed background/foreground reconnection without another
+pairing ceremony and a successful subsequent Chat answer. They describe the
+reconnect as almost instant; no numeric timing is inferred. A short Wi-Fi
+interruption with preserved, unsent draft and explicit retry is the next check.

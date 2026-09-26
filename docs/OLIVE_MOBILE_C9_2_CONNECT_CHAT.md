@@ -8,7 +8,8 @@ arithmetic draft stays visible and Send is disabled. After the desktop Allow
 workflow, the owner confirms the correct arithmetic reply on the phone and a
 second Swift answer rendered in a distinct code block. The owner also confirms
 remote cancellation (0.09 s acknowledgement) and a complete subsequent answer.
-Reconnect, revocation and remaining acceptance are pending.
+App relaunch and background/foreground reconnection also pass; desktop restart,
+Wi-Fi interruption, revocation and remaining acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -182,7 +183,7 @@ permission behavior changes.
 | Pairing-rule cleanup | Owner confirms deletion of only the phone-to-temporary-port 52643 rule after this attempt. Main-listener allowance remains. The Mac remains excluded |
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / app relaunch | **Passed, real-device screenshot reviewed:** after installing the composer update and relaunching the normal app, Devices shows the retained desktop under Paired with Connected / Remote AI Allow. No new pairing ceremony was performed |
-| Background / foreground reconnect | Owner check requested after the composer update; pending result |
+| Background / foreground reconnect | **Passed, owner-observed:** after about ten seconds in the background, the phone returns to Connected / Remote AI Allow without re-pairing, and an explicitly submitted hash-function question receives another answer. Reconnection described as almost instant; no numeric timing claimed |
 | Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
 | Remote AI Allow | Following instructions to enable Allow through desktop Devices → paired iPhone → Permissions and explicitly submit the preserved draft, owner reports successful replies. No mobile policy setter or Owner Mode was used |
 | Arithmetic reply | **Passed, owner-observed real iPhone Chat:** “391 - multiplying 17 by 23 gives 391.” This is the correct answer to the supplied harmless arithmetic prompt |
