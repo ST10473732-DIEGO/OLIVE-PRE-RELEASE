@@ -8,8 +8,9 @@ arithmetic draft stays visible and Send is disabled. After the desktop Allow
 workflow, the owner confirms the correct arithmetic reply on the phone and a
 second Swift answer rendered in a distinct code block. The owner also confirms
 remote cancellation (0.09 s acknowledgement) and a complete subsequent answer.
-App relaunch and background/foreground reconnection also pass; desktop restart,
-Wi-Fi interruption, revocation and remaining acceptance are pending.
+App relaunch, background/foreground reconnection and Wi-Fi interruption recovery
+also pass, with no automatic draft submission. Desktop restart, revocation and
+remaining acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -192,7 +193,8 @@ permission behavior changes.
 | Updated Send/Stop control | **Passed, owner-observed on the installed update:** send arrow becomes a square inside a circle, tapping it cancels the request, and the arrow returns afterward |
 | Hash prompt / new request after Stop | **Passed, owner-observed:** after cancellation, “Explain in two sentences what a hash function does” returns a complete answer. Exact answer text has not been collected |
 | Remote Stop | **Passed, owner-observed C7 cancellation:** phone output stops, desktop activity reports Remote AI cancelled, and phone diagnostic reports Stop acknowledgement **0.09 s** for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. This is the displayed rounded acknowledgement duration, not a separate provider-internal timing |
-| Desktop restart / Wi-Fi loss | Pending paired-session acceptance. The existing UFW rule covers the current main-listener port only; a new OS-assigned port after desktop restart is a separate host-firewall constraint, not a pin mismatch |
+| Wi-Fi interruption / offline draft | **Passed, owner-observed:** Wi-Fi Off produces Offline with disabled Send and a preserved draft; restoring Wi-Fi reconnects with the draft still unsent; pressing Send explicitly produces an answer |
+| Desktop restart | Check requested. The existing UFW rule covers the current main-listener port only; a new OS-assigned port after desktop restart is a separate host-firewall constraint, not a pin mismatch. Inspect the new listener before changing any narrowly scoped allowance |
 | Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these

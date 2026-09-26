@@ -386,3 +386,9 @@ The owner then confirmed background/foreground reconnection without another
 pairing ceremony and a successful subsequent Chat answer. They describe the
 reconnect as almost instant; no numeric timing is inferred. A short Wi-Fi
 interruption with preserved, unsent draft and explicit retry is the next check.
+
+The owner confirmed all three Wi-Fi interruption steps: Offline/disabled Send
+with a preserved draft, reconnection without automatically sending that draft,
+and a successful explicit Send afterward. The desktop restart check is next.
+Because C3 currently binds an OS-assigned port, that check must distinguish a
+new listener blocked by the existing exact-port UFW rule from a trust failure.
