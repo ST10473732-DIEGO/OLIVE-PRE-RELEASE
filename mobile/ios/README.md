@@ -61,8 +61,8 @@ xcrun devicectl device process launch --device "$OLIVE_IPHONE_ID" \
 
 Use a new result-bundle path for each run. Physical tests operate only inside
 OLIVE, apart from briefly backgrounding it and rotating the device. Test drafts
-use a separate debug-only namespace. Screenshots are attachments of OLIVE's
-window; never capture unrelated device contents for acceptance evidence.
+use a separate debug-only namespace. Screenshots are captured only after confirming OLIVE is foreground, including
+its keyboard. Never capture unrelated device contents for acceptance evidence.
 
 ## Source layout
 

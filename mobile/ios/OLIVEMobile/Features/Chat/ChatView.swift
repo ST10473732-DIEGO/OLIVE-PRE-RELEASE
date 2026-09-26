@@ -4,6 +4,7 @@ struct ChatView: View {
     @Environment(AppState.self) private var state
     @FocusState private var composerFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -13,6 +14,8 @@ struct ChatView: View {
                             OliveMark(size: 72)
                             OliveEmptyState(symbol: "bubble.left.and.bubble.right", title: "What’s on your mind?",
                                             detail: "Write a thought now. When pairing arrives, your computer will bring OLIVE’s answers here.")
+                            Text(state.connection.explanation).font(.callout).foregroundStyle(OliveTheme.secondary)
+                                .accessibilityIdentifier("chat.connectionRequired")
                             Text("No messages sent").font(.footnote).foregroundStyle(OliveTheme.muted)
                         }.padding(.vertical, 24).accessibilityIdentifier("chat.empty")
                     }
@@ -38,14 +41,13 @@ struct ChatView: View {
     private var composer: some View {
         @Bindable var state = state
         return VStack(alignment: .leading, spacing: 12) {
-            Text(state.connection.explanation).font(.footnote).foregroundStyle(OliveTheme.secondary)
-                .accessibilityIdentifier("chat.connectionRequired")
             HStack(alignment: .bottom, spacing: 8) {
                 TextField("Message OLIVE", text: $state.draft, axis: .vertical)
-                    .lineLimit(1...6).font(.body).focused($composerFocused)
+                    .lineLimit(1...(typeSize.isAccessibilitySize ? 3 : 6)).font(.body).focused($composerFocused)
                     .padding(.vertical, 10).accessibilityIdentifier("chat.composer")
                 Button {} label: {
-                    Image(systemName: "arrow.up").font(.headline)
+                    Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(OliveTheme.muted)
                         .frame(width: 44, height: 44)
                         .background(OliveTheme.surface, in: Circle())
                 }.disabled(!state.canSend)
@@ -53,7 +55,7 @@ struct ChatView: View {
                     .accessibilityIdentifier("chat.send")
             }.padding(10).background(OliveTheme.raised, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(composerFocused ? OliveTheme.accent : OliveTheme.border))
-            Text(state.persistenceNotice ?? "Local draft · nothing is sent")
+            Text(state.persistenceNotice ?? "Not connected · local draft")
                 .font(.caption).foregroundStyle(state.persistenceNotice == nil ? OliveTheme.muted : OliveTheme.attention)
                 .accessibilityIdentifier("chat.draftStatus")
         }.padding(.horizontal, OliveTheme.Space.medium).padding(.vertical, 12)

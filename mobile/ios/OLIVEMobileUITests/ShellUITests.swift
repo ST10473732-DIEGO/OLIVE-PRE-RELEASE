@@ -15,8 +15,10 @@ final class ShellUITests: XCTestCase {
     }
     private func tab(_ name: String) { app.tabBars.buttons[name].tap() }
     private func capture(_ name: String) {
-        // Capture only OLIVE's window, never the device Home screen or other apps.
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        // Capture only while OLIVE is foreground, including its system keyboard.
+        // XCUIApplication screenshots crop rotated windows on this Xcode version.
+        XCTAssertEqual(app.state, .runningForeground)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
@@ -45,6 +47,8 @@ final class ShellUITests: XCTestCase {
         app.buttons["home.ask"].tap()
         composer.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(app.keyboards.firstMatch.frame.height, 100)
+        capture("OLIVE Keyboard before typing")
         composer.typeText("A thought\nAnother line")
         XCTAssertEqual(composer.value as? String, "A thought\nAnother line")
         XCTAssertFalse(app.buttons["chat.send"].isEnabled)
@@ -58,8 +62,10 @@ final class ShellUITests: XCTestCase {
     func testSettingsAboutAndDismiss() {
         app.buttons["settings.open"].tap()
         XCTAssertTrue(app.staticTexts["About"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["0.1.0 (1)"].exists)
-        XCTAssertTrue(app.staticTexts["Not connected"].exists)
+        let version = app.descendants(matching: .any).matching(identifier: "settings.version").firstMatch
+        XCTAssertEqual(version.value as? String, "0.1.0 (1)")
+        let connection = app.descendants(matching: .any).matching(identifier: "settings.connection").firstMatch
+        XCTAssertEqual(connection.value as? String, "Not connected")
         capture("OLIVE Settings")
         app.buttons["settings.done"].tap()
         XCTAssertTrue(app.buttons["home.ask"].waitForExistence(timeout: 5))
@@ -85,6 +91,7 @@ final class ShellUITests: XCTestCase {
         composer.tap()
         composer.typeText("Landscape draft")
         XCTAssertEqual(composer.value as? String, "Landscape draft")
+        capture("OLIVE Landscape keyboard")
         app.buttons["chat.dismissKeyboard"].tap()
         capture("OLIVE Landscape")
         tab("Devices")
@@ -100,6 +107,7 @@ final class ShellUITests: XCTestCase {
         composer.tap()
         composer.typeText("Large text draft")
         XCTAssertEqual(composer.value as? String, "Large text draft")
+        capture("OLIVE Accessibility keyboard")
         app.buttons["chat.dismissKeyboard"].tap()
         capture("OLIVE Accessibility text size")
     }
