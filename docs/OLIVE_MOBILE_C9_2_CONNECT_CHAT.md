@@ -18,6 +18,7 @@ successful builds are not substitutes for real paired Chat acceptance.
   and the appended project journey. The exact final checkpoint is also reported
   in the handoff; it cannot contain its own commit hash.
   Subsequent documentation checkpoint: `docs: record desktop SYN arrival and next read-only checks`.
+  Follow-up: `docs: record UFW input filtering evidence`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -151,7 +152,9 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | Firewall service check | Owner reports `systemctl is-active firewalld` → `inactive`; no claim that all filtering is absent, no firewall changes |
 | Fresh listener evidence | Owner confirmed main listener (backlog 8) and temporary pairing listener (backlog 2), both on the selected LAN address in the same Python process. Scoped Mac TCP checks to both timed out again |
 | Desktop packet trace, 22:29 SAST | Owner captured 15 seconds on the selected Ethernet interface during Mac connection attempts to the existing main listener. Eight incoming SYN packets, no SYN-ACK or RST in either direction, zero capture drops; all eight packets share one source port and initial sequence number |
-| Next diagnostic | Read-only listener snapshot, return-route lookup to the Mac, and existing nftables ruleset inspection. No firewall/security change authorized by this evidence |
+| Listener and return route | Owner confirms the existing main listener remains in the same process; the route to the Mac from the desktop LAN source uses the selected Ethernet interface |
+| Installed filtering | IPv4 INPUT has policy drop in an iptables-nft-managed table containing UFW chains. mDNS UDP 5353 has an explicit accept rule; the sole user TCP allow rule has zero matches and its multiport details are opaque in the nft listing. IPv4 OUTPUT has policy accept |
+| Next diagnostic | Read-only `ufw status verbose` and `iptables-nft -S ufw-user-input` to decode the hidden allow-rule ports. No firewall/security changes made |
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / relaunch / reconnect | Pending |
 | Remote AI Off / Allow | Pending |
@@ -192,6 +195,18 @@ The owner's Mac command used `nc -w 3`; its trace still covered one attempt
 retransmitting for over eleven seconds. The installed Mac `nc -h` documents
 `-G` as its connection-timeout option. Future manual probes use `nc -vz -G 3`
 to bound each connect; this is a diagnostic correction, not a transport change.
+
+The subsequent owner-supplied listener/route/rules output confirms that UFW-managed
+input filtering is installed despite firewalld being inactive. The ordinary return
+route uses the same Ethernet interface. The IPv4 INPUT policy is `drop`, while
+mDNS is explicitly accepted; this explains how discovery can remain available
+without general TCP admission. The user TCP allow rule has zero matches. Taken
+with incoming SYNs and absent replies, desktop input filtering is the leading
+explanation. A cumulative ruleset snapshot is not a per-packet verdict trace,
+and the `xt match "multiport"` representation does not reveal allowed ports.
+The next two read-only commands decode that rule through its existing management
+tools. No direct nft edits to the iptables-nft-managed tables, UFW disable/reset,
+broad port-range allowance or application protocol changes are proposed.
 
 ## Validation so far
 

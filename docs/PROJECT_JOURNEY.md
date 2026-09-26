@@ -319,3 +319,10 @@ stop after arrival at the desktop capture point and before a visible TCP reply;
 it does not identify a firewall rule or exclude a different return interface.
 Read-only listener, return-route and existing nftables inspections are next.
 TLS and pairing still have not started, and no security setting was changed.
+
+The following ruleset inspection found UFW-managed IPv4 input filtering with a
+default drop policy, explicit mDNS admission and a user TCP allow rule with zero
+matches. The main listener remains live and the return route uses the selected
+Ethernet interface. Desktop input filtering is now the leading explanation;
+readable UFW/iptables-nft rule output is needed to decode the hidden multiport
+allow list before proposing a narrowly scoped remedy. No rules were changed.
