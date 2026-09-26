@@ -355,3 +355,11 @@ arithmetic question remained visible in Chat and Send stayed disabled. This
 passes the real mobile Off UI/draft check. The next step uses the desktop's
 existing paired-device Permissions screen to enable Allow and explicitly send
 the preserved question once. No real answer or Allow result is claimed yet.
+
+The owner then confirmed the first actual phone reply: “391 - multiplying 17 by
+23 gives 391.” A second request for a Swift even-number function also returned
+and rendered in a distinct code block. These are the first owner-observed real
+Chat acceptance results after the desktop Allow workflow. “Instant” is retained
+as a qualitative observation, not a measured latency. The next live check is
+phone Stop during an active long response, with request/acknowledgement evidence
+and a subsequent successful request; reconnect and revocation remain pending.

@@ -4,8 +4,10 @@
 acceptance passed. After identifying UFW admission as the initial TCP blocker
 and providing phone-only rules for the existing listeners, the owner reports
 that the phone shows Connected / Remote AI Off. With Off unchanged, the harmless
-arithmetic draft stays visible and Send is disabled. Real Chat under Allow,
-cancellation and remaining acceptance are pending.
+arithmetic draft stays visible and Send is disabled. After the desktop Allow
+workflow, the owner confirms the correct arithmetic reply on the phone and a
+second Swift answer rendered in a distinct code block. Cancellation, measured
+timings, reconnect and remaining acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -26,6 +28,7 @@ Isolated protocol tests and successful builds are not substitutes for those chec
   Owner action: `docs: record phone-only main-listener UFW allowance`.
   First connection report: `docs: record owner-reported LAN connection and pending policy check`.
   Permission check: `docs: record connected Remote AI Off and pairing-rule cleanup`.
+  First real Chat: `docs: record real iPhone arithmetic and Swift code replies`.
 - No reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
@@ -169,8 +172,11 @@ request/Stop timings, without prompts, responses, keys or certificates.
 | Both confirmations / denial / abort | Pending real-device verification |
 | Paired record / relaunch / reconnect | Pending |
 | Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
-| Remote AI Allow | Requested enablement through the existing desktop Devices → paired iPhone → Permissions workflow, followed by one explicit submission of the preserved arithmetic draft. Result pending |
-| Arithmetic / Swift code / hash prompt | Pending actual desktop model execution |
+| Remote AI Allow | Following instructions to enable Allow through desktop Devices → paired iPhone → Permissions and explicitly submit the preserved draft, owner reports successful replies. No mobile policy setter or Owner Mode was used |
+| Arithmetic reply | **Passed, owner-observed real iPhone Chat:** “391 - multiplying 17 by 23 gives 391.” This is the correct answer to the supplied harmless arithmetic prompt |
+| Swift code rendering | **Passed, owner-observed:** the subsequent even-number Swift function reply displays in a distinct code block. Exact function text has not been returned, so this verifies rendering rather than executable correctness |
+| Response timing / delivery | Owner describes the first reply as instant. This is qualitative only: no numerical latency, per-chunk observation, model role confirmation or cross-device request-ID receipt has yet been collected |
+| Hash prompt | Reserved for the new-request-after-Stop check; pending |
 | Remote Stop / new request | Pending actual desktop cleanup acknowledgement |
 | Background / desktop restart / Wi-Fi loss | Pending paired-session acceptance |
 | Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
@@ -180,6 +186,16 @@ pending steps. No SSH, extra remote-access method or exposure of Ollama was
 introduced. The owner's explicit main-listener firewall exception is recorded
 above; there is no blanket LAN or port-range allowance. Public routing
 diagnostics stay local in ignored logs.
+
+The two real replies are owner-observed acceptance results from the production
+phone/desktop path. They are not generated fixtures or locally substituted
+answers. No exact latency is inferred from “instant.” The next live test sends a
+long harmless Swift explanation, presses Stop on the phone while output is
+arriving, and records the phone terminal status, request ID, Stop acknowledgement
+time and desktop Remote AI activity. A disappearing desktop activity row alone
+does not prove resource release: C7's terminal acknowledgement is withheld until
+provider-stream closure and task/lease release. The post-cancellation new request
+is a separate required check.
 
 ### SYN trace interpretation (owner-supplied, 2026-09-26)
 
