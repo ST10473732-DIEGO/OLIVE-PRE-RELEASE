@@ -1,5 +1,93 @@
 import XCTest
 
+/// Real production session, explicitly shared synthetic CachyOS workspace only.
+/// No offline UI fixture or simulated background grant is used.
+@MainActor
+final class RealStudioBackgroundAcceptanceTests: XCTestCase {
+    func testRealSelectedChatTombstoneAcrossRelaunch() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_CHAT_TOMBSTONE_UI_ACCEPTANCE"] == "1", "Explicit synthetic real Chat tombstone phase only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        for _ in 0..<2 {
+            app.launch()
+            app.tabBars.buttons["Home"].tap()
+            let selected = app.buttons["Selected Chat"]
+            for _ in 0..<6 { if selected.isHittable { break }; app.swipeUp() }
+            XCTAssertTrue(selected.waitForExistence(timeout: 10)); selected.tap()
+            let sync = app.buttons["Sync Chat"]
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: sync)], timeout: 25), .completed)
+            sync.tap()
+            XCTAssertTrue(app.staticTexts["Sync complete"].waitForExistence(timeout: 20))
+            // Only the named, owned fixture: never open private historic chats.
+            let read = app.buttons["sync.read.1d20bcdd-bb21-497e-88df-9d43933f78e4"]
+            for _ in 0..<6 { if read.isHittable { break }; app.swipeUp() }
+            XCTAssertTrue(read.waitForExistence(timeout: 10)); read.tap()
+            XCTAssertTrue(app.staticTexts["Reply with C93 SECOND"].waitForExistence(timeout: 10))
+            XCTAssertFalse(app.staticTexts["Reply with C93 FIRST"].exists)
+            app.terminate()
+        }
+    }
+    func testRealBackgroundRunAndCancel() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_STUDIO_UI_ACCEPTANCE"] == "1", "Explicit physical iPhone/CachyOS acceptance only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--c93-transport-trace"]
+        app.launch()
+        func tap(_ label: String) {
+            let button = app.buttons[label]
+            for _ in 0..<8 { if button.isHittable { break }; app.swipeUp() }
+            XCTAssertTrue(button.waitForExistence(timeout: 10), label)
+            button.tap()
+        }
+        func status(_ label: String, timeout: TimeInterval) {
+            // The result may include the protocol's structured test counters.
+            let predicate = NSPredicate(format: "label == %@ OR label BEGINSWITH %@", label, label + " · ")
+            let expected = XCTNSPredicateExpectation(predicate: predicate, object: app.staticTexts["studio.status"])
+            XCTAssertEqual(XCTWaiter.wait(for: [expected], timeout: timeout), .completed, "Expected \(label); observed \(app.staticTexts["studio.status"].label)")
+        }
+        app.tabBars.buttons["Home"].tap()
+        tap("Remote Studio")
+        let refresh = app.buttons["Refresh workspaces"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: refresh)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 25), .completed)
+        refresh.tap()
+        XCTAssertTrue(app.buttons["C93 Acceptance Shared"].waitForExistence(timeout: 10))
+        tap("C93 Acceptance Shared")
+        XCTAssertTrue(app.buttons["notes.txt"].waitForExistence(timeout: 10))
+        tap("Run")
+        XCTAssertTrue(app.buttons["Cancel operation"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons["Home"].tap()
+        for _ in 0..<5 { if app.staticTexts["Background continuation active"].isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Background continuation active"].waitForExistence(timeout: 15), "Real iOS continued-processing grant required")
+        let began = Date()
+        XCUIDevice.shared.press(.home)
+        // Yield on the test runner, not OLIVE's process. The real application
+        // remains backgrounded and subject to normal iOS lifecycle behavior.
+        let elapsed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in Date().timeIntervalSince(began) >= 65 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [elapsed], timeout: 70), .completed)
+        XCTAssertNotEqual(app.state, .runningForeground)
+        app.activate()
+        tap("Remote Studio")
+        for _ in 0..<5 { if app.staticTexts["studio.status"].isHittable { break }; app.swipeUp() }
+        status("completed", timeout: 30)
+        let evidence = XCTAttachment(string: "Real C8 Run: iOS grant visible, backgrounded for at least 65 seconds, foreground result completed. One explicit Run tap.")
+        evidence.lifetime = .keepAlways; add(evidence)
+        // A fresh, explicit operation proves recovery, then uses normal mobile
+        // cancellation. No automatic retry or second start is permitted.
+        tap("Run")
+        XCTAssertTrue(app.buttons["Cancel operation"].waitForExistence(timeout: 10))
+        tap("Cancel operation")
+        status("cancelled", timeout: 20)
+        XCTAssertFalse(app.buttons["Cancel operation"].exists)
+    }
+}
+
 @MainActor
 final class ShellUITests: XCTestCase {
     private var app: XCUIApplication!

@@ -16,6 +16,7 @@ struct SelectedChatView: View {
                 Section(conversation.payload["title"].string ?? "Conversation") {
                     Toggle("Selected for this computer", isOn: Binding(get: { state.sync.selected(conversation.id) }, set: { state.sync.select(conversation.id, $0) }))
                     NavigationLink("Read conversation") { SyncedConversationView(conversation: conversation) }
+                        .accessibilityIdentifier("sync.read." + conversation.id)
                     Button("Delete shared conversation", role: .destructive) { deleting = conversation }
                         .disabled(!state.sync.online || state.sync.busy || state.active)
                 }

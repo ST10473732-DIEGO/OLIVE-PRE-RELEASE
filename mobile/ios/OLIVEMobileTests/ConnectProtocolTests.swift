@@ -161,12 +161,416 @@ final class RealStudioAcceptanceTests: XCTestCase {
             for path in ["/etc/passwd", "../outside", "C:\\outside"] {
                 XCTAssertThrowsError(try request("read", .object(["path": .string(path)])))
             }
+            if ProcessInfo.processInfo.environment["OLIVE_C93_STUDIO_DISCONNECT"] == "1" {
+                // Requires the prior real UI Run to have created this owned log.
+                let before = try await result("read", .object(["path": .string("acceptance-runs.txt")]))
+                let originalLog = try before["text"].text()
+                let run = try await result("run")
+                let job = try run["job_id"].uuid()
+                var observedStart = false
+                for _ in 0..<10 {
+                    _ = try await result("run_status", .object(["job_id": .string(job)]))
+                    let log = try await result("read", .object(["path": .string("acceptance-runs.txt")]))
+                    if log["text"] == .string(originalLog + "START\n") { observedStart = true; break }
+                    try await Task.sleep(for: .seconds(1))
+                }
+                XCTAssertTrue(observedStart, "Verify the desktop process actually started before cutting its channel")
+                await channel.close()
+                var reconnected: ConnectTransport?
+                for _ in 0..<3 {
+                    for candidate in discovery.nearby.prefix(8) {
+                        let replacement = ConnectTransport(endpoint: candidate.endpoint)
+                        do {
+                            try await replacement.connect(identity: identity, peer: peer.identity)
+                            // A fixed TLS hello precedes server adoption. Wait for
+                            // a real read-only response, as normal session setup
+                            // does, before using a replacement after teardown.
+                            let probe = try StudioWire.request(source: identity.publicIdentity.deviceID, target: peer.id, operation: "workspaces")
+                            let admitted = try StudioWire.response(await replacement.exchangeFrame(kind: 11, id: probe["request_id"].uuid(), payload: probe.canonical), request: probe)
+                            guard admitted["error"] == .null else { throw ConnectFailure.peerOffline }
+                            reconnected = replacement; break
+                        } catch { await replacement.close() }
+                    }
+                    if reconnected != nil { break }
+                    try await Task.sleep(for: .seconds(1))
+                }
+                let replacement = try XCTUnwrap(reconnected)
+                do {
+                    func afterDisconnect(_ operation: String, _ arguments: ConnectJSON) async throws -> ConnectJSON {
+                        let req = try request(operation, arguments)
+                        return try StudioWire.response(await replacement.exchangeFrame(kind: 11, id: req["request_id"].uuid(), payload: req.canonical), request: req)
+                    }
+                    let oldStatus = try await afterDisconnect("run_status", .object(["job_id": .string(job)]))
+                    XCTAssertEqual(oldStatus["error"], .string("workspace_unavailable"), "C8 jobs do not migrate to a replacement channel")
+                    // Observe through the owned program's entire 75-second sleep.
+                    // No new Run is submitted. Read-only probes are bounded.
+                    for _ in 0..<16 {
+                        try await Task.sleep(for: .seconds(5))
+                        let read = try await afterDisconnect("read", .object(["path": .string("acceptance-runs.txt")]))
+                        XCTAssertEqual(read["error"], .null)
+                        XCTAssertEqual(read["result"]["text"], .string(originalLog + "START\n"), "Disconnected job must not finish late or restart")
+                    }
+                    print("C93 REAL Studio disconnect job=\(job); replacement channel cannot adopt job; 80-second owned log observation shows no DONE and no replay")
+                    await replacement.close()
+                } catch { await replacement.close(); throw error }
+            }
             await channel.close()
         } catch { await channel.close(); throw error }
     }
 }
 
+final class RealSyncAcceptanceTests: XCTestCase {
+    @MainActor func testOwnedTombstonesAndColdResync() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_DELETE_ACCEPTANCE"] == "1", "Explicit owned-fixture deletion phase only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        continueAfterFailure = false
+        let vectors = try XCTUnwrap(ProtectedStore<[String: [String: Int64]]>(url: URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/conflict-vectors-v1.json"), maximumBytes: 16384).load())
+        XCTAssertEqual(vectors.count, 4)
+        let session = ConnectSession(); session.activate()
+        defer { session.suspend() }
+        for _ in 0..<200 { if session.connected { break }; try await Task.sleep(for: .milliseconds(100)) }
+        let (_, _, peer) = try await session.context()
+        let model = SyncModel(session: session)
+        for domain in ["tasks", "calendar", "reminders", "chat"] { await model.sync(domain) }
+        let owned = try vectors.keys.map { try XCTUnwrap(model.store.snapshot.records[$0]) }
+        let task = try XCTUnwrap(owned.first { $0.kind == "task" })
+        for record in owned where !record.deleted {
+            XCTAssertNotEqual(model.recordState(record), "Conflict · review required")
+            if record.kind == "reminder" {
+                XCTAssertEqual(record.payload["target_id"], .string(task.id))
+            } else { XCTAssertTrue(record.payload["title"].string?.hasPrefix("C93 Acceptance ") == true) }
+        }
+        if !task.deleted { XCTAssertEqual(task.payload["status"], .string("completed")) }
+        // Delete dependents first, through the production authoring path. Only
+        // the four IDs reviewed in the preceding real conflict phase qualify.
+        for kind in ["reminder", "event", "task", "conversation"] {
+            let record = try XCTUnwrap(owned.first { $0.kind == kind })
+            if !record.deleted {
+                if kind == "conversation" { await model.deleteConversation(record) }
+                else { _ = try await model.save(kind: kind, payload: .object([:]), old: record, deleted: true) }
+            }
+            let domain = try XCTUnwrap(SyncWire.domains[kind])
+            await model.sync(domain); await model.sync(domain)
+            let deleted = try XCTUnwrap(model.store.snapshot.records[record.id])
+            XCTAssertTrue(deleted.deleted)
+            XCTAssertTrue(model.store.snapshot.acknowledged[peer.id + ":" + domain]?.contains(deleted.revision) == true)
+        }
+        // Fresh protected-store load, then repeated explicit network sync.
+        let cold = SyncModel(session: session, store: MobileSyncStore())
+        for _ in 0..<2 { for domain in ["tasks", "calendar", "reminders", "chat"] { await cold.sync(domain) } }
+        for id in vectors.keys { XCTAssertTrue(cold.store.snapshot.records[id]?.deleted == true) }
+        XCTAssertFalse(cold.records.contains { !$0.deleted && $0.payload["title"] == .string("C93 Acceptance Private") })
+        let conversation = try XCTUnwrap(owned.first { $0.kind == "conversation" })
+        XCTAssertTrue(cold.records.filter { $0.kind == "message" && cold.store.snapshot.messageParents[$0.id] == conversation.id }.allSatisfy(\.deleted))
+        print("C93 REAL Task/Event/Reminder/selected-conversation tombstones acknowledged; all selected messages tombstoned; cold store and repeated sync do not resurrect; unselected Private absent")
+    }
+    @MainActor func testResolvedConflictsAndOrderedMessageTombstone() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_RESOLVED_ACCEPTANCE"] == "1", "Explicit owner-resolved conflict phase only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        continueAfterFailure = false
+        let vectors = try XCTUnwrap(ProtectedStore<[String: [String: Int64]]>(url: URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/conflict-vectors-v1.json"), maximumBytes: 16384).load())
+        XCTAssertEqual(vectors.count, 4)
+        let session = ConnectSession(); session.activate()
+        defer { session.suspend() }
+        for _ in 0..<200 {
+            if session.connected { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let (_, _, peer) = try await session.context()
+        let model = SyncModel(session: session)
+        for domain in ["tasks", "calendar", "reminders", "chat"] { await model.sync(domain) }
+        var resolved: [SignedSyncRecord] = []
+        for (id, vector) in vectors {
+            let record = try XCTUnwrap(model.store.snapshot.records[id])
+            guard !record.deleted, SyncWire.dominates(record.vector, vector), record.vector != vector,
+                  model.recordState(record) != "Conflict · review required" else {
+                XCTFail("Owner resolution must dominate the recorded conflict before further mutation"); return
+            }
+            resolved.append(record)
+        }
+        for domain in ["tasks", "calendar", "reminders", "chat"] {
+            await model.sync(domain)
+            XCTAssertFalse(MobileSyncStore.hasConflict(domain: domain, peer: peer.id, in: MobileSyncStore().snapshot))
+        }
+        let task = try XCTUnwrap(resolved.first { $0.kind == "task" })
+        let event = try XCTUnwrap(resolved.first { $0.kind == "event" })
+        let conversation = try XCTUnwrap(resolved.first { $0.kind == "conversation" })
+        XCTAssertEqual(task.payload["title"], .string("C93 Acceptance Task Desktop Conflict"))
+        XCTAssertEqual(event.payload["title"], .string("C93 Acceptance Calendar Desktop Conflict"))
+        XCTAssertEqual(conversation.payload["title"], .string("C93 Acceptance Chat Desktop Conflict"))
+        let instances = try SyncCalendar.occurrences(event.payload, after: SyncDate.parse("2026-10-01", dateOnly: true), before: SyncDate.parse("2026-10-06", dateOnly: true))
+        XCTAssertEqual(instances.compactMap { $0["start"].string }.sorted(), ["2026-10-01", "2026-10-04"])
+        var payload = task.payload.object!
+        payload["status"] = .string("completed"); payload["completed_at"] = .string(SyncWire.now())
+        let completed = try await model.save(kind: "task", payload: .object(payload), old: task)
+        await model.sync("tasks")
+        XCTAssertTrue(model.store.snapshot.acknowledged[peer.id + ":tasks"]?.contains(completed.revision) == true)
+        let first = try XCTUnwrap(model.records.first { !$0.deleted && $0.kind == "message" &&
+            model.store.snapshot.messageParents[$0.id] == conversation.id && $0.payload["content"] == .string("Reply with C93 FIRST") })
+        let later = try XCTUnwrap(model.records.first { !$0.deleted && $0.kind == "message" &&
+            model.store.snapshot.messageParents[$0.id] == conversation.id && $0.payload["content"] == .string("Reply with C93 SECOND") })
+        let tombstone = try await model.save(kind: "message", payload: .object([:]), old: first, deleted: true)
+        await model.sync("chat"); await model.sync("chat")
+        XCTAssertTrue(model.store.snapshot.acknowledged[peer.id + ":chat"]?.contains(tombstone.revision) == true)
+        let cold = MobileSyncStore().snapshot
+        XCTAssertTrue(cold.records[first.id]?.deleted == true)
+        XCTAssertEqual(cold.records[later.id]?.payload["content"], .string("Reply with C93 SECOND"))
+        XCTAssertEqual(cold.messageParents[first.id], conversation.id)
+        XCTAssertNotNil(cold.messagePredecessors?[first.id])
+        print("C93 REAL four conflicts cleared by dominating resolutions; moved/cancelled recurrence correct; linked task completion acknowledged; message tombstone=\(first.id) later message=\(later.id) retained")
+    }
+
+    @MainActor func testRealConcurrentConflicts() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_CONFLICT_ACCEPTANCE"] == "1", "Explicit real conflict phase only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        continueAfterFailure = false
+        let session = ConnectSession(); session.activate()
+        defer { session.suspend() }
+        for _ in 0..<200 {
+            if session.connected { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let (_, _, peer) = try await session.context()
+        let model = SyncModel(session: session)
+        let titles = ["C93 Acceptance Task Phone Conflict", "C93 Acceptance Calendar Phone Conflict", "C93 Acceptance Chat Phone Conflict"]
+        var owned = model.records.filter { !$0.deleted && titles.contains($0.payload["title"].string ?? "") }
+        XCTAssertEqual(owned.count, 3)
+        let task = try XCTUnwrap(owned.first { $0.kind == "task" })
+        let reminder = try XCTUnwrap(model.records.first { !$0.deleted && $0.kind == "reminder" && $0.payload["target_id"] == .string(task.id) })
+        XCTAssertEqual(reminder.payload["at"], .string("2026-10-01T08:30:00+00:00"))
+        owned.append(reminder)
+        var vectors: [String: [String: Int64]] = [:]
+        for domain in ["tasks", "calendar", "reminders", "chat"] {
+            await model.sync(domain)
+            let record = try XCTUnwrap(owned.first { SyncWire.domains[$0.kind] == domain })
+            XCTAssertEqual(model.recordState(record), "Conflict · review required", "\(domain): \(model.notice)")
+            XCTAssertEqual(model.store.snapshot.records[record.id]?.revision, record.revision, "No silent destructive merge")
+            var vector = record.vector
+            for incoming in model.conflicts.filter({ $0.recordID == record.id }).map(\.incoming) {
+                for (author, count) in incoming.vector { vector[author] = max(vector[author] ?? 0, count) }
+            }
+            vectors[record.id] = vector
+            await model.sync(domain)
+            XCTAssertEqual(model.recordState(record), "Conflict · review required", "Empty/duplicate exchange cannot clear conflict")
+            XCTAssertTrue(MobileSyncStore.hasConflict(domain: domain, peer: peer.id, in: MobileSyncStore().snapshot))
+            print("C93 REAL \(domain) concurrent conflict retained through repeat sync/store reload; record=\(record.id)")
+        }
+        try ProtectedStore<[String: [String: Int64]]>(url: URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/conflict-vectors-v1.json"), maximumBytes: 16384).save(vectors)
+    }
+
+    @MainActor func testDesktopEditsAndPrepareConflicts() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_EDIT_ACCEPTANCE"] == "1", "Explicit second real-device sync phase only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let session = ConnectSession(); session.activate()
+        defer { session.suspend() }
+        for _ in 0..<200 {
+            if session.connected { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let (_, _, peer) = try await session.context()
+        let model = SyncModel(session: session)
+        for domain in ["tasks", "calendar", "reminders", "chat"] {
+            await model.sync(domain)
+            print("C93 REAL edit-phase sync \(domain): \(model.notice)")
+        }
+        func named(_ kind: String, _ title: String) throws -> SignedSyncRecord {
+            let matches = model.records.filter { !$0.deleted && $0.kind == kind && $0.payload["title"] == .string(title) }
+            let syntheticTitles = model.records.filter { !$0.deleted && $0.kind == kind && $0.payload["title"].string?.lowercased().hasPrefix("c93 acceptance") == true }.compactMap { $0.payload["title"].string }
+            XCTAssertEqual(matches.count, 1, "Expected \(title); synthetic titles: \(syntheticTitles)")
+            return try XCTUnwrap(matches.first, title)
+        }
+        let task = try named("task", "C93 Acceptance Task Desktop")
+        let event = try named("event", "C93 Acceptance Calendar Desktop")
+        let chat = try named("conversation", "C93 Acceptance Shared")
+        let reminders = model.records.filter { !$0.deleted && $0.kind == "reminder" && $0.payload["target_id"] == .string(task.id) }
+        XCTAssertEqual(reminders.count, 1)
+        let reminder = try XCTUnwrap(reminders.first)
+        XCTAssertNotEqual(reminder.payload["at"], .string("2026-10-01T07:00:00+00:00"))
+        var edited: [SignedSyncRecord] = []
+        for (record, title) in [(task, "C93 Acceptance Task Phone"), (event, "C93 Acceptance Calendar Phone")] {
+            var payload = record.payload.object!; payload["title"] = .string(title)
+            edited.append(try await model.save(kind: record.kind, payload: .object(payload), old: record))
+        }
+        var reminderPayload = reminder.payload.object!
+        reminderPayload["at"] = .string("2026-10-01T08:15:00+00:00")
+        edited.append(try await model.save(kind: "reminder", payload: .object(reminderPayload), old: reminder))
+        for domain in ["tasks", "calendar", "reminders"] { await model.sync(domain) }
+        for record in edited {
+            let key = peer.id + ":" + SyncWire.domains[record.kind]!
+            XCTAssertTrue(model.store.snapshot.acknowledged[key]?.contains(record.revision) == true)
+            XCTAssertFalse(MobileSyncStore.hasConflict(domain: SyncWire.domains[record.kind]!, peer: peer.id, in: model.store.snapshot))
+        }
+        print("C93 REAL desktop edits pulled; phone title/time edits acknowledged for task/event/reminder")
+        // Prepare concurrent phone versions without sending them. The next
+        // owner batch edits the same common desktop revisions, then explicit
+        // sync establishes actual cross-device conflicts.
+        for record in edited + [chat] {
+            let current = try XCTUnwrap(model.store.snapshot.records[record.id])
+            var payload = current.payload.object!
+            if current.kind == "reminder" { payload["at"] = .string("2026-10-01T08:30:00+00:00") }
+            else { payload["title"] = .string(current.kind == "task" ? "C93 Acceptance Task Phone Conflict" : current.kind == "event" ? "C93 Acceptance Calendar Phone Conflict" : "C93 Acceptance Chat Phone Conflict") }
+            let pending = try await model.save(kind: current.kind, payload: .object(payload), old: current)
+            if current.kind == "conversation" { model.select(current.id, true) }
+            XCTAssertEqual(model.recordState(pending), "Pending sync")
+            print("C93 REAL prepared unsent \(current.kind) conflict record=\(current.id) base=\(current.revision) local=\(pending.revision)")
+        }
+    }
+
+    @MainActor func testOwnedTodayAndSelectedChat() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_ACCEPTANCE"] == "1", "Explicit real iPhone/CachyOS acceptance only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let session = ConnectSession(); session.activate()
+        defer { session.suspend() }
+        for _ in 0..<200 {
+            if session.connected { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let (channel, identity, peer) = try await session.context()
+        let capabilities = try await channel.exchange(InferenceWire.request(source: identity.publicIdentity.deviceID, target: peer.id, operation: "capabilities"))
+        for domain in ["tasks", "calendar", "reminders", "chat"] {
+            guard capabilities["result"]["permissions"]["sync." + domain] == .string("allow") else {
+                throw XCTSkip("Desktop sync \(domain) is not Allow; no policy changes are made by this test")
+            }
+        }
+        let model = SyncModel(session: session)
+        XCTAssertTrue(model.store.available)
+        func sync(_ domain: String, record: SignedSyncRecord? = nil) async throws {
+            await model.sync(domain)
+            XCTAssertEqual(model.domainStatus[domain], "Sync permitted · last exchange verified")
+            if let record {
+                XCTAssertTrue(model.store.snapshot.acknowledged[peer.id + ":" + domain]?.contains(record.revision) == true)
+                XCTAssertFalse(MobileSyncStore.hasConflict(domain: domain, peer: peer.id, in: model.store.snapshot))
+            }
+        }
+        func owned(_ kind: String, _ payload: ConnectJSON) async throws -> SignedSyncRecord {
+            let existing = model.records.filter { $0.kind == kind && !$0.deleted && $0.payload == payload }
+            if let first = existing.first { XCTAssertEqual(existing.count, 1); return first }
+            // Refuse to overwrite an owner-edited fixture under the same title.
+            if let title = payload["title"].string {
+                guard !model.records.contains(where: { $0.kind == kind && !$0.deleted && ($0.payload["title"] == .string(title) || $0.payload["title"].string?.hasPrefix("C93 Acceptance") == true) }) else {
+                    throw XCTSkip("Synthetic fixture was edited; retain it for the next acceptance phase")
+                }
+            }
+            return try await model.save(kind: kind, payload: payload)
+        }
+        var taskPayload = SyncPayload.task(title: "C93 Acceptance Task").object!
+        taskPayload["due"] = .string("2026-10-01")
+        taskPayload["timezone"] = .string("Africa/Johannesburg")
+        let task = try await owned("task", .object(taskPayload))
+        try await sync("tasks", record: task)
+        let calendar = try await owned("calendar", .object(["title": .string("C93 Acceptance Calendar"), "colour": .string("#5b9bff"), "visible": .bool(true)]))
+        let event = try await owned("event", .object([
+            "calendar_id": .string(calendar.id), "title": .string("C93 Acceptance Calendar Event"), "description": .string(""),
+            "location": .string(""), "project_id": .string(""), "timezone": .string("Africa/Johannesburg"), "all_day": .bool(true),
+            "status": .string("confirmed"), "transparent": .bool(false), "contact_ids": .array([]), "unsupported": .array([]),
+            "original_ics": .string(""), "start": .string("2026-10-01"), "end": .string("2026-10-02"),
+            "recurrence": .string("FREQ=DAILY;COUNT=3"), "exceptions": .object([:])]))
+        try await sync("calendar", record: event)
+        let reminder = try await owned("reminder", .object(["target_kind": .string("task"), "target_id": .string(task.id),
+            "at": .string("2026-10-01T07:00:00+00:00"), "offset_minutes": .int(0), "timezone": .string("Africa/Johannesburg")]))
+        try await sync("reminders", record: reminder)
+        for domain in ["tasks", "calendar", "reminders"] { try await sync(domain) }
+        let reloaded = MobileSyncStore()
+        for record in [task, calendar, event, reminder] {
+            XCTAssertEqual(reloaded.snapshot.records[record.id]?.revision, model.store.snapshot.records[record.id]?.revision)
+            print("C93 REAL \(record.kind) stable record=\(record.id) revision=\(record.revision)")
+        }
+        try await sync("chat")
+        let selected = model.records.filter { $0.kind == "conversation" && !$0.deleted && $0.payload["title"] == .string("C93 Acceptance Shared") }
+        XCTAssertEqual(selected.count, 1)
+        XCTAssertFalse(model.records.contains { $0.kind == "conversation" && !$0.deleted && $0.payload["title"] == .string("C93 Acceptance Private") })
+        let conversation = try XCTUnwrap(selected.first)
+        let messages = model.records.filter { $0.kind == "message" && !$0.deleted && model.store.snapshot.messageParents[$0.id] == conversation.id }
+        XCTAssertEqual(messages.count, 4, "Two synthetic desktop prompts and their answers")
+        var after: String? = nil, ordered: [SignedSyncRecord] = []
+        for _ in 0..<messages.count {
+            let next = messages.filter { $0.payload["after"].string == after }
+            XCTAssertEqual(next.count, 1, "Exact linked message ordering")
+            guard let record = next.first else { break }
+            ordered.append(record); after = record.id
+        }
+        XCTAssertEqual(ordered.first?.payload["content"], .string("Reply with C93 FIRST"))
+        if ordered.count == 4 { XCTAssertEqual(ordered[2].payload["content"], .string("Reply with C93 SECOND")) }
+        let revisions = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0.revision) })
+        try await sync("chat"); try await sync("chat")
+        for (id, revision) in revisions { XCTAssertEqual(model.store.snapshot.records[id]?.revision, revision) }
+        XCTAssertEqual(model.records.filter { $0.kind == "message" && !$0.deleted && model.store.snapshot.messageParents[$0.id] == conversation.id }.count, 4)
+        print("C93 REAL selected Chat conversation=\(conversation.id) ordered messages=\(ordered.map(\.id).joined(separator: ",")); repeat sync stable; named unselected conversation absent")
+        let chatStore = MobileChatStore()
+        let prompt = "Reply with C93 MOBILE ONLY ONCE"
+        let turn: MobileChatTurn
+        if let completed = chatStore.turns.first(where: { $0.peerID == peer.id && $0.user == prompt }) {
+            turn = completed // A repeated acceptance run never regenerates it.
+        } else {
+            let startJournal = ProtectedStore<String>(url: URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/c7-start-v1.json"), maximumBytes: 1024)
+            guard try startJournal.load() == nil else { throw XCTSkip("An earlier synthetic C7 start has no completed turn; reconcile before an explicit retry") }
+            let request = try InferenceWire.request(source: identity.publicIdentity.deviceID, target: peer.id, operation: "start",
+                arguments: InferenceWire.startArguments(preset: "normal", messages: [("user", prompt)]))
+            try startJournal.save(request["job_id"].uuid())
+            let started = try await channel.exchange(request)
+            guard started["error"] == .null else { throw InferenceWire.failure(started["error"].string ?? "invalid_request") }
+            let job = try request["job_id"].uuid()
+            var answer = InferenceAccumulator()
+            for _ in 0..<120 {
+                let response = try await channel.exchange(InferenceWire.request(source: identity.publicIdentity.deviceID, target: peer.id,
+                    operation: "poll", job: job, arguments: .object(["after": .int(answer.sequence)])))
+                guard response["error"] == .null else { throw InferenceWire.failure(response["error"].string ?? "invalid_request") }
+                try answer.consume(response["result"])
+                if InferenceWire.terminal.contains(answer.state) { break }
+                try await Task.sleep(for: .seconds(1))
+            }
+            guard answer.state == "completed", !answer.text.isEmpty else { throw ConnectFailure.inferenceFailed }
+            turn = MobileChatTurn(id: job, userID: UUID().uuidString.lowercased(), assistantID: UUID().uuidString.lowercased(),
+                peerID: peer.id, preset: "normal", user: prompt, answer: answer.text, createdAt: Date())
+            try chatStore.append(turn)
+        }
+        await model.selectMobileChat([turn]) // Only this completed synthetic turn.
+        try await sync("chat")
+        for id in [turn.userID, turn.assistantID] {
+            let record = try XCTUnwrap(model.store.snapshot.records[id])
+            XCTAssertTrue(model.store.snapshot.acknowledged[peer.id + ":chat"]?.contains(record.revision) == true)
+        }
+        await model.selectMobileChat([turn]); try await sync("chat"); try await sync("chat")
+        XCTAssertEqual(model.records.filter { $0.id == turn.userID || $0.id == turn.assistantID }.count, 2)
+        XCTAssertTrue(MobileSyncStore().snapshot.importedTurns.contains(turn.id))
+        print("C93 REAL completed C7 turn=\(turn.id) selected once; stable user=\(turn.userID) assistant=\(turn.assistantID); repeated import/sync has two messages")
+    }
+}
+
 final class ConnectProtocolTests: XCTestCase {
+    func testIncomingInferenceProbeKeepsClientAuthorityDenied() throws {
+        let local = UUID().uuidString.lowercased(), peer = UUID().uuidString.lowercased()
+        for operation in ["status", "capabilities", "start", "poll", "cancel"] {
+            let arguments: ConnectJSON = operation == "start" ? try InferenceWire.startArguments(preset: "normal", messages: [("user", "Synthetic probe")]) :
+                operation == "poll" ? .object(["after": .int(0)]) : .object([:])
+            let request = try InferenceWire.request(source: peer, target: local, operation: operation, arguments: arguments, now: 1000)
+            let reply = try InferenceWire.response(InferenceWire.clientReply(request.canonical, local: local, peer: peer, now: 1001).canonical)
+            XCTAssertEqual(reply["request_id"], request["request_id"]); XCTAssertEqual(reply["job_id"], request["job_id"])
+            if operation == "status" {
+                XCTAssertEqual(reply["error"], .null)
+                XCTAssertEqual(reply["result"]["permission"], .string("deny"))
+                XCTAssertEqual(reply["result"]["busy"], .bool(false))
+                XCTAssertTrue(reply["result"]["presets"].object!.values.allSatisfy { $0 == .bool(false) })
+            } else { XCTAssertEqual(reply["error"], .string("permission_denied")); XCTAssertEqual(reply["result"], .null) }
+            XCTAssertThrowsError(try InferenceWire.clientReply(request.canonical, local: peer, peer: local, now: 1001))
+            XCTAssertEqual(try InferenceWire.clientReply(request.canonical, local: local, peer: peer, now: 1120)["error"], .string("expired_request"))
+            for (key, value) in [("protocol_version", ConnectJSON.string("olive-inference/2")), ("extra", .bool(true)),
+                                 ("expires_at", .int(1121)), ("operation", .string("terminal")), ("arguments", .object(["unexpected": .bool(true)]))] {
+                var bad = request.object!; bad[key] = value
+                XCTAssertThrowsError(try InferenceWire.clientReply(ConnectJSON.object(bad).canonical, local: local, peer: peer, now: 1001))
+            }
+        }
+    }
     private func vectors() throws -> ConnectJSON {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "vectors", withExtension: "json"))
         return try ConnectJSON.decode(Data(contentsOf: url), limit: 200_000)
