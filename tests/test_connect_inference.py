@@ -111,6 +111,22 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         # An exchange yields to the real local confirmation task, without test sleeps.
         await self.send(self.client.make(self.b.local_id, 'status'))
 
+    async def test_companion_capabilities_are_readonly_and_status_stays_compatible(self):
+        before = len(self.b.repository.activity())
+        plain = (await self.send(self.client.make(self.b.local_id, 'status')))['result']
+        self.assertEqual(set(plain), {'presets', 'permission', 'busy'})
+        value = (await self.send(self.client.make(self.b.local_id, 'capabilities')))['result']
+        self.assertEqual(value['connect_version'], 1)
+        self.assertEqual(value['studio_scope'], 'workspace')
+        self.assertEqual(set(value['permissions']), {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.receive', 'files.send'})
+        self.assertTrue(all(p == 'deny' for p in value['permissions'].values()))
+        self.b.set_permission(self.a.local_id, 'files.receive', 'allow')
+        updated = (await self.send(self.client.make(self.b.local_id, 'capabilities')))['result']
+        self.assertEqual(updated['permissions']['files.receive'], 'allow')
+        self.assertEqual(updated['permissions']['files.send'], 'deny')
+        self.assertFalse(self.b.inference.jobs)
+        self.assertNotIn('Owner', str(updated))
+
     async def test_off_status_then_ask_deny_zero_invocations(self):
         self.assertEqual(self.b.permission(self.a.local_id, 'models.remote').value, 'deny')
         req = self.start_request()

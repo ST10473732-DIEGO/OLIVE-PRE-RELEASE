@@ -111,7 +111,7 @@ class InferenceRequest:
                 if set(a) != {'after'}:
                     raise ConnectError('invalid_request')
                 integer(a['after'], 0, MAX_OUTPUT)
-            elif v['operation'] not in ('cancel', 'status') or a:
+            elif v['operation'] not in ('cancel', 'status', 'capabilities') or a:
                 raise ConnectError('invalid_request')
             return cls(**v)
         except ConnectError:
@@ -152,6 +152,15 @@ def response(raw):
             if (type(r['presets']) is not dict or set(r['presets']) != set(PRESETS)
                     or any(type(x) is not bool for x in r['presets'].values())
                     or r['permission'] not in ('deny', 'ask', 'allow') or type(r['busy']) is not bool):
+                raise ValueError()
+        elif set(r) == {'connect_version', 'permissions', 'supported', 'studio_scope'}:
+            names = {'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.receive', 'files.send'}
+            if (type(r['connect_version']) is not int or r['connect_version'] != 1
+                    or type(r['permissions']) is not dict or set(r['permissions']) != names
+                    or any(v not in ('deny', 'ask', 'allow') for v in r['permissions'].values())
+                    or type(r['supported']) is not dict or set(r['supported']) != names | {'studio'}
+                    or any(type(v) is not bool for v in r['supported'].values())
+                    or r['studio_scope'] != 'workspace'):
                 raise ValueError()
         elif set(r) == {'state', 'events', 'error'}:
             if r['state'] not in STATES or r['error'] is not None and r['error'] not in ERRORS:

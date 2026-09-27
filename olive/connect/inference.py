@@ -149,7 +149,7 @@ class RemoteInferenceService:
             req = InferenceRequest.decode(raw)
             while True:
                 with self.lock, self.service.repository.transaction(timeout=.25) as db:
-                    record, decision = self._authority(db, req, channel, permission=req.operation not in ('status', 'cancel'))
+                    record, decision = self._authority(db, req, channel, permission=req.operation not in ('status', 'capabilities', 'cancel'))
                     now = int(self.service.clock())
                     if req.timestamp > now + 5 or req.expires_at <= now:
                         raise ConnectError('expired_request')
@@ -179,6 +179,19 @@ class RemoteInferenceService:
             job_id=req.job_id, result=None, error=code)))
 
     def _dispatch(self, db, req, channel, record, decision):
+        if req.operation == 'capabilities':
+            # Optional read-only C9.3 query. Existing status bytes are unchanged.
+            # C3 trust remains mandatory; no model permission or action is granted.
+            names = ('sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.receive', 'files.send')
+            metadata = {c['capability']: c for c in self.service.capabilities_from_db(db)}
+            supported = {name: (self.service.sync is not None and
+                (name != 'sync.chat' or self.service.sync.store.chat is not None))
+                if name.startswith('sync.') else self.service.files is not None for name in names}
+            permissions = {name: PermissionDecision.DENY.value if not supported[name]
+                or metadata.get(name, {}).get('policy_disabled', False)
+                else PermissionService.evaluate_device(record['permissions'], name).value for name in names}
+            supported['studio'] = self.service.studio is not None
+            return dict(connect_version=1, permissions=permissions, supported=supported, studio_scope='workspace')
         if req.operation == 'status':
             return dict(presets=self.runtime.availability(), permission=decision.value,
                         busy=self.active is not None or self.runtime.local_busy())
