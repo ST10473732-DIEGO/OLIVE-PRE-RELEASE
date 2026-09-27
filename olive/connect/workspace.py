@@ -15,7 +15,9 @@ class DevicesWorkspace:
         self.service = service
         self.lock = RLock()
         self.network_state = 'off'
-        self.network_error = None
+        self.network_error = service.network_error
+        if self.network_error:
+            self.network_state = 'failed'
         self.offer = None
         self.pings = {}
 
@@ -51,15 +53,16 @@ class DevicesWorkspace:
             interfaces=candidates, interface_error=interface_error, protocol=PROTOCOL,
             network=dict(state=('on' if not network.stopping.is_set() else 'off') if network else ('off' if self.network_state == 'on' else self.network_state), error=self.network_error,
                 interface=asdict(network.interface) if network else None,
-                port=network.port if network else None, discovery=bool(network and network.discovery)),
+                port=network.port if network else None, discovery=bool(network and network.discovery),
+                persistent=s.persistent_network, pairing_port=s.pairing_port or None),
             nearby=[{k: v for k, v in entry.items() if k != 'seen'} for entry in network.discovery.nearby()] if network and network.discovery else [],
             sync=s.sync.status() if s.sync else None, activity=s.repository.activity()[-200:], pairing_recovery=recovery[-32:])
 
-    def enable(self, address, discovery):
+    def enable(self, address, discovery, persistent=False):
         with self.lock:
             self.network_state, self.network_error = 'starting', None
             try:
-                self.service.enable_network(address, discovery=discovery)
+                self.service.configure_network(address, discovery=discovery, persistent=persistent)
                 self.network_state = 'on'
             except Exception as error:
                 self.network_state = 'failed'
@@ -68,7 +71,7 @@ class DevicesWorkspace:
 
     def disable(self):
         with self.lock:
-            self.service.disable_network()
+            self.service.turn_network_off()
             self.network_state, self.network_error = 'off', None
             self.pings.clear()
             return self.snapshot()

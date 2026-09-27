@@ -40,6 +40,7 @@ export function Devices() {
     [busy, setBusy] = useState(false),
     [address, setAddress] = useState(""),
     [discovery, setDiscovery] = useState(false),
+    [persistent, setPersistent] = useState(false),
     [editing, setEditing] = useState(false),
     [name, setName] = useState(""),
     [importing, setImporting] = useState(false),
@@ -425,6 +426,15 @@ export function Devices() {
                                 Advertise this device on the selected network.
                               </small>
                             </label>
+                            <label className="devices-check">
+                              <input type="checkbox" checked={on ? !!data.network.persistent : persistent}
+                                disabled={on || busy} onChange={(e) => setPersistent(e.target.checked)} />
+                              Keep Connect available after restart
+                              <small>Remember this interface and use stable ports. Turning Connect off cancels automatic startup.</small>
+                            </label>
+                            {data.network.persistent && <p className="muted">
+                              Connect port {data.network.port}. Pairing port {data.network.pairing_port} opens only during pairing.
+                            </p>}
                             <button
                               className="primary"
                               disabled={
@@ -441,6 +451,7 @@ export function Devices() {
                                     : call("connect.enable", {
                                         address,
                                         discovery,
+                                        persistent,
                                       }),
                                 )
                               }

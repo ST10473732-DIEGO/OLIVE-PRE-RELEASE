@@ -24,7 +24,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       OLIVE_OLLAMA_HOST: "http://127.0.0.1:1",
     },
   });
-  const python = path.join(
+  const python = process.env.OLIVE_PYTHON || path.join(
     root,
     process.platform === "win32"
       ? ".venv/Scripts/python.exe"
@@ -90,6 +90,9 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     await shot("this-device-off");
     await shot("nearby-empty");
     await page.getByRole("button", { name: /127\.0\.0\.1/ }).click();
+    const persistent = page.getByRole("checkbox", { name: /Keep Connect available after restart/ });
+    await expect(persistent).not.toBeChecked();
+    await persistent.check();
     await page
       .getByRole("button", { name: "Turn Connect on", exact: true })
       .click();
@@ -99,6 +102,11 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
         .last(),
     ).toBeVisible();
     await shot("this-device-on");
+    await expect(persistent).toBeChecked();
+    const networkSettings = JSON.parse(await readFile(path.join(profile, "connect/network-v1.json"), "utf8"));
+    expect(networkSettings.enabled).toBe(true);
+    expect(networkSettings.port).not.toBe(networkSettings.pairing_port);
+    await expect(page.getByText(`Connect port ${networkSettings.port}. Pairing port ${networkSettings.pairing_port} opens only during pairing.`)).toBeVisible();
     await page
       .getByRole("button", { name: "Connect a device", exact: true })
       .click();
@@ -111,6 +119,9 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       ),
     ).toBe(true);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    // The button awaits the backend cancellation before dismissing the dialog.
+    // Check cleanup at that acknowledged UI boundary, not while IPC is in flight.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(await control("listener")).toBe(false);
     const remoteOffer = await control("responder_offer");
     await page
@@ -448,6 +459,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       page.getByRole("button", { name: "Turn Connect on", exact: true }),
     ).toBeVisible();
     expect(errors).toEqual([]);
+    expect(JSON.parse(await readFile(path.join(profile, "connect/network-v1.json"), "utf8")).enabled).toBe(false);
     const probe = spawnSync(
       python,
       [

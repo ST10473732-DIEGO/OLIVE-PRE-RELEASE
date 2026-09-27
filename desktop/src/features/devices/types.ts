@@ -75,6 +75,8 @@ export interface DevicesState {
     interface: NetworkInterface | null;
     port: number | null;
     discovery: boolean;
+    persistent?: boolean;
+    pairing_port?: number | null;
   };
   nearby: { instance: string; address: string; port: number; state: string }[];
   pairing_recovery?: { session_id: string; state: string }[];

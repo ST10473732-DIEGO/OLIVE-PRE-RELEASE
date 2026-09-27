@@ -516,7 +516,8 @@ class LocalNetwork:
         self.attempts = Budget(12, 60)
         self.audit_budget = Budget(30, 60)
         self.discovery = None
-        self.listener = socket.socket(socket.AF_INET if ipaddress.ip_address(address).version == 4 else socket.AF_INET6)
+        from .listener import listener_socket
+        self.listener = listener_socket(address)
         try:
             self.listener.bind((address, port))
             self.listener.listen(MAX_CONNECTIONS)

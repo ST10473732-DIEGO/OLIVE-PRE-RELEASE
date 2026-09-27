@@ -19,6 +19,12 @@ describe("Devices contracts and truthful presentation", () => {
       expect(searchFeatures(alias).some((f) => f.id === "devices")).toBe(true);
   });
   it("requires interface selection and rejects untrusted authority", () => {
+    for (const persistent of [true, false]) {
+      expect(connectSchemas["connect.enable"].safeParse({ address: "192.168.1.2", discovery: true, persistent }).success).toBe(true);
+    }
+    for (const persistent of [1, "true", null]) {
+      expect(connectSchemas["connect.enable"].safeParse({ address: "192.168.1.2", discovery: true, persistent }).success).toBe(false);
+    }
     expect(
       connectSchemas["connect.enable"].safeParse({ discovery: false }).success,
     ).toBe(false);

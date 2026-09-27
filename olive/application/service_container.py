@@ -330,6 +330,7 @@ class ServiceContainer:
                 future.cancel()
                 raise
         self.connect.sync.dispatch = dispatch_sync
+        await asyncio.to_thread(self.connect.restore_network)
         self.personal.scheduler.start()
         self.mail.background.start()
         try:

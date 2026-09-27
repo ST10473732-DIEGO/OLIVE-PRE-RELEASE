@@ -18,6 +18,11 @@ class DesktopDeviceService:
         self.fixture_mode = fixture_mode
         self.closed = False
         self.network = None
+        from .network_settings import NetworkSettingsStore
+        self.network_settings = NetworkSettingsStore(profile)
+        self.network_error = None
+        self.pairing_port = 0
+        self.persistent_network = False
         self._network_lock = RLock()
         self.approvals = None
         self.sync = None
@@ -296,6 +301,72 @@ class DesktopDeviceService:
                                   request.capability if request else None, int(self.clock()), code)
         return dict(protocol_version=PROTOCOL, request_id=request.request_id if request else None,
                     state='rejected', error=code)
+
+    def configure_network(self, address, *, discovery, persistent=False):
+        """Trusted desktop opt-in. Pin two ports and the entire selected interface."""
+        from dataclasses import asdict
+        from .discovery import interfaces
+        from .listener import listener_socket
+        with self._network_lock:
+            if self.network is not None:
+                raise ConnectError('network_already_enabled')
+            saved = self.network_settings.load()
+            candidates = [i for i in interfaces() if i.address == address]
+            if len(candidates) != 1:
+                raise ConnectError('select_active_local_interface')
+            selected = candidates[0]
+            reuse = saved if saved and self.network_settings.matches(saved, selected) else None
+            # An explicit new selection must not leave the old startup intent active.
+            self.network_settings.disable()
+            self.persistent_network = False
+            self.pairing_port = 0
+            try:
+                network = self.enable_network(address, port=reuse['port'] if persistent and reuse else 0,
+                                              discovery=discovery)
+                if persistent:
+                    # Reserve/verify the second exact port, but do not listen until
+                    # an owner opens a fresh pairing dialog. No permanent pairing session.
+                    with listener_socket(address) as probe:
+                        probe.bind((address, reuse['pairing_port'] if reuse else 0))
+                        pairing_port = probe.getsockname()[1]
+                    self.network_settings.save(dict(version=1, enabled=True, interface=asdict(selected),
+                        port=network.port, pairing_port=pairing_port, discovery=discovery))
+                    self.pairing_port = pairing_port
+                    self.persistent_network = True
+                self.network_error = None
+                return network
+            except Exception:
+                self.disable_network()
+                raise
+
+    def restore_network(self):
+        """Called after runtime services attach. Never switch interfaces or ports."""
+        from .discovery import interfaces
+        with self._network_lock:
+            if self.closed or self.network is not None:
+                return
+            try:
+                saved = self.network_settings.load()
+                if not saved or not saved['enabled']:
+                    return
+                if sum(self.network_settings.matches(saved, i) for i in interfaces()) != 1:
+                    raise ConnectError('saved_connect_interface_unavailable')
+                self.enable_network(saved['interface']['address'], port=saved['port'], discovery=saved['discovery'])
+                self.pairing_port = saved['pairing_port']
+                self.persistent_network = True
+                self.network_error = None
+            except Exception as error:
+                self.network_error = str(error) if isinstance(error, ConnectError) else 'saved_connect_listener_unavailable'
+
+    def turn_network_off(self):
+        """Explicit Off clears startup intent; process shutdown does not."""
+        with self._network_lock:
+            try:
+                self.network_settings.disable()
+            finally:
+                self.disable_network()
+                self.persistent_network = False
+                self.pairing_port = 0
 
     def enable_network(self, address, *, port=0, discovery=True):
         """Explicit trusted local action; session-only, with serialized shutdown."""

@@ -32,7 +32,7 @@ export const connectSchemas = {
     .object({ device_id: id, conversation_id: id, selected: z.boolean() })
     .strict(),
   "connect.snapshot": empty,
-  "connect.enable": z.object({ address, discovery: z.boolean() }).strict(),
+  "connect.enable": z.object({ address, discovery: z.boolean(), persistent: z.boolean().optional() }).strict(),
   "connect.disable": empty,
   "connect.rename": z
     .object({

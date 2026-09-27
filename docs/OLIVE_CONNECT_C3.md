@@ -362,3 +362,36 @@ fresh GitHub runner result. No native Windows network run, physical second-machi
 Wi-Fi test, live model/GPU re-certification, release, push or merge is claimed.
 C2's vault/pairing contracts remain covered by the unchanged tests; C3 synthetic
 acceptance does not access the user's real vault or data.
+
+
+## C9.2 opt-in restart-compatible listener ports
+
+The trusted Devices UI now offers **Keep Connect available after restart**.
+Its default is off. Existing `enable_network(..., port=0)` callers keep their
+session-only behavior. The desktop preference path is
+`connect/network-v1.json` within the selected profile: version 1, enabled boolean,
+exact interface name/address/network, main port, pairing port and discovery flag.
+No wire frame, identity, permissions or database schema changes.
+
+The facade selects and saves two distinct unprivileged ports on first opt-in.
+Main Connect reuses its saved port after normal process restart; C4 opens its
+saved pairing port only during a fresh explicit pairing session. Startup checks
+the exact saved interface tuple and fails closed if absent, changed or occupied.
+It never falls back to a wildcard or a random replacement port. Explicit Off
+clears automatic startup; application shutdown retains it. Missing preferences
+preserve previous startup-Off behavior; corrupt files remain intact and cannot
+start a listener. The local vault/certificate must still be available and valid.
+
+Only socket bind policy changes: POSIX SO_REUSEADDR handles TIME_WAIT while
+excluding a second active listener; Windows SO_EXCLUSIVEADDRUSE prevents port
+hijacking. SO_REUSEPORT is never used. An unavailable port is reported, including
+Windows cases where immediate reuse remains unavailable.
+
+For the C9.2 UFW deployment, two exact TCP rules replace changing-port exceptions,
+scoped to the selected input interface, destination address and individual phone
+source address. UFW default-deny remains in force; no new mDNS rule is needed
+where discovery already works. UFW input rules do not provide executable pinning.
+OLIVE executes no firewall commands. DHCP/interface changes require a new explicit
+scope decision; process restart on an unchanged LAN requires no rule edit.
+The main Bonjour service and pairing QR continue to advertise actual endpoints;
+mobile clients contain no configured server address or port.

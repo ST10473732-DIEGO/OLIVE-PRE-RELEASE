@@ -84,10 +84,10 @@ class DesktopPairingTransport:
     def create(self):
         with self.lock:
             interface = self._start()
-            family = socket.AF_INET6 if ':' in interface.address else socket.AF_INET
-            listener = socket.socket(family, socket.SOCK_STREAM)
+            from .listener import listener_socket
+            listener = listener_socket(interface.address)
             try:
-                listener.bind((interface.address, 0))
+                listener.bind((interface.address, self.service.pairing_port))
                 listener.listen(2)
                 listener.settimeout(.2)
                 offer = self.pairing.create_offer(endpoint=dict(address=interface.address,

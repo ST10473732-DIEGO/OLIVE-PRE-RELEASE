@@ -23,7 +23,7 @@ SPEC = {
     'connect.sync_conflicts': ({}, {}),
     'connect.sync_resolve': ({'conflict_id': str, 'choice': str}, {}),
     'connect.snapshot': ({}, {}),
-    'connect.enable': ({'address': str, 'discovery': bool}, {}),
+    'connect.enable': ({'address': str, 'discovery': bool}, {'persistent': bool}),
     'connect.disable': ({}, {}),
     'connect.rename': ({'name': str}, {}),
     'connect.permission': ({'device_id': str, 'capability': str, 'decision': str}, {}),
