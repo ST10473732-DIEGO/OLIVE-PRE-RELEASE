@@ -157,7 +157,7 @@ Blocking transport/repository synchronization runs off the model/UI event loop.
 | Peer jobs | 1 total active, queued or awaiting approval per peer |
 | Pending Ask | 4 globally, also within C4's shared 32-approval registry |
 | Transient jobs including completed tails | 32 globally |
-| New admitted/admission-attempt requests | 6 per peer per rolling monotonic minute |
+| New admitted/admission-attempt requests | Capacity-based; no separate per-minute question quota (C9.2 usability follow-up) |
 | Rate-accounting identities | 256, no eviction to reset abuse accounting |
 | C7 request/response frames | 600 per peer/minute across reconnects |
 | Durable metadata receipts | 10,000, fail closed without eviction |

@@ -381,16 +381,14 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.sb.chats[self.sb.current_chat_id].messages, [])
         self.assertNotIn(text, str(self.b.inference.snapshot(self.a.local_id)))
 
-    async def test_rate_budget_survives_reconnect_and_busy_bounded(self):
+    async def test_busy_capacity_and_transport_budget_survive_reconnect(self):
         await self.policy('allow'); self.eb.mode = 'long'
         req = self.start_request(); await self.send(req)
         await asyncio.wait_for(self.eb.started.wait(), 3)
-        for _ in range(5):
+        for _ in range(8):
             self.assertEqual((await self.send(self.start_request()))['error'], 'busy')
-        self.assertEqual((await self.send(self.start_request()))['error'], 'rate_limited')
         old = self.channel
         remote = self.nb.channels[self.a.local_id]
-        admission_budget = self.b.inference.rates[self.a.local_id]
         transport_budget = self.nb.inference_rates[self.a.local_id]
         await asyncio.to_thread(self.na.disconnect, self.b.local_id)
         self.assertFalse(old.thread.is_alive())
@@ -399,11 +397,49 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNot(self.nb.channels.get(self.a.local_id), remote)
         # No inference cleanup wait, peer-map polling or retry before reconnect.
         self.channel = await asyncio.to_thread(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
-        self.assertEqual((await self.send(self.start_request()))['error'], 'rate_limited')
-        self.assertIs(self.b.inference.rates[self.a.local_id], admission_budget)
         self.assertIs(self.nb.inference_rates[self.a.local_id], transport_budget)
+        self.assertEqual(transport_budget.count, 600)
         self.assertEqual(len(self.eb.calls), 1)
         await self.released(req)
+        self.eb.mode = 'normal'
+        next_request = self.start_request()
+        self.assertIsNone((await self.send(next_request))['error'])
+        self.assertEqual((await self.terminal(next_request))[0]['state'], 'completed')
+
+    async def test_sequential_chat_has_no_six_per_minute_quota(self):
+        await self.policy('allow')
+        # Freeze the admission clock: all requests occur in the same window,
+        # without sleeping a minute or bypassing C3's actual frame budget.
+        now = self.b.inference.clock()
+        self.b.inference.clock = lambda: now
+        channel = self.channel
+        for _ in range(12):
+            req = self.start_request()
+            self.assertIsNone((await self.send(req))['error'])
+            result, output = await self.terminal(req)
+            self.assertEqual(result['state'], 'completed')
+            self.assertEqual(''.join(output), ''.join(self.eb.parts))
+            await self.released(req)
+        self.assertIs(self.channel, channel)
+        self.assertFalse(channel.stop.is_set())
+        self.assertEqual(len(self.eb.calls), 12)
+
+    async def test_c7_frame_flood_budget_still_rejects_across_reconnect(self):
+        from olive.connect.network import Budget
+        from tests.test_connect_network import until
+        with self.nb.lock:
+            budget = Budget(2, 60)
+            self.nb.inference_rates[self.a.local_id] = budget
+        for _ in range(2):
+            self.assertIsNone((await self.send(self.client.make(self.b.local_id, 'status')))['error'])
+        with self.assertRaises(ConnectError):
+            await self.send(self.client.make(self.b.local_id, 'status'))
+        await asyncio.to_thread(until, lambda: not self.nb.channels.get(self.a.local_id))
+        await asyncio.to_thread(until, lambda: not self.na.channels.get(self.b.local_id))
+        self.channel = await asyncio.to_thread(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
+        self.assertIs(self.nb.inference_rates[self.a.local_id], budget)
+        with self.assertRaises(ConnectError):
+            await self.send(self.client.make(self.b.local_id, 'status'))
 
     async def test_local_remote_model_transitions(self):
         await self.policy('allow')

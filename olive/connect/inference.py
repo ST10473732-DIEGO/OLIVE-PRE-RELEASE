@@ -54,7 +54,6 @@ class RemoteInferenceService:
         self.lock = RLock()
         self.store = InferenceStore(service.repository)
         self.jobs = {}
-        self.rates = {}
         self.active = None
         self.enabled = False
         self.monitor = None
@@ -139,19 +138,6 @@ class RemoteInferenceService:
         if not job.released.wait(5):
             raise ConnectError('generation_timeout')
 
-    def _rate(self, peer):
-        now = self.clock()
-        if peer not in self.rates:
-            if len(self.rates) >= 256:
-                raise ConnectError('rate_limited')
-            self.rates[peer] = deque()
-        bucket = self.rates[peer]
-        while bucket and bucket[0] <= now - 60:
-            bucket.popleft()
-        if len(bucket) >= 6:
-            raise ConnectError('rate_limited')
-        bucket.append(now)
-
     def receive(self, raw, channel, deliver):
         """C3 alone supplies channel. Serialize result transmission with authority writes.
 
@@ -215,7 +201,9 @@ class RemoteInferenceService:
                 self._job_authority(db, job)
                 return dict(state=job.state, events=[], error=job.error)
             if job is None:
-                self._rate(channel.peer)
+                # Sequential Chat is limited by available capacity, not a
+                # per-minute question quota. C3 retains its per-peer frame
+                # budget across reconnects; concurrent jobs remain bounded.
                 live = [j for j in self.jobs.values() if j.state not in TERMINAL or not j.released.is_set()]
                 if (len(self.jobs) >= 32 or any(j.peer == channel.peer for j in live)
                         or sum(j.state == 'awaiting_approval' for j in live) >= self.APPROVALS):
