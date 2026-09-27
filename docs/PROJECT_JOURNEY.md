@@ -743,3 +743,13 @@ owner then confirmed that reopening preserved Interrupted without automatic
 restart, closing this outgoing force-quit/relaunch check. No execution after force
 quit is promised. The next live check covers a user-initiated C7 response in
 background.
+
+
+The first real C7 background response showed loading and then a completion tick.
+The owner observed disconnection after completion and reconnection on returning.
+The operation journal independently records completed with 7,471 verified answer
+bytes and no running tasks. In-app duplicate/status and time-away confirmation
+remain pending. An older system activity reads Task failed; this is retained
+system failure UI, not evidence that OLIVE is still processing. Apple's DTS
+confirms that this UI is managed independently of the app; OLIVE keeps failure
+states truthful rather than claiming success to hide it.

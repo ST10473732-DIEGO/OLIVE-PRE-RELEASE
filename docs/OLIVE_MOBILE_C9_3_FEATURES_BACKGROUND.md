@@ -359,6 +359,26 @@ reopening OLIVE left the transfer Interrupted and did not restart it. This passe
 the tested outgoing force-quit/relaunch/no-replay path. No continued execution
 after force quit is claimed.
 
+For the first C7 background Chat check, the owner requested the synthetic garden
+response, observed the system loading activity followed by a completion tick, and
+reported desktop disconnection after completion followed by reconnection on
+returning to OLIVE. The independently read operation journal records
+`bb53a1ee-b623-474d-8c66-efab1c52236b` (`models.remote`) completed with 7,471
+verified answer bytes and no fabricated total; the journal contains zero running
+operations. Confirmation of the in-app single completed response and approximate
+time away is pending. A separate active-response Stop check remains open.
+
+The owner also reported an older activity still visible and clarified that it
+says Task failed. This is a terminal failure display; no running operation remains
+in OLIVE's journal. Apple's DTS explains that the system manages this UI
+independently and cancelling scheduler requests does not remove already-failed
+tasks: [BGContinuedProcessingTask failure behavior](https://developer.apple.com/forums/thread/808756).
+The installed SDK exposes progress, title updates and completion, with no public
+failed-activity dismissal method on BGContinuedProcessingTask. OLIVE does not
+claim it can clear that system UI, and does not relabel a failed transfer successful
+or publish invented progress to suppress it. The exact dismissal behavior on this
+iOS27 device remains a UX observation to check.
+
 The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
 the existing protocol. These results prove the tested supported background file
 flows, cancellation/reconnect, outgoing network-loss/no-replay and observed
