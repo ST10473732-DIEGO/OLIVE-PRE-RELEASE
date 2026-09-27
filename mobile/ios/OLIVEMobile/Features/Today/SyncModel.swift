@@ -85,16 +85,18 @@ final class SyncModel {
         } catch { notice = error.localizedDescription }
     }
     func cancel() { cancelled = true; notice = "Stopping after the current batch; committed records remain." }
-    func save(kind: String, payload: ConnectJSON, old: SignedSyncRecord? = nil, deleted: Bool = false) async throws {
+    @discardableResult
+    func save(kind: String, payload: ConnectJSON, old: SignedSyncRecord? = nil, deleted: Bool = false) async throws -> SignedSyncRecord {
         guard !busy, let session, online else { throw ConnectFailure.peerOffline }
         let (_, identity, _) = try await session.context()
         guard old == nil || store.snapshot.records[old!.id]?.revision == old!.revision else { throw ConnectFailure.syncRevisionStale }
         guard old?.deleted != true else { throw ConnectFailure.syncConflict }
-        if let old, old.payload == payload, !deleted { return }
+        if let old, old.payload == payload, !deleted { return old }
         let record = try SyncWire.author(kind: kind, id: old?.id ?? UUID().uuidString.lowercased(), payload: payload, deleted: deleted, parents: old.map { [$0] } ?? [], identity: identity)
         guard MobileSyncStore.dependency(record, in: store.snapshot) else { throw ConnectFailure.syncConflict }
         var next = store.snapshot; try MobileSyncStore.put(record, in: &next); try store.commit(next); reload()
         notice = "Saved locally · pending explicit sync"
+        return record
     }
     func resolve(_ conflict: SyncConflict, incoming: Bool) async {
         do {

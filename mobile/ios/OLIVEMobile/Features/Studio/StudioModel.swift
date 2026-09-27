@@ -111,7 +111,7 @@ final class StudioModel {
             let id = try req["request_id"].uuid()
             try background?.begin(BackgroundOperationRecord(id: id, capability: "studio." + operation,
                 peerID: try req["target_device_id"].uuid(), label: operation == "test" ? "Running tests" : operation == "build" ? "Building project" : "Running project",
-                protocolID: id, requestDigest: req.digest, startedAt: Date())) { [weak self] in
+                protocolID: id, requestDigest: req.digest, startedAt: Date(), scope: ["workspace_id": req["workspace_id"].string ?? "", "share_revision": String(req["share_revision"].integer ?? 0), "operation": operation])) { [weak self] in
                     guard let self else { return }
                     await self.channel?.close() // C8 disconnect cancels the channel-owned job.
                     self.notice = "Interrupted · original session ended"
@@ -131,6 +131,9 @@ final class StudioModel {
             }
             output = result["output"].string ?? output
             notice = result["state"].string ?? "Unknown result"
+            if let tests = result["tests"].object {
+                notice += " · \(tests["passed"]?.integer ?? 0) passed, \(tests["failed"]?.integer ?? 0) failed, \(tests["skipped"]?.integer ?? 0) skipped"
+            }
             background?.finish(result["state"] == .string("completed") ? .completed : result["state"] == .string("cancelled") ? .cancelled : .failed, id: id)
         } catch { notice = error.localizedDescription; if let id = jobRequest?["request_id"].string { background?.finish(.interrupted, id: id) } }
     }

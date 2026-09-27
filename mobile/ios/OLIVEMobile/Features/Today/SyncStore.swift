@@ -16,6 +16,7 @@ struct SyncSnapshot: Codable {
     var acknowledged: [String: Set<String>] = [:]
     var selection: [String: Bool] = [:]
     var messageParents: [String: String] = [:]
+    var messagePredecessors: [String: String]? = nil
     var sequence: [String: Int64] = [:]
     var counter: Int64 = 0
     var importedTurns: Set<String> = []
@@ -50,7 +51,11 @@ final class MobileSyncStore {
     static func put(_ record: SignedSyncRecord, in value: inout SyncSnapshot) throws {
         try receipt(record, in: &value)
         value.counter += 1; value.records[record.id] = record; value.sequence[record.id] = value.counter
-        if record.kind == "message", !record.deleted { value.messageParents[record.id] = record.payload["conversation_id"].string }
+        if record.kind == "message", !record.deleted {
+            value.messageParents[record.id] = record.payload["conversation_id"].string
+            if value.messagePredecessors == nil { value.messagePredecessors = [:] }
+            value.messagePredecessors?[record.id] = record.payload["after"].string ?? ""
+        }
         value.conflicts.removeAll { $0.recordID == record.id && SyncWire.dominates(record.vector, $0.incoming.vector) && record.vector != $0.incoming.vector }
     }
     static func dependency(_ record: SignedSyncRecord, in value: SyncSnapshot) -> Bool {
@@ -72,6 +77,9 @@ final class MobileSyncStore {
         case "task": return p["event_id"] == .string("") || live(p["event_id"].string, "event")
         case "reminder": return live(p["target_id"].string, p["target_kind"].string ?? "")
         case "message":
+            if p["after"].string == record.id { return false }
+            if let old = value.records[record.id], !old.deleted,
+               old.payload["conversation_id"] != p["conversation_id"] || old.payload["after"] != p["after"] { return false }
             return live(p["conversation_id"].string, "conversation") && (p["after"] == .null || value.records[p["after"].string ?? ""]?.kind == "message" && value.messageParents[p["after"].string ?? ""] == p["conversation_id"].string)
         default: return true
         }

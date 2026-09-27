@@ -24,14 +24,18 @@ private struct SyncedConversationView: View {
     @Environment(AppState.self) private var state
     let conversation: SignedSyncRecord
     private var messages: [SignedSyncRecord] {
-        let list = state.sync.records.filter { $0.kind == "message" && !$0.deleted && $0.payload["conversation_id"] == .string(conversation.id) }
-        var result: [SignedSyncRecord] = [], visited = Set<String>()
-        func append(after: String?) {
-            for item in list.filter({ $0.payload["after"].string == after }).sorted(by: { $0.id < $1.id }) where visited.insert(item.id).inserted {
-                result.append(item); append(after: item.id)
-            }
+        let snapshot = state.sync.store.snapshot
+        let list = state.sync.records.filter { $0.kind == "message" && snapshot.messageParents[$0.id] == conversation.id }
+        let byID = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
+        let children = Dictionary(grouping: list) { record in
+            snapshot.messagePredecessors?[record.id] ?? record.payload["after"].string ?? ""
+        }.mapValues { $0.map(\.id).sorted().reversed().map { $0 } }
+        var result: [SignedSyncRecord] = [], visited = Set<String>(), pending = children[""] ?? []
+        while let id = pending.popLast() {
+            guard visited.insert(id).inserted, let record = byID[id] else { continue }
+            if !record.deleted { result.append(record) }
+            pending.append(contentsOf: children[id] ?? [])
         }
-        append(after: nil)
         return result
     }
     var body: some View {

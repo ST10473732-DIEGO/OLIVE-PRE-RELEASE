@@ -8,7 +8,10 @@ actor ConnectTransport: InferenceTransport {
     private var pending: [String: (UInt8, UUID, CheckedContinuation<Data, Error>)] = [:]
     private var sender: Task<Void, Error>?
     private var inbound: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?
-    func setInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?) { inbound = handler }
+    private var inboundDelivered: (@Sendable (ConnectFrame) async -> Void)?
+    func setInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?, delivered: (@Sendable (ConnectFrame) async -> Void)? = nil) {
+        inbound = handler; inboundDelivered = delivered
+    }
     private var plaintext = Data()
     private var ready = false
     private var closed = false
@@ -92,6 +95,7 @@ actor ConnectTransport: InferenceTransport {
                     let reply = try await inbound(frame)
                     guard reply.kind == frame.kind + 1 else { throw ConnectFailure.responseMalformed }
                     try await write(reply.encode())
+                    await inboundDelivered?(reply)
                     continue
                 }
                 guard [2, 6, 8, 10, 12].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
@@ -138,7 +142,7 @@ actor ConnectTransport: InferenceTransport {
         }
     }
     func close() async {
-        closed = true; ready = false; sender?.cancel(); sender = nil; inbound = nil; reader?.cancel(); reader = nil
+        closed = true; ready = false; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; reader?.cancel(); reader = nil
         let waiting = pending; pending.removeAll()
         for (_, _, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
         await socket.close(); tls = nil; plaintext.removeAll()

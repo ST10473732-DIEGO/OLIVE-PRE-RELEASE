@@ -40,7 +40,7 @@ final class AppState {
     let pairingService: any PairingService
     @ObservationIgnored private let store: any ShellStore
     @ObservationIgnored private var canWriteDraft = true
-    var canSend: Bool { !active && chatConnection?.connected == true && chatConnection?.capability?["permission"].string != "deny" && chatConnection?.capability?["presets"][preset].boolean == true && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && draft.utf8.count <= 16000 }
+    var canSend: Bool { !active && background?.active == nil && background?.cancelling != true && chatConnection?.connected == true && chatConnection?.capability?["permission"].string != "deny" && chatConnection?.capability?["presets"][preset].boolean == true && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && draft.utf8.count <= 16000 }
 
     init(store: any ShellStore, connectClient: any ConnectClient = DisconnectedConnectClient(),
          pairingService: any PairingService = UnavailablePairingService(), session: ConnectSession? = nil, chatConnection: (any ChatRemoteSession)? = nil) {
@@ -82,10 +82,10 @@ final class AppState {
         do {
             try background?.begin(BackgroundOperationRecord(id: jobID, capability: "models.remote", peerID: peerID,
                 label: "Receiving response", protocolID: jobID,
-                requestDigest: ConnectJSON.array(context.map { .array([.string($0.0), .string($0.1)]) }).digest, startedAt: Date())) { [weak self] in
+                requestDigest: ConnectJSON.object(["preset": .string(selectedPreset), "messages": .array(context.map { .array([.string($0.0), .string($0.1)]) })]).digest, startedAt: Date())) { [weak self] in
                     await self?.interruptForBackground()
                 }
-        } catch { active = false; chatStatus = error.localizedDescription; return }
+        } catch { active = false; messages.removeAll { $0.id == user.id }; chatStatus = error.localizedDescription; return }
         chatTask = Task {
             do {
                 try await client.run(preset: selectedPreset, jobID: jobID, messages: context) { [self] job, status, answer in
@@ -126,7 +126,7 @@ final class AppState {
         chatStatus = ["awaiting_approval": "Waiting for approval on computer", "queued": "Queued", "starting": "Starting", "streaming": "Receiving", "completed": "Completed"][status] ?? status
         verifiedAnswer = answer
         lastRequestID = job
-        do { try background?.progress(Int64(answer.utf8.count)) } catch { persistenceNotice = error.localizedDescription }
+        do { try background?.progress(Int64(answer.utf8.count), id: job) } catch { persistenceNotice = error.localizedDescription }
         if !answer.isEmpty {
             if firstResponseSeconds == nil { firstResponseSeconds = requestStarted.duration(to: .now).secondsValue }
             var message = ChatMessage(id: answerID, role: .assistant, blocks: ChatMessage.parse(answer))
@@ -186,6 +186,7 @@ final class AppState {
         saveDraft()
         if background?.active != nil, background?.continuationGranted == true { session?.suspend(continuing: true); return }
         guard active || background?.active != nil else { session?.suspend(); return }
+        session?.suspend(continuing: true) // Short cleanup retains only the existing active session.
         if active {
             chatGeneration = UUID() // Fence any outstanding Stop completion immediately.
             chatStatus = "Interrupted · connection closed"; markCurrentTurn(chatStatus)
@@ -193,7 +194,7 @@ final class AppState {
         // iOS17–25 (or denied continued processing): short cancellation/cleanup
         // only. This assertion never promises to finish long work.
         let assertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE cleanup") { [weak self] in
-            Task { @MainActor in self?.session?.suspend() }
+            Task { @MainActor in self?.session?.finishBackgroundWork() }
         }
         Task {
             await background?.cancel(expired: true)
@@ -210,7 +211,7 @@ final class AppState {
             chatStatus = "Interrupted · connection closed"; markCurrentTurn(chatStatus)
         }
         chatGeneration = UUID(); active = false; stopping = false; chatTask = nil
-        session?.suspend()
+        session?.finishBackgroundWork()
     }
     func openChat() { destination = .chat }
 }

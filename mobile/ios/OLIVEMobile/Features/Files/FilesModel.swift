@@ -24,6 +24,7 @@ final class FilesModel {
     private(set) var notice = ""
     private(set) var preparing = false
     private(set) var available = true
+    private var pendingCompletion: [String: String] = [:]
     private var hashes: [String: SHA256] = [:]
     private var timer: Task<Void, Never>?
     private var bound = UUID()
@@ -68,10 +69,10 @@ final class FilesModel {
     }
     func bind(channel: ConnectTransport, local: String, peer: String) async {
         let token = UUID(); bound = token
-        await channel.setInbound { [weak self] frame in
+        await channel.setInbound({ [weak self] frame in
             guard let self else { throw ConnectFailure.peerOffline }
             return try await self.receive(frame, local: local, peer: peer, token: token)
-        }
+        }, delivered: { [weak self] frame in await self?.delivered(frame) })
         timer?.cancel()
         timer = Task { [weak self] in
             while !Task.isCancelled {
@@ -86,17 +87,24 @@ final class FilesModel {
             }
         }
     }
+    private func delivered(_ frame: ConnectFrame) {
+        guard let reply = try? ConnectJSON.decode(frame.payload, limit: 16384),
+              let request = reply["request_id"].string, let id = pendingCompletion.removeValue(forKey: request) else { return }
+        background?.finish(.completed, id: id); session?.finishBackgroundWork()
+    }
     func invalidate() {
         bound = UUID(); timer?.cancel(); timer = nil
+        for id in pendingCompletion.values { background?.finish(.interrupted, id: id) }
+        pendingCompletion.removeAll()
         for row in receipts where !FileWire.terminal.contains(row.state) { end(row.id, state: "interrupted") }
     }
-    private func end(_ id: String, state: String) {
+    private func end(_ id: String, state: String, deferCompletion: Bool = false) {
         guard var row = receipts.first(where: { $0.id == id }), !FileWire.terminal.contains(row.state) else { return }
         row.state = state; row.touched = Date()
         do { try put(row) } catch { available = false; notice = ConnectFailure.localStorageUnavailable.localizedDescription }
         hashes[id] = nil
         for suffix in ["part", "out"] { if let path = try? staging.path(id, suffix) { try? FileManager.default.removeItem(at: path) } }
-        if background?.active?.id == id {
+        if !deferCompletion, background?.active?.id == id {
             background?.finish(state == "completed" ? .completed : state == "cancelled" ? .cancelled : .interrupted)
             // Defer closing until the incoming completion response has been sent.
             if row.incoming { Task { try? await Task.sleep(for: .seconds(1)); if self.background?.active == nil { self.session?.finishBackgroundWork() } } }
@@ -128,7 +136,7 @@ final class FilesModel {
             guard context.2.id == row.peerID else { throw ConnectFailure.peerOffline }
             let offer = FileWire.request(source: context.1.publicIdentity.deviceID, target: row.peerID, transfer: id, operation: "offer", arguments: row.metadata.wire)
             try background?.begin(BackgroundOperationRecord(id: id, capability: "files.receive", peerID: row.peerID,
-                label: "Sending file", protocolID: id, requestDigest: offer.digest, startedAt: Date(), totalUnits: row.metadata.size)) { [weak self] in await self?.cancel(id) }
+                label: "Sending file", protocolID: id, requestDigest: offer.digest, startedAt: Date(), totalUnits: row.metadata.size, scope: ["name": row.metadata.name, "sha256": row.metadata.sha256, "direction": "outgoing"])) { [weak self] in await self?.cancel(id) }
             row.state = "awaiting_approval"; try put(row)
             let deadline = ContinuousClock.now.advanced(by: .seconds(120))
             while true {
@@ -148,10 +156,11 @@ final class FilesModel {
                 guard r == .object(["state": .string("transferring"), "received_size": .int(next)]) else { throw ConnectFailure.fileTransferInterrupted }
                 // Cancellation must not be undone by a late acknowledgement.
                 guard receipts.first(where: { $0.id == id })?.state == "transferring" else { throw ConnectFailure.fileTransferCancelled }
-                row.received = next; row.touched = Date(); try put(row); try background?.progress(next, total: row.metadata.size)
+                row.received = next; row.touched = Date(); try put(row); try background?.progress(next, total: row.metadata.size, id: id)
             }
             let r = try await exchange(row, operation: "complete", context: context)
             guard r == .object(["state": .string("completed"), "received_size": .int(row.metadata.size)]) else { throw ConnectFailure.fileTransferInterrupted }
+            guard receipts.first(where: { $0.id == id })?.state == "transferring" else { throw ConnectFailure.fileTransferCancelled }
             end(id, state: "completed"); notice = "Transfer verified by computer."
         } catch { end(id, state: "interrupted"); notice = error is ConnectFailure ? error.localizedDescription : ConnectFailure.fileTransferInterrupted.localizedDescription }
     }
@@ -159,7 +168,7 @@ final class FilesModel {
         guard UIApplication.shared.applicationState == .active, var row = receipts.first(where: { $0.id == id && $0.incoming && $0.state == "awaiting_approval" }) else { return }
         do {
             try background?.begin(BackgroundOperationRecord(id: id, capability: "files.receive", peerID: row.peerID,
-                label: "Receiving file", protocolID: id, requestDigest: row.metadata.wire.digest, startedAt: Date(), totalUnits: row.metadata.size)) { [weak self] in await self?.cancel(id) }
+                label: "Receiving file", protocolID: id, requestDigest: row.metadata.wire.digest, startedAt: Date(), totalUnits: row.metadata.size, scope: ["name": row.metadata.name, "sha256": row.metadata.sha256, "direction": "incoming"])) { [weak self] in await self?.cancel(id) }
             try Data().write(to: staging.path(id, "part"), options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
             hashes[id] = SHA256(); row.state = "accepted"; row.touched = Date(); try put(row)
         } catch { end(id, state: "failed"); notice = error.localizedDescription }
@@ -237,13 +246,16 @@ final class FilesModel {
                         let handle = try FileHandle(forWritingTo: staging.path(id, "part")); defer { try? handle.close() }
                         try handle.seekToEnd(); try handle.write(contentsOf: bytes)
                         hashes[id]?.update(data: bytes); row.received += Int64(bytes.count); row.state = "transferring"; row.touched = Date(); try put(row)
-                        try background?.progress(row.received, total: row.metadata.size)
+                        try background?.progress(row.received, total: row.metadata.size, id: id)
                     } else {
                         guard row.received == row.metadata.size, Data(hashes[id]!.finalize()).hex == row.metadata.sha256 else { end(id, state: "failed"); throw ConnectFailure.fileHashMismatch }
                         let partial = try staging.path(id, "part"), final = try staging.path(id, "bin")
                         let handle = try FileHandle(forWritingTo: partial); try handle.synchronize(); try handle.close()
                         try FileManager.default.linkItem(at: partial, to: final)
-                        end(id, state: "completed"); notice = "Incoming file verified · Ready to Save"
+                        pendingCompletion[requestID] = id
+                        end(id, state: "completed", deferCompletion: true)
+                        guard receipts.first(where: { $0.id == id })?.state == "completed" else { pendingCompletion.removeValue(forKey: requestID); throw ConnectFailure.localStorageUnavailable }
+                        notice = "Incoming file verified · Ready to Save"
                     }
                 }
             }

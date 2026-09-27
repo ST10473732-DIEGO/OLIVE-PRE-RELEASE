@@ -12,6 +12,7 @@ struct BackgroundOperationRecord: Codable, Identifiable, Equatable, Sendable {
     var verifiedUnits: Int64 = 0
     var totalUnits: Int64?
     var state: State = .running
+    var scope: [String: String]? = nil // Additive v1 migration: older records omit this field.
     // C6 has no offset resume; C7/C8 jobs are channel-owned. Never replay effects.
     private(set) var retrySafety = "explicitFreshRequestOnly"
     private(set) var desktopMayContinueIndependently = false

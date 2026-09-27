@@ -16,6 +16,7 @@ final class BackgroundWorkCoordinator {
     private var systemTask: AnyObject?
     private var submitted = false
     private var registered = false
+    private(set) var cancelling = false
     var onIdle: (@MainActor () -> Void)?
     private var cancelWork: (@MainActor () async -> Void)?
     var active: BackgroundOperationRecord? { records.last(where: { $0.state == .running }) }
@@ -47,7 +48,7 @@ final class BackgroundWorkCoordinator {
 
     func begin(_ record: BackgroundOperationRecord, cancel: @escaping @MainActor () async -> Void) throws {
         guard canWrite else { throw ConnectFailure.localStorageUnavailable }
-        guard active == nil else { throw ConnectFailure.resourceBusy }
+        guard active == nil, !cancelling else { throw ConnectFailure.resourceBusy }
         var next = Array(records.suffix(127)); next.append(record)
         try store.save(next); records = next; cancelWork = cancel; notice = nil
         if #available(iOS 26.0, *), registered, UIApplication.shared.applicationState == .active {
@@ -60,7 +61,8 @@ final class BackgroundWorkCoordinator {
         } else { notice = ConnectFailure.backgroundTaskUnavailable.localizedDescription }
     }
 
-    func progress(_ units: Int64, total: Int64? = nil) throws {
+    func progress(_ units: Int64, total: Int64? = nil, id: String? = nil) throws {
+        if let id, active?.id != id { return }
         guard let index = records.lastIndex(where: { $0.state == .running }) else { return }
         guard units >= records[index].verifiedUnits, units >= 0,
               total == nil || total! >= units else { throw ConnectFailure.responseMalformed }
@@ -99,7 +101,9 @@ final class BackgroundWorkCoordinator {
     }
 
     func cancel(expired: Bool = false) async {
-        guard active != nil else { return }
+        guard active != nil, !cancelling else { return }
+        cancelling = true
+        defer { cancelling = false }
         let cleanup = cancelWork
         // Persist interruption before yielding to cancellation/network operations.
         finish(expired ? .expired : .cancelled)

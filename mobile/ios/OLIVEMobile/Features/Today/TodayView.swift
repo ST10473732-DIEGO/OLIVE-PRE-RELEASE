@@ -36,13 +36,8 @@ struct TodayView: View {
             if !model.conflicts.isEmpty {
                 Section("Conflicts") {
                     ForEach(model.conflicts) { conflict in
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(conflict.reason).font(.headline)
-                            Text("This iPhone: " + (model.store.snapshot.records[conflict.recordID]?.payload["title"].string ?? "Record or tombstone"))
-                            Text("Incoming: " + (conflict.incoming.payload["title"].string ?? "Record or tombstone"))
-                            Button("Keep this iPhone’s version") { Task { await model.resolve(conflict, incoming: false) } }
-                            Button("Use incoming version") { Task { await model.resolve(conflict, incoming: true) } }
-                        }.disabled(!model.online || model.busy).accessibilityIdentifier("today.conflict")
+                        NavigationLink("Review " + conflict.reason) { SyncConflictView(conflict: conflict) }
+                            .accessibilityIdentifier("today.conflict")
                     }
                 }
             }
@@ -80,6 +75,7 @@ struct TodayEditor: View {
                     Text("Choose calendar").tag("")
                     ForEach(state.sync.records.filter { $0.kind == "calendar" && !$0.deleted }) { Text($0.payload["title"].string ?? "Calendar").tag($0.id) }
                 }
+                Toggle("All day", isOn: Binding(get: { fields["all_day"] == .bool(true) }, set: { fields["all_day"] = .bool($0) }))
                 TextField("Start (ISO date/time)", text: text("start"))
                 TextField("End (exclusive for all-day events)", text: text("end"))
                 TextField("Location", text: text("location"))
@@ -93,15 +89,14 @@ struct TodayEditor: View {
                     if let target = state.sync.records.first(where: { $0.id == id }) { fields["target_kind"] = .string(target.kind) }
                 }
                 TextField("Reminder time (UTC ISO timestamp)", text: text("at"))
-                Text("Completion follows the linked task. Notification delivery is local to each device.").font(.footnote)
+                Text("Completion follows the linked task.").font(.footnote)
             }
             if kind != "calendar" { TextField("IANA timezone", text: text("timezone")) }
             Button("Save locally") {
                 saving = true
                 Task {
                     do {
-                        try await state.sync.save(kind: kind, payload: .object(fields), old: current)
-                        current = state.sync.records.last { $0.kind == kind && $0.payload == .object(fields) }
+                        current = try await state.sync.save(kind: kind, payload: .object(fields), old: current)
                         notice = "Saved · tap Sync to commit to computer"
                     } catch { notice = error.localizedDescription }
                     saving = false
@@ -130,5 +125,46 @@ struct TodayEditor: View {
             "timezone": .string("UTC"), "all_day": .bool(false), "status": .string("confirmed"), "transparent": .bool(false),
             "contact_ids": .array([]), "unsupported": .array([]), "original_ics": .string(""), "start": .string(start), "end": .string(end),
             "recurrence": .string(""), "exceptions": .object([:])]
+    }
+}
+
+
+private struct SyncConflictView: View {
+    @Environment(AppState.self) private var state
+    let conflict: SyncConflict
+    @State private var reviewed: SyncConflict?
+    @State private var local: SignedSyncRecord?
+    private func summary(_ record: SignedSyncRecord?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let record {
+                if record.deleted { Text("Deleted record") }
+                else {
+                    ForEach(["title", "description", "status", "due", "start", "end", "at", "content", "target_kind", "target_id"], id: \.self) { key in
+                        if let text = record.payload[key].string, !text.isEmpty {
+                            Text(key.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption).foregroundStyle(OliveTheme.secondary)
+                            Text(text).textSelection(.enabled)
+                        }
+                    }
+                }
+            } else { Text("No local version") }
+        }
+    }
+    var body: some View {
+        List {
+            Section("This iPhone") { summary(local) }
+            Section("Incoming") { summary(conflict.incoming) }
+            Section {
+                Text(conflict.reason.replacingOccurrences(of: "_", with: " "))
+                Button("Keep this iPhone’s version") { if let reviewed { Task { await state.sync.resolve(reviewed, incoming: false) } } }
+                    .disabled(local == nil)
+                Button("Use incoming version") { if let reviewed { Task { await state.sync.resolve(reviewed, incoming: true) } } }
+                Text(state.sync.notice)
+            }.disabled(!state.sync.online || state.sync.busy)
+        }.navigationTitle("Review conflict")
+            .onAppear {
+                local = state.sync.store.snapshot.records[conflict.recordID]
+                reviewed = SyncConflict(id: conflict.id, peer: conflict.peer, recordID: conflict.recordID,
+                    localRevision: local?.revision, incoming: conflict.incoming, reason: conflict.reason)
+            }
     }
 }

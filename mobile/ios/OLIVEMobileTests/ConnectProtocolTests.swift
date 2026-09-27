@@ -690,6 +690,24 @@ final class BackgroundOperationTests: XCTestCase {
         XCTAssertEqual(calls, 1)
         XCTAssertEqual(coordinator.records.last?.state, .expired)
     }
+    func testOldProgressCannotUpdateNewOperationAndV1MetadataMigrates() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let coordinator = BackgroundWorkCoordinator(directory: directory, register: false)
+        let record = BackgroundOperationRecord(id: "new", capability: "files.receive", peerID: "peer",
+            label: "Sending file", protocolID: "new", requestDigest: "digest", startedAt: Date(), totalUnits: 100)
+        var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as! [String: Any]
+        legacy.removeValue(forKey: "scope")
+        let migrated = try JSONDecoder().decode(BackgroundOperationRecord.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertNil(migrated.scope)
+        XCTAssertEqual(migrated.retrySafety, "explicitFreshRequestOnly")
+        try coordinator.begin(migrated) {}
+        try coordinator.progress(90, total: 100, id: "old")
+        coordinator.finish(.completed, id: "old")
+        XCTAssertEqual(coordinator.active?.verifiedUnits, 0)
+        try coordinator.progress(10, total: 100, id: "new")
+        XCTAssertEqual(coordinator.active?.verifiedUnits, 10)
+    }
     func testUnknownStoreVersionIsPreserved() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -737,6 +755,30 @@ final class CompanionProtocolTests: XCTestCase {
         var changed = left.wire.object!; changed["payload"] = SyncPayload.task(title: "Tamper")
         XCTAssertThrowsError(try SignedSyncRecord(.object(changed)))
         XCTAssertTrue(snapshot.records[record.id]!.deleted)
+    }
+    func testChatSelectionImmutableOrderAndDeletedPredecessor() throws {
+        let identity = try ConnectIdentity.generate(), peer = identity.publicIdentity.deviceID
+        let conversation = try SyncWire.author(kind: "conversation", payload: .object([
+            "title": .string("Selected fixture"), "project_id": .null, "created_at": .string(SyncWire.now())]), identity: identity)
+        var value = SyncSnapshot()
+        XCTAssertEqual(try MobileSyncStore.apply(conversation, peer: peer, in: &value), "applied")
+        func message(after: String?) throws -> SignedSyncRecord {
+            try SyncWire.author(kind: "message", payload: .object(["conversation_id": .string(conversation.id),
+                "after": after.map(ConnectJSON.string) ?? .null, "role": .string("user"),
+                "content": .string("Owned fixture"), "created_at": .string(SyncWire.now())]), identity: identity)
+        }
+        let first = try message(after: nil), second = try message(after: first.id)
+        XCTAssertEqual(try MobileSyncStore.apply(first, peer: peer, in: &value), "applied")
+        XCTAssertEqual(try MobileSyncStore.apply(second, peer: peer, in: &value), "applied")
+        var reordered = second.payload.object!; reordered["after"] = .null
+        let changed = try SyncWire.author(kind: "message", id: second.id, payload: .object(reordered), parents: [second], identity: identity)
+        XCTAssertEqual(try MobileSyncStore.apply(changed, peer: peer, in: &value), "conflict")
+        let deleted = try SyncWire.author(kind: "message", id: first.id, payload: .object([:]), deleted: true, parents: [first], identity: identity)
+        XCTAssertEqual(try MobileSyncStore.apply(deleted, peer: peer, in: &value), "applied")
+        XCTAssertEqual(value.messagePredecessors?[second.id], first.id)
+        XCTAssertTrue(MobileSyncStore.dependency(second, in: value))
+        value.selection[peer + ":" + conversation.id] = false
+        XCTAssertEqual(try MobileSyncStore.apply(message(after: second.id), peer: peer, in: &value), "conflict")
     }
     func testSyncStoreAtomicReopenAndMissingDependency() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
