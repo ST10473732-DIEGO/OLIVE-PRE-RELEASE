@@ -37,6 +37,19 @@ struct OLIVEMobileApp: App {
             let session = args[index + 1]
             let defaults = UserDefaults(suiteName: "olive.ui-tests.\(session)")!
             let directory = URL.applicationSupportDirectory.appendingPathComponent("UITests/\(session)")
+            if args.contains("--ui-test-companion") {
+                do {
+                    let files = directory.appendingPathComponent("Companion/Files")
+                    let staging = FileStaging(directory: files); try staging.prepare()
+                    let id = "cccccccc-1111-4111-8111-111111111111", peer = "dddddddd-1111-4111-8111-111111111111"
+                    let data = Data("Synthetic UI file".utf8), file = try staging.path(id, "bin")
+                    try data.write(to: file)
+                    let checked = try staging.digest(file)
+                    let metadata = try FileMetadata(name: "Synthetic UI file.txt", size: checked.0, sha256: checked.1, mime: "text/plain")
+                    let receipt = MobileFileReceipt(id: id, peerID: peer, incoming: true, metadata: metadata, created: Date(), touched: Date(), received: checked.0, state: "completed")
+                    try ProtectedStore<[MobileFileReceipt]>(url: files.appendingPathComponent("receipts-v1.json"), maximumBytes: 8_000_000).save([receipt])
+                } catch { assertionFailure("Could not prepare isolated file UI fixture") }
+            }
             let isolated = AppState(store: LocalShellStore(defaults: defaults, directory: directory))
             if args.contains("--ui-test-sync-conflict") {
                 do {
@@ -50,6 +63,7 @@ struct OLIVEMobileApp: App {
                     try isolated.sync.store.commit(snapshot); isolated.sync.reload()
                 } catch { assertionFailure("Could not prepare isolated sync conflict fixture") }
             }
+            if args.contains("--ui-test-companion") { isolated.studio.prepareOfflineUIFixture() }
             _state = State(initialValue: isolated)
             return
         }

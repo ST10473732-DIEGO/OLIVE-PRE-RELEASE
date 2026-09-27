@@ -25,3 +25,5 @@ OLIVE_SWIFT_INTEROP="$OUT/interop" "$PYTHON" -m unittest tests.test_mobile_pairi
 
 "$OUT/interop" --companion-fixture tests/fixtures/mobile_connect/companion.json "$OUT/companion.json"
 "$PYTHON" scripts/mobile_companion_vectors.py --swift-output "$OUT/companion.json"
+
+"$OUT/interop" --calendar-fixture tests/fixtures/mobile_connect/calendar.json

@@ -50,6 +50,33 @@ final class ShellUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Use incoming version"].isEnabled)
         capture("OLIVE synthetic offline conflict review")
     }
+    func testVerifiedFileRequiresExplicitExportAndStudioConflictIsReadOnlyOffline() {
+        app.terminate(); app.launchArguments += ["--ui-test-companion"]; app.launch()
+        let files = app.buttons["Files"]
+        for _ in 0..<5 { if files.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(files.waitForExistence(timeout: 3)); files.tap()
+        XCTAssertTrue(app.staticTexts["Transfer verified · Ready to Save"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["files.export"].exists)
+        XCTAssertFalse(app.buttons["Choose file to send"].isEnabled)
+        capture("OLIVE synthetic verified quarantine")
+        app.navigationBars.buttons.firstMatch.tap()
+        let studio = app.buttons["Remote Studio"]
+        for _ in 0..<5 { if studio.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(studio.waitForExistence(timeout: 3)); studio.tap()
+        let editor = app.textViews["studio.editor"]
+        for _ in 0..<5 { if editor.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(editor.exists); XCTAssertEqual(editor.value as? String, "let value = 2")
+        let save = app.buttons["Save with revision check"]
+        for _ in 0..<5 { if save.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(save.exists); XCTAssertFalse(save.isEnabled)
+        for name in ["Build", "Test", "Run"] {
+            let action = app.buttons[name]
+            for _ in 0..<5 { if action.isHittable { break }; app.swipeUp() }
+            XCTAssertTrue(action.exists); XCTAssertFalse(action.isEnabled)
+        }
+        XCTAssertFalse(app.buttons["Terminal"].exists)
+        capture("OLIVE synthetic Studio conflict and unavailable actions")
+    }
     func testLaunchAndHome() {
         XCTAssertTrue(app.staticTexts["home.heading"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["home.ask"].exists)

@@ -35,6 +35,23 @@ if CommandLine.arguments[1] == "--pair-fixture" {
     exit(0)
 }
 
+if CommandLine.arguments[1] == "--calendar-fixture" {
+    let fixture = try ConnectJSON.decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2])), limit: 256000)
+    for (index, row) in fixture["valid"].array!.enumerated() {
+        try SyncPayload.validate(kind: "event", value: row["payload"])
+        let points = try SyncCalendar.occurrences(row["payload"], after: SyncDate.parse(row["after"].text(), zoned: true), before: SyncDate.parse(row["before"].text(), zoned: true))
+        let reduced = points.map { point in ConnectJSON.object(Dictionary(uniqueKeysWithValues: ["start", "end", "title", "occurrence_id"].map { ($0, point[$0]) })) }
+        guard .array(reduced) == row["occurrences"] else { print("Calendar mismatch at fixture \(index): \(String(decoding: ConnectJSON.array(reduced).canonical, as: UTF8.self))"); exit(1) }
+    }
+    for (index, row) in fixture["invalid"].array!.enumerated() {
+        var rejected = false
+        do { try SyncPayload.validate(kind: "event", value: row) } catch { rejected = true }
+        guard rejected else { print("Invalid calendar accepted: \(index)"); exit(1) }
+    }
+    print("Python/Swift calendar validation and occurrences matched")
+    exit(0)
+}
+
 if CommandLine.arguments[1] == "--companion-fixture" {
     let fixture = try ConnectJSON.decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2])), limit: 256000)
     for value in fixture["records"].array! { _ = try SignedSyncRecord(value) }

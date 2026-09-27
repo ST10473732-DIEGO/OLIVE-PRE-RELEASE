@@ -9,6 +9,10 @@ from olive.connect.file_protocol import FileRequest, MAX_FILE_SIZE
 from olive.connect.studio_protocol import StudioRequest
 
 class MobileCompanionVectorsTests(unittest.TestCase):
+    def test_calendar_vectors_match_authoritative_desktop(self):
+        from scripts.mobile_calendar_vectors import FIXTURE as calendar_fixture, generate
+        self.assertEqual(json.loads(calendar_fixture.read_text()), generate())
+
     def test_public_fixture_production_decoders(self):
         check(json.loads(FIXTURE.read_bytes()))
 

@@ -772,6 +772,97 @@ final class BackgroundOperationTests: XCTestCase {
 
 @MainActor
 final class CompanionProtocolTests: XCTestCase {
+    func testSelectedChatDeletionUsesOrderedTombstonesWithoutResurrection() throws {
+        let identity = try ConnectIdentity.generate()
+        let conversation = try SyncWire.author(kind: "conversation", payload: .object(["title": .string("Synthetic selected Chat"), "project_id": .null, "created_at": .string(SyncWire.now())]), identity: identity)
+        let message = try SyncWire.author(kind: "message", payload: .object(["conversation_id": .string(conversation.id), "after": .null, "role": .string("user"), "content": .string("Synthetic"), "created_at": .string(SyncWire.now())]), identity: identity)
+        var value = SyncSnapshot(); try MobileSyncStore.put(conversation, in: &value); try MobileSyncStore.put(message, in: &value)
+        try MobileSyncStore.tombstoneConversation(conversation, identity: identity, in: &value)
+        XCTAssertTrue(value.records[conversation.id]!.deleted); XCTAssertTrue(value.records[message.id]!.deleted)
+        XCTAssertLessThan(value.sequence[message.id]!, value.sequence[conversation.id]!)
+        XCTAssertEqual(value.messageParents[message.id], conversation.id)
+        XCTAssertEqual(try MobileSyncStore.apply(message, peer: identity.publicIdentity.deviceID, in: &value), "stale")
+        XCTAssertThrowsError(try MobileSyncStore.tombstoneConversation(conversation, identity: identity, in: &value))
+        XCTAssertTrue(value.records[message.id]!.deleted)
+    }
+    func testRemoteOnlyConflictReceiptPersistsUntilDominatingResolution() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let identity = try ConnectIdentity.generate(), peer = UUID().uuidString.lowercased(), key = peer + ":tasks"
+        let record = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "Synthetic conflict"), identity: identity)
+        var snapshot = SyncSnapshot(); try MobileSyncStore.put(record, in: &snapshot)
+        MobileSyncStore.recordOutcomes([.string("conflict")], batch: [record], incoming: [], key: key, in: &snapshot)
+        let store = MobileSyncStore(directory: directory); try store.commit(snapshot)
+        snapshot = MobileSyncStore(directory: directory).snapshot
+        MobileSyncStore.recordOutcomes([], batch: [], incoming: [], key: key, in: &snapshot)
+        XCTAssertTrue(MobileSyncStore.hasConflict(domain: "tasks", peer: peer, in: snapshot))
+        MobileSyncStore.recordOutcomes([.string("duplicate")], batch: [record], incoming: [record], key: key, in: &snapshot)
+        XCTAssertTrue(MobileSyncStore.hasConflict(domain: "tasks", peer: peer, in: snapshot))
+        let resolved = try SyncWire.author(kind: "task", id: record.id, payload: SyncPayload.task(title: "Reviewed resolution"), parents: [record], identity: identity)
+        MobileSyncStore.recordOutcomes([], batch: [], incoming: [resolved], key: key, in: &snapshot)
+        XCTAssertFalse(MobileSyncStore.hasConflict(domain: "tasks", peer: peer, in: snapshot))
+    }
+    func testSyncRecoveryPreservesOriginalAndDoesNotReplay() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("sync-v1.json"), original = Data("{unreadable synthetic store".utf8)
+        try original.write(to: url)
+        let store = MobileSyncStore(directory: directory)
+        XCTAssertFalse(store.available); XCTAssertThrowsError(try store.commit(SyncSnapshot()))
+        try store.recover()
+        XCTAssertTrue(store.available); XCTAssertTrue(store.snapshot.records.isEmpty)
+        XCTAssertTrue(store.snapshot.cursors.isEmpty); XCTAssertTrue(store.snapshot.acknowledged.isEmpty)
+        let archived = try FileManager.default.contentsOfDirectory(at: directory.appendingPathComponent("Recovery"), includingPropertiesForKeys: nil)
+        XCTAssertEqual(archived.count, 1); XCTAssertEqual(try Data(contentsOf: archived[0]), original)
+        XCTAssertTrue(MobileSyncStore(directory: directory).available)
+        try store.recover(); XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.appendingPathComponent("Recovery").path).count, 1)
+    }
+    func testRecoveryRefusesUnboundedArchivesWithoutChangingOriginal() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ProtectedStore<[String]>(url: directory.appendingPathComponent("fixture.json"), maximumBytes: 1000)
+        try store.save(["original"])
+        for _ in 0..<4 { try store.archiveAndReplace(with: ["fresh"]) }
+        let before = try Data(contentsOf: store.url)
+        XCTAssertThrowsError(try store.archiveAndReplace(with: ["must not replace"]))
+        XCTAssertEqual(try Data(contentsOf: store.url), before)
+    }
+    func testExportCleanupKeepsVerifiedInboxAndExternalFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let staging = FileStaging(directory: directory); try staging.prepare()
+        let exports = directory.appendingPathComponent("Exports")
+        try FileManager.default.createDirectory(at: exports, withIntermediateDirectories: true)
+        let verified = try staging.path(UUID().uuidString.lowercased(), "bin")
+        try Data("verified".utf8).write(to: verified)
+        try Data("temporary export".utf8).write(to: exports.appendingPathComponent("fixture.txt"))
+        try FileManager.default.createSymbolicLink(at: exports.appendingPathComponent("link"), withDestinationURL: verified)
+        try staging.clearExportCopies()
+        XCTAssertEqual(try Data(contentsOf: verified), Data("verified".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exports.appendingPathComponent("link").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: exports.appendingPathComponent("fixture.txt").path))
+    }
+    private func calendarFixture(_ fields: [String: ConnectJSON] = [:]) -> ConnectJSON {
+        var base: [String: ConnectJSON] = ["calendar_id": .string(String(repeating: "a", count: 32)), "title": .string("Synthetic event"), "description": .string(""), "location": .string(""),
+            "start": .string("2026-03-07T02:30:00-05:00"), "end": .string("2026-03-07T03:30:00-05:00"), "timezone": .string("America/New_York"), "all_day": .bool(false),
+            "recurrence": .string("FREQ=DAILY;COUNT=3"), "exceptions": .object([:]), "contact_ids": .array([]), "project_id": .string(""), "status": .string("confirmed"), "transparent": .bool(false), "unsupported": .array([]), "original_ics": .string("")]
+        base.merge(fields) { _, new in new }; return .object(base)
+    }
+    func testCalendarDSTCountExceptionsAndReminders() throws {
+        let event = calendarFixture(), after = try SyncDate.parse("2026-03-01T00:00:00Z", zoned: true), before = try SyncDate.parse("2026-03-20T00:00:00Z", zoned: true)
+        try SyncPayload.validate(kind: "event", value: event)
+        let instances = try SyncCalendar.occurrences(event, after: after, before: before)
+        XCTAssertEqual(instances.map { $0["start"].string! }, ["2026-03-07T02:30:00-05:00", "2026-03-09T02:30:00-04:00", "2026-03-10T02:30:00-04:00"])
+        let invalid = calendarFixture(["exceptions": .object(["2026-03-08T02:30:00-05:00": .object(["cancelled": .bool(true)])])])
+        XCTAssertThrowsError(try SyncPayload.validate(kind: "event", value: invalid))
+        let reminder = ConnectJSON.object(["at": .string(""), "target_kind": .string("event"), "offset_minutes": .int(30)])
+        XCTAssertEqual(try SyncCalendar.reminderTimes(reminder, target: event, after: after, before: before).count, 3)
+        XCTAssertTrue(try SyncCalendar.reminderTimes(reminder, target: calendarFixture(["status": .string("cancelled")]), after: after, before: before).isEmpty)
+        var task = SyncPayload.task(title: "Due task").object!; task["due"] = .string("2026-03-10"); task["timezone"] = .string("UTC")
+        let taskReminder = ConnectJSON.object(["at": .string(""), "target_kind": .string("task"), "offset_minutes": .int(30)])
+        XCTAssertEqual(try SyncCalendar.reminderTimes(taskReminder, target: .object(task), after: after, before: before), [try SyncDate.parse("2026-03-10T08:30:00Z", zoned: true)])
+    }
     func testSignedSyncConflictStaleTombstoneAndChangedRevision() throws {
         let identity = try ConnectIdentity.generate(), other = try ConnectIdentity.generate()
         let record = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "Owned fixture"), identity: identity)
@@ -936,6 +1027,15 @@ final class CompanionProtocolTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: staging.path(verified.id, "bin")), bytes)
         XCTAssertEqual(try Data(contentsOf: unrelated), bytes)
     }
+    func testStudioCancelledBeforeAdmissionDoesNotConnectOrRetry() async throws {
+        let transport = ConnectTransport(endpoint: .hostPort(host: "127.0.0.1", port: 9))
+        let request = try StudioWire.request(source: UUID().uuidString.lowercased(), target: UUID().uuidString.lowercased(),
+            operation: "build", workspace: UUID().uuidString.lowercased(), revision: 1)
+        do {
+            _ = try await StudioWire.exchange(request, channel: transport, cancelled: { true })
+            XCTFail("Cancelled Studio request must not reach the transport")
+        } catch { XCTAssertEqual(error as? ConnectFailure, .requestCancelled) }
+    }
     func testStudioReadHashAndStaleSaveResponse() throws {
         let source = UUID().uuidString.lowercased(), target = UUID().uuidString.lowercased(), workspace = UUID().uuidString.lowercased()
         let req = try StudioWire.request(source: source, target: target, operation: "read", workspace: workspace, revision: 1, arguments: .object(["path": .string("main.py")]))
@@ -945,6 +1045,9 @@ final class CompanionProtocolTests: XCTestCase {
         XCTAssertThrowsError(try StudioWire.request(source: source, target: target, operation: "terminal", workspace: workspace, revision: 1))
         XCTAssertThrowsError(try StudioWire.path(.string("../secret")))
         XCTAssertEqual(StudioWire.failure("revision_conflict"), .studioRevisionStale)
+        XCTAssertEqual(StudioWire.failure("device_revoked"), .deviceRevoked)
+        XCTAssertEqual(InferenceWire.failure("device_revoked"), .deviceRevoked)
+        XCTAssertEqual(InferenceWire.failure("connection_lost"), .connectionLost)
         XCTAssertThrowsError(try ConnectJSON.decode(Data("1.5".utf8)))
         XCTAssertEqual(try ConnectJSON.decode(Data("1.5".utf8), allowDecimals: true), .decimal("1.5"))
         for value in ["1e999", "1.e2", "1.2.3", "NaN"] { XCTAssertThrowsError(try ConnectJSON.decode(Data(value.utf8), allowDecimals: true)) }
