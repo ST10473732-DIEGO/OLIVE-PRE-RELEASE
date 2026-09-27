@@ -842,3 +842,45 @@ This investigation started at `40042c6b55c7f1ea0ddee0bb9ad7516e675b38ed` on
 `feature/olive-mobile-c9-3`; the only code/test commit is `813e3b8`, followed by a
 documentation checkpoint. C9.3 remains **PARTIAL**. Remaining acceptance is not
 waived by these successful diagnostic runs.
+
+### Fresh send rejected before bytes — 2026-09-27
+
+The owner next reported that explicit new sends immediately displayed “Transfer
+interrupted. Check its receipt before explicitly sending again.” The bounded
+operation journal shows three distinct new operation IDs, each ending at zero
+bytes within about 40 ms. These are separate user attempts, not automatic replay
+of the earlier expired transfer. They do not establish another background timeout.
+
+Inspection found that the Swift C6 decoder collapsed `inbox_quota_exhausted`,
+`unknown_transfer`, capacity and ledger rejection codes into the same interruption
+message. It now preserves typed storage/receipt errors and the existing busy/ledger
+errors, while retaining strict response identity and error-format validation.
+The added regression covers these codes, permission/hash rejection, unknown
+failure fallback, mismatched request ID and malformed error text. No protocol,
+quota, permission, cleanup policy or retry behavior changed.
+
+The desktop's existing 256 MiB inbox bound counts retained completed incoming
+files, including saved files until explicit **Dismiss from Inbox**. Dismissal
+removes only the app's inbox artifact and retains the receipt; separately exported
+copies remain. Accumulated test files are a suspected admission blocker, pending
+the owner's read-only desktop count. No inbox files have been removed by the agent
+and the previous other-app background repeat remains pending.
+
+Code/test checkpoint `6cba75e` passed physical unit tests (78 cases: 68 passed,
+10 opt-in skips) and UI tests (14 cases: 10 passed, 4 opt-in skips). No real file
+send was triggered by this regression batch. Xcode list, signed physical build,
+simulator-SDK build-for-testing and generic Release build passed; the tested app
+was installed and launched normally without acceptance flags. Source compilation
+and Python/Swift interop passed. Full Mac Python again ran 1,456 cases with 58
+skips and the same two failures/two errors listed above. Desktop source was not
+changed; native CachyOS evidence remains at the recorded checkpoint. This follow-up
+started at `3cab8a199d82ee7744848c089da5e9e2cc83f21b` on the same C9.3 branch.
+No push or destructive inbox cleanup occurred; C9.3 stays PARTIAL.
+
+The owner then confirmed six completed inbox files totaling 217,055,232 bytes
+(207 MiB). Adding the requested 64 MiB would exceed the unchanged 256 MiB bound
+by 15 MiB. This confirms insufficient inbox quota for that offer, separate from
+the earlier background expiration. The owner was directed to Save if needed and
+explicitly Dismiss from Inbox one completed owned 64 MiB test transfer, which
+would reduce retained usage to 143 MiB, before choosing and sending the file again.
+Dismissal and the subsequent timed transfer are not yet reported as completed.

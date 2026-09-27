@@ -878,3 +878,17 @@ passed; full Python retained the same four recorded failures/errors and Connect
 the same descendant-cleanup error. The owner's other-app workload must still be
 repeated; this diagnostic success does not close the earlier expiration or the
 remaining C9.3 acceptance. CachyOS was unchanged and C9.3 remains PARTIAL.
+
+The next owner sends were rejected at zero bytes. Inspection found that the mobile
+C6 decoder hid inbox quota and missing-receipt rejection reasons under a generic
+interruption message. `6cba75e` preserves those reasons and explains the existing
+desktop Save / Dismiss from Inbox recovery controls, without raising limits or
+replaying transfers. A desktop inbox count is pending to confirm the actual
+admission blocker. Physical regression passed (78 unit cases, 10 skipped; 14 UI
+cases, 4 skipped), SDK/signed builds and interop passed, and normal phone launch
+was restored. Full Mac Python retained its four documented failures/errors.
+
+The owner confirmed six completed inbox files totaling 207 MiB: a new 64 MiB
+offer exceeds the 256 MiB C6 quota. Existing explicit dismissal of one owned
+completed test transfer is the recovery step; no quota increase or automatic
+deletion is needed. The timed other-app retest remains pending.

@@ -31,6 +31,13 @@ deleted. The phone has now deleted the entire synthetic shared conversation.
 
 ## 3. Files — remaining permissions, collision, revocation and timing
 
+The latest owner attempts were rejected at zero bytes. The read-only desktop
+count confirmed six completed files totaling 207 MiB; another 64 MiB exceeds the
+256 MiB quota. Completed transfers count even after Save. On desktop, Save if
+needed, then Dismiss from Inbox one completed owned 64 MiB test transfer before
+the timed repeat. Retain user files. The updated phone explains quota rejection
+and missing receipts explicitly.
+
 **Next action:** the revised app is installed normally. Two diagnostic transfers
 completed with the phone on its Home screen; the second passed its full UI check.
 Repeat only step 3 below while using another app for at least 60 seconds, keeping
