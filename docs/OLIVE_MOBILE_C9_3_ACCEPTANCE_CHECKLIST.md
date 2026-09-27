@@ -31,6 +31,14 @@ deleted. The phone has now deleted the entire synthetic shared conversation.
 
 ## 3. Files — remaining permissions, collision, revocation and timing
 
+**Next action:** the revised app is installed normally. Two diagnostic transfers
+completed with the phone on its Home screen; the second passed its full UI check.
+Repeat only step 3 below while using another app for at least 60 seconds, keeping
+permissions unchanged. Report final phone/desktop status and the observer's final
+transfer state plus audit events; the hundreds of intermediate byte-count lines
+are unnecessary. The earlier 71.58% failure remains recorded and unresolved for
+this other-app workload. Leave collision/revocation checks until this repeat ends.
+
 The 5 MiB/64 MiB round trips, hashes, quarantine/export, background Stop,
 network loss and force quit already passed. The real invalid-hash rejection,
 durable failed receipt, oversized metadata rejection and disconnected-channel
@@ -51,7 +59,9 @@ rejection also passed. Do not repeat those successful transfers unnecessarily.
    Paste the observer output. It also checks the invalid-hash artifact absence.
 
    ```sh
-   python3 /tmp/olive-c93-acceptance-fixture.py observe --database "$HOME/.olive/connect/devices.sqlite3" --seconds 180
+   # CachyOS Fish shell, from the OLIVE checkout; use its resolved profile.
+   set OLIVE_C93_DB (.venv/bin/python -c 'from olive.identity import resolve_profile; print(resolve_profile() / "connect" / "devices.sqlite3")')
+   python3 /tmp/olive-c93-acceptance-fixture.py observe --database "$OLIVE_C93_DB" --seconds 180
    ```
 
    Use OLIVE's actual configured profile if different; do not copy databases.

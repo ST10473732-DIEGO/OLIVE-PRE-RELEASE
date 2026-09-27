@@ -744,3 +744,101 @@ to Save with phone acceptance and without another desktop permission approval.
 Both directional file admission matrices now have real-device owner evidence.
 Mid-transfer capability revocation, collision and presence timing remain open;
 these successes do not substitute for those edge checks.
+
+### Failed instrumented 64 MiB transfer — 2026-09-27
+
+The next owner-run timed upload did **not** pass. Transfer
+`6f2c9eaf-c481-426d-bc4c-318f6fd95345` started at 14:32:54 UTC. The desktop
+observed 48,037,888 of 67,108,864 bytes (71.58%) before `transfer_cancelled`, then
+`connection_closed`, both at 14:33:46 UTC. Re-authentication followed at 14:33:56.
+This was an unfinished transfer followed by session closure, not normal release
+after a completed receipt. The owner reported no deliberate cancellation during
+this timed attempt and saw inconsistent compact/expanded system activity UI.
+The tick is not accepted as completion evidence.
+
+The bounded phone operation journal records `expired` / `backgroundTaskExpired`
+52.277 seconds after start, with 47,972,352 bytes acknowledged before cancellation.
+The extra desktop chunk is consistent with an acknowledgement in flight; neither
+side records completion. The old journal cannot distinguish the system expiration /
+Stop callback from the app's no-grant/submission-failure fallback. Therefore this
+is not yet labelled a proven independent iOS resource-expiration event or assigned
+a specific system cause. The observer also confirmed the earlier invalid-hash
+transfer's `.part` and `.bin` artifacts were absent.
+
+A demonstrated UI defect was corrected: file cleanup after background execution
+ends now retains **interrupted** and explains that background execution ended,
+instead of labelling it ordinary user cancellation. A late send-loop failure
+cannot overwrite that explanation. Background operation v1 receives additive,
+optional fields for grant time, stop source, final system progress and the success
+value reported to iOS. Existing records remain readable without those fields.
+The system activity subtitle is explicitly changed to Completed/Cancelled/
+Interrupted before completion is reported; unsuccessful work still reports false.
+No timeout, file bound, authority or retry behavior was relaxed.
+
+Optional DEBUG per-frame trace observations are now buffered in memory; only
+connection milestones/errors persist the bounded trace. This removes unnecessary
+per-chunk diagnostic disk writes from the installed acceptance build, without
+assuming they caused the observed expiration. Existing C6 receipts and operation
+journals retain their durable semantics. A synthetic 64 MiB selection/background
+UI probe is opt-in: it stages only known owned bytes, bypasses only the system
+file picker, then taps the real Send action once against the pinned CachyOS peer.
+It neither simulates a background grant nor automatically retries a failed send.
+
+Apple documents that continued processing can end under changing system resource
+conditions and that the expiration handler also handles system-UI Stop:
+[BGContinuedProcessingTask](https://developer.apple.com/documentation/BackgroundTasks/BGContinuedProcessingTask)
+and [long-running tasks](https://developer.apple.com/documentation/BackgroundTasks/performing-long-running-tasks-on-ios-and-ipados).
+These API limits do not explain this particular run without further evidence.
+
+The first automated diagnostic retest (`625dac91-1faa-4ddb-a067-b9ef0f53c477`)
+received an actual background grant and completed the full 67,108,864-byte C6
+transfer in 58.077 seconds. Its journal records matching system progress totals
+and `systemReportedSuccess: true`; no expiration source is recorded. The UI
+runner spent at least 65 seconds on the Home screen, but its post-return tap
+opened Selected Chat instead of Files and the completion assertion failed on
+that wrong screen. The test now waits for foreground reconnection and reacquires
+its navigation target. The successful protocol result and failed UI attempt are
+recorded separately; this is not a claim that the earlier other-app failure is
+fixed or that the first UI case passed.
+
+A bounded trace from the intervening owner file tests also records three incoming
+C7 probes answered on a channel that subsequently carried C6 file frames. This
+confirms that the earlier duplex-probe fix is active in the installed app; it
+does not assign a cause to the later background expiration.
+
+The corrected physical UI retest (`e3a390ac-cab2-4b51-9a99-b977ec95ce0a`)
+passed against the real CachyOS peer: 67,108,864 bytes completed in 57.786 seconds,
+with a real continued-processing grant and at least 65 seconds on the iPhone
+Home screen. The bounded trace records receipt decoding at 812213510.455722,
+journal completion at 812213510.464964, then local connection closure at
+812213510.487039 (Apple reference-date seconds). System progress totals matched
+the full file size and success was reported true. Thus this run released its
+session after the verified receipt. This does not establish the desktop UI's
+exact presence-update timing or reproduce resource use inside another app.
+An owner repeat in another app remains required; the earlier failure stays open.
+
+Validation after code/test commit `813e3b8b45105442ac9a0cd8cca24bf8c2808a2b`:
+
+- Physical unit tests: 77 cases, 68 passed, 9 opt-in skips. This includes the new
+  interruption-versus-user-cancellation regression and owned fixture preparation.
+- Physical UI tests: 14 cases, 11 passed, 3 opt-in skips, including the successful
+  real background file transfer. The first failed navigation attempt above remains
+  part of the record.
+- Xcode list, simulator-SDK build-for-testing, generic iOS Release and signed
+  device build-for-testing passed. No simulator runtime execution is claimed.
+  The signed app was installed and launched with its normal production identity,
+  without acceptance launch arguments, after testing.
+- Mac repository-scoped compilation, Python/Swift interop, desktop typecheck,
+  101 frontend tests across 20 files and production build passed.
+- Mac Connect: 254 cases, one previously recorded owned-descendant cleanup error.
+  Full Python: 1,456 cases, 58 skips, two failures and two errors, retaining the
+  same owned-descendant, Linux executable-readiness, selected-workspace run and
+  JDK-discovery expectations recorded above. This is not an all-green result.
+- CachyOS remains at `fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`, with the earlier
+  native regression evidence unchanged. No desktop patch, permission/trust change,
+  push, merge, tag or release was performed.
+
+This investigation started at `40042c6b55c7f1ea0ddee0bb9ad7516e675b38ed` on
+`feature/olive-mobile-c9-3`; the only code/test commit is `813e3b8`, followed by a
+documentation checkpoint. C9.3 remains **PARTIAL**. Remaining acceptance is not
+waived by these successful diagnostic runs.

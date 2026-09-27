@@ -858,3 +858,23 @@ Reverse-direction policy and remaining file edges are still pending.
 The owner also passed the reverse-direction C6 Send selected files Off/Ask/Allow
 checks, retaining explicit iPhone acceptance. Both file permission admission
 matrices are now evidenced; collision, active revocation and timing remain open.
+
+A later instrumented C9.3 upload failed at 48,037,888 of 67,108,864 bytes. The phone
+recorded background expiration before C6 cancellation and channel closure; no
+completed receipt exists for that attempt. Files now distinguishes background
+interruption from user cancellation, with additive journal diagnostics for the
+actual grant/callback path and progress reported to iOS. Per-frame DEBUG trace
+writes were removed from disk to reduce diagnostic overhead. A diagnostic retest
+completed in 58 seconds, but its first UI assertion navigated to the wrong screen;
+that harness issue and the remaining real acceptance remain explicitly open.
+
+The corrected diagnostic UI run passed: a real 64 MiB upload completed in 57.786
+seconds while the phone stayed on Home for at least 65 seconds. Receipt decoding
+preceded journal completion and session release. Code/test commit `813e3b8`
+passed 77 physical unit cases (68 passed, 9 skips) and 14 physical UI cases
+(11 passed, 3 skips), plus required SDK/signed builds. Normal production-identity
+launch was restored. Mac compile/interop/typecheck/101 frontend/build checks
+passed; full Python retained the same four recorded failures/errors and Connect
+the same descendant-cleanup error. The owner's other-app workload must still be
+repeated; this diagnostic success does not close the earlier expiration or the
+remaining C9.3 acceptance. CachyOS was unchanged and C9.3 remains PARTIAL.
