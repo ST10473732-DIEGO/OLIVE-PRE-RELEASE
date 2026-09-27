@@ -462,3 +462,12 @@ Remote AI Off. This verifies recovery with the new identity without inheriting
 the revoked identity's Allow permission. Requested deletion of the temporary
 50703 rule and numbered UFW output to verify cleanup, followed by a new desktop
 Allow decision and an explicit arithmetic request. Those results remain pending.
+
+The owner confirms the new desktop Remote AI Allow decision restores Chat:
+the phone answers the arithmetic question with 391. The supplied numbered UFW
+output confirms both temporary pairing rules, 52643 and 50703, are gone. UFW
+remains active with only the phone-specific main TCP 33823 allowance and the
+pre-existing KDE Connect IPv4/IPv6 rules. Recovery through revoke, local unpair,
+explicit identity reset, fresh pairing and a new permission decision is now
+verified by the owner. Unattended restart remains limited by C3's changing
+listener port; C9.2 is not marked complete.

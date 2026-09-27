@@ -18,8 +18,11 @@ The owner also confirms mobile unpair removes the computer from Paired while
 the displayed phone identity remains unchanged, followed by an explicitly
 confirmed identity reset that shows a different Identity value. Fresh pairing
 then succeeds with Connected / Remote AI Off, requiring a new desktop permission
-decision. Temporary-rule cleanup, restored Chat under the new identity,
-unattended desktop restart recovery and remaining security acceptance are pending.
+decision. After a new desktop Allow decision, the owner confirms the arithmetic
+answer is 391. Current numbered UFW output verifies both temporary pairing rules
+are absent; only the phone-specific main-listener rule remains alongside the
+pre-existing KDE Connect rules. Unattended desktop restart recovery and remaining
+security acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -140,8 +143,9 @@ Keychain services. On 2026-09-27, after completing the revocation and local
 unpair checks, the owner explicitly confirmed reset on the production app and
 reported both the Identity reset notice and a changed displayed Identity value.
 The owner subsequently confirms fresh pairing succeeds with Connected / Remote
-AI Off. The new desktop permission assignment and subsequent Chat check remain
-pending; no restoration of the revoked identity's authority is claimed.
+AI Off, then a new desktop Allow decision permits a real arithmetic answer of
+391. The new identity receives separately assigned permission; no restoration
+of the revoked identity's authority is claimed.
 
 Discovery cannot authenticate names or expose a pairing offer: desktop mDNS
 contains neither. Nearby therefore says **OLIVE computer — identity not yet
@@ -217,7 +221,7 @@ permission behavior changes.
 | Main-listener allowance | Owner supplied the iPhone's current DHCP IPv4 address and executed the proposed rule limited to that source, the selected desktop LAN interface/address and TCP 47235. After removing an accidental extra `prototcp` argument, owner reports `Rule added`; subsequent phone state is Connected / Remote AI Off |
 | Fresh pairing listener | Owner returned main TCP 47235 and temporary TCP 52643, both in the existing OLIVE process on the selected LAN interface. Provided a phone-only rule for that exact temporary port, followed by immediate scan/two-sided confirmation instructions |
 | First connection report | Owner first reports “ok they connected,” then confirms the phone shows Connected / Remote AI Off. This is owner-observed production UI evidence; no Chat response or pairing/session timing is claimed |
-| Pairing-rule cleanup | Owner initially reported deletion of the phone-to-temporary-port 52643 rule. However, the later numbered UFW output on 2026-09-27 still lists that exact rule. Cleanup is therefore not verified; exact-rule deletion has been requested again. The main-listener allowance remains and the Mac remains excluded |
+| Pairing-rule cleanup | Owner initially reported deletion of the phone-to-temporary-port 52643 rule, but a later numbered UFW output still listed it. Cleanup was requested again. The final owner-supplied numbered output after fresh pairing now confirms both temporary rules (52643 and 50703) are absent. Only the phone-specific main 33823 allowance remains alongside the pre-existing KDE Connect rules; the Mac remains excluded |
 | Both confirmations / denial / abort | The owner followed the two-sided confirmation flow and obtained an authenticated paired connection. Separate denial/abort checks on the real devices remain pending |
 | Paired record / app relaunch | **Passed, real-device screenshot reviewed:** after installing the composer update and relaunching the normal app, Devices shows the retained desktop under Paired with Connected / Remote AI Allow. No new pairing ceremony was performed |
 | Background / foreground reconnect | **Passed, owner-observed:** after about ten seconds in the background, the phone returns to Connected / Remote AI Allow without re-pairing, and an explicitly submitted hash-function question receives another answer. Reconnection described as almost instant; no numeric timing claimed |
@@ -234,8 +238,8 @@ permission behavior changes.
 | Desktop revocation | **Passed, owner-observed 2026-09-27:** after following desktop Revoke device and phone Reconnect instructions, the phone remains offline/disconnected with Chat unavailable. The mobile pairing record was retained during this check; no key reset or new pairing was performed. This is real UI acceptance, not an independently captured TLS rejection trace |
 | Mobile-local unpair | **Passed, owner-observed 2026-09-27:** the owner confirms the computer disappears from Paired after Unpair and the displayed Identity value stays unchanged. This verifies the visible removal and identity preservation; automated repository tests separately verify removal of peer pin material. No removal of the desktop's revoked record is claimed |
 | Identity reset | **Passed, owner-observed 2026-09-27:** after explicit confirmation in Settings, the phone shows Identity reset and a different displayed Identity value. This follows successful unpair; the old desktop trust record remains revoked |
-| Fresh pairing after reset | **Passed, owner-observed 2026-09-27:** after the fresh QR and full two-sided confirmation instructions, the owner reports the phone connected again with Remote AI Off. The new identity does not inherit the old identity's Allow setting. Fresh desktop Allow and a subsequent arithmetic Chat check have been requested |
-| Fresh reset-recovery offer and cleanup | Owner reports temporary TCP 50703 alongside main 33823, both in the same OLIVE process. Provided an allowance limited to the current phone, selected LAN interface/address and TCP 50703. After successful pairing, requested exact deletion of the 50703 rule and numbered UFW output to verify cleanup, including the previously observed stale 52643 rule. Cleanup remains pending |
+| Fresh pairing after reset | **Passed, owner-observed 2026-09-27:** after the fresh QR and full two-sided confirmation instructions, the owner reports the phone connected again with Remote AI Off. The new identity does not inherit the old identity's Allow setting. After a new desktop Allow decision, the owner confirms the phone answers the arithmetic question with 391 |
+| Fresh reset-recovery offer and cleanup | Temporary TCP 50703 was confirmed alongside main 33823 in the same OLIVE process and admitted only for the phone on the selected LAN interface/address. After pairing, the final numbered UFW output confirms its deletion and removal of stale 52643. UFW remains active; main TCP 33823 is still restricted to the same phone and selected interface/address. Existing KDE Connect IPv4/IPv6 rules remain |
 | Wrong peer | Native wrong-pin tests pass; real cross-device wrong-peer check remains pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -430,9 +434,9 @@ recorded above. Desktop revocation also prevents reconnect and Chat in the
 owner's real-device check. Mobile-local unpair removes the paired device while
 preserving the displayed phone identity. Explicit identity reset then produced
 a changed displayed identity, and fresh pairing succeeds with Remote AI Off.
-Restored Chat after a new desktop Allow decision, temporary-rule cleanup,
-remaining security acceptance and
-final relevant tests remain. Desktop restart retains trust and permission,
+Chat is restored after a new desktop Allow decision, and both temporary UFW
+rules are confirmed absent. Remaining security acceptance and final relevant
+tests remain outstanding. Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
 begins and no release claim is made.
