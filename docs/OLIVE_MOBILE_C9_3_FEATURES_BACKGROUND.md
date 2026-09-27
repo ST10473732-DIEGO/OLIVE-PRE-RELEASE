@@ -1000,3 +1000,24 @@ on `feature/olive-mobile-c9-3`, with a clean worktree. No implementation, deploy
 desktop, identity, protocol or regression result changed. C9.3 remains PARTIAL
 pending remaining Studio policy/draft checks, final Remote AI recovery/regression
 and the separately recorded unresolved presence/platform acceptance details.
+
+### Owner C8 policy matrix and stale editor draft — 2026-09-27
+
+The owner confirmed “Studio permissions and stale-save passed” for the owned
+`C93 Acceptance Shared` workspace. The requested per-scope view/edit/build/test/run
+Off → Ask → Allow → Off sequence passed, with other scopes allowed, workspace
+refresh/reopen after policy changes and restoration to Allow. This records real
+desktop-controlled denial, approval and subsequent operation without redundant
+approval; it adds no mobile Owner Mode or prohibited capability.
+
+The native phone editor stale-save check also passed: after an unsaved
+`C93 Acceptance phone draft` and a newer desktop edit, Save with revision check
+refused the stale write, kept the phone draft and left the desktop text unchanged.
+This supplements the previously automated C8 protocol-level stale-revision check.
+Exact error wording and optional fixture restoration were not separately reported.
+
+This documentation-only follow-up began at
+`dc0b2b3c3cf15210960c848521d77e302850b86e`, with no implementation or deployment
+changes. The installed code and its last full regression remain current. Final
+Remote AI/reconnect/Stop/connection-loss recovery, remaining presence timing and
+platform limitations still require truthful closeout; C9.3 remains PARTIAL.

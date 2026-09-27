@@ -923,3 +923,9 @@ linked Reminder and Shared Chat are gone, while the unselected Private Chat
 remains. These close the outstanding C5 policy/deletion observations; Studio
 policy/draft safety, final Chat recovery and remaining presence/platform details
 still prevent C9.3 closure. No code changed in this follow-up.
+
+The owner also passed the C8 view/edit/build/test/run policy matrix and native
+phone stale-save check. The stale draft remained on the phone and newer desktop
+bytes were preserved. This closes the outstanding Studio policy/editor acceptance
+observations without changing code or authority. Final Remote AI recovery and
+remaining presence/platform closeout remain open; C9.3 stays PARTIAL.

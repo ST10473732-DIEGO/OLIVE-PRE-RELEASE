@@ -89,6 +89,10 @@ rejection also passed. Do not repeat those successful transfers unnecessarily.
 
 ## 4. Sync / Studio permission matrix and Studio draft safety
 
+**Passed by owner:** all four Sync domains, all five Studio scopes, and native
+editor stale-save refusal with draft retention. Do not repeat the procedures below.
+Optional fixture text restoration was not separately confirmed.
+
 Keep desktop Remote AI Allow unchanged. No Owner Mode. Scope changes may cancel
 active jobs, so wait for each operation to end before the next policy change.
 
