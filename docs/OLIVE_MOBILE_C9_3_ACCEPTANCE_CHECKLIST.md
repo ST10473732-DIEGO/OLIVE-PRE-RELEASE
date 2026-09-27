@@ -1,12 +1,14 @@
 # C9.3 remaining physical checks — updated 2026-09-27
 
-**Current gate audit:** the owner completed the C5 and C8 policy/deletion/editor
-batches and all three final Chat checks. Do not repeat those sections. Remaining
-unproven gate observations are exact desktop presence-label timing during a
-successful file transfer and independent system expiration during active C7 Chat.
-The latter cannot be deterministically forced through a public API; system Stop
-is separately passed, and network timeout is not proof of system expiration.
-The primary report retains PARTIAL status and all earlier failed runs.
+**Current gate audit:** all reproducibly testable acceptance is complete. On
+2026-09-27 the owner observed desktop Offline only after the instrumented 64 MiB
+transfer was sent and verified; the phone trace confirms receipt → completed
+journal → session release. Presence timing is PASS. The sole strict-gate limitation
+is independent system-selected expiration during active C7, which cannot be
+induced deterministically through public APIs. Common-handler behavior and C7
+system Stop/interruption are covered, but the original empirical gate is not
+waived. C9.3 remains PARTIAL. No further owner test is requested. The sections below
+preserve earlier procedures and results; do not repeat them.
 
 The normal phone app is installed and available. Automated phone tests are
 finished for this batch. Use only the owned `C93 Acceptance ...` records and

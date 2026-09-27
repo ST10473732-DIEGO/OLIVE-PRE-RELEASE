@@ -26,8 +26,10 @@ final class RealStudioBackgroundAcceptanceTests: XCTestCase {
         for _ in 0..<5 { if app.staticTexts["Background continuation active"].isHittable { break }; app.swipeUp() }
         XCTAssertTrue(app.staticTexts["Background continuation active"].waitForExistence(timeout: 15))
         let started = Date(); XCUIDevice.shared.press(.home)
-        let elapsed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in Date().timeIntervalSince(started) >= 65 }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [elapsed], timeout: 70), .completed)
+        // Observe completion and idle session release before foreground reconnect.
+        // The owned 64 MiB fixture has taken up to 70 seconds on the real LAN.
+        let elapsed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in Date().timeIntervalSince(started) >= 90 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [elapsed], timeout: 95), .completed)
         XCTAssertNotEqual(app.state, .runningForeground)
         app.activate()
         // Reacquire navigation after the active-work card has disappeared and

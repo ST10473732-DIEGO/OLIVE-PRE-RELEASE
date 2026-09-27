@@ -1,11 +1,12 @@
 # OLIVE Mobile C9.3 — companion features and background continuation
 
-**Status: implementation delivered; real-device acceptance remains partial. The complete iPhone + CachyOS milestone gate has NOT passed.**
+**Status: PARTIAL — implementation and all reproducibly testable acceptance passed; independent system-selected C7 expiration remains an unforceable Apple-platform acceptance limitation under the original strict gate.**
 
-Latest audit (2026-09-27): owner C5/C8 policy matrices, desktop deletions, Studio
-stale-draft safety and final C9.2/Chat recovery passed. Exact desktop presence-label
-timing and independently identified system expiration during C7 remain unproven.
-See the final audit below; earlier partial entries are chronological evidence.
+Latest two-item closeout (2026-09-27): successful instrumented C6 background
+transfer and direct owner observation close desktop presence-label timing as PASS.
+Independent system-selected C7 expiration is the sole remaining strict-gate item.
+See the final two-item closure below; earlier partial entries and failures remain
+chronological evidence, not the current list of outstanding tests.
 
 Native Today/selected Chat sync, Files, Remote Studio, capability status and
 continued-processing coordination are implemented and installed on the physical
@@ -1110,3 +1111,106 @@ recommended command is `git push -u origin feature/olive-mobile-c9-3`. It has no
 been executed. No desktop synchronization is needed now: desktop content has not
 changed. Do not blindly pull divergent Mac history into the validated CachyOS
 checkout; future desktop fixes require the guarded desktop-only flow.
+
+
+## Final two-item closure — 2026-09-27
+
+### Repository and validation
+
+- `BASELINE_HEAD`: `5d74ea698e5b8250d913b8236464ef03bfaa4f55`.
+- `BASELINE_BRANCH` / `BRANCH`: `feature/olive-mobile-c9-3`.
+- `WORKTREE_STATUS`: clean at entry; only the acceptance observation window and
+  closeout documentation changed in this follow-up.
+- `COMMITS`: one local closeout commit after the above baseline. `FINAL_HEAD` is
+  that containing commit, resolved by
+  `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
+  The actual resulting hash is also returned in the final response; no self-hash
+  is embedded into its own commit.
+- Product implementation remains `6cba75e`; the existing opt-in file UI test now
+  observes Home for 90 seconds instead of 65, allowing the previously observed
+  roughly 70-second LAN transfer to finish and release its session before the
+  harness returns foreground. This is an observation interval, not a delay in
+  product work or an attempt to provoke scheduler expiration.
+- Signed physical build-for-testing passed. The initial invocation lacked the
+  local development-team argument; rebuilding with the installed app's existing
+  signing team passed without changing project signing settings.
+- Owned fixture preparation: 1 physical unit test passed. Instrumented transfer:
+  1 physical UI test passed, zero failures (114.555 seconds). Normal production-
+  identity launch without acceptance arguments was restored afterward.
+- No product behavior changed, so the previously recorded final full regression
+  remains applicable. Its Mac baseline failures are not relabeled green.
+- CachyOS remains `fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`. No desktop source,
+  trust, firewall, permission or recovery-branch change was needed.
+
+### 1. Desktop presence-label timing — PASS
+
+One new, successful real iPhone → real CachyOS upload used the existing owned
+`olive-c93-64MiB.bin`. Transfer ID:
+`c9d056d3-6841-4791-a4fd-75c1c25522db`.
+
+| Evidence | Observed result (UTC, 2026-09-27) |
+| --- | --- |
+| User-initiated operation began | 16:02:07.838385 |
+| Continued-processing grant | 16:02:07.858094 |
+| Transfer admitted and progressing | Mid-transfer persisted journal: running, 19,922,944 acknowledged bytes of 67,108,864 |
+| Phone backgrounded | XCTest pressed Home at approximately 16:02:11; remained outside OLIVE for 90 seconds |
+| Final C6 response decoded | 16:03:05.319377 |
+| Persisted full-size receipt's completion timestamp | 16:03:05.319802; completed, received 67,108,864 bytes |
+| Phone operation recorded completed | 16:03:05.328337; actual and system progress both 67,108,864 / 67,108,864; system success true |
+| Phone released Connect | 16:03:05.354753; 35.376 ms after final response decode and 26.416 ms after journal completion |
+| Desktop Devices label | Owner watching the row: “the phone goes offline after the file has been sent and verified” |
+| Foreground return | UI test confirmed Connected and this exact transfer still completed; no resend |
+
+The receipt retains SHA-256
+`281e519df3077b557c6b03f5da83c4e8d397219259615dd7c3308f89cae8f2a6`
+and the exact expected 67,108,864-byte size. Production C6 accepts completion only
+from the full-size completed response following desktop verification. The transfer
+finished in 57.489952 seconds. The subsequent trace reader connection-loss entry
+occurred after the intentional local close; it is not a transfer failure.
+
+The owner directly observed the desktop label relative to sent/verified completion;
+this UI ordering is not inferred from database timestamps or phone telemetry. No
+millisecond UI timestamp is claimed. Combined with the receipt/journal/close trace,
+this resolves the required ordering: online during progress, offline after verified
+completion and idle session release. No presence-label defect was demonstrated.
+Earlier unsuccessful transfers and ambiguous observations above remain unchanged.
+
+### 2. Independent C7 system expiration — B, platform limitation; not an empirical PASS
+
+The mandatory product cleanup behavior is covered: the production coordinator
+installs one expiration handler, journals the interrupted/expired operation,
+invokes capability-specific cancellation, releases resources and never resends.
+C7 system Live Activity Stop exercised that path on the real phone; independent
+C6 background expiration, C7 completion, explicit Stop, connection loss, retained
+drafts, no replay and subsequent explicit requests provide additional evidence.
+Those results do not identify an independent scheduler-selected C7 expiration.
+
+Apple documents that system-UI cancellation invokes the expiration handler and
+that runtime resource constraints can terminate continued processing. See
+[Apple: performing long-running tasks](https://developer.apple.com/documentation/backgroundtasks/performing-long-running-tasks-on-ios-and-ipados/).
+The [public expirationHandler](https://developer.apple.com/documentation/backgroundtasks/bgtask/expirationhandler)
+takes no arguments, so it supplies no cause distinguishing system Stop from
+scheduler/resource expiration. The installed iOS 27 SDK header agrees. Inspection
+of the public API found no deterministic scheduler-expiration trigger; calling our
+handler ourselves would test cleanup but would not establish the required event.
+
+The original final-acceptance instructions separately required “system task
+expiration while response active” and directed that a genuine platform limitation
+leave C9.3 PARTIAL. The shorter completion checklist's “expiration/interruption”
+does not override that explicit empirical requirement. Therefore classification
+**B** applies to the strict gate. Technical handler coverage is satisfied, but it
+cannot silently substitute for the separately requested observed C7 event. This
+item is **platform-limited/unobserved**, not PLATFORM-LIMITED PASS and not proof of
+a product defect. No private API, manufactured expiration, repeated lottery run,
+changed Chat limit or artificial scheduler-provocation delay was used.
+
+**C9.3 implementation and all reproducibly testable acceptance have passed, but the
+milestone remains PARTIAL solely because independent system-selected C7 expiration
+cannot be deterministically induced through public iOS APIs.**
+
+No further owner test is requested to chase this nondeterministic event. Closing
+under handler-equivalence evidence would require an explicit change to the
+empirical acceptance gate; this report does not make that change. Historical
+coverage qualifications and known Mac baseline test failures remain recorded.
+No C9.4, C10, UNCENSORED, new product feature, redesign, push, merge, tag or release
+was started or performed.

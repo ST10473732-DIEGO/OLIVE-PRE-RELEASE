@@ -941,3 +941,17 @@ failures or system Stop. Latest installed code is `6cba75e`; its final physical
 78-unit/14-UI suites passed with 10/4 opt-in skips, builds and interop passed,
 and the documented Mac baseline failures remain. C9.3 stays PARTIAL; no push,
 desktop history synchronization, C9.4 or C10 work was performed.
+
+
+The final two-item C9.3 follow-up closed desktop presence timing: one real 64 MiB
+background upload completed in 57.490 seconds with the full verified receipt,
+then the phone released Connect 26.416 ms after journaling completion. The owner
+watched desktop Devices and confirmed Offline appeared after sent/verified status.
+One physical preparation test and one physical UI test passed; only the harness's
+background observation window changed to 90 seconds. Product and CachyOS code
+remain unchanged. Apple's public callback cannot distinguish or deterministically
+induce independent C7 scheduler expiration. Because the original strict gate
+explicitly requires that empirical event and leaves platform limitations partial,
+C9.3 remains PARTIAL solely for that unforceable observation. No further repeated
+expiration trials or owner checks are requested; all prior failures remain in the
+primary report.
