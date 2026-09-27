@@ -646,3 +646,35 @@ Known Mac Python baseline failures, Electron C6 timing limitations and unmeasure
 timings remain documented in `OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`; no blanket
 all-platform green claim is made. This is a local milestone closeout, with no
 push, merge, tag or release. C9.3, C10 and OLIVE OS have not begun.
+
+### C9.3 companion implementation and native regression — acceptance open
+
+The clean Mac C9.2 baseline `cf7fb0d` is preserved on `feature/olive-mobile-c9`.
+After content comparison with the separately deployed desktop changes and the
+owner's CachyOS recovery checkpoint, `feature/olive-mobile-c9-3` became the
+canonical mobile source history. Local commits add protected operation journals,
+iOS26+ continued processing, existing C5 Today/selected Chat, C6 Files, scoped C8
+Studio, real capability status and interop/physical tests. No push was performed.
+
+The latest mobile implementation `fc21ec0` adds durable Today drafts and actual
+Studio permission labels. Validation passes simulator-SDK build-for-testing,
+generic iOS Release, and signed iPhone tests: 53 unit and 8 UI tests pass; two
+unit and one UI opt-in LAN tests are skipped. Normal production-identity launch
+succeeded. The device reports iOS27.0 on an iPhone15 Pro Max. This is not yet
+proof of active background work or live companion features against CachyOS.
+
+The owner deployed the guarded three-file capability patch as
+`fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`, with a clean desktop worktree. Fresh
+native CachyOS Connect (254), full Python (1,443 cases, 8 skipped), frontend
+(101), typecheck and production build pass. Literal compileall reached a PySide6
+Jinja template inside `.venv`; the owner then confirmed source-only compilation
+passed and ran the normal launcher, which rebuilt successfully. Existing Mac
+baseline regression failures remain explicitly recorded.
+
+C9.3 is IN PROGRESS. The real-device feature/background completion gate and
+remaining implementation edge cases are documented in
+`OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`. C6 remains capped at64MiB, so no
+100MB transfer is claimed. C8 remains channel-owned, so no cross-reconnect job
+continuation is invented. Idle iOS suspension, force quit and active continued
+processing are distinguished; uncertain effects are never automatically replayed.
+C9.4, C10, cloud access and mobile Owner Mode remain outside this work.
