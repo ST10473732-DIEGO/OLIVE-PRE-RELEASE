@@ -14,8 +14,8 @@ final class BackgroundWorkCoordinator {
     private(set) var notice: String?
     private(set) var canWrite = true
     private var systemTask: AnyObject?
-    private var submitted = false
-    private var registered = false
+    private var submittedIdentifier: String?
+    private let registrationEnabled: Bool
     private(set) var cancelling = false
     var onIdle: (@MainActor () -> Void)?
     private var cancelWork: (@MainActor () async -> Void)?
@@ -23,6 +23,7 @@ final class BackgroundWorkCoordinator {
     var continuationGranted: Bool { systemTask != nil && active != nil }
 
     init(directory: URL = URL.applicationSupportDirectory.appendingPathComponent("Companion"), register: Bool = true) {
+        registrationEnabled = register
         store = ProtectedStore(url: directory.appendingPathComponent("operations-v1.json"), maximumBytes: 256_000)
         do {
             records = try store.load() ?? []
@@ -31,17 +32,24 @@ final class BackgroundWorkCoordinator {
             for i in records.indices { records[i].reconcileAfterLaunch() }
             if unfinished { try store.save(records) }
         } catch { canWrite = false; notice = "Operation history is unavailable. Existing data has been preserved." }
-        if register, #available(iOS 26.0, *) {
-            registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.identifier, using: .main) { [weak self] task in
-                MainActor.assumeIsolated {
-                    guard let self, let continued = task as? BGContinuedProcessingTask,
-                          self.submitted, self.active != nil else { task.setTaskCompleted(success: false); return }
-                    self.systemTask = continued
-                    continued.expirationHandler = { [weak self] in
-                        Task { @MainActor in await self?.cancel(expired: true) }
-                    }
-                    self.publishProgress()
+    }
+
+    @available(iOS 26.0, *)
+    private func register(_ identifier: String, operation: String) -> Bool {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: .main) { [weak self] task in
+            MainActor.assumeIsolated {
+                guard let self, let continued = task as? BGContinuedProcessingTask,
+                      self.submittedIdentifier == task.identifier, self.active?.id == operation else {
+                    task.setTaskCompleted(success: false); return
                 }
+                self.systemTask = continued
+                continued.expirationHandler = { [weak self] in
+                    Task { @MainActor in
+                        guard self?.submittedIdentifier == identifier, self?.active?.id == operation else { return }
+                        await self?.cancel(expired: true)
+                    }
+                }
+                self.publishProgress()
             }
         }
     }
@@ -51,14 +59,36 @@ final class BackgroundWorkCoordinator {
         guard active == nil, !cancelling else { throw ConnectFailure.resourceBusy }
         var next = Array(records.suffix(127)); next.append(record)
         try store.save(next); records = next; cancelWork = cancel; notice = nil
-        if #available(iOS 26.0, *), registered, UIApplication.shared.applicationState == .active {
-            let request = BGContinuedProcessingTaskRequest(identifier: Self.identifier, title: "OLIVE", subtitle: record.label)
-            // Never queue a future effect after the user has left or cancelled.
-            request.strategy = .fail
-            submitted = true
-            do { try BGTaskScheduler.shared.submit(request) }
-            catch { submitted = false; notice = ConnectFailure.backgroundTaskUnavailable.localizedDescription }
+        if #available(iOS 26.0, *), registrationEnabled, UIApplication.shared.applicationState == .active {
+            // Register one unique identifier per user action. A delayed callback
+            // from a previous action must never extend a replacement operation.
+            let identifier = Self.identifier + "." + UUID().uuidString.lowercased()
+            guard register(identifier, operation: record.id) else {
+                notice = ConnectFailure.backgroundTaskUnavailable.localizedDescription; return
+            }
+            let request = BGContinuedProcessingTaskRequest(identifier: identifier, title: "OLIVE", subtitle: record.label)
+            request.strategy = .fail // No deferred effect queue.
+            submittedIdentifier = identifier
+            if #available(iOS 27.0, *) {
+                Task.detached { [weak self] in
+                    guard await self?.submittedIdentifier == identifier else { return }
+                    do { try await BGTaskScheduler.shared.submitTaskRequest(request) }
+                    catch { await self?.submissionFailed(identifier) }
+                }
+            } else {
+                do { try BGTaskScheduler.shared.submit(request) }
+                catch { submissionFailed(identifier) }
+            }
         } else { notice = ConnectFailure.backgroundTaskUnavailable.localizedDescription }
+    }
+
+    private func submissionFailed(_ identifier: String) {
+        guard submittedIdentifier == identifier else { return }
+        submittedIdentifier = nil
+        if #available(iOS 26.0, *), let task = systemTask as? BGContinuedProcessingTask { task.setTaskCompleted(success: false) }
+        systemTask = nil
+        notice = ConnectFailure.backgroundTaskUnavailable.localizedDescription
+        if UIApplication.shared.applicationState == .background { Task { await cancel(expired: true) } }
     }
 
     func progress(_ units: Int64, total: Int64? = nil, id: String? = nil) throws {
@@ -96,8 +126,8 @@ final class BackgroundWorkCoordinator {
             task.setTaskCompleted(success: state == .completed && canWrite)
         }
         systemTask = nil
-        if submitted { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.identifier) }
-        submitted = false; cancelWork = nil
+        if let identifier = submittedIdentifier { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier) }
+        submittedIdentifier = nil; cancelWork = nil
     }
 
     func cancel(expired: Bool = false) async {
