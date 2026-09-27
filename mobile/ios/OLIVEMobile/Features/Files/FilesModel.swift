@@ -143,6 +143,7 @@ final class FilesModel {
             while true {
                 guard receipts.first(where: { $0.id == id })?.state == "awaiting_approval" else { throw ConnectFailure.fileTransferCancelled }
                 let r = try FileWire.response(await context.0.exchangeFrame(kind: 7, id: offer["request_id"].uuid(), payload: FileWire.packet(offer)), id: offer["request_id"].uuid())
+                guard receipts.first(where: { $0.id == id })?.state == "awaiting_approval" else { throw ConnectFailure.fileTransferCancelled }
                 if r["state"] == .string("accepted"), r["received_size"] == .int(0) { break }
                 guard r["state"] == .string("awaiting_approval"), ContinuousClock.now < deadline else { throw ConnectFailure.fileTransferInterrupted }
                 try await Task.sleep(for: .seconds(1))
@@ -163,7 +164,10 @@ final class FilesModel {
             guard r == .object(["state": .string("completed"), "received_size": .int(row.metadata.size)]) else { throw ConnectFailure.fileTransferInterrupted }
             guard receipts.first(where: { $0.id == id })?.state == "transferring" else { throw ConnectFailure.fileTransferCancelled }
             end(id, state: "completed"); notice = "Transfer verified by computer."
-        } catch { end(id, state: "interrupted"); notice = error is ConnectFailure ? error.localizedDescription : ConnectFailure.fileTransferInterrupted.localizedDescription }
+        } catch {
+            end(id, state: "interrupted")
+            notice = receipts.first(where: { $0.id == id })?.state == "completed" ? "Transfer verified by computer." : error is ConnectFailure ? error.localizedDescription : ConnectFailure.fileTransferInterrupted.localizedDescription
+        }
     }
     func accept(_ id: String) {
         guard UIApplication.shared.applicationState == .active, var row = receipts.first(where: { $0.id == id && $0.incoming && $0.state == "awaiting_approval" }) else { return }
@@ -176,8 +180,25 @@ final class FilesModel {
     }
     func cancel(_ id: String) async {
         guard let row = receipts.first(where: { $0.id == id }), !FileWire.terminal.contains(row.state) else { return }
-        end(id, state: "cancelled")
-        if let context = try? await session?.context() { _ = try? await exchange(row, operation: "cancel", context: context) }
+        // Fence producers and discard partial bytes before yielding, but retain
+        // the channel long enough to send C6 cancel and inspect its receipt.
+        end(id, state: "cancelled", deferCompletion: true)
+        var completedBeforeCancel = false
+        defer {
+            background?.finish(completedBeforeCancel ? .completed : .cancelled, id: id)
+            session?.finishBackgroundWork()
+        }
+        guard let session else { notice = "Cancelled locally · computer receipt unavailable"; return }
+        do {
+            let result = try await exchange(row, operation: "cancel", context: session.context())
+            if !row.incoming, result["state"] == .string("completed"), result["received_size"] == .int(row.metadata.size) {
+                // C6 terminal receipts are immutable. A completed transfer cannot
+                // be undone by a later cancel, and must not be reported cancelled.
+                var verified = row; verified.state = "completed"; verified.received = row.metadata.size; verified.touched = Date()
+                try put(verified); completedBeforeCancel = true
+                notice = "Computer had already verified this transfer."
+            } else { notice = "Transfer cancelled · partial data discarded" }
+        } catch { notice = "Cancelled locally · computer receipt unavailable" }
     }
     func reconcile(_ id: String) async {
         guard let row = receipts.first(where: { $0.id == id && !$0.incoming }), let session else { return }

@@ -848,6 +848,30 @@ final class CompanionProtocolTests: XCTestCase {
         try staging.finalize(id, metadata: metadata)
         XCTAssertEqual(try Data(contentsOf: final), bytes)
     }
+    @MainActor func testC6RelaunchInterruptsPartialTransferWithoutReplayOrDeletingVerifiedFiles() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let staging = FileStaging(directory: directory); try staging.prepare()
+        let peer = UUID().uuidString.lowercased(), bytes = Data("owned fixture".utf8)
+        let metadata = try FileMetadata(name: "fixture.bin", size: Int64(bytes.count), sha256: Data(SHA256.hash(data: bytes)).hex, mime: "application/octet-stream")
+        var partial = MobileFileReceipt(id: UUID().uuidString.lowercased(), peerID: peer, incoming: true, metadata: metadata, created: Date(), touched: Date())
+        partial.state = "transferring"; partial.received = 3
+        var verified = MobileFileReceipt(id: UUID().uuidString.lowercased(), peerID: peer, incoming: true, metadata: metadata, created: Date(), touched: Date())
+        verified.state = "completed"; verified.received = metadata.size
+        try Data(bytes.prefix(3)).write(to: staging.path(partial.id, "part"))
+        try bytes.write(to: staging.path(verified.id, "bin"))
+        let unrelated = directory.appendingPathComponent("keep.txt"); try bytes.write(to: unrelated)
+        let store = ProtectedStore<[MobileFileReceipt]>(url: directory.appendingPathComponent("receipts-v1.json"), maximumBytes: 8_000_000)
+        try store.save([partial, verified])
+        let model = FilesModel(session: nil, background: nil, directory: directory)
+        XCTAssertTrue(model.available)
+        XCTAssertEqual(model.receipts.first(where: { $0.id == partial.id })?.state, "interrupted")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try staging.path(partial.id, "part").path))
+        await model.cancel(partial.id); await model.cancel(verified.id)
+        XCTAssertEqual(try store.load()?.map(\.state), ["interrupted", "completed"])
+        XCTAssertEqual(try Data(contentsOf: staging.path(verified.id, "bin")), bytes)
+        XCTAssertEqual(try Data(contentsOf: unrelated), bytes)
+    }
     func testStudioReadHashAndStaleSaveResponse() throws {
         let source = UUID().uuidString.lowercased(), target = UUID().uuidString.lowercased(), workspace = UUID().uuidString.lowercased()
         let req = try StudioWire.request(source: source, target: target, operation: "read", workspace: workspace, revision: 1, arguments: .object(["path": .string("main.py")]))
