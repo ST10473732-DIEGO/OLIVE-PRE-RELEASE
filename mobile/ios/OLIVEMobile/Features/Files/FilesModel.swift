@@ -47,6 +47,7 @@ final class FilesModel {
                 if !FileWire.terminal.contains(receipts[i].state) { receipts[i].state = "interrupted" }
             }
             try store.save(receipts)
+            try staging.clearExportCopies()
             for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
                 guard UUID(uuidString: file.deletingPathExtension().lastPathComponent)?.uuidString.lowercased() == file.deletingPathExtension().lastPathComponent else { continue }
                 let keep = file.pathExtension == "bin" && receipts.contains { $0.id == file.deletingPathExtension().lastPathComponent && $0.incoming && $0.state == "completed" }
@@ -218,10 +219,7 @@ final class FilesModel {
         // system picker controls the external destination; remote names never do.
         let exports = staging.directory.appendingPathComponent("Exports")
         try FileManager.default.createDirectory(at: exports, withIntermediateDirectories: true)
-        for old in try FileManager.default.contentsOfDirectory(at: exports, includingPropertiesForKeys: nil) {
-            // Files in this dedicated directory are created by this method only.
-            try FileManager.default.removeItem(at: old)
-        }
+        try staging.clearExportCopies()
         let copy = exports.appendingPathComponent(row.metadata.name)
         try FileManager.default.copyItem(at: url, to: copy)
         return copy

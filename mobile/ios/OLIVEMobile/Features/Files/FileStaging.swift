@@ -14,6 +14,17 @@ struct FileStaging: Sendable {
             attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
         var url = directory; var values = URLResourceValues(); values.isExcludedFromBackup = true; try url.setResourceValues(values)
     }
+    func clearExportCopies() throws {
+        let exports = directory.appendingPathComponent("Exports", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: exports.path) else { return }
+        let values = try exports.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else { throw ConnectFailure.localStorageUnavailable }
+        for file in try FileManager.default.contentsOfDirectory(at: exports, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
+            let info = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard info.isRegularFile == true, info.isSymbolicLink != true else { continue }
+            try FileManager.default.removeItem(at: file)
+        }
+    }
     func capacity(_ bytes: Int64) throws {
         let attributes = try FileManager.default.attributesOfFileSystem(forPath: directory.path)
         guard let free = attributes[.systemFreeSize] as? NSNumber, free.int64Value >= bytes + 16 * 1024 * 1024 else { throw ConnectFailure.localStorageUnavailable }
