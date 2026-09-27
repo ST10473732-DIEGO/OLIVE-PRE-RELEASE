@@ -27,7 +27,7 @@ No simulator or Mac-hosted desktop is being substituted for CachyOS acceptance.
   were not treated as proof of equivalent source.
 - `FINAL_HEAD`: pending milestone acceptance. The current documentation checkpoint
   is resolvable with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
-- Latest validated mobile implementation: `0cc209f`.
+- Latest validated mobile implementation: `dc8ec93`.
 
 Local `COMMITS` to date:
 
@@ -44,6 +44,7 @@ Local `COMMITS` to date:
 | `fc21ec0` | Durable Today drafts and actual per-workspace Studio permission labels |
 | `e313830` | Unique system task IDs, stale callback fencing and iOS27 asynchronous submission |
 | `0cc209f` | Stored-artifact C6 rehash, exclusive publication and exact offer checks |
+| `dc8ec93` | Send C6 cancellation before releasing session; fence late admission; test interrupted-transfer recovery |
 
 ## Background execution
 
@@ -63,7 +64,7 @@ visible progress. File units reflect verified receipt byte counts; incoming byte
 are staged until the final size/hash check. Unknown-length Chat and Studio work
 stay indeterminate. Labels omit prompt, response, workspace and filename content.
 No custom ActivityKit extension or invented percentage is used. Actual system UI
-appearance and cancellation on iOS 27 remain acceptance items.
+appearance is owner-confirmed on iOS 27 for both C6 directions; system cancellation remains an acceptance item.
 
 Reference: [Apple: performing long-running tasks on iOS and iPadOS](https://developer.apple.com/documentation/backgroundtasks/performing-long-running-tasks-on-ios-and-ipados).
 The installed Xcode 27 SDK declarations were also inspected.
@@ -142,7 +143,11 @@ security-scoped access produce an immutable protected app-owned snapshot; scope
 is released promptly. The user reviews it and explicitly sends to the paired
 computer. SHA-256 metadata, bounded raw chunks and exact received offsets use the
 existing C6 carrier on authenticated C3. Success requires the final C6 receipt.
-A late completion cannot undo cancellation.
+Late admission/chunk responses cannot restart cancelled work. Cancellation first
+fences producers and discards partial local bytes, retains the session for the
+exact C6 cancel exchange, then releases background resources. If the computer's
+immutable receipt proves the upload completed before cancellation arrived, the
+phone records that verified completion rather than falsely claiming it was undone.
 
 Incoming offers require explicit foreground acceptance. Bytes enter protected
 app-owned staging, then verified size/SHA-256 and a durable receipt publish the
@@ -218,9 +223,9 @@ committed.
 | `xcodebuild -list` | Passed with installed Xcode selected via `DEVELOPER_DIR` |
 | Simulator SDK build-for-testing | Passed; no simulator runtime execution claimed |
 | Generic iOS Release build | Passed |
-| Signed physical build/install/test | Passed: 56 unit cases, 2 opt-in LAN skips, 0 failures; **54 passed** |
+| Signed physical build/install/test | Passed: 57 unit cases, 2 opt-in LAN skips, 0 failures; **55 passed** |
 | Physical UI tests | Passed: 9 cases, 1 opt-in LAN skip, 0 failures; **8 passed** |
-| Normal production-identity launch | `devicectl` launch succeeded after tests; real feature observations pending |
+| Normal production-identity launch | `devicectl` normal launch succeeded after tests; observed C6 results below |
 | Python ↔ Swift interop | Existing C2/C3/C7 vectors/TLS pairing plus new C5/C6/C8 vectors passed |
 | Mac `python -m compileall -q .` | Passed |
 | Mac full Python | 1,455 cases, 58 skipped, 2 failures + 2 errors; NOT green |
@@ -234,9 +239,9 @@ run outcome and detected Java toolchain expectation. No blanket Mac regression
 pass is claimed. Using a canonical `/private/tmp` test directory removed additional
 macOS `/var` vs `/private/var` alias failures from the first run.
 
-Latest local evidence: `/tmp/olive-c93-device-tests-5.xcresult`,
-`/tmp/olive-c93-device-tests-5.log`, `/tmp/olive-c93-simulator-final.log`,
-`/tmp/olive-c93-release-final.log`, `/tmp/olive-c93-interop-final.log`,
+Latest local evidence: `/tmp/olive-c93-device-tests-6.xcresult`,
+`/tmp/olive-c93-device-tests-6.log`, `/tmp/olive-c93-simulator-cancel-final.log`,
+`/tmp/olive-c93-release-cancel.log`, `/tmp/olive-c93-interop-final.log`,
 `/tmp/olive-c93-compile-final.log`, `/tmp/olive-c93-python-2.log`,
 `/tmp/olive-c93-connect.log`, `/tmp/olive-c93-desktop-tests-2.log`.
 These are local logs, not portable committed artifacts. Earlier physical failures
@@ -247,7 +252,11 @@ signed conflict handling, durable uncommitted Today drafts, file bounds, Studio
 hash rejection and private labels. The C6 follow-up adds a physical stored-byte
 tamper/collision test. The last full UI run is `olive-c93-device-tests-4.xcresult`;
 the C6/background follow-up reran all unit tests plus simulator/Release builds
-and normal launch, without claiming another full UI run.
+and normal launch, without claiming another full UI run. The latest recovery test
+seeds a partial and a verified transfer, relaunches the store, and checks interrupted
+state, partial cleanup, no replay and preservation of verified/unrelated files.
+A sandboxed build attempt could not run Swift macro plugins; the same final build
+passed with Xcode services available.
 
 ## Deployed CachyOS regression
 
@@ -295,15 +304,38 @@ the return-transfer and background checks. Expected fixtures use repeated byte v
 The owner also reports sending the exported file back from iPhone to CachyOS
 and explicitly saving the desktop copy. The phone's outgoing receipt
 `0982bac0-21d8-46a5-840f-d090bd0b9377` independently records completed,
-5,242,880 acknowledged bytes and the same expected SHA-256. The independent
-`sha256sum` check of the exported desktop copy is still pending. No background
-transfer duration or other background acceptance has yet passed.
+5,242,880 acknowledged bytes and the same expected SHA-256. The owner pasted
+the matching `sha256sum` for the exported desktop copy, independently closing
+the foreground round-trip integrity check.
+
+Both 64 MiB C6 directions subsequently completed on the physical iPhone and real
+CachyOS desktop, using mobile implementation `0cc209f`:
+
+- Desktop → phone: the owner saw the Receiving file Live Activity while using
+  another app/Home, returned and explicitly exported the file. Independently read
+  receipt `bd80e735-c7af-489f-8b9c-9b989276f3d3` records completed, 67,108,864
+  bytes and the expected hash. Journal start to receipt completion was about
+  81.6 seconds; this is not a measurement of time spent outside OLIVE.
+- Phone → desktop: the owner used Instagram for about 60 seconds and saw the
+  Sending file activity. The saved desktop copy's owner-reported SHA-256 exactly
+  matches the fixture. Independently read phone receipt
+  `4d5c4bd1-f8a8-4e62-92a3-153f52e1a6ec` also records completed, 67,108,864
+  acknowledged bytes and the expected hash.
+- The owner noticed the desktop showing Offline around the outgoing transfer but
+  could not recall whether bytes were still increasing or completion had already
+  occurred. This observation remains open for a timed recheck. The implementation
+  deliberately closes the connection after background work completes; that fact
+  does not establish the timing of the reported label.
+
+The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
+the existing protocol. These results prove the tested supported background file
+flows, not indefinite connectivity, cancellation, force-quit recovery or other
+capabilities.
 
 ## Completion gate and limits
 
 Still pending: actual selected Chat/Today bidirectional records and conflict cases;
-both C6 directions, hash/receipt/quarantine/export and negative cases; active
-background file work while another app is used for at least 60 seconds; active
+C6 negative cases and the observed desktop presence timing; active
 Chat continuation/Stop; shared Studio save/revision/jobs/cancel and background
 behavior; system progress/cancellation, network loss, force quit, foreground
 recovery, permission Off/Ask/Allow, and C9.2 real-device regression.

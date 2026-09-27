@@ -693,3 +693,27 @@ The new physical integrity test passes: current unit evidence is 54 passed with 
 opt-in LAN skips. Latest full UI evidence remains 8 passed with 1 LAN skip; fresh
 simulator-SDK and Release builds and normal launch pass. No background success
 is inferred from these checks.
+
+
+The 5 MiB C6 foreground round trip is now verified in both directions: the owner
+exported the returned desktop copy and pasted its exact expected SHA-256,
+`2e7cab6314e9614b6f2da12630661c3038e5592025f6534ba5823c3b340a1cb6`.
+Both phone receipts record completed with 5,242,880 bytes.
+
+The real 64 MiB background transfers then succeeded in both directions. The owner
+saw Receiving file while using another app and explicitly saved the phone copy;
+for the return upload, the owner used Instagram for about 60 seconds with Sending
+file visible, then supplied the saved desktop copy's matching SHA-256. Both phone
+receipts independently record completed with 67,108,864 bytes and the expected
+hash. A reported desktop Offline label remains open for a timed recheck because
+its timing relative to transfer completion was uncertain. C9.3 remains incomplete:
+cancellation/loss/force-quit and the Chat, Today and Studio acceptance gates remain
+open.
+
+
+Follow-up `dc8ec93` keeps the authenticated channel until C6 cancellation has been
+sent, fences late admission replies and preserves a computer receipt proving
+completion before cancellation. Physical unit evidence is now 55 passed, 2 opt-in
+LAN skips; simulator-SDK and Release builds pass. A new relaunch test preserves
+verified files while interrupting and cleaning only unfinished owned staging.
+Normal app launch was restored for the real system cancellation check.
