@@ -11,6 +11,7 @@ final class AppState {
     var connection: MobileConnectionState { session?.connected == true ? .connected : session?.selected != nil ? .offline : .notPaired }
     @ObservationIgnored lazy var sync = SyncModel(session: session, store: MobileSyncStore(directory: companionDirectory))
     @ObservationIgnored lazy var files = FilesModel(session: session, background: background, directory: companionDirectory.appendingPathComponent("Files"))
+    @ObservationIgnored lazy var studio = StudioModel(session: session, background: background, directory: companionDirectory)
     let companionDirectory: URL
     let background: BackgroundWorkCoordinator?
     let chatStore: MobileChatStore?

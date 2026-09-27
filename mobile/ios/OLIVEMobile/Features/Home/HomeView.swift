@@ -46,6 +46,7 @@ struct HomeView: View {
                 NavigationLink { TodayView() } label: { Label("Today", systemImage: "calendar") }
                 NavigationLink { SelectedChatView() } label: { Label("Selected Chat", systemImage: "bubble.left.and.bubble.right") }
                 NavigationLink { FilesView() } label: { Label("Files", systemImage: "folder") }
+                NavigationLink { StudioView() } label: { Label("Remote Studio", systemImage: "hammer") }
                 if let background = state.background {
                     if let operation = background.active {
                         OliveCard {
