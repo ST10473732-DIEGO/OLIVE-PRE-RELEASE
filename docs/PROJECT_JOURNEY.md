@@ -782,3 +782,10 @@ ended the active generation on CachyOS, closing that cancellation/release check.
 The first real C5 task also reached desktop OLIVE: C93 phone task was created on
 iPhone and explicitly synced with Tasks permission Allow. Bidirectional edits,
 completion, tombstone/conflict handling and the other C5 domains remain open.
+
+
+The real Tasks bidirectional edit/completion sequence passed: the desktop rename
+reached iPhone after explicit sync, then a phone rename and Completed change
+reached desktop OLIVE with the final title and completed state. The synthetic task
+is retained for concurrent-edit conflict and tombstone checks. This validates the
+tested task revision path without claiming the remaining C5 domains complete.

@@ -414,8 +414,12 @@ The first real C5 Today Tasks check passed with Sync tasks set to Allow: the own
 created the synthetic task C93 phone task on iPhone, saved locally, requested Sync
 tasks, and confirmed that the exact task appeared in desktop OLIVE Tasks. This is
 owner-observed phone → CachyOS creation, not an inferred protocol-fixture result.
-Desktop → phone changes, phone edit/completion, tombstones and conflicts are still
-being tested. No broader Tasks or other-domain pass is inferred from this creation.
+The owner then completed the bidirectional edit sequence: a desktop rename to
+C93 desktop edit reached iPhone after explicit Sync tasks, followed by a phone
+rename to C93 phone edit and Completed toggle. After Save locally and Sync tasks,
+the desktop showed the final title and completed state. This verifies the tested
+Tasks revisions and completion path under persistent Allow. Tombstones and
+concurrent-edit conflicts remain open; no other-domain pass is inferred.
 
 The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
 the existing protocol. These results prove the tested supported background file
