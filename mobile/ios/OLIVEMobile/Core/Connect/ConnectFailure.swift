@@ -6,6 +6,7 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable {
     case capabilityUnavailable, permissionDenied, peerOffline, connectionLost
     case requestTimeout, requestCancelled, responseMalformed, resourceBusy, rateLimited
     case identityRecoveryRequired, pairingAlreadyKnown, pairingInterrupted
+    case inputTooLarge, outputLimit, inferenceFailed, streamInvalid, requestLedgerFull
     var errorDescription: String? {
         switch self {
         case .discoveryUnavailable: "Nearby discovery is unavailable."
@@ -26,6 +27,11 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable {
         case .identityRecoveryRequired: "The saved identity could not be opened. It has been preserved."
         case .pairingAlreadyKnown: "This identity or pairing session is already known."
         case .pairingInterrupted: "Pairing was interrupted. No new trust was granted."
+        case .inputTooLarge: "This message is too long. Shorten it and send again."
+        case .outputLimit: "The answer reached the response size limit. Try a smaller request."
+        case .inferenceFailed: "The computer’s model could not finish this request. Try again or choose another role."
+        case .streamInvalid: "The computer’s response stream was interrupted or invalid."
+        case .requestLedgerFull: "The computer’s Connect request history is full. Check Devices on the computer."
         }
     }
 }

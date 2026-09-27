@@ -20,11 +20,12 @@ struct InferenceWire {
         guard (1...24).contains(messages.count), messages.last?.0 == "user" else { throw ConnectFailure.responseMalformed }
         var total = 0
         let items = try messages.map { role, content -> ConnectJSON in
-            guard ["user", "assistant"].contains(role), (1...16000).contains(content.utf8.count) else { throw ConnectFailure.responseMalformed }
+            guard ["user", "assistant"].contains(role) else { throw ConnectFailure.responseMalformed }
+            guard (1...16000).contains(content.utf8.count) else { throw ConnectFailure.inputTooLarge }
             total += content.utf8.count
             return .object(["role": .string(role), "content": .string(content)])
         }
-        guard total <= 48000 else { throw ConnectFailure.responseMalformed }
+        guard total <= 48000 else { throw ConnectFailure.inputTooLarge }
         let list = ConnectJSON.array(items)
         return .object(["preset": .string(preset), "messages": list, "input_fingerprint": .string(list.digest),
                         "max_tokens": .int(2048), "max_output_bytes": .int(64000), "seconds": .int(120)])
@@ -62,12 +63,33 @@ struct InferenceWire {
         case "model_unavailable": .capabilityUnavailable
         case "busy": .resourceBusy
         case "rate_limited": .rateLimited
+        case "input_too_large": .inputTooLarge
+        case "output_limit": .outputLimit
+        case "inference_failed": .inferenceFailed
+        case "stream_invalid": .streamInvalid
+        case "ledger_full": .requestLedgerFull
         case "cancelled": .requestCancelled
         case "generation_timeout", "expired_request": .requestTimeout
         case "device_unavailable": .peerOffline
         case "device_revoked", "connection_lost", "request_indeterminate": .connectionLost
         default: .responseMalformed
         }
+    }
+
+    /// Keep recent complete turns within C7's input bounds. The full conversation
+    /// remains visible; older context is omitted, never split or sent oversized.
+    static func context(history: [(String, String)], user: String) -> [(String, String)] {
+        var result = [("user", user)]
+        var bytes = user.utf8.count
+        var end = history.count
+        while end >= 2, result.count + 2 <= 24 {
+            let turn = Array(history[(end - 2)..<end])
+            let size = turn.reduce(0) { $0 + $1.1.utf8.count }
+            guard turn[0].0 == "user", turn[1].0 == "assistant",
+                  turn.allSatisfy({ (1...16000).contains($0.1.utf8.count) }), bytes + size <= 48000 else { break }
+            result.insert(contentsOf: turn, at: 0); bytes += size; end -= 2
+        }
+        return result
     }
 }
 

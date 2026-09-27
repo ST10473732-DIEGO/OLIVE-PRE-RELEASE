@@ -30,11 +30,27 @@ final class ConnectSession: ChatRemoteSession {
     private var generation = UUID()
     private var identityGeneration = UUID()
     private var foreground = false
+    private var discoveryRetry: Task<Void, Never>?
+    private var nextDiscoveryRetry = ContinuousClock.now
     var selected: TrustedConnectPeer? { peers.first { $0.id == selectedID } }
     init(repository: ConnectTrustRepository = ConnectTrustRepository(), identities: ConnectIdentityStore = ConnectIdentityStore()) {
         self.repository = repository; self.identities = identities
         pairing = ConnectPairingClient(repository: repository, identities: identities)
         peers = repository.peers; selectedID = peers.first?.id
+        discovery.onNewEndpoints = { [weak self] in self?.discoveredEndpoints() }
+    }
+    private func discoveredEndpoints() {
+        guard foreground, selected != nil, !connected, reconnect == nil, discoveryRetry == nil else { return }
+        // Discovery remains untrusted. Coalesce announcements and cap new retry
+        // cycles to one per minute; each candidate still needs exact pinned TLS.
+        let deadline = max(nextDiscoveryRetry, .now)
+        discoveryRetry = Task { [weak self] in
+            try? await Task.sleep(until: deadline, clock: .continuous)
+            guard let self, !Task.isCancelled else { return }
+            self.discoveryRetry = nil
+            guard self.foreground, !self.discovery.nearby.isEmpty else { return }
+            self.connect()
+        }
     }
     func refreshPeers() {
         peers = repository.peers
@@ -56,19 +72,26 @@ final class ConnectSession: ChatRemoteSession {
     }
     func disconnect() {
         generation = UUID(); reconnect?.cancel(); reconnect = nil
+        discoveryRetry?.cancel(); discoveryRetry = nil
         if let transport { Task { await transport.close() } }
         transport = nil; inference = nil; capability = nil; connected = false
         status = selected == nil ? "Not connected" : "Offline"
     }
     func connect() {
         guard foreground, reconnect == nil, !connected, let peer = selected else { return }
+        nextDiscoveryRetry = .now.advanced(by: .seconds(60))
         let token = UUID(); generation = token
         reconnect = Task {
-            for delay in [0, 1, 2, 4, 8, 15] {
+            let delays = [0, 1, 2, 4, 8, 15]
+            var attempt = 0
+            var attemptedRevision = discovery.revision
+            while attempt < delays.count {
+                let delay = delays[attempt]; attempt += 1
                 if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
                 guard generation == token, !Task.isCancelled else { return }
                 status = "Connecting"; diagnostic = "discovery"
                 let endpoints = Array(discovery.nearby.prefix(8))
+                attemptedRevision = discovery.revision
                 for endpoint in endpoints {
                     let channel = ConnectTransport(endpoint: endpoint.endpoint)
                     transport = channel
@@ -83,6 +106,7 @@ final class ConnectSession: ChatRemoteSession {
                         let capabilities = try await client.status()
                         guard generation == token else { await channel.close(); return }
                         inference = client; capability = capabilities; connected = true; status = "Connected"; diagnostic = "authenticated"
+                        attempt = 0 // A later disconnection gets a fresh bounded recovery cycle.
                         // C7 status is the existing public role/policy negotiation and heartbeat.
                         while generation == token && !Task.isCancelled {
                             try await Task.sleep(for: .seconds(15))
@@ -99,7 +123,10 @@ final class ConnectSession: ChatRemoteSession {
                     }
                 }
             }
-            if generation == token { reconnect = nil; status = "Offline · Tap reconnect to try again" }
+            if generation == token {
+                reconnect = nil; status = "Offline · Waiting for your computer"
+                if discovery.revision != attemptedRevision { discoveredEndpoints() }
+            }
         }
     }
     func retry() { disconnect(); connect() }

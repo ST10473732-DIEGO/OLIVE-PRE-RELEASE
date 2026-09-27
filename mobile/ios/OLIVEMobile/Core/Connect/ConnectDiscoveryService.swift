@@ -15,6 +15,14 @@ final class ConnectDiscoveryService {
     private(set) var status = "Discovery off"
     private var browser: NWBrowser?
     private var generation = UUID()
+    @ObservationIgnored var onNewEndpoints: (() -> Void)?
+    private(set) var revision = 0
+    func updateNearby(_ peers: [NearbyConnectPeer]) {
+        let next = Self.bounded(peers)
+        let added = !Set(next.map(\.id)).subtracting(nearby.map(\.id)).isEmpty
+        nearby = next
+        if added { revision += 1; onNewEndpoints?() }
+    }
     func start() {
         guard browser == nil else { return }
         let token = UUID(); generation = token
@@ -45,7 +53,7 @@ final class ConnectDiscoveryService {
             }.sorted { $0.id < $1.id }
             Task { @MainActor in
                 guard let self, self.generation == token else { return }
-                self.nearby = Self.bounded(valid)
+                self.updateNearby(valid)
             }
         }
         browser.start(queue: DispatchQueue(label: "olive.connect.discovery"))

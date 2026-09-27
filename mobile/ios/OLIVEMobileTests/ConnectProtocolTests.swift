@@ -1,5 +1,6 @@
 import XCTest
 import CryptoKit
+import Network
 @testable import OLIVEMobile
 
 final class ConnectProtocolTests: XCTestCase {
@@ -67,6 +68,43 @@ final class ConnectProtocolTests: XCTestCase {
         let v = try vectors()["start"]
         let args = try InferenceWire.startArguments(preset: "normal", messages: [("user", v["arguments"]["messages"].array![0]["content"].text())])
         XCTAssertEqual(args, v["arguments"])
+    }
+    func testLongConversationKeepsRecentWholeTurnsWithinDesktopBounds() throws {
+        let history = (0..<30).flatMap { [("user", "question \($0)"), ("assistant", String(repeating: "🫒", count: 2000))] }
+        let context = InferenceWire.context(history: history, user: "next question")
+        XCTAssertLessThanOrEqual(context.count, 24)
+        XCTAssertLessThanOrEqual(context.reduce(0) { $0 + $1.1.utf8.count }, 48000)
+        XCTAssertEqual(context.first?.0, "user")
+        XCTAssertEqual(context.last?.1, "next question")
+        XCTAssertEqual(context[context.count - 3].1, "question 29")
+        _ = try InferenceWire.startArguments(preset: "fast", messages: context)
+        let largeAnswer = [("user", "long question"), ("assistant", String(repeating: "x", count: 16001))]
+        XCTAssertEqual(InferenceWire.context(history: largeAnswer, user: "next").count, 1)
+    }
+    func testModelAndSizeFailuresAreNotReportedAsMalformedMessages() {
+        XCTAssertEqual(InferenceWire.failure("inference_failed"), .inferenceFailed)
+        XCTAssertEqual(InferenceWire.failure("input_too_large"), .inputTooLarge)
+        XCTAssertEqual(InferenceWire.failure("output_limit"), .outputLimit)
+        XCTAssertEqual(InferenceWire.failure("stream_invalid"), .streamInvalid)
+        XCTAssertEqual(InferenceWire.failure("ledger_full"), .requestLedgerFull)
+        XCTAssertEqual(InferenceWire.failure("invalid_request"), .responseMalformed)
+    }
+    @MainActor func testDiscoveryRestartAnnouncesNewCandidateButDoesNotAuthenticate() {
+        let discovery = ConnectDiscoveryService()
+        var notifications = 0
+        discovery.onNewEndpoints = { notifications += 1 }
+        let first = NearbyConnectPeer(id: "first", endpoint: .service(name: "first", type: "_olive-connect._tcp", domain: "local.", interface: nil))
+        let restart = NearbyConnectPeer(id: "restart", endpoint: .service(name: "restart", type: "_olive-connect._tcp", domain: "local.", interface: nil))
+        discovery.updateNearby([first]); discovery.updateNearby([first])
+        XCTAssertEqual(notifications, 1)
+        discovery.updateNearby([])
+        XCTAssertEqual(notifications, 1)
+        discovery.updateNearby([restart])
+        XCTAssertEqual(notifications, 2)
+        XCTAssertEqual(discovery.revision, 2)
+        XCTAssertEqual(discovery.nearby.map(\.id), ["restart"])
+        discovery.stop()
+        XCTAssertTrue(discovery.nearby.isEmpty)
     }
     func testEndpointValidation() {
         for value in ["192.168.1.2", "10.0.0.1", "172.16.0.1", "fd00::1"] { XCTAssertTrue(PairingOffer.localAddress(value)) }
@@ -473,5 +511,53 @@ final class RemoteLifecycleTests: XCTestCase {
         XCTAssertEqual(state.chatStatus, interrupted)
         XCTAssertFalse(state.active)
         XCTAssertTrue(state.messages.allSatisfy { $0.status == "Interrupted · connection closed" })
+    }
+}
+
+/// Explicit real-device negative test. It never edits production trust or keys,
+/// and probes a wrong pin only after authenticating the real paired endpoint.
+final class RealConnectSecurityTests: XCTestCase {
+    @MainActor func testRealLANWrongPeerPinRejected() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C92_SECURITY_ACCEPTANCE"] == "1",
+                          "Requires explicit physical-iPhone / paired desktop acceptance")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let repository = ConnectTrustRepository()
+        let before = repository.peers
+        let peer = try XCTUnwrap(before.first)
+        let identity = try await ConnectIdentityStore().load(allowCreation: false)
+        let discovery = ConnectDiscoveryService()
+        discovery.start()
+        defer { discovery.stop() }
+        for _ in 0..<80 {
+            if !discovery.nearby.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        var authenticated: NWEndpoint?
+        for candidate in discovery.nearby.prefix(8) {
+            let transport = ConnectTransport(endpoint: candidate.endpoint)
+            do {
+                try await transport.connect(identity: identity, peer: peer.identity)
+                authenticated = candidate.endpoint
+            } catch { /* Discovery is untrusted; only a pinned success selects the target. */ }
+            await transport.close()
+            if authenticated != nil { break }
+        }
+        let endpoint = try XCTUnwrap(authenticated, "Real paired desktop must pass pinned TLS first")
+        let wrongPeer = try ConnectIdentity.generate().publicIdentity
+        let rejected = ConnectTransport(endpoint: endpoint)
+        do {
+            try await rejected.connect(identity: identity, peer: wrongPeer)
+            XCTFail("Wrong peer certificate was accepted")
+        } catch {
+            XCTAssertEqual(error as? ConnectFailure, .certificateMismatch,
+                           "A TCP timeout is not evidence of wrong-pin rejection")
+        }
+        await rejected.close()
+        XCTAssertEqual(ConnectTrustRepository().peers, before)
+        let after = try await ConnectIdentityStore().load(allowCreation: false)
+        XCTAssertEqual(after.publicIdentity, identity.publicIdentity)
+        print("C9.2 real LAN: correct pin authenticated; wrong pin rejected; saved identity and trust unchanged")
     }
 }

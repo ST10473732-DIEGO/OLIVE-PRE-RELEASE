@@ -65,7 +65,7 @@ final class AppState {
         let user = ChatMessage(id: UUID(), role: .user, blocks: [.text(text)])
         messages.append(user)
         currentUserID = user.id; currentAnswerID = answerID
-        let context = Array((history + [("user", text)]).suffix(24))
+        let context = InferenceWire.context(history: history, user: text)
         chatTask = Task {
             do {
                 try await client.run(preset: selectedPreset, messages: context) { [self] job, status, answer in
