@@ -337,9 +337,21 @@ post-cancellation release/reconnect behavior. The owner separately confirmed usi
 Stop/Cancel in the system Live Activity while remaining outside OLIVE. The earlier
 ambiguous Offline observation is not retroactively treated as proven.
 
+For the next outgoing 64 MiB transfer, the owner disabled iPhone Wi-Fi for about
+40 seconds while bytes were transferring. The desktop reported Interrupted ·
+partial data removed and a transfer timeout; the phone reported request timeout
+and interrupted. The owner observed the Live Activity disappear about 3–5 seconds
+after disabling Wi-Fi. After restoring Wi-Fi and reconnecting, the transfer did
+not resume or restart. The independently read phone receipt
+`8321b4bc-588a-47d9-8bc6-8f8c4fe93d96` records interrupted at 6,750,208
+acknowledged bytes. This passes the tested outgoing network-loss/no-replay path;
+the reported timings are owner estimates, not instrumented measurements. Desktop
+partial removal is established here by its reported UI state, not filesystem
+inspection. Force-quit behavior remains a separate acceptance check.
+
 The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
 the existing protocol. These results prove the tested supported background file
-flows and the observed cancellation/reconnect path, not indefinite connectivity,
+flows, cancellation/reconnect and outgoing network-loss/no-replay paths, not indefinite connectivity,
 force-quit recovery or other capabilities.
 
 ## Completion gate and limits
@@ -347,8 +359,8 @@ force-quit recovery or other capabilities.
 Still pending: actual selected Chat/Today bidirectional records and conflict cases;
 C6 negative cases and the observed desktop presence timing; active
 Chat continuation/Stop; shared Studio save/revision/jobs/cancel and background
-behavior; network loss, force quit and their recovery paths, permission
-Off/Ask/Allow, and C9.2 real-device regression.
+behavior; force quit and its recovery path, remaining direction-specific failure
+cases, permission Off/Ask/Allow, and C9.2 real-device regression.
 
 Additional implementation/coverage gaps above (recurrence parity, guided corrupted-store recovery, feature conflict/error UI acceptance)
 remain C9.3 work. They are not silently deferred to declare the milestone complete.

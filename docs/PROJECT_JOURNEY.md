@@ -725,3 +725,11 @@ then background disconnection and reconnection on reopening OLIVE. This is the
 expected release-after-work lifecycle. The owner separately confirmed cancelling
 through the system Live Activity while remaining outside OLIVE. The remaining
 network-loss/force-quit checks are still pending.
+
+
+The outgoing C6 Wi-Fi interruption check passed: with Wi-Fi off for about 40
+seconds, both real devices reported interruption/timeouts, the desktop reported
+partial-data removal, and the system activity ended. Restoring Wi-Fi and
+reconnecting caused no automatic transfer replay. The independently read phone
+receipt records interrupted at 6,750,208 bytes. Force-quit acceptance remains
+separate and pending; C9.3 is still in progress.
