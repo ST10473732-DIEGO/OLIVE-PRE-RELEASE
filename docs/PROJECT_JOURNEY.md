@@ -789,3 +789,13 @@ reached iPhone after explicit sync, then a phone rename and Completed change
 reached desktop OLIVE with the final title and completed state. The synthetic task
 is retained for concurrent-edit conflict and tombstone checks. This validates the
 tested task revision path without claiming the remaining C5 domains complete.
+
+
+The real Tasks concurrent-edit check exposed a misleading phone sync message.
+Desktop conflict review correctly showed concurrent edit with both synthetic
+versions, and the phone kept its local title; no destructive overwrite occurred.
+The mobile follow-up preserves unresolved conflict warnings and exposes review
+inside the editor (`d83e1b1`). Physical validation passed: 58 unit and 9 UI tests,
+with 2 unit and 1 UI opt-in LAN skips, and no failures. Simulator-SDK and generic
+Release builds passed; normal production-identity launch was restored. Explicit
+real conflict resolution and tombstone acceptance remain pending.

@@ -27,7 +27,7 @@ No simulator or Mac-hosted desktop is being substituted for CachyOS acceptance.
   were not treated as proof of equivalent source.
 - `FINAL_HEAD`: pending milestone acceptance. The current documentation checkpoint
   is resolvable with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
-- Latest validated mobile implementation: `d181864`.
+- Latest validated mobile implementation: `d83e1b1`.
 
 Local `COMMITS` to date:
 
@@ -46,6 +46,7 @@ Local `COMMITS` to date:
 | `0cc209f` | Stored-artifact C6 rehash, exclusive publication and exact offer checks |
 | `dc8ec93` | Send C6 cancellation before releasing session; fence late admission; test interrupted-transfer recovery |
 | `d181864` | Persist typed background failure diagnostics and clarify explicit-only draft retry |
+| `d83e1b1` | Retain unresolved sync conflict warnings and expose both versions from the Today editor |
 
 ## Background execution
 
@@ -227,8 +228,8 @@ committed.
 | `xcodebuild -list` | Passed with installed Xcode selected via `DEVELOPER_DIR` |
 | Simulator SDK build-for-testing | Passed; no simulator runtime execution claimed |
 | Generic iOS Release build | Passed |
-| Signed physical build/install/test | Passed: 59 unit cases, 2 opt-in LAN skips, 0 failures; **57 passed** |
-| Physical UI tests | Passed: 9 cases, 1 opt-in LAN skip, 0 failures; **8 passed** |
+| Signed physical build/install/test | Passed: 60 unit cases, 2 opt-in LAN skips, 0 failures; **58 passed** |
+| Physical UI tests | Passed: 10 cases, 1 opt-in LAN skip, 0 failures; **9 passed** |
 | Normal production-identity launch | `devicectl` normal launch succeeded after tests; observed C6 results below |
 | Python ↔ Swift interop | Existing C2/C3/C7 vectors/TLS pairing plus new C5/C6/C8 vectors passed |
 | Mac `python -m compileall -q .` | Passed |
@@ -243,9 +244,9 @@ run outcome and detected Java toolchain expectation. No blanket Mac regression
 pass is claimed. Using a canonical `/private/tmp` test directory removed additional
 macOS `/var` vs `/private/var` alias failures from the first run.
 
-Latest local evidence: `/tmp/olive-c93-device-tests-7.xcresult`,
-`/tmp/olive-c93-device-tests-7.log`, `/tmp/olive-c93-simulator-diagnostics.log`,
-`/tmp/olive-c93-release-diagnostics.log`, `/tmp/olive-c93-interop-final.log`,
+Latest local evidence: `/tmp/olive-c93-device-tests-8.xcresult`,
+`/tmp/olive-c93-device-tests-8.log`, `/tmp/olive-c93-simulator-conflicts.log`,
+`/tmp/olive-c93-release-conflicts.log`, `/tmp/olive-c93-interop-final.log`,
 `/tmp/olive-c93-compile-final.log`, `/tmp/olive-c93-python-2.log`,
 `/tmp/olive-c93-connect.log`, `/tmp/olive-c93-desktop-tests-2.log`.
 These are local logs, not portable committed artifacts. Earlier physical failures
@@ -254,9 +255,9 @@ passing runs. Unit tests also cover version preservation, expired cleanup,
 no-replay launch, stale progress fencing, immutable Chat order, tombstones,
 signed conflict handling, durable uncommitted Today drafts, file bounds, Studio
 hash rejection and private labels. The C6 follow-up adds a physical stored-byte
-tamper/collision test. The last full UI run is `olive-c93-device-tests-4.xcresult`;
-the C6/background follow-up reran all unit tests plus simulator/Release builds
-and normal launch, without claiming another full UI run. The latest recovery test
+tamper/collision test. The latest full unit/UI run is `olive-c93-device-tests-8.xcresult`, including
+the new conflict persistence and editor review tests. Simulator-SDK and Release
+builds passed, and normal production-identity launch was restored. The recovery test
 seeds a partial and a verified transfer, relaunches the store, and checks interrupted
 state, partial cleanup, no replay and preservation of verified/unrelated files.
 A sandboxed build attempt could not run Swift macro plugins; the same final build
@@ -418,8 +419,23 @@ The owner then completed the bidirectional edit sequence: a desktop rename to
 C93 desktop edit reached iPhone after explicit Sync tasks, followed by a phone
 rename to C93 phone edit and Completed toggle. After Save locally and Sync tasks,
 the desktop showed the final title and completed state. This verifies the tested
-Tasks revisions and completion path under persistent Allow. Tombstones and
-concurrent-edit conflicts remain open; no other-domain pass is inferred.
+Tasks revisions and completion path under persistent Allow. In the concurrent-edit
+check, the phone saved C93 conflict phone without syncing and the desktop saved
+C93 conflict desktop from the shared revision. The owner initially saw Sync
+complete on the phone and did not see both versions there. A read-only review of
+desktop Devices → Sync → Review conflicts then showed task conflict / concurrent
+edit with both distinct titles, while the phone retained C93 conflict phone.
+Thus the real C5 conflict was preserved instead of overwriting the desktop; the
+phone presentation was misleading. Explicit resolution and tombstones remain open.
+
+The follow-up UI fix keeps a conflict warning when the current peer/domain still
+has unresolved local conflicts, clears a stale editor save notice before showing
+the sync result, and adds Review conflict inside the record editor. It changes no
+wire format, signatures, authority or merge policy. A signed-record regression
+covers conflict survival through duplicate exchange/relaunch and clearance only
+by a revision descending from both edits. A separate offline UI fixture checks
+both versions can be reviewed from the editor; it is isolated from production
+trust/data and is not substituted for real-device sync acceptance.
 
 The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
 the existing protocol. These results prove the tested supported background file
