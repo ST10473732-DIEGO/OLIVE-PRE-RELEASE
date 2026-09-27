@@ -451,3 +451,8 @@ numbered UFW output also shows the old temporary TCP 52643 allowance, contrary
 to the earlier owner-reported deletion. The current output takes precedence;
 exact-rule cleanup was requested again before creating and checking a fresh
 pairing offer. No new port or pairing success is inferred.
+
+The fresh offer's listener is TCP 50703 alongside main 33823 in the same OLIVE
+process. Provided the exact phone-only allowance and instructed immediate scan
+and full two-sided confirmation, retaining Remote AI Off initially. Pairing,
+old-rule deletion and subsequent temporary-rule cleanup are not yet confirmed.
