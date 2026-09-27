@@ -197,8 +197,12 @@ then reported that the patch installer completed and committed the update.
 The available desktop test interpreter is the checkout's `.venv/bin/python`.
 The owner subsequently reports native C1–C8 regression completed successfully:
 243 tests in 92.708 s, OK. Compilation confirmation and the resulting desktop
-commit ID remain requested. Activation in the restarted desktop process and
-real sequential-Chat acceptance are not yet claimed. Desktop-only patch
+commit ID remain requested. The owner then reports the restarted desktop's
+main listener at TCP 54981 in a new process. The Git HEAD command was mistyped
+with a hyphen instead of the home-directory tilde and did not run; a full-path
+command was provided. Requested replacement of the exact phone-only 33823 rule
+with 54981 and a numbered-rule check before real sequential-Chat acceptance.
+No new pairing is needed or requested. Desktop-only patch
 `/tmp/olive-c92-desktop-chat-quota.patch` has SHA-256
 `483f59137556598f6fc04e4f6adac20cf5b4828ff055da203c06689455ce43b4`.
 It applies cleanly with `git am` to an isolated checkout of that exact baseline,
@@ -207,8 +211,9 @@ copy/paste installer checks the baseline, clean worktree, patch checksum and
 patch applicability before committing it locally. No remote access, push or
 firewall change is part of this installer. The installer does not run tests.
 Native CachyOS C1–C8 regression passed according to the owner's terminal summary.
-Compilation confirmation, desktop restart and more-than-six real sequential
-requests remain pending.
+Desktop restart is owner-confirmed by the new main listener/process.
+Compilation confirmation, corrected desktop HEAD, rule replacement and
+more-than-six real sequential requests remain pending.
 
 The desktop runs inference and owns model selection/policy. Mobile sends only
 its explicit user/assistant context: ≤24 messages, ≤16000 bytes/message,

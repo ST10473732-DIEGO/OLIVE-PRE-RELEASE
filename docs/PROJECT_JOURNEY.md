@@ -506,3 +506,10 @@ owner; the full log has not been independently read. Desktop restart and
 the new main-listener check are next, followed by more-than-six real sequential
 Chat requests without reconnect. Compilation confirmation and desktop HEAD
 remain requested.
+
+After restarting the updated desktop, the owner reports main TCP 54981 in a
+new process. The HEAD query failed because its path used a hyphen instead of
+the home-directory tilde; supplied a full-path command. Requested replacement
+of the exact phone-only 33823 allowance with 54981, retaining the saved pairing,
+and verification of current numbered rules. Eight short sequential real Chat
+requests within one minute are the next live quota-removal check.
