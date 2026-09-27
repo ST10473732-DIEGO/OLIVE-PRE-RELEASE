@@ -4,7 +4,7 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable {
     case discoveryUnavailable, localNetworkDenied, pairingDenied, pairingExpired
     case identityMismatch, certificateMismatch, protocolVersionUnsupported
     case capabilityUnavailable, permissionDenied, peerOffline, connectionLost
-    case requestTimeout, requestCancelled, responseMalformed, resourceBusy
+    case requestTimeout, requestCancelled, responseMalformed, resourceBusy, rateLimited
     case identityRecoveryRequired, pairingAlreadyKnown, pairingInterrupted
     var errorDescription: String? {
         switch self {
@@ -22,6 +22,7 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable {
         case .requestCancelled: "Cancelled."
         case .responseMalformed: "Connect received an invalid message."
         case .resourceBusy: "Your computer is busy. Try again shortly."
+        case .rateLimited: "Remote AI request limit reached. Wait a minute, then send again."
         case .identityRecoveryRequired: "The saved identity could not be opened. It has been preserved."
         case .pairingAlreadyKnown: "This identity or pairing session is already known."
         case .pairingInterrupted: "Pairing was interrupted. No new trust was granted."

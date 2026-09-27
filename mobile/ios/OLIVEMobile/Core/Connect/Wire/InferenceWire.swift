@@ -60,7 +60,8 @@ struct InferenceWire {
         switch code {
         case "permission_denied", "confirmation_required": .permissionDenied
         case "model_unavailable": .capabilityUnavailable
-        case "busy", "rate_limited": .resourceBusy
+        case "busy": .resourceBusy
+        case "rate_limited": .rateLimited
         case "cancelled": .requestCancelled
         case "generation_timeout", "expired_request": .requestTimeout
         case "device_unavailable": .peerOffline

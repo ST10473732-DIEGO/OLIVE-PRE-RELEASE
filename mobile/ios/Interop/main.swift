@@ -58,5 +58,16 @@ for name in ["start", "poll", "cancel", "status"] {
     result[name] = encoded
 }
 for name in ["response", "capabilities"] { result[name] = try InferenceWire.response(v[name].canonical) }
+var rejections: [String: ConnectJSON] = [:]
+for code in ["busy", "rate_limited", "model_unavailable", "unknown_request"] {
+    _ = try InferenceWire.response(v["admission_errors"][code].canonical)
+    let value = ConnectJSON.object(["protocol_version": .string("olive-inference/1"),
+        "request_id": v["start"]["request_id"], "job_id": v["start"]["job_id"], "result": .null, "error": .string(code)])
+    precondition(value.canonical == v["admission_errors"][code].canonical)
+    let encoded = try ConnectFrame(kind: 10, payload: value.canonical).encode()
+    precondition(encoded.hex == v["admission_error_frames"][code].string)
+    rejections[code] = value
+}
+result["admission_errors"] = .object(rejections)
 try ConnectJSON.object(result).canonical.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
 print("Swift decoded Python C2/C3/C7 and independently encoded C7 requests byte-for-byte.")

@@ -21,6 +21,12 @@ from olive.connect.network_wire import frame, header
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/fixtures/mobile_connect/vectors.json'
 
+def admission_vectors(v):
+    return {code: dict(protocol_version='olive-inference/1',
+                       request_id=v['start']['request_id'], job_id=v['start']['job_id'],
+                       result=None, error=code)
+            for code in ('busy', 'rate_limited', 'model_unavailable', 'unknown_request')}
+
 def check(v):
     offer, reply = v['offer'], v['reply']
     for part in (offer, reply):
@@ -36,6 +42,11 @@ def check(v):
         assert v[name + '_frame'] == encoded.hex()
         assert header(encoded[:6]) == (len(raw), kind)
     assert v['hello_frame'] == frame(4).hex()
+    assert v['admission_errors'] == admission_vectors(v)
+    for code, value in v['admission_errors'].items():
+        raw = canonical(value)
+        assert response(raw)['error'] == code
+        assert v['admission_error_frames'][code] == frame(10, raw).hex()
 
 def generate():
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -68,6 +79,9 @@ def generate():
     for name in ('start','poll','cancel','status','response','capabilities'):
         v[name+'_frame'] = frame(10 if name in ('response','capabilities') else 9, canonical(v[name])).hex()
     v['hello_frame'] = frame(4).hex()
+    v['admission_errors'] = admission_vectors(v)
+    v['admission_error_frames'] = {code: frame(10, canonical(value)).hex()
+                                   for code, value in v['admission_errors'].items()}
     return v
 
 if __name__ == '__main__':
@@ -82,4 +96,6 @@ if __name__ == '__main__':
             assert InferenceRequest.decode(canonical(reverse[name])) == InferenceRequest.decode(canonical(value[name]))
         for name in ('response','capabilities'):
             assert response(canonical(reverse[name])) == response(canonical(value[name]))
+        for code, expected in value['admission_errors'].items():
+            assert response(canonical(reverse['admission_errors'][code])) == response(canonical(expected))
     print('Production Python vectors passed; SHA-256:', hashlib.sha256(FIXTURE.read_bytes()).hexdigest())

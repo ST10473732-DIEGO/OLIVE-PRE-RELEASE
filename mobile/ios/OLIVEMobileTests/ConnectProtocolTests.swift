@@ -20,6 +20,13 @@ final class ConnectProtocolTests: XCTestCase {
             XCTAssertEqual(try ConnectFrame.header(Data(frame.prefix(6))).0, v[name].canonical.count)
         }
         _ = try InferenceWire.response(v["capabilities"].canonical)
+        for code in ["busy", "rate_limited", "model_unavailable", "unknown_request"] {
+            let value = try InferenceWire.response(v["admission_errors"][code].canonical)
+            XCTAssertEqual(value["error"], .string(code)); XCTAssertEqual(value["result"], .null)
+            XCTAssertEqual(try ConnectFrame(kind: 10, payload: value.canonical).encode().hex, v["admission_error_frames"][code].string)
+        }
+        XCTAssertEqual(InferenceWire.failure("rate_limited"), .rateLimited)
+        XCTAssertEqual(InferenceWire.failure("busy"), .resourceBusy)
     }
     func testStrictJSONRejectsDuplicatesTruncationAndNonIntegers() {
         for text in ["{\"a\":1,\"a\":2}", "{\"a\":true", "[1,]", "01", "1.0", "NaN", "{\"a\":1,\"\\u0061\":2}"] {
@@ -249,7 +256,86 @@ private actor InferenceUpdates {
     func append(_ state: String, _ text: String) { values.append((state,text)) }
     var lastText: String? { values.last?.1 }
 }
+/// Desktop C7 rejects a start with result=null/error=code, without a job.
+/// Cancelling that rejected ID returns unknown_request on the same healthy channel.
+private actor AdmissionTestTransport: InferenceTransport {
+    var rejection: String?
+    let failUncertainStart: Bool
+    let rejectPoll: Bool
+    var calls: [String] = []
+    var closes = 0
+    private var job: String?
+    init(rejection: String? = nil, failUncertainStart: Bool = false, rejectPoll: Bool = false) {
+        self.rejection = rejection; self.failUncertainStart = failUncertainStart; self.rejectPoll = rejectPoll
+    }
+    func allow() { rejection = nil }
+    func exchange(_ req: ConnectJSON) async throws -> ConnectJSON {
+        guard closes == 0 else { throw ConnectFailure.peerOffline }
+        let operation = try req["operation"].text()
+        calls.append(operation)
+        var error: ConnectJSON = .null, result: ConnectJSON = .null
+        switch operation {
+        case "start":
+            if let rejection { error = .string(rejection) }
+            else {
+                job = req["job_id"].string
+                if failUncertainStart { throw ConnectFailure.connectionLost }
+                result = .object(["state": .string("queued"), "events": .array([]), "error": .null])
+            }
+        case "poll":
+            if rejectPoll { error = .string("rate_limited") }
+            else { result = .object(["state": .string("completed"), "events": .array([
+                .object(["sequence": .int(1), "text": .string("391")])]), "error": .null]); job = nil }
+        case "cancel":
+            if failUncertainStart { throw ConnectFailure.connectionLost }
+            if job == nil { error = .string("unknown_request") }
+            else { job = nil; result = .object(["state": .string("cancelled"), "events": .array([]), "error": .string("cancelled")]) }
+        case "status":
+            result = .object(["presets": .object(["fast": .bool(true), "normal": .bool(true), "max": .bool(false)]),
+                "permission": .string("allow"), "busy": .bool(false)])
+        default: throw ConnectFailure.responseMalformed
+        }
+        return try InferenceWire.response(ConnectJSON.object(["protocol_version": .string("olive-inference/1"),
+            "request_id": req["request_id"], "job_id": req["job_id"], "result": result, "error": error]).canonical)
+    }
+    func close() { closes += 1; job = nil }
+}
 final class RemoteLifecycleTests: XCTestCase {
+    func testAdmissionRejectionsPreserveChannelAndAllowExplicitRetry() async throws {
+        for (code, expected) in [("rate_limited", ConnectFailure.rateLimited), ("busy", .resourceBusy), ("model_unavailable", .capabilityUnavailable)] {
+            let transport = AdmissionTestTransport(rejection: code)
+            let client = RemoteInferenceClient(transport: transport, source: UUID().uuidString.lowercased(), target: UUID().uuidString.lowercased())
+            do {
+                try await client.run(preset: "normal", messages: [("user", "Question")]) { _, _, _ in XCTFail("Rejected start cannot produce a response") }
+                XCTFail("Expected rejection")
+            } catch { XCTAssertEqual(error as? ConnectFailure, expected) }
+            let rejectedCalls = await transport.calls, closes = await transport.closes
+            XCTAssertEqual(rejectedCalls, ["start"]); XCTAssertEqual(closes, 0)
+            let status = try await client.status()
+            XCTAssertEqual(status["permission"], .string("allow"))
+            await transport.allow() // Capacity/cooldown recovers; no reconnect.
+            let updates = InferenceUpdates()
+            try await client.run(preset: "normal", messages: [("user", "Retry")]) { _, state, text in await updates.append(state, text) }
+            let answer = await updates.lastText, finalCloses = await transport.closes
+            XCTAssertEqual(answer, "391"); XCTAssertEqual(finalCloses, 0)
+        }
+    }
+    func testUncertainStartStillCancelsAndClosesWhenCleanupFails() async throws {
+        let transport = AdmissionTestTransport(failUncertainStart: true)
+        let client = RemoteInferenceClient(transport: transport, source: UUID().uuidString.lowercased(), target: UUID().uuidString.lowercased())
+        do { try await client.run(preset: "normal", messages: [("user", "Question")]) { _, _, _ in }; XCTFail("Expected connection loss") }
+        catch { XCTAssertEqual(error as? ConnectFailure, .connectionLost) }
+        let calls = await transport.calls, closes = await transport.closes
+        XCTAssertEqual(calls, ["start", "cancel"]); XCTAssertEqual(closes, 1)
+    }
+    func testRejectionAfterAdmissionStillCancelsActualJob() async throws {
+        let transport = AdmissionTestTransport(rejectPoll: true)
+        let client = RemoteInferenceClient(transport: transport, source: UUID().uuidString.lowercased(), target: UUID().uuidString.lowercased())
+        do { try await client.run(preset: "normal", messages: [("user", "Question")]) { _, _, _ in }; XCTFail("Expected poll rejection") }
+        catch { XCTAssertEqual(error as? ConnectFailure, .rateLimited) }
+        let calls = await transport.calls
+        XCTAssertEqual(calls, ["start", "poll", "cancel"])
+    }
     func testIncrementalRequestAndCompletion() async throws {
         let transport = InferenceTestTransport(), updates = InferenceUpdates()
         let client = RemoteInferenceClient(transport: transport, source: UUID().uuidString.lowercased(), target: UUID().uuidString.lowercased())
@@ -291,6 +377,22 @@ final class RemoteLifecycleTests: XCTestCase {
     }
 }
 @MainActor final class MobileChatStateTests: XCTestCase {
+    func testRateLimitPreservesDraftAndConnectionWithoutAutomaticRetry() async throws {
+        let transport = AdmissionTestTransport(rejection: "rate_limited")
+        let state = AppState(store: ChatTestStore(), chatConnection: ChatTestConnection(transport))
+        state.draft = "Keep this question"; state.send()
+        for _ in 0..<100 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(state.active); XCTAssertTrue(state.canSend)
+        XCTAssertEqual(state.draft, "Keep this question")
+        XCTAssertTrue(state.chatStatus.contains("request limit")); XCTAssertFalse(state.chatStatus.contains("busy"))
+        let calls = await transport.calls, closes = await transport.closes
+        XCTAssertEqual(calls, ["start"]); XCTAssertEqual(closes, 0)
+        await transport.allow()
+        XCTAssertEqual(state.messages.filter { $0.role == .user }.count, 1)
+        state.send()
+        for _ in 0..<100 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(state.chatStatus, "Completed"); XCTAssertTrue(state.draft.isEmpty)
+    }
     func testOffAndOfflinePreserveDraftWithoutSending() async throws {
         let transport = InferenceTestTransport(), connection = ChatTestConnection(transport)
         let state = AppState(store: ChatTestStore(), chatConnection: connection)
