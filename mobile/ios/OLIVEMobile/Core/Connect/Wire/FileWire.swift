@@ -68,7 +68,15 @@ enum FileWire {
             try v.fields(["protocol_version", "request_id", "state", "error"])
             let code = try v["error"].text()
             guard code.range(of: "^[a-z_]{1,80}$", options: .regularExpression) != nil else { throw ConnectFailure.responseMalformed }
-            throw code == "permission_off" || code == "permission_denied" ? ConnectFailure.remotePermissionDenied : code == "content_integrity_failed" ? .fileHashMismatch : .fileTransferInterrupted
+            switch code {
+            case "permission_off", "permission_denied": throw ConnectFailure.remotePermissionDenied
+            case "content_integrity_failed": throw ConnectFailure.fileHashMismatch
+            case "inbox_quota_exhausted": throw ConnectFailure.fileInboxFull
+            case "unknown_transfer": throw ConnectFailure.fileReceiptUnavailable
+            case "transfer_capacity_reached": throw ConnectFailure.resourceBusy
+            case "transfer_ledger_full": throw ConnectFailure.requestLedgerFull
+            default: throw ConnectFailure.fileTransferInterrupted
+            }
         }
         try v.fields(["protocol_version", "request_id", "state", "result"])
         guard v["state"] == .string("completed") else { throw ConnectFailure.responseMalformed }

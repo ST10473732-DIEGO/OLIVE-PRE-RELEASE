@@ -9,6 +9,7 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable, Codable {
     case inputTooLarge, outputLimit, inferenceFailed, streamInvalid, requestLedgerFull
     case syncConflict, syncRevisionStale, syncPermissionDenied
     case fileTooLarge, fileHashMismatch, fileTransferInterrupted, fileTransferCancelled, fileSaveRequired
+    case fileInboxFull, fileReceiptUnavailable
     case workspaceUnavailable, studioRevisionStale, studioOperationBusy
     case deviceRevoked, remotePermissionDenied
     case backgroundTaskUnavailable, backgroundTaskExpired, backgroundTaskCancelled, localStorageUnavailable
@@ -24,6 +25,8 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable, Codable {
         case .fileTransferInterrupted: "Transfer interrupted. Check its receipt before explicitly sending again."
         case .fileTransferCancelled: "File transfer cancelled."
         case .fileSaveRequired: "Transfer verified. Save or export it to Files."
+        case .fileInboxFull: "Your computer’s file inbox or disk has insufficient space. On the computer, save any files you need, then use Dismiss from Inbox on completed transfers. Choose the file again to send explicitly."
+        case .fileReceiptUnavailable: "The computer has no receipt for this transfer. It may have rejected the offer before creating one. No retry was started."
         case .workspaceUnavailable: "The shared workspace or original operation is unavailable."
         case .studioRevisionStale: "The file or workspace changed. Reload and review your draft."
         case .studioOperationBusy: "A Studio operation is already active."

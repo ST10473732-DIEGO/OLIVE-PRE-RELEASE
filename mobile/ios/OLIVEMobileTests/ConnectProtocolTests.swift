@@ -1409,6 +1409,30 @@ final class BackgroundOperationTests: XCTestCase {
 
 @MainActor
 final class CompanionProtocolTests: XCTestCase {
+    func testFileRejectionsPreserveStorageAndReceiptReasonsWithoutWeakeningValidation() throws {
+        let id = UUID().uuidString.lowercased()
+        func rejected(_ code: String, requestID: String? = nil) -> Data {
+            ConnectJSON.object(["protocol_version": .string("olive-files/1"),
+                "request_id": .string(requestID ?? id), "state": .string("rejected"), "error": .string(code)]).canonical
+        }
+        let cases: [(String, ConnectFailure)] = [
+            ("inbox_quota_exhausted", .fileInboxFull), ("unknown_transfer", .fileReceiptUnavailable),
+            ("transfer_capacity_reached", .resourceBusy), ("transfer_ledger_full", .requestLedgerFull),
+            ("permission_off", .remotePermissionDenied), ("permission_denied", .remotePermissionDenied),
+            ("content_integrity_failed", .fileHashMismatch), ("file_io_failed", .fileTransferInterrupted)
+        ]
+        for (code, expected) in cases {
+            XCTAssertThrowsError(try FileWire.response(rejected(code), id: id)) {
+                XCTAssertEqual($0 as? ConnectFailure, expected)
+            }
+        }
+        XCTAssertThrowsError(try FileWire.response(rejected("inbox_quota_exhausted", requestID: UUID().uuidString.lowercased()), id: id)) {
+            XCTAssertEqual($0 as? ConnectFailure, .responseMalformed)
+        }
+        XCTAssertThrowsError(try FileWire.response(rejected("arbitrary content!"), id: id)) {
+            XCTAssertEqual($0 as? ConnectFailure, .responseMalformed)
+        }
+    }
     func testSelectedChatDeletionUsesOrderedTombstonesWithoutResurrection() throws {
         let identity = try ConnectIdentity.generate()
         let conversation = try SyncWire.author(kind: "conversation", payload: .object(["title": .string("Synthetic selected Chat"), "project_id": .null, "created_at": .string(SyncWire.now())]), identity: identity)
