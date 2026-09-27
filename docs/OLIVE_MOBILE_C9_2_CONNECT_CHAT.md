@@ -28,8 +28,9 @@ short sequential questions complete without reconnecting. The later persistent
 listener update and two scoped UFW rules now pass unattended desktop restart and
 automatic phone reconnect with Chat. Desktop-side pairing cancellation also
 leaves the paired-device list unchanged. Phone-side pairing abort also passed.
-Accumulated Fast history acceptance and deployment of the Start status correction remain
-pending; see the latest checkpoints below for current ports and validation.
+Accumulated Fast history acceptance and real-device verification of the deployed
+Start status correction remain pending; see the latest checkpoints below for
+current ports and validation.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -743,8 +744,8 @@ below. Cleanup is explicitly confined to that test namespace; normal production
 state is retained.
 
 **Remaining gate:** retest accumulated Fast Chat
-against the restarted updated runtime, and deploy/verify the newly reported
-Welcome status correction. Saved-port firewall setup and unattended restart have
+against the restarted updated runtime, and verify the deployed Welcome status
+correction on the real desktop. Saved-port firewall setup and unattended restart have
 passed as recorded below. No C9.2 completion claim yet.
 
 ### Saved endpoints confirmed by owner
@@ -826,8 +827,9 @@ now passed without adding trust.
 The app was subsequently launched successfully with the debug-only
 `--c92-cleanup-pairing-check` flag. This requests removal of only the isolated
 acceptance Keychain accounts, preferences and directory, and opens the normal
-production identity/trust store. The normal connection's visible state remains
-to be confirmed by the owner; launch success alone does not certify every
+production identity/trust store. The owner subsequently confirms the phone again
+shows **Connected / Remote AI Allow**, demonstrating return to the preserved
+working pairing. This observation does not independently certify every
 best-effort cleanup operation.
 
 The first Start status installer attempt failed in Fish with unknown command
@@ -836,3 +838,22 @@ The command was regenerated from the prepared installer, with its one-line shell
 argument structure and decoded Python syntax checked. No desktop patch success
 is inferred from the failed attempt. The corrected handoff is
 `/tmp/OLIVE-C92-START-STATUS-CLEAN.txt`; native frontend results remain pending.
+
+### Start status patch installed and native checks passed
+
+The corrected installer applied successfully on CachyOS as
+**`698b002e13ba76aef8bcd1a391b33280764e1bad`**, with subject
+`desktop(connect): refresh Welcome status as the saved listener starts`.
+The owner returned the complete **ALL START STATUS CHECKS FINISHED** summary:
+
+- Desktop TypeScript check: **PASS**.
+- Desktop unit tests: **101 passed across 20 files**, duration **423 ms**.
+- Desktop production build: **PASS**.
+
+These are fresh native CachyOS results for the UI-only follow-up. The earlier
+native Python compile, Connect **253 tests** and full Python **1442 tests with
+8 skipped** remain the applicable backend regression: this patch changes no
+Python runtime. No firewall, identity or permission changes were made by the
+installer. Normal desktop restart with the phone open is now requested to verify
+the corrected Start label and automatic reconnection in the deployed build.
+Accumulated Fast Chat acceptance remains pending; C9.2 is not yet marked complete.

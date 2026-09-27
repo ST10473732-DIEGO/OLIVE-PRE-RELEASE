@@ -611,3 +611,13 @@ visible reconnection confirmation remains pending. The Start patch installer
 had a stray `L n` prefix and failed before running; it was regenerated and checked
 for a fresh copy/paste attempt. Native frontend deployment and accumulated Fast
 history acceptance are still required before closing C9.2.
+
+### C9.2 Start status patch deployed; normal pairing restored
+
+The owner confirms the normal iPhone session again shows Connected / Remote AI
+Allow after the isolated pairing checks. The corrected desktop installer applied
+as `698b002e13ba76aef8bcd1a391b33280764e1bad`. Fresh native CachyOS type checking,
+101 unit tests across 20 files (423 ms), and the production build all pass.
+The follow-up is frontend-only; the previously green native Connect/full Python
+regression remains applicable. Deployed Start label verification after restart
+and accumulated Fast Chat acceptance are the remaining checks before closure.
