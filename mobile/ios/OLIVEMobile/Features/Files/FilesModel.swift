@@ -12,6 +12,7 @@ struct MobileFileReceipt: Codable, Identifiable {
     var touched: Date
     var received: Int64 = 0
     var state = "offered"
+    var offerDigest: String? = nil // Additive v1 field; old interrupted receipts remain queryable.
 }
 
 @MainActor @Observable
@@ -168,7 +169,7 @@ final class FilesModel {
         guard UIApplication.shared.applicationState == .active, var row = receipts.first(where: { $0.id == id && $0.incoming && $0.state == "awaiting_approval" }) else { return }
         do {
             try background?.begin(BackgroundOperationRecord(id: id, capability: "files.receive", peerID: row.peerID,
-                label: "Receiving file", protocolID: id, requestDigest: row.metadata.wire.digest, startedAt: Date(), totalUnits: row.metadata.size, scope: ["name": row.metadata.name, "sha256": row.metadata.sha256, "direction": "incoming"])) { [weak self] in await self?.cancel(id) }
+                label: "Receiving file", protocolID: id, requestDigest: row.offerDigest ?? row.metadata.wire.digest, startedAt: Date(), totalUnits: row.metadata.size, scope: ["name": row.metadata.name, "sha256": row.metadata.sha256, "direction": "incoming"])) { [weak self] in await self?.cancel(id) }
             try Data().write(to: staging.path(id, "part"), options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
             hashes[id] = SHA256(); row.state = "accepted"; row.touched = Date(); try put(row)
         } catch { end(id, state: "failed"); notice = error.localizedDescription }
@@ -220,25 +221,30 @@ final class FilesModel {
         let id = try request["transfer_id"].uuid(), requestID = try request["request_id"].uuid()
         guard request["source_device_id"] == .string(peer), request["target_device_id"] == .string(local) else { throw ConnectFailure.identityMismatch }
         var response: ConnectJSON
+        var admittedIncoming = false, published = false
         do {
             let now = Int64(Date().timeIntervalSince1970)
-            guard try request["expires_at"].number(0...253402300799) > now, try request["timestamp"].number(0...253402300799) <= now + 30 else { throw ConnectFailure.requestTimeout }
+            guard try request["expires_at"].number(0...253402300799) > now, try request["timestamp"].number(0...253402300799) <= now + 5 else { throw ConnectFailure.requestTimeout }
             let operation = try request["operation"].text()
             if operation == "offer" {
                 let metadata = try FileMetadata(request["arguments"])
                 if let existing = receipts.first(where: { $0.id == id }) {
                     guard existing.peerID == peer, existing.incoming, existing.metadata == metadata else { throw ConnectFailure.responseMalformed }
+                    if ["offered", "awaiting_approval"].contains(existing.state) {
+                        guard existing.offerDigest == request.digest else { throw ConnectFailure.responseMalformed }
+                    }
                 } else {
                     guard UIApplication.shared.applicationState == .active else { throw ConnectFailure.permissionDenied }
                     try reserve(metadata.size, incoming: true, peer: peer)
                     var row = MobileFileReceipt(id: id, peerID: peer, incoming: true, metadata: metadata, created: Date(), touched: Date())
-                    row.state = "awaiting_approval"; try put(row)
+                    row.state = "awaiting_approval"; row.offerDigest = request.digest; try put(row)
                 }
             }
             guard var row = receipts.first(where: { $0.id == id }), row.peerID == peer else { throw ConnectFailure.fileTransferInterrupted }
             if operation == "cancel" { end(id, state: "cancelled") }
             else if operation == "chunk" || operation == "complete" {
                 guard row.incoming else { throw ConnectFailure.permissionDenied }
+                admittedIncoming = true
                 if !FileWire.terminal.contains(row.state) {
                     guard ["accepted", "transferring"].contains(row.state), hashes[id] != nil else { throw ConnectFailure.permissionDenied }
                     if operation == "chunk" {
@@ -249,9 +255,8 @@ final class FilesModel {
                         try background?.progress(row.received, total: row.metadata.size, id: id)
                     } else {
                         guard row.received == row.metadata.size, Data(hashes[id]!.finalize()).hex == row.metadata.sha256 else { end(id, state: "failed"); throw ConnectFailure.fileHashMismatch }
-                        let partial = try staging.path(id, "part"), final = try staging.path(id, "bin")
-                        let handle = try FileHandle(forWritingTo: partial); try handle.synchronize(); try handle.close()
-                        try FileManager.default.linkItem(at: partial, to: final)
+                        try staging.finalize(id, metadata: row.metadata)
+                        published = true
                         pendingCompletion[requestID] = id
                         end(id, state: "completed", deferCompletion: true)
                         guard receipts.first(where: { $0.id == id })?.state == "completed" else { pendingCompletion.removeValue(forKey: requestID); throw ConnectFailure.localStorageUnavailable }
@@ -263,6 +268,10 @@ final class FilesModel {
             response = .object(["protocol_version": .string("olive-files/1"), "request_id": .string(requestID), "state": .string("completed"),
                 "result": .object(["state": .string(current.state), "received_size": .int(current.received)])])
         } catch {
+            if admittedIncoming {
+                if published, let final = try? staging.path(id, "bin") { try? FileManager.default.removeItem(at: final) }
+                end(id, state: "failed")
+            }
             response = .object(["protocol_version": .string("olive-files/1"), "request_id": .string(requestID), "state": .string("rejected"),
                 "error": .string((error as? ConnectFailure) == .fileHashMismatch ? "content_integrity_failed" : "file_transfer_rejected")])
         }

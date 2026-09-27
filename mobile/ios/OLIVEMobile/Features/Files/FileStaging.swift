@@ -38,6 +38,16 @@ struct FileStaging: Sendable {
         }
         return (count, Data(hash.finalize()).hex)
     }
+    func finalize(_ id: String, metadata: FileMetadata) throws {
+        let partial = try path(id, "part"), final = try path(id, "bin")
+        let handle = try FileHandle(forWritingTo: partial)
+        do { try handle.synchronize(); try handle.close() }
+        catch { try? handle.close(); throw error }
+        // Match C6: verify the stored artifact, not only the streaming digest.
+        let checked = try digest(partial)
+        guard checked.0 == metadata.size, checked.1 == metadata.sha256 else { throw ConnectFailure.fileHashMismatch }
+        try FileManager.default.linkItem(at: partial, to: final) // Exclusive publication; never overwrite.
+    }
     func copySelection(_ url: URL, id: String) throws -> FileMetadata {
         let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
         let properties = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])

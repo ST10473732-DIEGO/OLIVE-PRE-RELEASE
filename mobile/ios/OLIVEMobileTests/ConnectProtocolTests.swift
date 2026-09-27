@@ -829,6 +829,25 @@ final class CompanionProtocolTests: XCTestCase {
         XCTAssertEqual(try staging.digest(staging.path(id, "out")).1, copied.sha256)
         XCTAssertEqual(try Data(contentsOf: file), bytes)
     }
+    func testC6FinalizationRehashesStoredBytesAndRefusesCollision() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let staging = FileStaging(directory: directory); try staging.prepare()
+        let id = UUID().uuidString.lowercased(), bytes = Data("owned fixture".utf8)
+        let partial = try staging.path(id, "part"), final = try staging.path(id, "bin")
+        try bytes.write(to: partial)
+        let metadata = try FileMetadata(name: "fixture.bin", size: Int64(bytes.count), sha256: Data(SHA256.hash(data: bytes)).hex, mime: "application/octet-stream")
+        try Data("changed bytes".utf8).write(to: partial)
+        XCTAssertThrowsError(try staging.finalize(id, metadata: metadata)) { XCTAssertEqual($0 as? ConnectFailure, .fileHashMismatch) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: final.path))
+        try bytes.write(to: partial)
+        try Data("keep existing".utf8).write(to: final)
+        XCTAssertThrowsError(try staging.finalize(id, metadata: metadata))
+        XCTAssertEqual(try Data(contentsOf: final), Data("keep existing".utf8))
+        try FileManager.default.removeItem(at: final)
+        try staging.finalize(id, metadata: metadata)
+        XCTAssertEqual(try Data(contentsOf: final), bytes)
+    }
     func testStudioReadHashAndStaleSaveResponse() throws {
         let source = UUID().uuidString.lowercased(), target = UUID().uuidString.lowercased(), workspace = UUID().uuidString.lowercased()
         let req = try StudioWire.request(source: source, target: target, operation: "read", workspace: workspace, revision: 1, arguments: .object(["path": .string("main.py")]))
