@@ -430,3 +430,9 @@ The local paired record and original identity were retained during this check;
 no reset or re-pair was performed. Real desktop revocation acceptance passed.
 The next check is mobile-local unpair while preserving the phone identity,
 followed by explicit identity reset and fresh two-sided pairing to restore use.
+
+The owner then confirmed mobile-local Unpair removes the computer from Paired
+while the displayed phone Identity value stays unchanged. This passes the live
+unpair check without deleting the phone's own identity or claiming removal of
+the desktop's revoked record. Explicit identity reset is the next recovery
+step; its result and fresh pairing are not yet claimed.

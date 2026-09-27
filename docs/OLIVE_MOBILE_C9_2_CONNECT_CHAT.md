@@ -14,8 +14,9 @@ phone-only firewall rule replacement for its changed listener port, the owner
 confirms reconnect, retained Remote AI Allow and another arithmetic answer with
 no new approval. After desktop revocation and an explicit phone Reconnect,
 the owner confirms the phone remains offline/disconnected with Chat unavailable.
-Unattended desktop restart recovery, live unpair/re-pair and remaining security
-acceptance are pending.
+The owner also confirms mobile unpair removes the computer from Paired while
+the displayed phone identity remains unchanged. Unattended desktop restart
+recovery, live identity reset/re-pair and remaining security acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -223,7 +224,9 @@ permission behavior changes.
 | Wi-Fi interruption / offline draft | **Passed, owner-observed:** Wi-Fi Off produces Offline with disabled Send and a preserved draft; restoring Wi-Fi reconnects with the draft still unsent; pressing Send explicitly produces an answer |
 | Desktop restart | **Retained trust and Chat passed after host rule repair:** main listener moved from TCP 47235 to TCP 33823 in a new process; phone initially Offline. Owner confirms the phone-specific rule for 33823 was added and the old 47235 rule deleted, then the phone reconnected with Remote AI Allow and answered the arithmetic prompt without another approval. Unattended restart recovery is not certified; no numeric reconnect time measured |
 | Desktop revocation | **Passed, owner-observed 2026-09-27:** after following desktop Revoke device and phone Reconnect instructions, the phone remains offline/disconnected with Chat unavailable. The mobile pairing record was retained during this check; no key reset or new pairing was performed. This is real UI acceptance, not an independently captured TLS rejection trace |
-| Wrong peer / local unpair | Native wrong-pin and local unpair tests pass; real wrong-peer and local unpair checks remain pending |
+| Mobile-local unpair | **Passed, owner-observed 2026-09-27:** the owner confirms the computer disappears from Paired after Unpair and the displayed Identity value stays unchanged. This verifies the visible removal and identity preservation; automated repository tests separately verify removal of peer pin material. No removal of the desktop's revoked record is claimed |
+| Identity reset / re-pair | Explicit reset requested after the unpair check; result and fresh pairing pending |
+| Wrong peer | Native wrong-pin tests pass; real cross-device wrong-peer check remains pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
 pending steps. No SSH, extra remote-access method or exposure of Ollama was
@@ -414,7 +417,8 @@ requires C7 acknowledgement/actual job cleanup, not just a terminal database row
 C9.2 remains **incomplete**. Real pairing, permission-respecting Chat/code,
 Stop, subsequent requests and mobile interruption recovery have passed as
 recorded above. Desktop revocation also prevents reconnect and Chat in the
-owner's real-device check. Live local unpair/re-pair, remaining security acceptance and
+owner's real-device check. Mobile-local unpair removes the paired device while
+preserving the displayed phone identity. Live identity reset/re-pair, remaining security acceptance and
 final relevant tests remain. Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
