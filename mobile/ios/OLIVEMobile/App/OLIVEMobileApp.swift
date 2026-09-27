@@ -9,7 +9,8 @@ struct OLIVEMobileApp: App {
         // isolated from production data and cannot establish real sync acceptance.
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
-        if ProcessInfo.processInfo.environment["OLIVE_C92_CANCEL_ACCEPTANCE"] == "1" {
+        if ProcessInfo.processInfo.environment["OLIVE_C92_CANCEL_ACCEPTANCE"] == "1" ||
+            ProcessInfo.processInfo.environment["OLIVE_C93_EDGE_ACCEPTANCE"] == "1" {
             // The XCTest owns the one real channel; the shell must not create a
             // competing session that would interrupt its cancellation probes.
             let directory = URL.applicationSupportDirectory.appendingPathComponent("C92TransportTests")

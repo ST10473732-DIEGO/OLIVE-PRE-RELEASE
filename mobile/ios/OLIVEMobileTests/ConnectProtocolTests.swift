@@ -3,6 +3,169 @@ import CryptoKit
 import Network
 @testable import OLIVEMobile
 
+/// Opt-in, physical-device acceptance against the already paired desktop. No
+/// permission changes, profile exports, private records or alternate server.
+final class RealCompanionEdgeTests: XCTestCase {
+    @MainActor func testRealFileIntegrityAndDisconnectedPeer() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_EDGE_ACCEPTANCE"] == "1", "Explicit real iPhone/CachyOS acceptance only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let peer = try XCTUnwrap(ConnectTrustRepository().peers.first)
+        let identity = try await ConnectIdentityStore().load(allowCreation: false)
+        let discovery = ConnectDiscoveryService(); discovery.start()
+        defer { discovery.stop() }
+        for _ in 0..<80 {
+            if !discovery.nearby.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        var connected: ConnectTransport?
+        for candidate in discovery.nearby.prefix(8) {
+            let candidateChannel = ConnectTransport(endpoint: candidate.endpoint)
+            do { try await candidateChannel.connect(identity: identity, peer: peer.identity); connected = candidateChannel; break }
+            catch { await candidateChannel.close() }
+        }
+        let channel = try XCTUnwrap(connected, "Real paired desktop must be reachable")
+        let source = identity.publicIdentity.deviceID
+        let transfer = UUID().uuidString.lowercased()
+        func request(_ operation: String, _ arguments: ConnectJSON = .object([:])) -> ConnectJSON {
+            FileWire.request(source: source, target: peer.id, transfer: transfer, operation: operation, arguments: arguments)
+        }
+        func exchange(_ request: ConnectJSON, bytes: Data = Data()) async throws -> ConnectJSON {
+            try ConnectJSON.decode(await channel.exchangeFrame(kind: 7, id: request["request_id"].uuid(), payload: FileWire.packet(request, bytes: bytes)))
+        }
+        do {
+            let capabilities = try await channel.exchange(InferenceWire.request(source: source, target: peer.id, operation: "capabilities"))
+            guard capabilities["result"]["permissions"]["files.receive"] == .string("allow") else {
+                await channel.close()
+                throw XCTSkip("Receive files must already be Allow; acceptance never changes desktop policy")
+            }
+            // The advertised hash describes different owned bytes. The remote
+            // complete must reject them and preserve a failed durable receipt.
+            let metadata = try FileMetadata(name: "C93-Acceptance-invalid-hash.bin", size: 4,
+                sha256: Data(SHA256.hash(data: Data("good".utf8))).hex, mime: "application/octet-stream")
+            let offered = try await exchange(request("offer", metadata.wire))
+            XCTAssertEqual(offered["result"]["state"], .string("accepted"))
+            guard offered["result"]["state"] == .string("accepted") else { throw ConnectFailure.remotePermissionDenied }
+            let chunk = try await exchange(request("chunk", .object(["offset": .int(0)])), bytes: Data("evil".utf8))
+            XCTAssertEqual(chunk["result"]["received_size"], .int(4))
+            let completed = try await exchange(request("complete"))
+            XCTAssertEqual(completed["error"], .string("content_integrity_failed"))
+            let status = try await exchange(request("status"))
+            XCTAssertEqual(status["result"]["state"], .string("failed"))
+            let repeated = try await exchange(request("complete"))
+            XCTAssertEqual(repeated["result"]["state"], .string("failed"))
+            print("C93 REAL invalid-hash transfer=\(transfer) rejected; durable failed receipt; repeated complete remains failed")
+
+            // The production picker/codec rejects >64 MiB before sending bytes.
+            XCTAssertThrowsError(try FileMetadata(name: "C93-Acceptance-oversize.bin", size: FileWire.maximumFile + 1,
+                sha256: metadata.sha256, mime: metadata.mime)) { XCTAssertEqual($0 as? ConnectFailure, .fileTooLarge) }
+            await channel.close()
+            do {
+                _ = try await exchange(request("offer", metadata.wire))
+                XCTFail("Closed peer must not queue an operation")
+            } catch { XCTAssertEqual(error as? ConnectFailure, .peerOffline) }
+            print("C93 REAL oversize rejected locally before transfer; closed-session send rejected peerOffline")
+        } catch {
+            // Best-effort cancellation is scoped to this synthetic transfer only.
+            _ = try? await exchange(request("cancel"))
+            await channel.close()
+            throw error
+        }
+    }
+}
+
+final class RealStudioAcceptanceTests: XCTestCase {
+    @MainActor func testOwnedSharedWorkspace() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_EDGE_ACCEPTANCE"] == "1", "Explicit real iPhone/CachyOS acceptance only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let peer = try XCTUnwrap(ConnectTrustRepository().peers.first)
+        let identity = try await ConnectIdentityStore().load(allowCreation: false)
+        let discovery = ConnectDiscoveryService(); discovery.start()
+        defer { discovery.stop() }
+        for _ in 0..<80 {
+            if !discovery.nearby.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        var connection: ConnectTransport?
+        for candidate in discovery.nearby.prefix(8) {
+            let channel = ConnectTransport(endpoint: candidate.endpoint)
+            do { try await channel.connect(identity: identity, peer: peer.identity); connection = channel; break }
+            catch { await channel.close() }
+        }
+        let channel = try XCTUnwrap(connection, "Real paired desktop must be reachable")
+        func exchange(_ request: ConnectJSON) async throws -> ConnectJSON {
+            try StudioWire.response(await channel.exchangeFrame(kind: 11, id: request["request_id"].uuid(), payload: request.canonical), request: request)
+        }
+        do {
+            let list = try await exchange(StudioWire.request(source: identity.publicIdentity.deviceID, target: peer.id, operation: "workspaces"))
+            let shares = try XCTUnwrap(list["result"]["workspaces"].array)
+            XCTAssertFalse(shares.contains { $0["display_name"] == .string("C93 Acceptance Unshared") })
+            let matching = shares.filter { $0["display_name"] == .string("C93 Acceptance Shared") }
+            guard matching.count == 1 else { throw XCTSkip("Share exactly one owned C93 Acceptance Shared fixture first") }
+            let workspace = matching[0]
+            for scope in ["view", "edit", "build", "test", "run"] {
+                guard workspace["permissions"]["studio." + scope] == .string("allow") else { throw XCTSkip("Owned fixture scopes must already be Allow") }
+            }
+            func request(_ operation: String, _ arguments: ConnectJSON = .object([:])) throws -> ConnectJSON {
+                try StudioWire.request(source: identity.publicIdentity.deviceID, target: peer.id, operation: operation,
+                    workspace: workspace["workspace_id"].uuid(), revision: workspace["share_revision"].number(1...Int64.max), arguments: arguments)
+            }
+            func result(_ operation: String, _ arguments: ConnectJSON = .object([:])) async throws -> ConnectJSON {
+                let response = try await exchange(request(operation, arguments))
+                XCTAssertEqual(response["error"], .null)
+                guard response["error"] == .null else { throw StudioWire.failure(response["error"].string ?? "invalid_request") }
+                return response["result"]
+            }
+            let tree = try await result("tree")
+            XCTAssertTrue(tree["entries"].array?.contains { $0["path"] == .string("notes.txt") } == true)
+            let original = try await result("read", .object(["path": .string("notes.txt")]))
+            guard original["text"] == .string("C93 Acceptance original\n") else {
+                throw XCTSkip("Owned notes fixture has changed; preserve it instead of overwriting")
+            }
+            let savedText = "C93 Acceptance automated phone save\n"
+            let saved = try await result("save", .object(["path": .string("notes.txt"), "text": .string(savedText), "expected_hash": original["revision"]]))
+            let readback = try await result("read", .object(["path": .string("notes.txt")]))
+            XCTAssertEqual(readback["text"], .string(savedText))
+            XCTAssertEqual(readback["revision"], saved["revision"])
+            let stale = try await exchange(request("save", .object(["path": .string("notes.txt"), "text": .string("C93 Acceptance stale draft\n"), "expected_hash": original["revision"]])))
+            XCTAssertEqual(stale["error"], .string("revision_conflict"))
+            let afterStale = try await result("read", .object(["path": .string("notes.txt")]))
+            XCTAssertEqual(afterStale["text"], .string(savedText))
+            // Restore only this exact owned fixture using its verified revision.
+            _ = try await result("save", .object(["path": .string("notes.txt"), "text": original["text"], "expected_hash": afterStale["revision"]]))
+            print("C93 REAL Studio shared tree/read/save/hash/stale rejection passed; owned notes restored")
+            for operation in ["build", "test"] {
+                let started = try await result(operation)
+                let job = try started["job_id"].uuid()
+                var terminal = false
+                for _ in 0..<120 {
+                    let status = try await result("run_status", .object(["job_id": .string(job)]))
+                    if !["starting", "running"].contains(status["state"].string ?? "") {
+                        XCTAssertEqual(status["state"], .string("completed"))
+                        if operation == "test" { XCTAssertEqual(status["tests"]["passed"], .int(1)) }
+                        print("C93 REAL Studio \(operation) job=\(job) state=\(status["state"].string ?? "missing")")
+                        terminal = true; break
+                    }
+                    try await Task.sleep(for: .seconds(1))
+                }
+                XCTAssertTrue(terminal, "Owned job must reach a real terminal result")
+            }
+            // Prohibited operations/path syntax are unavailable in the production
+            // encoder. This is local authority coverage, not remote rejection proof.
+            for forbidden in ["terminal", "pty", "debug", "install", "shell", "owner"] {
+                XCTAssertThrowsError(try request(forbidden))
+            }
+            for path in ["/etc/passwd", "../outside", "C:\\outside"] {
+                XCTAssertThrowsError(try request("read", .object(["path": .string(path)])))
+            }
+            await channel.close()
+        } catch { await channel.close(); throw error }
+    }
+}
+
 final class ConnectProtocolTests: XCTestCase {
     private func vectors() throws -> ConnectJSON {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "vectors", withExtension: "json"))
