@@ -1,0 +1,61 @@
+import Foundation
+import CryptoKit
+import Darwin
+
+struct FileStaging: Sendable {
+    let directory: URL
+    func path(_ id: String, _ suffix: String) throws -> URL {
+        _ = try ConnectJSON.string(id).uuid()
+        guard ["part", "bin", "out"].contains(suffix) else { throw ConnectFailure.responseMalformed }
+        return directory.appendingPathComponent(id + "." + suffix)
+    }
+    func prepare() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+        var url = directory; var values = URLResourceValues(); values.isExcludedFromBackup = true; try url.setResourceValues(values)
+    }
+    func capacity(_ bytes: Int64) throws {
+        let attributes = try FileManager.default.attributesOfFileSystem(forPath: directory.path)
+        guard let free = attributes[.systemFreeSize] as? NSNumber, free.int64Value >= bytes + 16 * 1024 * 1024 else { throw ConnectFailure.localStorageUnavailable }
+    }
+    private func selectedHandle(_ url: URL) throws -> FileHandle {
+        let descriptor = url.withUnsafeFileSystemRepresentation { name in
+            guard let name else { return Int32(-1) }
+            return Darwin.open(name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        }
+        guard descriptor >= 0 else { throw ConnectFailure.localStorageUnavailable }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
+            Darwin.close(descriptor); throw ConnectFailure.responseMalformed
+        }
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    }
+    func digest(_ url: URL) throws -> (Int64, String) {
+        let handle = try FileHandle(forReadingFrom: url); defer { try? handle.close() }
+        var hash = SHA256(), count: Int64 = 0
+        while let data = try handle.read(upToCount: 65536), !data.isEmpty {
+            count += Int64(data.count); guard count <= FileWire.maximumFile else { throw ConnectFailure.fileTooLarge }; hash.update(data: data)
+        }
+        return (count, Data(hash.finalize()).hex)
+    }
+    func copySelection(_ url: URL, id: String) throws -> FileMetadata {
+        let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
+        let properties = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+        guard url.isFileURL, properties.isRegularFile == true, properties.isSymbolicLink != true else { throw ConnectFailure.responseMalformed }
+        guard let size = properties.fileSize, size <= FileWire.maximumFile else { throw ConnectFailure.fileTooLarge }
+        try prepare(); try capacity(Int64(size))
+        let destination = try path(id, "out")
+        try Data().write(to: destination, options: [.withoutOverwriting, .completeFileProtectionUntilFirstUserAuthentication])
+        do {
+            let source = try selectedHandle(url); defer { try? source.close() }
+            let target = try FileHandle(forWritingTo: destination); defer { try? target.close() }
+            var count: Int64 = 0, hash = SHA256()
+            while let data = try source.read(upToCount: 65536), !data.isEmpty {
+                count += Int64(data.count); guard count <= FileWire.maximumFile else { throw ConnectFailure.fileTooLarge }
+                hash.update(data: data); try target.write(contentsOf: data)
+            }
+            try target.synchronize()
+            return try FileMetadata(name: url.lastPathComponent, size: count, sha256: Data(hash.finalize()).hex, mime: "application/octet-stream")
+        } catch { try? FileManager.default.removeItem(at: destination); throw error }
+    }
+}

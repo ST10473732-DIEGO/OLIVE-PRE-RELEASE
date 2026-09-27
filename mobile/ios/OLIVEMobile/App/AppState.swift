@@ -10,6 +10,7 @@ final class AppState {
     private(set) var persistenceNotice: String?
     var connection: MobileConnectionState { session?.connected == true ? .connected : session?.selected != nil ? .offline : .notPaired }
     @ObservationIgnored lazy var sync = SyncModel(session: session, store: MobileSyncStore(directory: companionDirectory))
+    @ObservationIgnored lazy var files = FilesModel(session: session, background: background, directory: companionDirectory.appendingPathComponent("Files"))
     let companionDirectory: URL
     let background: BackgroundWorkCoordinator?
     let chatStore: MobileChatStore?
@@ -174,6 +175,10 @@ final class AppState {
     func activate() {
         if messages.isEmpty { restoreCompletedChat() }
         background?.onIdle = { [weak self] in self?.session?.finishBackgroundWork() }
+        session?.onChannelReady = { [weak self] channel, identity, peer in
+            await self?.files.bind(channel: channel, local: identity.publicIdentity.deviceID, peer: peer.id)
+        }
+        session?.onDisconnect = { [weak self] in self?.files.invalidate() }
         session?.activate()
     }
     func suspend() {
