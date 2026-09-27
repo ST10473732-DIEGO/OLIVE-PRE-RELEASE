@@ -27,7 +27,7 @@ No simulator or Mac-hosted desktop is being substituted for CachyOS acceptance.
   were not treated as proof of equivalent source.
 - `FINAL_HEAD`: pending milestone acceptance. The current documentation checkpoint
   is resolvable with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
-- Latest validated mobile implementation: `dc8ec93`.
+- Latest validated mobile implementation: `d181864`.
 
 Local `COMMITS` to date:
 
@@ -45,6 +45,7 @@ Local `COMMITS` to date:
 | `e313830` | Unique system task IDs, stale callback fencing and iOS27 asynchronous submission |
 | `0cc209f` | Stored-artifact C6 rehash, exclusive publication and exact offer checks |
 | `dc8ec93` | Send C6 cancellation before releasing session; fence late admission; test interrupted-transfer recovery |
+| `d181864` | Persist typed background failure diagnostics and clarify explicit-only draft retry |
 
 ## Background execution
 
@@ -83,7 +84,10 @@ expected suspension, offline, reconnecting, revoked and unpaired.
 
 A bounded protected journal stores operation ID, capability, peer, label,
 protocol ID, request digest, start time, verified progress, state and required
-file/Studio scope metadata. It stores no new authority. Late updates are bound
+file/Studio scope metadata. Optional v1 fields now retain an allowlisted typed
+failure and finish timestamp when known; older records decode with these absent.
+Settings → Advanced connection diagnostics shows the latest recorded result. No
+provider text, Chat content or new authority is stored in this journal. Late updates are bound
 to the operation ID. Cancellation persists its state before asynchronous cleanup;
 new work is blocked while cleanup runs. Returning to foreground during cleanup
 cannot mark the new foreground state suspended.
@@ -223,7 +227,7 @@ committed.
 | `xcodebuild -list` | Passed with installed Xcode selected via `DEVELOPER_DIR` |
 | Simulator SDK build-for-testing | Passed; no simulator runtime execution claimed |
 | Generic iOS Release build | Passed |
-| Signed physical build/install/test | Passed: 57 unit cases, 2 opt-in LAN skips, 0 failures; **55 passed** |
+| Signed physical build/install/test | Passed: 59 unit cases, 2 opt-in LAN skips, 0 failures; **57 passed** |
 | Physical UI tests | Passed: 9 cases, 1 opt-in LAN skip, 0 failures; **8 passed** |
 | Normal production-identity launch | `devicectl` normal launch succeeded after tests; observed C6 results below |
 | Python ↔ Swift interop | Existing C2/C3/C7 vectors/TLS pairing plus new C5/C6/C8 vectors passed |
@@ -239,9 +243,9 @@ run outcome and detected Java toolchain expectation. No blanket Mac regression
 pass is claimed. Using a canonical `/private/tmp` test directory removed additional
 macOS `/var` vs `/private/var` alias failures from the first run.
 
-Latest local evidence: `/tmp/olive-c93-device-tests-6.xcresult`,
-`/tmp/olive-c93-device-tests-6.log`, `/tmp/olive-c93-simulator-cancel-final.log`,
-`/tmp/olive-c93-release-cancel.log`, `/tmp/olive-c93-interop-final.log`,
+Latest local evidence: `/tmp/olive-c93-device-tests-7.xcresult`,
+`/tmp/olive-c93-device-tests-7.log`, `/tmp/olive-c93-simulator-diagnostics.log`,
+`/tmp/olive-c93-release-diagnostics.log`, `/tmp/olive-c93-interop-final.log`,
 `/tmp/olive-c93-compile-final.log`, `/tmp/olive-c93-python-2.log`,
 `/tmp/olive-c93-connect.log`, `/tmp/olive-c93-desktop-tests-2.log`.
 These are local logs, not portable committed artifacts. Earlier physical failures
@@ -365,8 +369,23 @@ reported desktop disconnection after completion followed by reconnection on
 returning to OLIVE. The independently read operation journal records
 `bb53a1ee-b623-474d-8c66-efab1c52236b` (`models.remote`) completed with 7,471
 verified answer bytes and no fabricated total; the journal contains zero running
-operations. Confirmation of the in-app single completed response and approximate
-time away is pending. A separate active-response Stop check remains open.
+operations. The owner subsequently confirmed the single completed response and
+about 20 seconds spent in another app. This is a real completed C7 background run;
+it is not evidence of 60 seconds away. A separate active-response Stop check remains
+open.
+
+A second explicit garden request (`14bdcbf6-c2c7-490d-a406-f57358e35bb2`)
+stopped around item 115 after roughly 10–20 seconds, with an incomplete answer and
+restored draft. The journal records interrupted with 8,623 answer bytes, not system
+expiration. The owner confirmed the precise composer error was Response size
+limit. C7 already limits requests to 2,048 output tokens, 64,000 bytes and 120
+seconds; the 120-sentence test prompt can reach the token limit. This is the
+observed C7 output-limit failure path, not proof of denied background execution.
+The prompt remains a draft for explicit user action; no automatic resend is
+performed. Bounds were not increased. Follow-up `d181864` preserves future typed
+failure reasons/finish times, and the draft message explicitly says nothing was
+resent. New physical tests cover old v1 decoding, persisted failure diagnosis,
+late-completion fencing, retained partial output and exactly one start on failure.
 
 The owner also reported an older activity still visible and clarified that it
 says Task failed. This is a terminal failure display; no running operation remains
@@ -388,7 +407,7 @@ force-quit/relaunch/no-replay, not indefinite connectivity or other capabilities
 
 Still pending: actual selected Chat/Today bidirectional records and conflict cases;
 C6 negative cases and the observed desktop presence timing; active
-Chat continuation/Stop; shared Studio save/revision/jobs/cancel and background
+Chat active-response Stop and further interruption cases; shared Studio save/revision/jobs/cancel and background
 behavior; remaining direction-specific failure cases, permission Off/Ask/Allow,
 and C9.2 real-device regression.
 

@@ -753,3 +753,18 @@ remain pending. An older system activity reads Task failed; this is retained
 system failure UI, not evidence that OLIVE is still processing. Apple's DTS
 confirms that this UI is managed independently of the app; OLIVE keeps failure
 states truthful rather than claiming success to hide it.
+
+
+The owner confirmed that the first garden response appeared once and completed
+while away for about 20 seconds. A second explicit run stopped near item 115 with
+Response size limit, not an identified iOS expiration: its journal records
+interrupted with 8,623 bytes. The synthetic 120-sentence prompt can exceed C7's
+existing 2,048-token limit. The partial response remains incomplete and the prompt
+is restored only as a draft; no automatic replay or limit increase was introduced.
+
+Follow-up `d181864` preserves typed failure reasons and known finish timestamps
+without response content, exposes the latest result in connection diagnostics,
+and clarifies draft restoration. Physical unit tests now pass 57 cases with 2
+opt-in LAN skips; simulator-SDK and generic Release builds pass. Tests cover
+migration, persisted errors, late completion, and output-limit recovery without a
+second start. Normal app launch was restored for the active Chat Stop check.
