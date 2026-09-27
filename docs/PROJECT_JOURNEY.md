@@ -775,3 +775,10 @@ connection closed on the iPhone. The journal independently records the task ende
 after 744 received bytes through the system expiration callback, with no running
 operations. This callback can also represent user Stop; desktop job release and
 exact-control confirmation remain pending. Real Today Tasks acceptance is next.
+
+
+The owner confirmed that the Chat Stop action used the system Live Activity and
+ended the active generation on CachyOS, closing that cancellation/release check.
+The first real C5 task also reached desktop OLIVE: C93 phone task was created on
+iPhone and explicitly synced with Tasks permission Allow. Bidirectional edits,
+completion, tombstone/conflict handling and the other C5 domains remain open.

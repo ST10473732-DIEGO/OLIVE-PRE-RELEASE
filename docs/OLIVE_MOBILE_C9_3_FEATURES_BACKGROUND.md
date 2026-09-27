@@ -371,8 +371,8 @@ returning to OLIVE. The independently read operation journal records
 verified answer bytes and no fabricated total; the journal contains zero running
 operations. The owner subsequently confirmed the single completed response and
 about 20 seconds spent in another app. This is a real completed C7 background run;
-it is not evidence of 60 seconds away. A separate active-response Stop check remains
-open.
+it is not evidence of 60 seconds away. The separate active-response Stop check is
+recorded below.
 
 A second explicit garden request (`14bdcbf6-c2c7-490d-a406-f57358e35bb2`)
 stopped around item 115 after roughly 10–20 seconds, with an incomplete answer and
@@ -393,9 +393,11 @@ journal has no running tasks; request `6f9a41a0-855d-4a3e-ae00-c47b67aed793`
 ended after 744 received answer bytes via the continued-task expiration handler
 (`expired`, `backgroundTaskExpired`). That callback also handles the system Stop
 control, so this code alone cannot distinguish a person cancelling from an iOS
-resource expiration. Confirmation of the exact control and desktop job release
-is still pending; the observed phone-side interruption is recorded without
-claiming desktop cancellation acknowledgement.
+resource expiration. The owner subsequently confirmed using the system Live
+Activity Stop control and that the active job ended on CachyOS. Together these
+observations pass the tested system-initiated C7 cancellation/release path. The
+phone intentionally uses an interruption label because the system callback does
+not itself distinguish user cancellation from resource expiration.
 
 The owner also reported an older activity still visible and clarified that it
 says Task failed. This is a terminal failure display; no running operation remains
@@ -408,6 +410,13 @@ claim it can clear that system UI, and does not relabel a failed transfer succes
 or publish invented progress to suppress it. The exact dismissal behavior on this
 iOS27 device remains a UX observation to check.
 
+The first real C5 Today Tasks check passed with Sync tasks set to Allow: the owner
+created the synthetic task C93 phone task on iPhone, saved locally, requested Sync
+tasks, and confirmed that the exact task appeared in desktop OLIVE Tasks. This is
+owner-observed phone → CachyOS creation, not an inferred protocol-fixture result.
+Desktop → phone changes, phone edit/completion, tombstones and conflicts are still
+being tested. No broader Tasks or other-domain pass is inferred from this creation.
+
 The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
 the existing protocol. These results prove the tested supported background file
 flows, cancellation/reconnect, outgoing network-loss/no-replay and observed
@@ -415,9 +424,9 @@ force-quit/relaunch/no-replay, not indefinite connectivity or other capabilities
 
 ## Completion gate and limits
 
-Still pending: actual selected Chat/Today bidirectional records and conflict cases;
-C6 negative cases and the observed desktop presence timing; Chat Stop desktop
-release/control confirmation and further interruption cases; shared Studio save/revision/jobs/cancel and background
+Still pending: selected Chat, remaining Today bidirectional changes and conflict
+cases; C6 negative cases and the observed desktop presence timing; further Chat
+interruption cases; shared Studio save/revision/jobs/cancel and background
 behavior; remaining direction-specific failure cases, permission Off/Ask/Allow,
 and C9.2 real-device regression.
 
