@@ -32,10 +32,10 @@ actor RemoteInferenceClient {
             try r.fields(["presets", "permission", "busy"]); return r
         } catch { throw publicError(error) }
     }
-    func run(preset: String, messages: [(String, String)], update: @escaping @Sendable (String, String, String) async -> Void) async throws {
+    func run(preset: String, jobID: String? = nil, messages: [(String, String)], update: @escaping @Sendable (String, String, String) async -> Void) async throws {
         try Task.checkCancellation()
         guard activeJob == nil else { throw ConnectFailure.resourceBusy }
-        let req = try InferenceWire.request(source: source, target: target, operation: "start",
+        let req = try InferenceWire.request(source: source, target: target, operation: "start", job: jobID,
             arguments: InferenceWire.startArguments(preset: preset, messages: messages))
         let job = try req["job_id"].uuid()
         activeJob = job; stopping = false

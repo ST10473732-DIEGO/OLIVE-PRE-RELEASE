@@ -7,8 +7,27 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable {
     case requestTimeout, requestCancelled, responseMalformed, resourceBusy, rateLimited
     case identityRecoveryRequired, pairingAlreadyKnown, pairingInterrupted
     case inputTooLarge, outputLimit, inferenceFailed, streamInvalid, requestLedgerFull
+    case syncConflict, syncRevisionStale, syncPermissionDenied
+    case fileTooLarge, fileHashMismatch, fileTransferInterrupted, fileTransferCancelled, fileSaveRequired
+    case workspaceUnavailable, studioRevisionStale, studioOperationBusy
+    case backgroundTaskUnavailable, backgroundTaskExpired, backgroundTaskCancelled, localStorageUnavailable
     var errorDescription: String? {
         switch self {
+        case .syncConflict: "These records have conflicting changes. Review before saving."
+        case .syncRevisionStale: "This record changed. Reload before saving."
+        case .syncPermissionDenied: "Enable this sync domain on your computer."
+        case .fileTooLarge: "Connect supports files up to 64 MiB."
+        case .fileHashMismatch: "The file failed integrity verification."
+        case .fileTransferInterrupted: "Transfer interrupted. Check its receipt before explicitly sending again."
+        case .fileTransferCancelled: "File transfer cancelled."
+        case .fileSaveRequired: "Transfer verified. Save or export it to Files."
+        case .workspaceUnavailable: "The shared workspace or original operation is unavailable."
+        case .studioRevisionStale: "The file or workspace changed. Reload and review your draft."
+        case .studioOperationBusy: "A Studio operation is already active."
+        case .backgroundTaskUnavailable: "Background continuation is unavailable. Keep OLIVE open to finish."
+        case .backgroundTaskExpired: "iOS ended background execution. The operation was interrupted."
+        case .backgroundTaskCancelled: "Background work was cancelled."
+        case .localStorageUnavailable: "Local storage is unavailable or full. Existing data is preserved."
         case .discoveryUnavailable: "Nearby discovery is unavailable."
         case .localNetworkDenied: "Allow Local Network access for OLIVE in Settings."
         case .pairingDenied: "Pairing was not confirmed."

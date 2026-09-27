@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 @MainActor @Observable
 final class AppState {
@@ -8,6 +9,8 @@ final class AppState {
     var isSettingsPresented = false
     private(set) var persistenceNotice: String?
     var connection: MobileConnectionState { session?.connected == true ? .connected : session?.selected != nil ? .offline : .notPaired }
+    let background: BackgroundWorkCoordinator?
+    let chatStore: MobileChatStore?
     let session: ConnectSession?
     private let chatConnection: (any ChatRemoteSession)?
     var preset = "normal"
@@ -37,6 +40,8 @@ final class AppState {
     init(store: any ShellStore, connectClient: any ConnectClient = DisconnectedConnectClient(),
          pairingService: any PairingService = UnavailablePairingService(), session: ConnectSession? = nil, chatConnection: (any ChatRemoteSession)? = nil) {
         self.session = session
+        background = session == nil ? nil : BackgroundWorkCoordinator()
+        chatStore = session == nil ? nil : MobileChatStore()
         self.chatConnection = chatConnection ?? session
         self.store = store
         self.connectClient = connectClient
@@ -66,13 +71,28 @@ final class AppState {
         messages.append(user)
         currentUserID = user.id; currentAnswerID = answerID
         let context = InferenceWire.context(history: history, user: text)
+        let jobID = UUID().uuidString.lowercased()
+        do {
+            try background?.begin(BackgroundOperationRecord(id: jobID, capability: "models.remote", peerID: peerID,
+                label: "Receiving response", protocolID: jobID,
+                requestDigest: ConnectJSON.array(context.map { .array([.string($0.0), .string($0.1)]) }).digest, startedAt: Date())) { [weak self] in
+                    await self?.interruptForBackground()
+                }
+        } catch { active = false; chatStatus = error.localizedDescription; return }
         chatTask = Task {
             do {
-                try await client.run(preset: selectedPreset, messages: context) { [self] job, status, answer in
+                try await client.run(preset: selectedPreset, jobID: jobID, messages: context) { [self] job, status, answer in
                     await self.receive(token: token, answerID: answerID, sentDraftRevision: sentDraftRevision, job: job, status: status, answer: answer, peerID: peerID, preset: selectedPreset)
                 }
                 guard chatGeneration == token else { return }
                 if !stopping {
+                    if let answer = messages.first(where: { $0.id == answerID }) {
+                        try chatStore?.append(MobileChatTurn(id: jobID, userID: user.id.uuidString.lowercased(),
+                            assistantID: answerID.uuidString.lowercased(), peerID: peerID, preset: selectedPreset,
+                            user: text, answer: answer.plainText, createdAt: Date()))
+                    }
+                    background?.finish(.completed)
+                    session?.finishBackgroundWork()
                     chatStatus = "Completed"
                     totalResponseSeconds = requestStarted.duration(to: .now).secondsValue
                     if let i = messages.firstIndex(where: { $0.id == answerID }) { messages[i].status = "Completed" }
@@ -80,7 +100,7 @@ final class AppState {
                 }
             } catch {
                 guard chatGeneration == token else { return }
-                if !stopping { chatStatus = "Failed · " + (error as? ConnectFailure ?? .connectionLost).localizedDescription }
+                if !stopping { background?.finish(.interrupted); session?.finishBackgroundWork(); chatStatus = "Failed · " + (error as? ConnectFailure ?? .connectionLost).localizedDescription }
                 if let i = messages.firstIndex(where: { $0.id == user.id }) { messages[i].status = chatStatus }
                 if let i = messages.firstIndex(where: { $0.id == answerID }) { messages[i].status = "Incomplete" }
                 // Retain a failed request for explicit retry, but Stop must not
@@ -98,6 +118,7 @@ final class AppState {
         }
         chatStatus = ["awaiting_approval": "Waiting for approval on computer", "queued": "Queued", "starting": "Starting", "streaming": "Receiving", "completed": "Completed"][status] ?? status
         lastRequestID = job
+        do { try background?.progress(Int64(answer.utf8.count)) } catch { persistenceNotice = error.localizedDescription }
         if !answer.isEmpty {
             if firstResponseSeconds == nil { firstResponseSeconds = requestStarted.duration(to: .now).secondsValue }
             var message = ChatMessage(id: answerID, role: .assistant, blocks: ChatMessage.parse(answer))
@@ -125,6 +146,7 @@ final class AppState {
                 chatStatus = "Connection lost · Stop acknowledgement unavailable"
             }
             guard chatGeneration == stopToken else { return }
+            background?.finish(.cancelled); session?.finishBackgroundWork()
             markCurrentTurn(chatStatus)
             active = false; stopping = false; chatGeneration = UUID(); chatTask = nil
         }
@@ -135,8 +157,27 @@ final class AppState {
     func activate() { session?.activate() }
     func suspend() {
         saveDraft()
-        if active { chatStatus = "Interrupted · connection closed"; markCurrentTurn(chatStatus) }
-        chatGeneration = UUID(); active = false; stopping = false; chatTask?.cancel(); chatTask = nil
+        if active, background?.continuationGranted == true { session?.suspend(continuing: true); return }
+        guard active else { session?.suspend(); return }
+        // iOS17–25 (or denied continued processing): short cancellation/cleanup
+        // only. This assertion never promises to finish long work.
+        let assertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE cleanup") { [weak self] in
+            Task { @MainActor in self?.session?.suspend() }
+        }
+        Task {
+            await interruptForBackground()
+            background?.finish(.interrupted)
+            if assertion != .invalid { UIApplication.shared.endBackgroundTask(assertion) }
+        }
+    }
+    private func interruptForBackground() async {
+        if active {
+            stopping = true; chatTask?.cancel()
+            if let client = chatConnection?.inference { _ = try? await client.stop() }
+            await chatTask?.value
+            chatStatus = "Interrupted · no automatic resend"; markCurrentTurn(chatStatus)
+        }
+        chatGeneration = UUID(); active = false; stopping = false; chatTask = nil
         session?.suspend()
     }
     func openChat() { destination = .chat }

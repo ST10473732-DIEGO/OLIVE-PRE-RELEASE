@@ -30,6 +30,8 @@ final class ConnectSession: ChatRemoteSession {
     private var generation = UUID()
     private var identityGeneration = UUID()
     private var foreground = false
+    private(set) var lifecycle: MobileLifecycleState = .unpaired
+    func finishBackgroundWork() { if !foreground { suspend() } }
     private var discoveryRetry: Task<Void, Never>?
     private var nextDiscoveryRetry = ContinuousClock.now
     var selected: TrustedConnectPeer? { peers.first { $0.id == selectedID } }
@@ -59,7 +61,7 @@ final class ConnectSession: ChatRemoteSession {
     }
     func select(_ id: String) { selectedID = id; disconnect(); if foreground { connect() } }
     func activate() {
-        foreground = true; discovery.start()
+        foreground = true; lifecycle = connected ? .foregroundConnected : selected == nil ? .unpaired : .foregroundConnecting; discovery.start()
         let identityToken = identityGeneration
         Task {
             let value = try? await identities.load(allowCreation: repository.isPristine).publicIdentity.fingerprint
@@ -67,8 +69,10 @@ final class ConnectSession: ChatRemoteSession {
         }
         connect()
     }
-    func suspend() {
-        foreground = false; pairing.cancel(); discovery.stop(); disconnect()
+    func suspend(continuing: Bool = false) {
+        foreground = false; pairing.cancel(); discovery.stop()
+        if continuing && connected { lifecycle = .backgroundActiveTask; status = "Background · active work" }
+        else { disconnect(); lifecycle = selected == nil ? .unpaired : .backgroundSuspendedExpected; status = "Background · suspended" }
     }
     func disconnect() {
         generation = UUID(); reconnect?.cancel(); reconnect = nil
@@ -76,6 +80,7 @@ final class ConnectSession: ChatRemoteSession {
         if let transport { Task { await transport.close() } }
         transport = nil; inference = nil; capability = nil; connected = false
         status = selected == nil ? "Not connected" : "Offline"
+        lifecycle = selected == nil ? .unpaired : .pairedOffline
     }
     func connect() {
         guard foreground, reconnect == nil, !connected, let peer = selected else { return }
@@ -88,7 +93,7 @@ final class ConnectSession: ChatRemoteSession {
             while attempt < delays.count {
                 let delay = delays[attempt]; attempt += 1
                 if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
-                guard generation == token, !Task.isCancelled else { return }
+                guard generation == token, !Task.isCancelled, foreground else { return }
                 status = "Connecting"; diagnostic = "discovery"
                 let endpoints = Array(discovery.nearby.prefix(8))
                 attemptedRevision = discovery.revision
@@ -105,6 +110,7 @@ final class ConnectSession: ChatRemoteSession {
                         diagnostic = "inference_status"
                         let capabilities = try await client.status()
                         guard generation == token else { await channel.close(); return }
+                        lifecycle = .foregroundConnected
                         inference = client; capability = capabilities; connected = true; status = "Connected"; diagnostic = "authenticated"
                         attempt = 0 // A later disconnection gets a fresh bounded recovery cycle.
                         // C7 status is the existing public role/policy negotiation and heartbeat.
@@ -117,7 +123,7 @@ final class ConnectSession: ChatRemoteSession {
                     } catch {
                         await channel.close()
                         guard generation == token else { return }
-                        connected = false; inference = nil; capability = nil
+                        connected = false; inference = nil; capability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
                         diagnostic += ":" + (error as? ConnectFailure ?? .connectionLost).rawValue
                         status = (error as? ConnectFailure) == .certificateMismatch ? "Identity rejected" : "Offline"
                     }

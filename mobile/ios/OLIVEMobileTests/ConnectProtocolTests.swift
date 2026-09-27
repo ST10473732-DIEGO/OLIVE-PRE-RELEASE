@@ -653,3 +653,63 @@ final class RealConnectCancellationTests: XCTestCase {
         } catch { await channel.close(); throw error }
     }
 }
+
+@MainActor
+final class BackgroundOperationTests: XCTestCase {
+    func testLaunchNeverReplaysUnfinishedWork() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let coordinator = BackgroundWorkCoordinator(directory: directory, register: false)
+        let record = BackgroundOperationRecord(id: UUID().uuidString.lowercased(), capability: "files.receive",
+            peerID: UUID().uuidString.lowercased(), label: "Sending file", protocolID: UUID().uuidString.lowercased(),
+            requestDigest: String(repeating: "a", count: 64), startedAt: Date(), totalUnits: 100)
+        try coordinator.begin(record) { XCTFail("Relaunch must not execute a stored callback") }
+        try coordinator.progress(40, total: 100)
+        XCTAssertThrowsError(try coordinator.progress(39, total: 100))
+        XCTAssertThrowsError(try coordinator.progress(101, total: 100))
+        XCTAssertFalse(coordinator.continuationGranted)
+        let restarted = BackgroundWorkCoordinator(directory: directory, register: false)
+        XCTAssertNil(restarted.active)
+        XCTAssertEqual(restarted.records.first?.state, .interrupted)
+        XCTAssertEqual(restarted.records.first?.verifiedUnits, 40)
+        XCTAssertEqual(restarted.records.first?.retrySafety, "explicitFreshRequestOnly")
+        XCTAssertEqual(restarted.records.first?.desktopMayContinueIndependently, false)
+    }
+    func testCancellationIsPersistedBeforeCleanupAndOnlyOnce() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let coordinator = BackgroundWorkCoordinator(directory: directory, register: false)
+        var calls = 0
+        try coordinator.begin(BackgroundOperationRecord(id: "operation", capability: "models.remote", peerID: "peer",
+            label: "Receiving response", protocolID: "request", requestDigest: "digest", startedAt: Date())) {
+                calls += 1
+                XCTAssertNil(coordinator.active)
+            }
+        await coordinator.cancel(expired: true)
+        await coordinator.cancel()
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(coordinator.records.last?.state, .expired)
+    }
+    func testUnknownStoreVersionIsPreserved() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("operations-v1.json")
+        let bytes = Data("{\"version\":2,\"value\":[]}".utf8)
+        try bytes.write(to: url)
+        let coordinator = BackgroundWorkCoordinator(directory: directory, register: false)
+        XCTAssertFalse(coordinator.canWrite)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+    }
+    func testCompletedTurnIdempotenceAndConflict() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = MobileChatStore(directory: directory)
+        let turn = MobileChatTurn(id: "request", userID: "u", assistantID: "a", peerID: "p", preset: "normal",
+            user: "2+2", answer: "4", createdAt: Date())
+        try store.append(turn); try store.append(turn)
+        XCTAssertEqual(MobileChatStore(directory: directory).turns.count, 1)
+        XCTAssertThrowsError(try store.append(MobileChatTurn(id: "request", userID: "u", assistantID: "a",
+            peerID: "p", preset: "normal", user: "2+2", answer: "5", createdAt: Date())))
+    }
+}
