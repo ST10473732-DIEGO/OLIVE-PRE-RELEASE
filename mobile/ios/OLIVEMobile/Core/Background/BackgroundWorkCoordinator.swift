@@ -111,11 +111,13 @@ final class BackgroundWorkCoordinator {
         }
     }
 
-    func finish(_ state: BackgroundOperationRecord.State, id: String? = nil) {
+    func finish(_ state: BackgroundOperationRecord.State, id: String? = nil, failure: ConnectFailure? = nil) {
         if let id, active?.id != id { return }
         guard state != .running else { return }
         if let index = records.lastIndex(where: { $0.state == .running }) {
             var next = records; next[index].state = state
+            next[index].failure = state == .completed ? nil : failure
+            next[index].finishedAt = Date()
             do { try store.save(next); records = next; if state == .completed { notifications.completed(next[index]) } }
             catch {
                 records[index].state = .interrupted; canWrite = false
@@ -136,7 +138,7 @@ final class BackgroundWorkCoordinator {
         defer { cancelling = false }
         let cleanup = cancelWork
         // Persist interruption before yielding to cancellation/network operations.
-        finish(expired ? .expired : .cancelled)
+        finish(expired ? .expired : .cancelled, failure: expired ? .backgroundTaskExpired : .backgroundTaskCancelled)
         notice = (expired ? ConnectFailure.backgroundTaskExpired : .backgroundTaskCancelled).localizedDescription
         let assertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE cancellation") { [weak self] in
             Task { @MainActor in self?.onIdle?() }

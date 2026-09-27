@@ -107,12 +107,19 @@ final class AppState {
                 }
             } catch {
                 guard chatGeneration == token else { return }
-                if !stopping { background?.finish(.interrupted, id: jobID); session?.finishBackgroundWork(); chatStatus = "Failed · " + (error as? ConnectFailure ?? .connectionLost).localizedDescription }
+                if !stopping {
+                    let failure = error as? ConnectFailure ?? .connectionLost
+                    background?.finish(.interrupted, id: jobID, failure: failure)
+                    session?.finishBackgroundWork(); chatStatus = "Failed · " + failure.localizedDescription
+                }
                 if let i = messages.firstIndex(where: { $0.id == user.id }) { messages[i].status = chatStatus }
                 if let i = messages.firstIndex(where: { $0.id == answerID }) { messages[i].status = "Incomplete" }
                 // Retain a failed request for explicit retry, but Stop must not
                 // resurrect sent text or overwrite a newer draft.
-                if !stopping, draft.isEmpty, draftRevision == clearedDraftRevision { draft = text }
+                if !stopping, draft.isEmpty, draftRevision == clearedDraftRevision {
+                    draft = text
+                    chatStatus += " Draft restored; nothing was resent."
+                }
             }
             if chatGeneration == token && !stopping { active = false; chatTask = nil }
         }

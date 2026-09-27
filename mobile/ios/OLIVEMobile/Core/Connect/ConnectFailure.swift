@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConnectFailure: String, Error, LocalizedError, Sendable {
+enum ConnectFailure: String, Error, LocalizedError, Sendable, Codable {
     case discoveryUnavailable, localNetworkDenied, pairingDenied, pairingExpired
     case identityMismatch, certificateMismatch, protocolVersionUnsupported
     case capabilityUnavailable, permissionDenied, peerOffline, connectionLost

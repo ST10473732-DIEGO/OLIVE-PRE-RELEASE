@@ -46,6 +46,13 @@ struct SettingsView: View {
                     if let seconds = state.firstResponseSeconds { Text("First visible response: \(seconds, specifier: "%.2f") s") }
                     if let seconds = state.totalResponseSeconds { Text("Complete response: \(seconds, specifier: "%.2f") s") }
                     if let seconds = state.stopSeconds { Text("Stop acknowledgement: \(seconds, specifier: "%.2f") s") }
+                    if let operation = state.background?.records.last {
+                        Text("Latest work: \(operation.label) · \(operation.state.rawValue)")
+                        if let failure = operation.failure { Text(failure.localizedDescription) }
+                        if let finished = operation.finishedAt {
+                            Text("Finished: \(finished.formatted(date: .abbreviated, time: .standard))")
+                        }
+                    }
                     Text("Unpair removes trust on this iPhone only. Your computer manages its own permissions and revocation.")
                     if let session = state.session {
                         Button("Reset this iPhone’s Connect identity", role: .destructive) { confirmIdentityReset = true }

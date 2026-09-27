@@ -13,6 +13,8 @@ struct BackgroundOperationRecord: Codable, Identifiable, Equatable, Sendable {
     var totalUnits: Int64?
     var state: State = .running
     var scope: [String: String]? = nil // Additive v1 migration: older records omit this field.
+    var failure: ConnectFailure? = nil // Fixed public code only; never provider text or content.
+    var finishedAt: Date? = nil // Unknown for work interrupted by process termination.
     // C6 has no offset resume; C7/C8 jobs are channel-owned. Never replay effects.
     private(set) var retrySafety = "explicitFreshRequestOnly"
     private(set) var desktopMayContinueIndependently = false

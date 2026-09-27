@@ -256,8 +256,10 @@ private actor InferenceTestTransport: InferenceTransport {
     var hold = false
     let rejectStart: Bool
     let failPoll: Bool
-    init(hold: Bool = false, rejectStart: Bool = false, failPoll: Bool = false) {
+    let terminalError: String?
+    init(hold: Bool = false, rejectStart: Bool = false, failPoll: Bool = false, terminalError: String? = nil) {
         self.hold = hold; self.rejectStart = rejectStart; self.failPoll = failPoll
+        self.terminalError = terminalError
     }
     func exchange(_ req: ConnectJSON) async throws -> ConnectJSON {
         let operation = req["operation"].string!
@@ -281,8 +283,9 @@ private actor InferenceTestTransport: InferenceTransport {
             else {
                 let complete = !hold && polls >= 2
                 if complete { generating = false; released = true }
-                result = .object(["state": .string(complete ? "completed" : "streaming"),
-                    "events": .array([.object(["sequence": .int(Int64(polls)), "text": .string(polls == 1 ? "3" : "91")])]), "error": .null])
+                result = .object(["state": .string(complete ? terminalError == nil ? "completed" : "failed" : "streaming"),
+                    "events": .array([.object(["sequence": .int(Int64(polls)), "text": .string(polls == 1 ? "3" : "91")])]),
+                    "error": complete ? terminalError.map(ConnectJSON.string) ?? .null : .null])
             }
         }
         return .object(["protocol_version": .string("olive-inference/1"), "request_id": req["request_id"], "job_id": req["job_id"], "result": result, "error": .null])
@@ -500,6 +503,21 @@ final class RemoteLifecycleTests: XCTestCase {
         XCTAssertFalse(state.active); XCTAssertTrue(state.chatStatus.hasPrefix("Failed"))
         XCTAssertEqual(state.draft, "Retry this question"); XCTAssertEqual(store.text, state.draft)
     }
+    func testOutputLimitKeepsPartialAnswerAndRestoresDraftWithoutResending() async throws {
+        let transport = InferenceTestTransport(terminalError: "output_limit")
+        let state = AppState(store: ChatTestStore(), chatConnection: ChatTestConnection(transport))
+        state.draft = "A bounded synthetic request"; state.send()
+        for _ in 0..<150 { if !state.active { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(state.active)
+        XCTAssertTrue(state.chatStatus.contains(ConnectFailure.outputLimit.localizedDescription))
+        XCTAssertTrue(state.chatStatus.contains("Draft restored; nothing was resent."))
+        XCTAssertEqual(state.draft, "A bounded synthetic request")
+        XCTAssertEqual(state.messages.last?.plainText, "391")
+        XCTAssertEqual(state.messages.last?.status, "Incomplete")
+        let calls = await transport.calls
+        XCTAssertEqual(calls.filter { $0 == "start" }.count, 1)
+        XCTAssertEqual(calls.last, "cancel")
+    }
     func testStopBackgroundRaceCannotOverwriteNewState() async throws {
         let transport = InferenceTestTransport(hold: true), connection = ChatTestConnection(transport)
         let state = AppState(store: ChatTestStore(), chatConnection: connection)
@@ -698,8 +716,12 @@ final class BackgroundOperationTests: XCTestCase {
             label: "Sending file", protocolID: "new", requestDigest: "digest", startedAt: Date(), totalUnits: 100)
         var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as! [String: Any]
         legacy.removeValue(forKey: "scope")
+        legacy.removeValue(forKey: "failure")
+        legacy.removeValue(forKey: "finishedAt")
         let migrated = try JSONDecoder().decode(BackgroundOperationRecord.self, from: JSONSerialization.data(withJSONObject: legacy))
         XCTAssertNil(migrated.scope)
+        XCTAssertNil(migrated.failure)
+        XCTAssertNil(migrated.finishedAt)
         XCTAssertEqual(migrated.retrySafety, "explicitFreshRequestOnly")
         try coordinator.begin(migrated) {}
         try coordinator.progress(90, total: 100, id: "old")
@@ -707,6 +729,22 @@ final class BackgroundOperationTests: XCTestCase {
         XCTAssertEqual(coordinator.active?.verifiedUnits, 0)
         try coordinator.progress(10, total: 100, id: "new")
         XCTAssertEqual(coordinator.active?.verifiedUnits, 10)
+    }
+    func testTypedFailureSurvivesRelaunchAndLateFinishCannotReplaceIt() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let coordinator = BackgroundWorkCoordinator(directory: directory, register: false)
+        try coordinator.begin(BackgroundOperationRecord(id: "limited", capability: "models.remote", peerID: "peer",
+            label: "Receiving response", protocolID: "limited", requestDigest: "digest", startedAt: Date())) {}
+        try coordinator.progress(123, id: "limited")
+        coordinator.finish(.interrupted, id: "limited", failure: .outputLimit)
+        coordinator.finish(.completed, id: "limited")
+        let restored = BackgroundWorkCoordinator(directory: directory, register: false)
+        XCTAssertNil(restored.active)
+        XCTAssertEqual(restored.records.last?.state, .interrupted)
+        XCTAssertEqual(restored.records.last?.failure, .outputLimit)
+        XCTAssertEqual(restored.records.last?.verifiedUnits, 123)
+        XCTAssertNotNil(restored.records.last?.finishedAt)
     }
     func testUnknownStoreVersionIsPreserved() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
