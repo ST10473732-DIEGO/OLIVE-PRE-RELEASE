@@ -754,12 +754,17 @@ This is the deployed desktop-only history; it is not the Mac mobile branch HEAD.
 The requested one-time UFW replacement is inbound TCP on `enp111s0`, source
 phone `192.168.10.37`, destination desktop `192.168.10.196`, exact ports 44795
 and 34537, followed by deletion of the superseded identically scoped 54981 rule.
-Both saved-port rules are intended to persist. The pairing listener remains
-session-bound even though its firewall rule persists. Existing KDE Connect
-rules and incoming-deny/outgoing-allow defaults are retained. The commands were
-provided to the owner; execution and final verbose UFW state are still pending.
+Both saved-port rules persist. The pairing listener remains session-bound even
+though its firewall rule persists. The owner returned **Rule added** for each new
+port and **Rule deleted** for 54981. Verbose UFW output confirms active filtering,
+low logging, **deny incoming / allow outgoing / routed disabled**, exactly the
+two phone/interface/address-scoped OLIVE TCP rules, and the existing KDE Connect
+1714–1764 TCP/UDP IPv4/IPv6 allowances. No other OLIVE port rule remains.
 
-The initial post-rule check requests automatic phone connection without tapping
-Reconnect, retained Remote AI Allow, and an explicitly submitted arithmetic
-request. This is separate from the subsequent unattended desktop restart check;
-neither is marked passed yet. No server IP or port is configured in the mobile app.
+The initial post-rule check **passed, owner-observed**: after instructions to
+leave the phone open without tapping Reconnect, the owner reports it connected
+and answered the explicit multiplication prompt with **391**. Successful Chat
+establishes Remote AI admission; no separate permission-label observation or
+numeric connection duration was supplied. This remains separate from the
+subsequent unattended desktop restart check, which is still pending. No server
+IP or port is configured in the mobile app.

@@ -574,3 +574,13 @@ address and individual phone address; they add the two exact saved ports and
 remove old main port 54981. Execution, final firewall state, automatic connection
 and subsequent unattended restart acceptance remain pending. Pairing denial/abort
 and real accumulated Fast Chat retesting also remain; C9.2 is not yet complete.
+
+### C9.2 saved-port UFW rules and automatic connection passed
+
+The owner returned successful additions of the two saved-port rules and deletion
+of old port 54981. Verbose UFW output confirms active default-deny incoming,
+allow outgoing, routed disabled, the two exact phone/interface/address-scoped
+OLIVE TCP rules and unchanged KDE Connect allowances. After instructions not to
+tap Reconnect, the owner reports the phone connected and answered the explicit
+multiplication prompt with 391. Normal desktop restart with no firewall edit is
+the next separate acceptance step; it is not inferred from this initial success.
