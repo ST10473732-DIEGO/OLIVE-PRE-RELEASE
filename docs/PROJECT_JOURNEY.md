@@ -436,3 +436,11 @@ while the displayed phone Identity value stays unchanged. This passes the live
 unpair check without deleting the phone's own identity or claiming removal of
 the desktop's revoked record. Explicit identity reset is the next recovery
 step; its result and fresh pairing are not yet claimed.
+
+The owner explicitly confirmed identity reset in the production app and then
+confirmed both the Identity reset notice and a changed displayed Identity
+value. This completes the live reset check after unpair. The old desktop
+record remains revoked. Fresh two-sided pairing and a new desktop permission
+decision are still required to restore Chat; no trust or permission is carried
+over automatically. Current listener and phone address checks precede opening
+the short-lived pairing offer.

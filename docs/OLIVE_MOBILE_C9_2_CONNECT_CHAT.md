@@ -15,8 +15,9 @@ confirms reconnect, retained Remote AI Allow and another arithmetic answer with
 no new approval. After desktop revocation and an explicit phone Reconnect,
 the owner confirms the phone remains offline/disconnected with Chat unavailable.
 The owner also confirms mobile unpair removes the computer from Paired while
-the displayed phone identity remains unchanged. Unattended desktop restart
-recovery, live identity reset/re-pair and remaining security acceptance are pending.
+the displayed phone identity remains unchanged, followed by an explicitly
+confirmed identity reset that shows a different Identity value. Unattended
+desktop restart recovery, fresh pairing and remaining security acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -43,7 +44,7 @@ Isolated protocol tests and successful builds are not substitutes for those chec
   Composer follow-up: `ios(chat): turn the send control into remote Stop while busy`.
   Recovery/composer follow-up: `ac2f3ab` — explicit identity reset with receipt
   invalidation, interrupted-reset tests and draft revision/cancellation fixes.
-- No reset, stash, force push, branch deletion, merge, tag, release, or push.
+- No Git reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
 historical mobile design assumptions. C1–C8 runtime sources remain unchanged.
@@ -133,7 +134,11 @@ tombstones, and replaces the Ed25519 identity in Keychain. It does not change
 desktop records or permissions, or erase the Chat draft. If replacement is
 interrupted between the reservation and identity writes, ordinary loading fails
 closed; only another explicit reset repairs it. Tests use separate disposable
-Keychain services. The owner's production identity has not been reset.
+Keychain services. On 2026-09-27, after completing the revocation and local
+unpair checks, the owner explicitly confirmed reset on the production app and
+reported both the Identity reset notice and a changed displayed Identity value.
+Fresh pairing and desktop permission assignment remain pending; no restoration
+of the revoked identity's authority is claimed.
 
 Discovery cannot authenticate names or expose a pairing offer: desktop mDNS
 contains neither. Nearby therefore says **OLIVE computer — identity not yet
@@ -225,7 +230,8 @@ permission behavior changes.
 | Desktop restart | **Retained trust and Chat passed after host rule repair:** main listener moved from TCP 47235 to TCP 33823 in a new process; phone initially Offline. Owner confirms the phone-specific rule for 33823 was added and the old 47235 rule deleted, then the phone reconnected with Remote AI Allow and answered the arithmetic prompt without another approval. Unattended restart recovery is not certified; no numeric reconnect time measured |
 | Desktop revocation | **Passed, owner-observed 2026-09-27:** after following desktop Revoke device and phone Reconnect instructions, the phone remains offline/disconnected with Chat unavailable. The mobile pairing record was retained during this check; no key reset or new pairing was performed. This is real UI acceptance, not an independently captured TLS rejection trace |
 | Mobile-local unpair | **Passed, owner-observed 2026-09-27:** the owner confirms the computer disappears from Paired after Unpair and the displayed Identity value stays unchanged. This verifies the visible removal and identity preservation; automated repository tests separately verify removal of peer pin material. No removal of the desktop's revoked record is claimed |
-| Identity reset / re-pair | Explicit reset requested after the unpair check; result and fresh pairing pending |
+| Identity reset | **Passed, owner-observed 2026-09-27:** after explicit confirmation in Settings, the phone shows Identity reset and a different displayed Identity value. This follows successful unpair; the old desktop trust record remains revoked |
+| Fresh pairing after reset | Pending. Rechecking the current phone address, main listener and existing UFW rule before creating the short-lived pairing offer. New identity requires full two-sided confirmation and a fresh desktop Remote AI permission decision |
 | Wrong peer | Native wrong-pin tests pass; real cross-device wrong-peer check remains pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -418,7 +424,8 @@ C9.2 remains **incomplete**. Real pairing, permission-respecting Chat/code,
 Stop, subsequent requests and mobile interruption recovery have passed as
 recorded above. Desktop revocation also prevents reconnect and Chat in the
 owner's real-device check. Mobile-local unpair removes the paired device while
-preserving the displayed phone identity. Live identity reset/re-pair, remaining security acceptance and
+preserving the displayed phone identity. Explicit identity reset then produced
+a changed displayed identity. Fresh pairing, remaining security acceptance and
 final relevant tests remain. Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
