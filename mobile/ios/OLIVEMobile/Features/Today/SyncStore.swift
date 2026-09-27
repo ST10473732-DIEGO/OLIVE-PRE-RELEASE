@@ -50,6 +50,9 @@ final class MobileSyncStore {
         if let old = value.receipts[record.revision], old != digest { throw ConnectFailure.syncConflict }
         value.receipts[record.revision] = digest
     }
+    static func hasConflict(domain: String, peer: String, in value: SyncSnapshot) -> Bool {
+        value.conflicts.contains { $0.peer == peer && SyncWire.domains[$0.incoming.kind] == domain }
+    }
     static func put(_ record: SignedSyncRecord, in value: inout SyncSnapshot) throws {
         try receipt(record, in: &value)
         value.counter += 1; value.records[record.id] = record; value.sequence[record.id] = value.counter

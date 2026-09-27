@@ -794,6 +794,32 @@ final class CompanionProtocolTests: XCTestCase {
         XCTAssertThrowsError(try SignedSyncRecord(.object(changed)))
         XCTAssertTrue(snapshot.records[record.id]!.deleted)
     }
+    func testUnresolvedConflictSurvivesDuplicateExchangeAndRelaunchUntilResolution() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let phone = try ConnectIdentity.generate(), desktop = try ConnectIdentity.generate()
+        let peer = desktop.publicIdentity.deviceID
+        let base = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "Shared"), identity: phone)
+        let local = try SyncWire.author(kind: "task", id: base.id, payload: SyncPayload.task(title: "Phone edit"), parents: [base], identity: phone)
+        let remote = try SyncWire.author(kind: "task", id: base.id, payload: SyncPayload.task(title: "Desktop edit"), parents: [base], identity: desktop)
+        var value = SyncSnapshot()
+        try MobileSyncStore.put(local, in: &value)
+        XCTAssertEqual(try MobileSyncStore.apply(remote, peer: peer, in: &value), "conflict")
+        // A receipt and repeated version do not resolve the competing edits.
+        value.acknowledged[peer + ":tasks"] = [local.revision]
+        XCTAssertEqual(try MobileSyncStore.apply(local, peer: peer, in: &value), "duplicate")
+        let store = MobileSyncStore(directory: directory); try store.commit(value)
+        let restored = MobileSyncStore(directory: directory)
+        XCTAssertTrue(MobileSyncStore.hasConflict(domain: "tasks", peer: peer, in: restored.snapshot))
+        XCTAssertFalse(MobileSyncStore.hasConflict(domain: "calendar", peer: peer, in: restored.snapshot))
+        XCTAssertFalse(MobileSyncStore.hasConflict(domain: "tasks", peer: phone.publicIdentity.deviceID, in: restored.snapshot))
+        XCTAssertEqual(restored.snapshot.records[base.id]?.payload["title"], .string("Phone edit"))
+        XCTAssertEqual(restored.snapshot.conflicts.first?.incoming.payload["title"], .string("Desktop edit"))
+        value = restored.snapshot
+        let resolved = try SyncWire.author(kind: "task", id: base.id, payload: remote.payload, parents: [local, remote], identity: desktop)
+        XCTAssertEqual(try MobileSyncStore.apply(resolved, peer: peer, in: &value), "applied")
+        XCTAssertFalse(MobileSyncStore.hasConflict(domain: "tasks", peer: peer, in: value))
+    }
     func testChatSelectionImmutableOrderAndDeletedPredecessor() throws {
         let identity = try ConnectIdentity.generate(), peer = identity.publicIdentity.deviceID
         let conversation = try SyncWire.author(kind: "conversation", payload: .object([

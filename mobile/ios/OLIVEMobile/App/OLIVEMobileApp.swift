@@ -5,7 +5,8 @@ struct OLIVEMobileApp: App {
     @State private var state: AppState
     init() {
         // UI tests use an isolated preferences domain and protected draft folder.
-        // This contains no synthetic peer, message or connected backend state.
+        // No connected backend is simulated. The opt-in conflict UI fixture is
+        // isolated from production data and cannot establish real sync acceptance.
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         if ProcessInfo.processInfo.environment["OLIVE_C92_CANCEL_ACCEPTANCE"] == "1" {
@@ -36,7 +37,20 @@ struct OLIVEMobileApp: App {
             let session = args[index + 1]
             let defaults = UserDefaults(suiteName: "olive.ui-tests.\(session)")!
             let directory = URL.applicationSupportDirectory.appendingPathComponent("UITests/\(session)")
-            _state = State(initialValue: AppState(store: LocalShellStore(defaults: defaults, directory: directory)))
+            let isolated = AppState(store: LocalShellStore(defaults: defaults, directory: directory))
+            if args.contains("--ui-test-sync-conflict") {
+                do {
+                    let phone = try ConnectIdentity.generate(), desktop = try ConnectIdentity.generate()
+                    let base = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "UI fixture"), identity: phone)
+                    let local = try SyncWire.author(kind: "task", id: base.id, payload: SyncPayload.task(title: "UI phone version"), parents: [base], identity: phone)
+                    let incoming = try SyncWire.author(kind: "task", id: base.id, payload: SyncPayload.task(title: "UI desktop version"), parents: [base], identity: desktop)
+                    var snapshot = SyncSnapshot()
+                    try MobileSyncStore.put(local, in: &snapshot)
+                    _ = try MobileSyncStore.apply(incoming, peer: desktop.publicIdentity.deviceID, in: &snapshot)
+                    try isolated.sync.store.commit(snapshot); isolated.sync.reload()
+                } catch { assertionFailure("Could not prepare isolated sync conflict fixture") }
+            }
+            _state = State(initialValue: isolated)
             return
         }
         #endif

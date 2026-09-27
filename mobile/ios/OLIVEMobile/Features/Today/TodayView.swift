@@ -110,8 +110,15 @@ struct TodayEditor: View {
                     saving = false
                 }
             }.disabled(!state.sync.online || state.sync.busy || saving)
-            Button("Sync \(SyncWire.domains[kind] ?? kind)") { Task { await state.sync.sync(SyncWire.domains[kind] ?? kind) } }
+            Button("Sync \(SyncWire.domains[kind] ?? kind)") {
+                notice = "" // A saved-draft notice must not hide the exchange result.
+                Task { await state.sync.sync(SyncWire.domains[kind] ?? kind) }
+            }
                 .disabled(!state.sync.online || state.sync.busy || saving)
+            ForEach(state.sync.conflicts.filter { $0.recordID == current?.id }) { conflict in
+                NavigationLink("Review conflict") { SyncConflictView(conflict: conflict) }
+                    .accessibilityIdentifier("today.editorConflict")
+            }
             if current != nil { Button("Delete", role: .destructive) { deleting = true }.disabled(!state.sync.online || saving || state.sync.busy) }
             Text(notice.isEmpty ? state.sync.notice : notice)
         }.navigationTitle(kind.capitalized)

@@ -78,7 +78,9 @@ final class SyncModel {
                 next.cursors[key] = nextCursor
                 next.acknowledged[key, default: []].formUnion(batch.map(\.revision))
                 try store.commit(next); reload(); domainStatus[domain] = "Sync permitted · last exchange verified"
-                if conflict { notice = "Sync conflict · review on the device holding the conflict"; return }
+                if conflict || MobileSyncStore.hasConflict(domain: domain, peer: peer.id, in: next) {
+                    notice = "Sync conflict · review on the device holding the conflict"; return
+                }
                 if !more && batch.isEmpty { notice = "Sync complete"; return }
             }
             notice = "Batch limit reached · Sync again to continue"

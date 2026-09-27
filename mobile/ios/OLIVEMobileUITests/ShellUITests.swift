@@ -33,6 +33,23 @@ final class ShellUITests: XCTestCase {
             app.navigationBars.buttons.firstMatch.tap()
         }
     }
+    func testTaskEditorShowsBothConflictVersionsWithoutConnection() {
+        app.terminate()
+        app.launchArguments += ["--ui-test-sync-conflict"]
+        app.launch()
+        let today = app.buttons["Today"]
+        for _ in 0..<4 { if today.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(today.waitForExistence(timeout: 3)); today.tap()
+        let task = app.buttons.containing(.staticText, identifier: "UI phone version").firstMatch
+        XCTAssertTrue(task.waitForExistence(timeout: 3)); task.tap()
+        let review = app.buttons["today.editorConflict"]
+        for _ in 0..<5 { if review.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(review.waitForExistence(timeout: 3)); review.tap()
+        XCTAssertTrue(app.staticTexts["UI phone version"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["UI desktop version"].exists)
+        XCTAssertFalse(app.buttons["Use incoming version"].isEnabled)
+        capture("OLIVE synthetic offline conflict review")
+    }
     func testLaunchAndHome() {
         XCTAssertTrue(app.staticTexts["home.heading"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["home.ask"].exists)
