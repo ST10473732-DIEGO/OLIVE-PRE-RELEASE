@@ -955,3 +955,16 @@ explicitly requires that empirical event and leaves platform limitations partial
 C9.3 remains PARTIAL solely for that unforceable observation. No further repeated
 expiration trials or owner checks are requested; all prior failures remain in the
 primary report.
+
+
+On 2026-09-27 the owner explicitly revised the sole remaining C9.3 acceptance
+gate. Independent scheduler-selected C7 expiration remains UNOBSERVED /
+PLATFORM-LIMITED; the acceptance decision is PLATFORM-LIMITED ACCEPTED under the
+owner's eight conditions covering the production handler, real system Stop,
+cleanup/release, partial-state/draft recovery, no replay, later explicit success
+and a real C6 platform callback. No historical observation was rewritten and no
+new expiration trial was run. **C9.3 is COMPLETE under that revised gate.** The
+product checkpoint remains `6cba75e5582f90b00dd8857ad45a5521e5635bee`, CachyOS remains
+`fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`, and the final report carries forward exact
+iOS/native regression results and known Mac baseline failures. This change is
+documentation-only; C9.4, C10 and UNCENSORED implementation remain unstarted.

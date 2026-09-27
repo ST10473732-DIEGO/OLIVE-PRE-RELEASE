@@ -1,12 +1,16 @@
 # OLIVE Mobile C9.3 — companion features and background continuation
 
-**Status: PARTIAL — implementation and all reproducibly testable acceptance passed; independent system-selected C7 expiration remains an unforceable Apple-platform acceptance limitation under the original strict gate.**
+**Status: COMPLETE — C9.3 real-device completion gate passed on 2026-09-27,
+with independent scheduler-selected C7 expiration accepted as an Apple-platform
+limitation under the revised owner-approved acceptance gate.**
 
-Latest two-item closeout (2026-09-27): successful instrumented C6 background
-transfer and direct owner observation close desktop presence-label timing as PASS.
-Independent system-selected C7 expiration is the sole remaining strict-gate item.
-See the final two-item closure below; earlier partial entries and failures remain
-chronological evidence, not the current list of outstanding tests.
+The owner explicitly revised this one acceptance item after the original strict
+closeout. The empirical C7 event remains **UNOBSERVED / PLATFORM-LIMITED**; its
+acceptance decision is **PLATFORM-LIMITED ACCEPTED**. All reproducibly testable
+acceptance, including directly observed desktop presence timing, has passed.
+The final owner-approved closure below is authoritative for current status.
+Earlier PARTIAL decisions, failed runs and coverage qualifications are preserved
+unchanged as chronological evidence; none is relabeled a successful observation.
 
 Native Today/selected Chat sync, Files, Remote Studio, capability status and
 continued-processing coordination are implemented and installed on the physical
@@ -1214,3 +1218,90 @@ empirical acceptance gate; this report does not make that change. Historical
 coverage qualifications and known Mac baseline test failures remain recorded.
 No C9.4, C10, UNCENSORED, new product feature, redesign, push, merge, tag or release
 was started or performed.
+
+
+## Final owner-approved platform-limitation closure — COMPLETE, 2026-09-27
+
+### Acceptance decision and exact limitation
+
+The owner explicitly changed the C9.3 acceptance policy for **only** independently
+scheduler-selected C7 continued-processing expiration. This supersedes the prior
+strict empirical requirement for that item; it is not a reinterpretation of the
+old gate and does not change historical evidence or any other acceptance item.
+
+- **Empirical event:** UNOBSERVED / PLATFORM-LIMITED. An independent scheduler-
+  selected expiration during an active C7 response was not observed.
+- **Acceptance decision:** PLATFORM-LIMITED ACCEPTED under the owner's revised
+  eight-condition gate. C9.3 is COMPLETE on 2026-09-27.
+- **Exact limitation:** public iOS APIs provide neither a deterministic way to
+  force this scheduler decision nor a reason parameter distinguishing it from
+  system Live Activity Stop in `expirationHandler`. Handler equivalence proves
+  the covered cleanup behavior; it does not manufacture the missing C7 event.
+
+| Revised owner condition | Existing evidence accepted at closure |
+| --- | --- |
+| 1. Production expiration handler installed | `BackgroundWorkCoordinator` installs the real continued-task handler, bound to the exact operation, with capability-specific cancellation |
+| 2. Same handler exercised through real system Stop | Real C7 request `6f9a41a0-855d-4a3e-ae00-c47b67aed793` ended through that handler; owner confirmed using the Live Activity Stop control |
+| 3. Cleanup, cancellation and resource release verified | Owner confirmed the desktop C7 job ended; journal retained no running work, phone reported interruption, and session release/reconnect behavior was verified |
+| 4. No replay | Real Stop, network loss and relaunch observations retained terminal/interrupted state without automatic resend |
+| 5. Partial state and draft recovery correct | Interrupted Chat retained partial output and restored the draft; final owner recovery check reported “Failed The request timed out Draft restored nothing was resent” |
+| 6. Later explicit request succeeds | Final owner Chat regression and operation journal record successful explicit requests after Stop and after network interruption |
+| 7. Real continued-processing expiration in another supported capability | C6 operation `2be9d269-3e01-4bff-a94e-ee9918d1a3bc` received an actual grant, progressed to 36,241,408 bytes, then entered the production system callback, recorded expired/backgroundTaskExpired and unsuccessful completion, and discarded partial data |
+| 8. No fabricated or privately induced event | No private API, fake expiration, scheduler manipulation, changed Chat limit, repeated nondeterministic expiration trials or fabricated C7 observation was used |
+
+For condition 7, the genuine C6 grant and expiration-handler invocation establish
+the real platform callback path accepted by the owner. Its recorded source remains
+`systemExpirationOrStop`: the callback does not reveal Apple's internal reason.
+The earlier qualification about the owner's Instagram report and unanswered
+Stop/force-quit detail remains unchanged. No resource-pressure diagnosis or
+independently identified C7 scheduler event is added by this acceptance decision.
+
+Desktop presence timing is PASS from the preceding real 64 MiB run and direct
+owner observation. Selected Chat, Today, Files, Studio, permissions, background
+cleanup/recovery and C9.2 regression retain their recorded passed acceptance.
+The owner's revision closes the sole remaining strict-gate item without changing
+product code, rerunning devices or widening authority.
+
+### Final source and deployed checkpoints
+
+- `BASELINE_HEAD` for this documentation-only closure:
+  `a0270bb9976905f75185954f390ac6e0109fb879`.
+- `BRANCH`: `feature/olive-mobile-c9-3`.
+- `FINAL_HEAD`: the local commit containing this owner-approved closure. Resolve
+  its exact hash with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`;
+  the final response records that resulting hash. A commit cannot contain its own
+  literal content-derived hash.
+- `WORKTREE`: clean at entry; documentation-only changes committed locally and
+  final clean status checked after commit.
+- `IMPLEMENTATION_HEAD`: `6cba75e5582f90b00dd8857ad45a5521e5635bee`.
+  This is the last product implementation checkpoint, not the documentation HEAD.
+- Latest acceptance-harness/evidence checkpoint:
+  `a0270bb9976905f75185954f390ac6e0109fb879`; only its existing UI observation
+  window changed from 65 to 90 seconds, with no product behavior change.
+- `CACHYOS_HEAD`: `fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`.
+  No desktop deployment, recovery-branch, firewall, trust or permission change.
+- `COMMITS`: one documentation-only owner-approved completion commit after the
+  closure baseline. All prior local implementation and evidence commits preserved.
+
+### Final validation carried forward unchanged
+
+| Validation | Recorded final result |
+| --- | --- |
+| Physical iOS full unit suite | 78 cases: 68 passed, 10 explicit opt-in skips, zero failures |
+| Physical iOS full UI suite | 14 cases: 10 passed, 4 explicit opt-in skips, zero failures; enabled real acceptance cases documented separately |
+| Last presence follow-up | Signed physical build-for-testing passed; 1 physical fixture-preparation unit case and 1 real background-transfer UI case passed; normal production-identity launch restored |
+| iOS builds/install | `xcodebuild -list`, simulator-SDK build-for-testing, generic iOS Release, signed physical build/install and normal launch passed; no simulator runtime execution claimed |
+| Cross-language interop | Python ↔ Swift C5/C6/C8 and calendar plus existing C2/C3/C7 fixtures passed |
+| Native CachyOS | Repository-scoped source compile passed; 254 Connect tests passed; 1,443 Python cases OK with 8 skipped; typecheck, 101 frontend tests / 20 files and production build passed |
+| Mac regression qualification | Source compile, interop, typecheck, 101 frontend cases and production build passed. Full Python retained 1,456 cases / 58 skips / 2 failures / 2 errors; Connect retained the documented owned-descendant cleanup error. No all-green Mac result is claimed |
+
+This closure changes documentation only. Previously recorded passing checks were
+not rerun without a code change, and no nondeterministic expiration trial was
+attempted. Historical failures, known Mac platform/baseline issues, optional
+reminder-scheduling deferral and other coverage qualifications remain visible.
+Completion does not promise guaranteed background runtime or idle connectivity.
+
+C9.4, C10 and UNCENSORED implementation were not started. No product feature,
+redesign, push, merge, tag or release was performed. Recommended publication only:
+`git push -u origin feature/olive-mobile-c9-3`. This command has not been executed.
+No CachyOS synchronization is needed for this documentation-only closure.

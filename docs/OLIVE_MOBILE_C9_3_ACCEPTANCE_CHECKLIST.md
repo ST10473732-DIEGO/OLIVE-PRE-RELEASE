@@ -1,14 +1,13 @@
 # C9.3 remaining physical checks — updated 2026-09-27
 
-**Current gate audit:** all reproducibly testable acceptance is complete. On
-2026-09-27 the owner observed desktop Offline only after the instrumented 64 MiB
-transfer was sent and verified; the phone trace confirms receipt → completed
-journal → session release. Presence timing is PASS. The sole strict-gate limitation
-is independent system-selected expiration during active C7, which cannot be
-induced deterministically through public APIs. Common-handler behavior and C7
-system Stop/interruption are covered, but the original empirical gate is not
-waived. C9.3 remains PARTIAL. No further owner test is requested. The sections below
-preserve earlier procedures and results; do not repeat them.
+**Current gate audit: COMPLETE, 2026-09-27.** All reproducibly testable acceptance,
+including owner-observed desktop presence timing, passed. The owner explicitly
+revised the sole remaining gate: independent scheduler-selected C7 expiration
+remains **UNOBSERVED / PLATFORM-LIMITED**, with the acceptance decision
+**PLATFORM-LIMITED ACCEPTED** based on the eight documented handler/recovery
+conditions. No independent C7 scheduler event is claimed. See the final
+owner-approved closure in the primary report. No further owner test is requested;
+procedures and earlier results below remain historical and should not be repeated.
 
 The normal phone app is installed and available. Automated phone tests are
 finished for this batch. Use only the owned `C93 Acceptance ...` records and
