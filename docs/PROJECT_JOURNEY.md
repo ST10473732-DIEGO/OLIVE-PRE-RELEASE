@@ -423,3 +423,10 @@ issues remain. No desktop runtime source or test expectation was changed.
 The owner then confirmed both live composer checks: clearing after Send while
 retaining the conversation message, and staying empty after Stop. Real
 revocation/unpair remains pending.
+
+On 2026-09-27, the owner confirmed that after desktop revocation and an explicit
+phone Reconnect, the phone remains offline/disconnected with Chat unavailable.
+The local paired record and original identity were retained during this check;
+no reset or re-pair was performed. Real desktop revocation acceptance passed.
+The next check is mobile-local unpair while preserving the phone identity,
+followed by explicit identity reset and fresh two-sided pairing to restore use.

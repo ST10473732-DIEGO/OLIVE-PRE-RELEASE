@@ -12,7 +12,9 @@ App relaunch, background/foreground reconnection and Wi-Fi interruption recovery
 also pass, with no automatic draft submission. After desktop restart and a
 phone-only firewall rule replacement for its changed listener port, the owner
 confirms reconnect, retained Remote AI Allow and another arithmetic answer with
-no new approval. Unattended desktop restart recovery, revocation and remaining
+no new approval. After desktop revocation and an explicit phone Reconnect,
+the owner confirms the phone remains offline/disconnected with Chat unavailable.
+Unattended desktop restart recovery, live unpair/re-pair and remaining security
 acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
@@ -85,7 +87,7 @@ and [framing above a transport](https://developer.apple.com/documentation/networ
 | `inference_protocol.py` | `InferenceWire` | `olive-inference/1`, `models.remote`, start/poll/cancel/status; public `fast`, `normal`, `max`; exact source/target/job/request UUIDs; start request_id=job_id | Independent Swift encoders decoded by Python; Swift decodes Python responses |
 | `inference_client.py`, `inference.py` | `RemoteInferenceClient`, accumulator | Status: presets/permission/busy. Ordered pull batches at 250 ms; ≤8 events, ≤4096 UTF-8 bytes/event; consecutive sequences; 64000 aggregate bytes | Incremental/duplicate-sequence/terminal suppression tests; owner confirms arithmetic, code and hash-function replies |
 | C7 cancellation/release | client Stop and C3 close | Cancel exact job; successful target terminal response follows actual coroutine/provider/residency release; uncertain loss closes channel, never replays start | Swift lifecycle fixture and unchanged desktop C7 regression; real Stop acknowledged in 0.09 s and subsequent request succeeds |
-| C3 reconnect/revoke | `ConnectSession` | Fresh pinned handshake each connection; finite 0/1/2/4/8/15 s attempts, at most eight candidate routes; remote revoke is rejection/loss, not an invented revocation notification | Relaunch, foreground and Wi-Fi recovery passed; desktop restart passed after exact-port firewall repair; real revocation pending |
+| C3 reconnect/revoke | `ConnectSession` | Fresh pinned handshake each connection; finite 0/1/2/4/8/15 s attempts, at most eight candidate routes; remote revoke is rejection/loss, not an invented revocation notification | Relaunch, foreground and Wi-Fi recovery passed; desktop restart passed after exact-port firewall repair; owner confirms revoked phone remains disconnected after explicit Reconnect, with Chat unavailable |
 
 Mobile implements C9.2's client subset. It rejects unsolicited file/Studio
 frames and does not advertise an inbound capability dispatcher. C3 has no
@@ -220,7 +222,8 @@ permission behavior changes.
 | Remote Stop | **Passed, owner-observed C7 cancellation:** phone output stops, desktop activity reports Remote AI cancelled, and phone diagnostic reports Stop acknowledgement **0.09 s** for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. This is the displayed rounded acknowledgement duration, not a separate provider-internal timing |
 | Wi-Fi interruption / offline draft | **Passed, owner-observed:** Wi-Fi Off produces Offline with disabled Send and a preserved draft; restoring Wi-Fi reconnects with the draft still unsent; pressing Send explicitly produces an answer |
 | Desktop restart | **Retained trust and Chat passed after host rule repair:** main listener moved from TCP 47235 to TCP 33823 in a new process; phone initially Offline. Owner confirms the phone-specific rule for 33823 was added and the old 47235 rule deleted, then the phone reconnected with Remote AI Allow and answered the arithmetic prompt without another approval. Unattended restart recovery is not certified; no numeric reconnect time measured |
-| Wrong peer / revoked peer / unpair | Native wrong-pin and local unpair tests pass; real cross-device checks pending |
+| Desktop revocation | **Passed, owner-observed 2026-09-27:** after following desktop Revoke device and phone Reconnect instructions, the phone remains offline/disconnected with Chat unavailable. The mobile pairing record was retained during this check; no key reset or new pairing was performed. This is real UI acceptance, not an independently captured TLS rejection trace |
+| Wrong peer / local unpair | Native wrong-pin and local unpair tests pass; real wrong-peer and local unpair checks remain pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
 pending steps. No SSH, extra remote-access method or exposure of Ollama was
@@ -410,7 +413,8 @@ requires C7 acknowledgement/actual job cleanup, not just a terminal database row
 
 C9.2 remains **incomplete**. Real pairing, permission-respecting Chat/code,
 Stop, subsequent requests and mobile interruption recovery have passed as
-recorded above. Live revocation/unpair, remaining security acceptance and
+recorded above. Desktop revocation also prevents reconnect and Chat in the
+owner's real-device check. Live local unpair/re-pair, remaining security acceptance and
 final relevant tests remain. Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
