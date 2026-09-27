@@ -488,11 +488,10 @@ export default function App() {
   };
   const runtimeState = describeRuntime(state, snapshot, approvals.length, busy);
   const currentApproval = approvals[0];
-  // Title-bar Connect status: the real Connect snapshot, polled gently. It is
-  // display only; Devices remains the place where anything changes.
+  // Shared Welcome/title-bar/Home Connect status, including while the saved
+  // listener is starting. Display only; Devices owns configuration changes.
   const [connectState, setConnectState] = useState<ConnectSnapshotLike | null>(null);
   useEffect(() => {
-    if (!entered) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -509,7 +508,7 @@ export default function App() {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [entered]);
+  }, []);
   const today = useResource(
     () => call<{ reminders: unknown[]; tasks?: { status?: string }[] }>("personal.today", {}),
     ["personal.changed", "personal.reminders"],
@@ -589,6 +588,7 @@ export default function App() {
       <div className="app">
         {!entered ? (
           <Welcome
+            connect={connectState}
             state={state}
             ready={Boolean(snapshot)}
             runtime={runtimeState}

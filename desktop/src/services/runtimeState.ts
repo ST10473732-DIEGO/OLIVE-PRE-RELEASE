@@ -114,6 +114,25 @@ export interface ConnectSnapshotLike {
   network?: { state?: string };
   devices?: { device_id?: string; display_name?: string; device_class?: string; trust_state?: string; live?: { state?: string } | null }[];
 }
+/** Welcome consumes the same live snapshot as the shell; never cache startup Off. */
+export function welcomeDevices(value: ConnectSnapshotLike | null): { detail: string; done: boolean; waiting: boolean } {
+  const state = value?.network?.state;
+  if (!state) return { detail: "Checking OLIVE Connect…", done: false, waiting: true };
+  const paired = (value?.devices || []).filter((device) => device.trust_state === "paired");
+  const names = paired.slice(0, 2).map((device) => device.display_name || "Paired device").join(", ") +
+    (paired.length > 2 ? ` and ${paired.length - 2} more` : "");
+  const prefix = paired.length ? `${names} paired · ` : "";
+  if (state === "off") return { detail: `${prefix}Connect is off`, done: false, waiting: false };
+  if (state === "starting") return { detail: `${prefix}Connect is starting…`, done: false, waiting: true };
+  if (state !== "on") return { detail: `${prefix}Connect status unavailable · check Devices`, done: false, waiting: false };
+  if (!paired.length) return { detail: "None paired yet · pair a phone from Devices", done: false, waiting: false };
+  const online = paired.filter((device) => device.live?.state === "online").length;
+  return {
+    detail: online === paired.length ? `${names} connected` : `${prefix}${online ? `${online} connected` : "Connect is on"}`,
+    done: online > 0,
+    waiting: false,
+  };
+}
 /** Title-bar Connect status from the real Connect snapshot. Paired is not the
  *  same as online, and neither implies any permission. */
 export function connectSummary(value: ConnectSnapshotLike | null): StatusSummary {

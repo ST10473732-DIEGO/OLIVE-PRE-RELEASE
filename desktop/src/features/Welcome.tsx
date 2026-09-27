@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import { ArrowRight, Check, Cpu, ShieldCheck, Smartphone } from "lucide-react";
-import { call } from "../services/api";
 import { Core } from "../components/Core";
-import type { RuntimeState } from "../services/runtimeState";
+import { welcomeDevices, type ConnectSnapshotLike, type RuntimeState } from "../services/runtimeState";
 
 // The Grove entrance: the dot-matrix olive, the wordmark, and two honest
 // checks (the local AI and where your data lives) before Home. It never waits
@@ -14,6 +13,7 @@ export function Welcome({
   runtime,
   enter,
   model,
+  connect,
 }: {
   /** The model status label, for example "NORMAL ready". */
   model?: string;
@@ -21,24 +21,10 @@ export function Welcome({
   ready: boolean;
   runtime: RuntimeState;
   enter: () => void;
+  connect: ConnectSnapshotLike | null;
 }) {
   const [skip, setSkip] = useState(() => localStorage.getItem("skipWelcome") === "true");
-  // Your devices: the real Connect state, read once; never a guess.
-  const [devices, setDevices] = useState<{ on: boolean; paired: string[] } | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const read = () =>
-      call<{ network?: { state?: string }; devices?: { display_name: string; trust_state: string }[] }>("connect.snapshot", {})
-        .then((value) => {
-          if (alive) setDevices({ on: value.network?.state === "on", paired: (value.devices || []).filter((d) => d.trust_state === "paired").map((d) => d.display_name) });
-        })
-        .catch(() => alive && setDevices({ on: false, paired: [] }));
-    const timer = setTimeout(read, 300);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, []);
+  const devices = welcomeDevices(connect);
   const aiReady = ready && runtime.tone !== "error" && runtime.detail !== "AI offline" && runtime.detail !== "no model installed";
   const checks = [
     {
@@ -61,13 +47,7 @@ export function Welcome({
       id: "devices",
       icon: Smartphone,
       title: "Your devices",
-      detail: !devices
-        ? "Checking OLIVE Connect…"
-        : devices.paired.length
-          ? `${devices.paired.slice(0, 2).join(", ")}${devices.paired.length > 2 ? ` and ${devices.paired.length - 2} more` : ""} paired${devices.on ? "" : " · Connect is off"}`
-          : "None paired yet · pair a phone from Devices",
-      done: Boolean(devices?.paired.length && devices.on),
-      waiting: !devices,
+      ...devices,
       optional: true,
     },
   ];
