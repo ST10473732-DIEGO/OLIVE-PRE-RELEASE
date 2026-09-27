@@ -38,13 +38,13 @@ needed, then Dismiss from Inbox one completed owned 64 MiB test transfer before
 the timed repeat. Retain user files. The updated phone explains quota rejection
 and missing receipts explicitly.
 
-**Timing repeat paused:** the subsequent Instagram attempt was granted continued
-processing, then received the system expiration/Stop callback after 36.420 seconds
-at 54.00%. This is recorded as a failed run. Do not repeat step 3 again without a
-new diagnostic plan. The installed app remains available; foreground transfer is
-a fallback, not a substitute for the unresolved other-app acceptance. Two earlier
-Home-screen diagnostic transfers passed, but do not erase this failure. The
-callback exposes no underlying stop reason; no cause is assigned to Instagram.
+**Instagram repeat completed:** after the 54.00% expiration, a fresh explicit
+owner attempt completed all 64 MiB in 69.228 seconds with a real background grant
+and success recorded. Keep both results; no root-cause fix is claimed. The USB
+scheduler trace captured admission but hit its byte limit before completion.
+Do not repeat the successful transfer solely for that trace. Exact desktop UI
+presence timing is still open; collision and active permission revocation are the
+next file checks. Save/dismiss only owned completed fixtures if quota blocks them.
 
 The 5 MiB/64 MiB round trips, hashes, quarantine/export, background Stop,
 network loss and force quit already passed. The real invalid-hash rejection,

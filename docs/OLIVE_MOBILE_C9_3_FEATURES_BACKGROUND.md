@@ -920,3 +920,41 @@ screen diagnostic runs. The repeat is paused pending a useful additional
 diagnostic step, rather than requesting another identical owner run. Keeping
 OLIVE foregrounded is the available fallback, not completion of the background
 acceptance gate. C9.3 remains **PARTIAL**.
+
+### Owner Instagram repeat completed — 2026-09-27
+
+After starting a bounded, read-only USB scheduler trace, the owner was asked to
+send the owned 64 MiB file, use Instagram for 60 seconds without touching Stop or
+swiping away OLIVE, then report the result. The owner reported completion.
+The phone journal independently confirms operation
+`a50f02b3-835a-4819-b74b-2cb67a9a7634`:
+
+- Start 15:22:56.756517 UTC; actual grant 15:22:56.790832 UTC.
+- Completed 15:24:05.984416 UTC, duration 69.228 seconds.
+- All 67,108,864 bytes acknowledged, terminal state `completed`, no failure or
+  expiration source, matching final system progress, `systemReportedSuccess: true`.
+
+The normal production C6 send path marks this state only after the desktop's
+complete response verifies the full-size receipt. No app code change or automatic
+retry occurred between the failed and successful owner attempts. This is a real
+successful other-app repeat; it does not prove a fix for the earlier expirations
+or guarantee future background runtime. Time spent in Instagram is owner-assisted
+evidence from the requested procedure, not independently measured by this trace.
+
+The temporary collector used the existing USB pairing without creating new trust,
+filtered scheduler processes to OLIVE-related events before saving, and imposed
+a 512 KiB/ten-minute bound. It captured task submission and actual scheduler
+admission, then stopped at 524,051 bytes because verbose runningboard events
+exhausted the byte budget at 15:22:58 UTC. Therefore it does **not** contain the
+completion or establish why the earlier run expired. No broad sysdiagnose or
+unrelated app content was exported. The collector is stopped, and its raw output
+remains temporary rather than committed. Successful completion evidence comes
+from the owner report and operation journal.
+
+No rebuild or repeated regression was needed for this evidence-only follow-up.
+The installed `6cba75e` implementation and its passing iOS/build/interop results
+remain current. This follow-up began at `c24eba2170585c93a9e0658d2bd78d6d223578e2`.
+C9.3 remains PARTIAL: file collision/revocation and final presence timing, remaining
+permission matrices, Studio draft retention, final desktop deletion checks and
+Remote AI recovery/regression are still tracked separately. Another identical
+successful-transfer repeat is not requested merely to replace the truncated trace.

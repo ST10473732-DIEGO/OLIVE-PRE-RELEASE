@@ -901,3 +901,11 @@ fallback, but the API does not identify the underlying stop reason. The failure
 is preserved separately from earlier successful Home-screen runs. No speculative
 code change or automatic retry was made; other-app acceptance and C9.3 remain
 PARTIAL, and identical owner retries are paused pending further diagnostics.
+
+A subsequent owner Instagram repeat completed: the journal confirms all 64 MiB
+and a successful C6 completion in 69.228 seconds under a real background grant.
+The filtered USB scheduler trace confirmed admission but exhausted its 512 KiB
+bound before completion; it cannot explain the earlier expiration. No code change
+occurred between these runs, so the success is retained alongside the failures
+without claiming a root-cause fix. Remaining edge/permission/regression acceptance
+keeps C9.3 PARTIAL; no further identical success repeat is requested.
