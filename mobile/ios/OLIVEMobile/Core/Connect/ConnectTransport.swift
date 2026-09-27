@@ -108,4 +108,13 @@ actor ConnectTransport: InferenceTransport {
         for (_, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
         await socket.close(); tls = nil; plaintext.removeAll()
     }
+    #if DEBUG
+    /// Physical acceptance fault injection: send the real C7 cancel, then lose
+    /// its acknowledgement. No trust mutation or alternate wire path.
+    func acceptanceDisconnectDuringCancel(_ request: ConnectJSON) async throws {
+        guard ready, !closed, request["operation"] == .string("cancel") else { throw ConnectFailure.peerOffline }
+        try await write(ConnectFrame(kind: 9, payload: request.canonical).encode())
+        await close()
+    }
+    #endif
 }

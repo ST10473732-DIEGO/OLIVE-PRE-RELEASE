@@ -561,3 +561,95 @@ final class RealConnectSecurityTests: XCTestCase {
         print("C9.2 real LAN: correct pin authenticated; wrong pin rejected; saved identity and trust unchanged")
     }
 }
+
+final class RealConnectCancellationTests: XCTestCase {
+    @MainActor func testRealLANCancellationBoundaries() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C92_CANCEL_ACCEPTANCE"] == "1", "Explicit physical-device real-model acceptance only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let peer = try XCTUnwrap(ConnectTrustRepository().peers.first)
+        let identity = try await ConnectIdentityStore().load(allowCreation: false)
+        let source = identity.publicIdentity.deviceID
+        let discovery = ConnectDiscoveryService(); discovery.start()
+        defer { discovery.stop() }
+        for _ in 0..<80 {
+            if !discovery.nearby.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        var selected: (NWEndpoint, ConnectTransport)?
+        for candidate in discovery.nearby.prefix(8) {
+            let channel = ConnectTransport(endpoint: candidate.endpoint)
+            do { try await channel.connect(identity: identity, peer: peer.identity); selected = (candidate.endpoint, channel); break }
+            catch { await channel.close() }
+        }
+        let (endpoint, channel) = try XCTUnwrap(selected, "Authenticate the real paired desktop first")
+        func request(_ operation: String, job: String? = nil, arguments: ConnectJSON = .object([:])) throws -> ConnectJSON {
+            try InferenceWire.request(source: source, target: peer.id, operation: operation, job: job, arguments: arguments)
+        }
+        func start(_ channel: ConnectTransport, _ text: String) async throws -> String {
+            let req = try request("start", arguments: InferenceWire.startArguments(preset: "normal", messages: [("user", text)]))
+            let answer = try await channel.exchange(req)
+            XCTAssertEqual(answer["error"], .null)
+            guard answer["error"] == .null else { throw ConnectFailure.resourceBusy }
+            return try req["job_id"].uuid()
+        }
+        func cancel(_ channel: ConnectTransport, _ job: String) async throws -> String {
+            let answer = try await channel.exchange(request("cancel", job: job))
+            XCTAssertEqual(answer["error"], .null)
+            return try answer["result"]["state"].text()
+        }
+        func complete(_ channel: ConnectTransport, _ job: String) async throws {
+            var accumulator = InferenceAccumulator()
+            let deadline = ContinuousClock.now.advanced(by: .seconds(135))
+            while ContinuousClock.now < deadline {
+                let answer = try await channel.exchange(request("poll", job: job, arguments: .object(["after": .int(accumulator.sequence)])))
+                XCTAssertEqual(answer["error"], .null)
+                try accumulator.consume(answer["result"])
+                if InferenceWire.terminal.contains(accumulator.state) {
+                    XCTAssertEqual(accumulator.state, "completed")
+                    XCTAssertFalse(accumulator.text.isEmpty)
+                    return
+                }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            throw ConnectFailure.requestTimeout
+        }
+        do {
+            let status = try await channel.exchange(request("status"))
+            XCTAssertEqual(status["result"]["permission"], .string("allow"))
+            guard status["result"]["permission"] == .string("allow") else { throw ConnectFailure.permissionDenied }
+            let longPrompt = "Write a detailed 1000-word explanation of Swift arrays, dictionaries, sets, loops and functions, with small code examples."
+            let early = try await start(channel, longPrompt)
+            let beforeStop = ContinuousClock.now
+            let stopped = try await cancel(channel, early)
+            XCTAssertEqual(stopped, "cancelled")
+            let repeated = try await cancel(channel, early)
+            XCTAssertEqual(repeated, "cancelled")
+            print("C9.2 early cancel: \(early) terminal=\(stopped) acknowledgement=\(beforeStop.duration(to: .now)) repeated=\(repeated)")
+            let completed = try await start(channel, "What is 17 * 23? Answer with the number and a short explanation.")
+            try await complete(channel, completed)
+            let raced = try await cancel(channel, completed)
+            XCTAssertEqual(raced, "completed", "Late Stop must not relabel a completed task")
+            print("C9.2 completion-race cancel: \(completed) terminal=\(raced)")
+            let lost = try await start(channel, longPrompt)
+            try await channel.acceptanceDisconnectDuringCancel(request("cancel", job: lost))
+            let replacement = ConnectTransport(endpoint: endpoint)
+            do {
+                try await replacement.connect(identity: identity, peer: peer.identity)
+                var idle = false
+                for _ in 0..<40 {
+                    let state = try await replacement.exchange(request("status"))
+                    if state["result"]["busy"] == .bool(false) { idle = true; break }
+                    try await Task.sleep(for: .milliseconds(250))
+                }
+                XCTAssertTrue(idle, "Desktop must release inference after the cancel connection is lost")
+                let fresh = try await start(replacement, "Explain in two sentences what a hash function does.")
+                try await complete(replacement, fresh)
+                print("C9.2 cancel acknowledgement deliberately lost: \(lost); fresh pinned connection, desktop idle, new request completed: \(fresh)")
+                await replacement.close()
+            } catch { await replacement.close(); throw error }
+            await channel.close()
+        } catch { await channel.close(); throw error }
+    }
+}
