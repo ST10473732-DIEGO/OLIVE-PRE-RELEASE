@@ -13,6 +13,9 @@ struct MobileFileReceipt: Codable, Identifiable {
     var received: Int64 = 0
     var state = "offered"
     var offerDigest: String? = nil // Additive v1 field; old interrupted receipts remain queryable.
+    /// Additive v1 field: cleared from History by the user. The receipt stays in the ledger for replay checks.
+    var hidden: Bool? = nil
+    var inHistory: Bool { FileWire.terminal.contains(state) && hidden != true }
 }
 
 @MainActor @Observable
@@ -31,6 +34,10 @@ final class FilesModel {
     private var bound = UUID()
     private var arrivals: [Date] = []
     var recent: [MobileFileReceipt] { Array(receipts.suffix(100).reversed()) }
+    /// Transfers still needing attention: review, approval or in flight.
+    var active: [MobileFileReceipt] { receipts.filter { !FileWire.terminal.contains($0.state) }.reversed() }
+    /// Finished transfers, newest first, until the user clears them.
+    var history: [MobileFileReceipt] { Array(receipts.filter(\.inHistory).suffix(100).reversed()) }
     init(session: ConnectSession?, background: BackgroundWorkCoordinator?, directory: URL = URL.applicationSupportDirectory.appendingPathComponent("Companion/Files")) {
         self.session = session; self.background = background
         staging = FileStaging(directory: directory)
@@ -50,7 +57,7 @@ final class FilesModel {
             try staging.clearExportCopies()
             for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
                 guard UUID(uuidString: file.deletingPathExtension().lastPathComponent)?.uuidString.lowercased() == file.deletingPathExtension().lastPathComponent else { continue }
-                let keep = file.pathExtension == "bin" && receipts.contains { $0.id == file.deletingPathExtension().lastPathComponent && $0.incoming && $0.state == "completed" }
+                let keep = file.pathExtension == "bin" && receipts.contains { $0.id == file.deletingPathExtension().lastPathComponent && $0.incoming && $0.state == "completed" && $0.hidden != true }
                 if ["part", "out", "bin"].contains(file.pathExtension), !keep { try FileManager.default.removeItem(at: file) }
             }
         } catch { available = false; notice = ConnectFailure.localStorageUnavailable.localizedDescription }
@@ -65,7 +72,7 @@ final class FilesModel {
     private func reserve(_ size: Int64, incoming: Bool, peer: String) throws {
         let active = receipts.filter { !FileWire.terminal.contains($0.state) }
         guard active.count < 4, active.filter({ $0.peerID == peer }).count < 2 else { throw ConnectFailure.resourceBusy }
-        let used = receipts.filter { $0.incoming == incoming && (!FileWire.terminal.contains($0.state) || incoming && $0.state == "completed") }.reduce(Int64(0)) { $0 + $1.metadata.size }
+        let used = receipts.filter { $0.incoming == incoming && (!FileWire.terminal.contains($0.state) || incoming && $0.state == "completed" && $0.hidden != true) }.reduce(Int64(0)) { $0 + $1.metadata.size }
         guard used + size <= (incoming ? 256 : 128) * 1024 * 1024 else { throw ConnectFailure.localStorageUnavailable }
         try staging.capacity(size)
     }
@@ -218,7 +225,7 @@ final class FilesModel {
         } catch { notice = error.localizedDescription }
     }
     func exportURL(_ id: String) throws -> URL {
-        guard let row = receipts.first(where: { $0.id == id && $0.incoming && $0.state == "completed" }) else { throw ConnectFailure.fileSaveRequired }
+        guard let row = receipts.first(where: { $0.id == id && $0.incoming && $0.state == "completed" && $0.hidden != true }) else { throw ConnectFailure.fileSaveRequired }
         let url = try staging.path(id, "bin"), checked = try staging.digest(url)
         guard checked.0 == row.metadata.size, checked.1 == row.metadata.sha256 else { throw ConnectFailure.fileHashMismatch }
         // Only an explicit export creates this bounded, app-owned copy. The
@@ -229,6 +236,22 @@ final class FilesModel {
         let copy = exports.appendingPathComponent(row.metadata.name)
         try FileManager.default.copyItem(at: url, to: copy)
         return copy
+    }
+    /// Clears finished transfers from History. Receipts are kept (hidden) so replayed
+    /// offers are still recognised; received files that were never saved are removed.
+    func clearHistory() {
+        guard available else { notice = ConnectFailure.localStorageUnavailable.localizedDescription; return }
+        let cleared = receipts.filter(\.inHistory)
+        guard !cleared.isEmpty else { return }
+        var next = receipts
+        for i in next.indices where next[i].inHistory { next[i].hidden = true }
+        do { try store.save(next); receipts = next }
+        catch { notice = "History could not be cleared. Nothing was removed."; return }
+        for row in cleared where row.incoming && row.state == "completed" {
+            if let path = try? staging.path(row.id, "bin") { try? FileManager.default.removeItem(at: path) }
+        }
+        try? staging.clearExportCopies()
+        notice = ""
     }
     private func receive(_ frame: ConnectFrame, local: String, peer: String, token: UUID) throws -> ConnectFrame {
         guard token == bound, session?.connected == true, session?.selectedID == peer else { throw ConnectFailure.peerOffline }

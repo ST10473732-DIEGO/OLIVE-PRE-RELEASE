@@ -2,61 +2,160 @@ import SwiftUI
 
 struct TodayView: View {
     @Environment(AppState.self) private var state
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var recovering = false
+    private let domains: [(String, String)] = [("tasks", "checklist"), ("calendar", "calendar"), ("reminders", "bell")]
     var body: some View {
         let model = state.sync
         List {
             Section {
-                Text(model.online ? "Connected · changes sync when you request them" : "Offline · saved records are read-only")
-                Text(model.notice).accessibilityIdentifier("today.status")
-                if model.busy { Button("Cancel sync") { model.cancel() } }
+                HStack(spacing: 10) {
+                    StatusDot(color: model.online ? OliveTheme.accent : OliveTheme.muted, pulsing: model.busy)
+                    Text(model.online ? "Connected · changes sync when you request them" : "Offline · saved records are read-only")
+                        .font(.subheadline).foregroundStyle(OliveTheme.secondary)
+                }
+                if !model.notice.isEmpty || model.busy {
+                    HStack(spacing: 10) {
+                        if model.busy { ProgressView().controlSize(.small).tint(OliveTheme.accent) }
+                        Text(model.notice).font(.subheadline).accessibilityIdentifier("today.status")
+                    }
+                }
+                if model.busy {
+                    Button("Cancel sync", role: .destructive) { model.cancel() }
+                }
                 if !model.store.available {
                     Button("Recover local sync storage") { recovering = true }
-                        .accessibilityIdentifier("today.recover")
+                        .foregroundStyle(OliveTheme.attention).accessibilityIdentifier("today.recover")
                 }
-            }
-            NavigationLink("Agenda") { TodayAgendaView() }
-            ForEach(["tasks", "calendar", "reminders"], id: \.self) { domain in
-                Section(domain.capitalized) {
-                    Button("Sync \(domain)") { Task { await model.sync(domain) } }.disabled(!model.online || model.busy)
-                    if let status = model.domainStatus[domain] { Text(status).font(.caption) }
-                    ForEach(model.records.filter { !$0.deleted && SyncWire.domains[$0.kind] == domain }) { record in
+                NavigationLink { TodayAgendaView() } label: {
+                    TodayRowLabel(symbol: "calendar.day.timeline.left", tint: OliveTheme.accent, title: "Agenda", detail: "What’s due, day by day")
+                }
+            }.listRowBackground(OliveTheme.raised)
+            ForEach(domains, id: \.0) { domain, symbol in
+                Section {
+                    let records = model.records.filter { !$0.deleted && SyncWire.domains[$0.kind] == domain }
+                    if records.isEmpty {
+                        Text("Nothing here yet").font(.subheadline).foregroundStyle(OliveTheme.muted)
+                    }
+                    ForEach(records) { record in
                         NavigationLink {
                             TodayEditor(kind: record.kind, old: record)
                         } label: {
-                            VStack(alignment: .leading) {
-                                Text(record.payload["title"].string ?? reminderTitle(record)).font(.headline)
-                                if let status = model.recordState(record) { Text(status).font(.caption).foregroundStyle(OliveTheme.attention) }
-                                Text(record.kind == "task" ? record.payload["status"].string ?? "" : record.kind == "event" ? record.payload["start"].string ?? "" : record.kind == "reminder" ? record.payload["at"].string ?? "Linked schedule" : "Calendar")
-                                    .font(.caption).foregroundStyle(OliveTheme.secondary)
-                            }
+                            TodayRowLabel(symbol: icon(record), tint: tint(record), title: record.payload["title"].string ?? reminderTitle(record),
+                                          detail: detail(record), warning: model.recordState(record))
                         }
                     }
-                    if domain == "tasks" { NavigationLink("New task") { TodayEditor(kind: "task") } }
-                    if domain == "calendar" {
-                        NavigationLink("New calendar") { TodayEditor(kind: "calendar") }
-                        NavigationLink("New event") { TodayEditor(kind: "event") }
+                    ForEach(newKinds(domain), id: \.self) { kind in
+                        NavigationLink { TodayEditor(kind: kind) } label: {
+                            Label("New " + kind, systemImage: "plus.circle.fill").foregroundStyle(OliveTheme.accent)
+                        }
                     }
-                    if domain == "reminders" { NavigationLink("New reminder") { TodayEditor(kind: "reminder") } }
-                }
+                } header: {
+                    HStack(alignment: .center) {
+                        Label(domain.capitalized, systemImage: symbol).font(.footnote.weight(.semibold))
+                        Spacer()
+                        Button { Task { await model.sync(domain) } } label: {
+                            Label("Sync", systemImage: "arrow.triangle.2.circlepath").font(.caption.weight(.semibold))
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(OliveTheme.accent.opacity(0.12), in: Capsule())
+                        }
+                        .foregroundStyle(OliveTheme.accent).opacity(!model.online || model.busy ? 0.4 : 1).disabled(!model.online || model.busy)
+                        .accessibilityLabel("Sync \(domain)")
+                    }
+                } footer: {
+                    if let status = model.domainStatus[domain] { Text(status) }
+                }.listRowBackground(OliveTheme.raised)
             }
             if !model.conflicts.isEmpty {
                 Section("Conflicts") {
                     ForEach(model.conflicts) { conflict in
-                        NavigationLink("Review " + conflict.reason) { SyncConflictView(conflict: conflict) }
-                            .accessibilityIdentifier("today.conflict")
+                        NavigationLink { SyncConflictView(conflict: conflict) } label: {
+                            TodayRowLabel(symbol: "exclamationmark.triangle", tint: OliveTheme.attention,
+                                          title: "Review " + conflict.reason, detail: "Choose which version to keep")
+                        }.accessibilityIdentifier("today.conflict")
                     }
-                }
+                }.listRowBackground(OliveTheme.attention.opacity(0.12))
             }
-        }.navigationTitle("Today")
+        }
+        .listStyle(.insetGrouped).listRowSeparatorTint(OliveTheme.border).oliveListStyle()
+        .animation(reduceMotion ? nil : OliveTheme.Motion.settle, value: model.records.count)
+        .animation(reduceMotion ? nil : OliveTheme.Motion.settle, value: model.busy)
+        .navigationTitle("Today").navigationBarTitleDisplayMode(.inline)
             .confirmationDialog("Preserve and rebuild local sync storage?", isPresented: $recovering, titleVisibility: .visible) {
                 Button("Preserve data and rebuild") { model.recoverLocalSync() }
             } message: {
                 Text("The unreadable file stays in protected recovery storage. This starts an empty sync store; use explicit Sync to retrieve desktop records. Unsynced edits remain only in the preserved file and are not automatically replayed. Drafts and pairing stay intact.")
             }
     }
+    private func newKinds(_ domain: String) -> [String] {
+        domain == "tasks" ? ["task"] : domain == "calendar" ? ["calendar", "event"] : ["reminder"]
+    }
+    private func icon(_ record: SignedSyncRecord) -> String {
+        switch record.kind {
+        case "task": record.payload["status"] == .string("completed") ? "checkmark.circle.fill" : "circle"
+        case "event": "clock"
+        case "reminder": "bell"
+        default: "square.stack"
+        }
+    }
+    private func tint(_ record: SignedSyncRecord) -> Color {
+        if record.kind == "calendar", let colour = Color(oliveHex: record.payload["colour"].string ?? "") { return colour }
+        return record.kind == "task" && record.payload["status"] != .string("completed") ? OliveTheme.secondary : OliveTheme.accent
+    }
+    private func detail(_ record: SignedSyncRecord) -> String {
+        let p = record.payload
+        switch record.kind {
+        case "task":
+            if p["status"] == .string("completed") { return "Completed" }
+            if let due = p["due"].string, !due.isEmpty { return "Due " + TodayFormat.pretty(due) }
+            return "Open"
+        case "event": return TodayFormat.pretty(p["start"].string ?? "")
+        case "reminder": return p["at"].string.map { $0.isEmpty ? "Linked schedule" : TodayFormat.pretty($0) } ?? "Linked schedule"
+        default: return "Calendar"
+        }
+    }
     private func reminderTitle(_ record: SignedSyncRecord) -> String {
         state.sync.records.first { $0.id == record.payload["target_id"].string }?.payload["title"].string.map { "Reminder · " + $0 } ?? "Reminder"
+    }
+}
+
+/// Icon, title and subtitle for Today rows; texts stay separate for VoiceOver and UI tests.
+private struct TodayRowLabel: View {
+    let symbol: String
+    var tint: Color = OliveTheme.accent
+    let title: String
+    var detail: String = ""
+    var warning: String? = nil
+    var body: some View {
+        HStack(spacing: 12) {
+            OliveIcon(symbol: symbol, size: 32, tint: tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body).foregroundStyle(OliveTheme.text)
+                if let warning { Text(warning).font(.caption).foregroundStyle(OliveTheme.attention) }
+                if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(OliveTheme.muted) }
+            }
+        }.padding(.vertical, 2)
+    }
+}
+
+enum TodayFormat {
+    /// Friendly date for stored ISO strings; unknown formats are shown unchanged.
+    static func pretty(_ raw: String) -> String {
+        let full = ISO8601DateFormatter()
+        if let date = full.date(from: raw) { return date.formatted(date: .abbreviated, time: .shortened) }
+        full.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = full.date(from: raw) { return date.formatted(date: .abbreviated, time: .shortened) }
+        full.formatOptions = [.withFullDate]; full.timeZone = .current
+        if let date = full.date(from: raw) { return date.formatted(date: .abbreviated, time: .omitted) }
+        return raw
+    }
+}
+
+extension Color {
+    init?(oliveHex: String) {
+        let hex = oliveHex.hasPrefix("#") ? String(oliveHex.dropFirst()) : oliveHex
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
+        self.init(.sRGB, red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)
     }
 }
 
@@ -79,6 +178,7 @@ struct TodayEditor: View {
     private func text(_ key: String) -> Binding<String> { Binding(get: { fields[key]?.string ?? "" }, set: { fields[key] = .string($0) }) }
     var body: some View {
         Form {
+            Section {
             if kind == "task" || kind == "calendar" || kind == "event" { TextField("Title", text: text("title")) }
             if kind == "task" || kind == "event" { TextField("Description", text: text("description"), axis: .vertical) }
             if kind == "task" {
@@ -111,7 +211,9 @@ struct TodayEditor: View {
                 Text("Completion follows the linked task.").font(.footnote)
             }
             if kind != "calendar" { TextField("IANA timezone", text: text("timezone")) }
-            Button("Save locally") {
+            } header: { Text("Details") }.listRowBackground(OliveTheme.raised)
+            Section {
+            Button {
                 saving = true
                 Task {
                     do {
@@ -121,19 +223,39 @@ struct TodayEditor: View {
                     } catch { notice = error.localizedDescription }
                     saving = false
                 }
+            } label: {
+                HStack { Spacer(); if saving { ProgressView().tint(OliveTheme.accentInk) }; Text("Save locally").font(.headline); Spacer() }
+                    .foregroundStyle(OliveTheme.accentInk)
             }.disabled(!state.sync.online || state.sync.busy || saving)
-            Button("Sync \(SyncWire.domains[kind] ?? kind)") {
+                .listRowBackground(OliveTheme.accent.opacity(!state.sync.online || state.sync.busy || saving ? 0.4 : 1))
+            Button {
                 notice = "" // A saved-draft notice must not hide the exchange result.
                 Task { await state.sync.sync(SyncWire.domains[kind] ?? kind) }
+            } label: {
+                Label("Sync \(SyncWire.domains[kind] ?? kind)", systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)
             }
-                .disabled(!state.sync.online || state.sync.busy || saving)
-            ForEach(state.sync.conflicts.filter { $0.recordID == current?.id }) { conflict in
-                NavigationLink("Review conflict") { SyncConflictView(conflict: conflict) }
-                    .accessibilityIdentifier("today.editorConflict")
+                .disabled(!state.sync.online || state.sync.busy || saving).listRowBackground(OliveTheme.raised)
+            } footer: {
+                let message = notice.isEmpty ? state.sync.notice : notice
+                if !message.isEmpty { Text(message).font(.footnote).foregroundStyle(OliveTheme.secondary) }
             }
-            if current != nil { Button("Delete", role: .destructive) { deleting = true }.disabled(!state.sync.online || saving || state.sync.busy) }
-            Text(notice.isEmpty ? state.sync.notice : notice)
-        }.navigationTitle(kind.capitalized)
+            let conflicts = state.sync.conflicts.filter { $0.recordID == current?.id }
+            if !conflicts.isEmpty {
+                Section {
+                    ForEach(conflicts) { conflict in
+                        NavigationLink { SyncConflictView(conflict: conflict) } label: {
+                            Label("Review conflict", systemImage: "exclamationmark.triangle").foregroundStyle(OliveTheme.attention)
+                        }.accessibilityIdentifier("today.editorConflict")
+                    }
+                }.listRowBackground(OliveTheme.attention.opacity(0.12))
+            }
+            if current != nil {
+                Section {
+                    Button("Delete", role: .destructive) { deleting = true }.frame(maxWidth: .infinity)
+                        .disabled(!state.sync.online || saving || state.sync.busy)
+                }.listRowBackground(OliveTheme.raised)
+            }
+        }.oliveListStyle().navigationTitle(kind.capitalized).navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 guard !loaded else { return }
                 draftKey = (state.session?.selectedID ?? "local") + ":" + (old?.id ?? "new-" + kind)
@@ -199,16 +321,20 @@ private struct SyncConflictView: View {
     }
     var body: some View {
         List {
-            Section("This iPhone") { summary(local) }
-            Section("Incoming") { summary(conflict.incoming) }
             Section {
-                Text(conflict.reason.replacingOccurrences(of: "_", with: " "))
+                Label(conflict.reason.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(OliveTheme.attention)
+            }.listRowBackground(OliveTheme.attention.opacity(0.12))
+            Section { summary(local) } header: { Label("This iPhone", systemImage: "iphone") }.listRowBackground(OliveTheme.raised)
+            Section { summary(conflict.incoming) } header: { Label("Incoming", systemImage: "desktopcomputer") }.listRowBackground(OliveTheme.raised)
+            Section {
                 Button("Keep this iPhone’s version") { if let reviewed { Task { await state.sync.resolve(reviewed, incoming: false) } } }
                     .disabled(local == nil)
                 Button("Use incoming version") { if let reviewed { Task { await state.sync.resolve(reviewed, incoming: true) } } }
-                Text(state.sync.notice)
-            }.disabled(!state.sync.online || state.sync.busy)
-        }.navigationTitle("Review conflict")
+            } footer: {
+                if !state.sync.notice.isEmpty { Text(state.sync.notice) }
+            }.disabled(!state.sync.online || state.sync.busy).listRowBackground(OliveTheme.raised)
+        }.oliveListStyle().navigationTitle("Review conflict").navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 local = state.sync.store.snapshot.records[conflict.recordID]
                 reviewed = SyncConflict(id: conflict.id, peer: conflict.peer, recordID: conflict.recordID,
@@ -232,18 +358,25 @@ private struct TodayAgendaView: View {
     @State private var notice = ""
     var body: some View {
         List {
-            DatePicker("Day", selection: $day, displayedComponents: .date)
-            Text("Saved OLIVE records · Sync in Today to refresh").font(.footnote)
-            ForEach(items) { item in
-                NavigationLink { TodayEditor(kind: item.record.kind, old: item.record) } label: {
-                    VStack(alignment: .leading) {
-                        Text(item.title).font(.headline)
-                        Text(item.detail).font(.caption)
+            Section {
+                DatePicker("Day", selection: $day, displayedComponents: .date).tint(OliveTheme.accent)
+            } footer: { Text("Saved OLIVE records · Sync in Today to refresh") }.listRowBackground(OliveTheme.raised)
+            Section {
+                ForEach(items) { item in
+                    NavigationLink { TodayEditor(kind: item.record.kind, old: item.record) } label: {
+                        HStack(spacing: 14) {
+                            Text(item.detail).font(.caption.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(item.detail == "Overdue" ? OliveTheme.attention : OliveTheme.accent)
+                                .frame(width: 76, alignment: .leading)
+                            Rectangle().fill(OliveTheme.border).frame(width: 1).padding(.vertical, 2)
+                            Text(item.title).font(.body)
+                        }
                     }
                 }
-            }
-            if !notice.isEmpty { Text(notice) }
-        }.navigationTitle("Agenda")
+                if !notice.isEmpty { Text(notice).font(.subheadline).foregroundStyle(OliveTheme.muted) }
+            }.listRowBackground(OliveTheme.raised)
+        }.oliveListStyle().animation(OliveTheme.Motion.settle, value: items.map(\.id))
+            .navigationTitle("Agenda").navigationBarTitleDisplayMode(.inline)
             .task(id: day) { await refresh() }
     }
     private func refresh() async {

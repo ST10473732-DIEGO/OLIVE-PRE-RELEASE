@@ -152,6 +152,94 @@ struct OliveDetailRow: View {
     private var valueText: some View { Text(value).font(.subheadline).foregroundStyle(valueTint) }
 }
 
+/// Small tinted capsule for a state such as "Allow" or "Sent".
+struct OliveStatusPill: View {
+    let text: String
+    var tint: Color = OliveTheme.secondary
+    var body: some View {
+        Text(text).font(.caption.weight(.semibold)).foregroundStyle(tint).lineLimit(1)
+            .padding(.horizontal, 8).padding(.vertical, 4).background(tint.opacity(0.13), in: Capsule())
+    }
+}
+
+/// Inline message banner; `busy` adds a spinner for work in progress.
+struct OliveNotice: View {
+    let text: String
+    var symbol = "info.circle"
+    var tint: Color = OliveTheme.information
+    var busy = false
+    var identifier: String? = nil
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if busy { ProgressView().controlSize(.small).tint(tint) }
+            else { Image(systemName: symbol).foregroundStyle(tint).accessibilityHidden(true) }
+            Text(text).font(.subheadline).foregroundStyle(OliveTheme.text).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier(identifier ?? "")
+        }
+        .padding(12)
+        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: OliveTheme.Radius.control, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: OliveTheme.Radius.control, style: .continuous).stroke(tint.opacity(0.25)))
+    }
+}
+
+/// A card of rows, like an inset grouped list; separate rows with `OliveRowDivider`.
+struct OliveRowGroup<Content: View>: View {
+    @ViewBuilder let content: Content
+    var body: some View {
+        VStack(spacing: 0) { content }
+            .background(OliveTheme.raised, in: RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous).stroke(OliveTheme.border))
+    }
+}
+
+struct OliveRowDivider: View {
+    var inset: CGFloat = 60
+    var body: some View { Rectangle().fill(OliveTheme.border).frame(height: 0.5).padding(.leading, inset) }
+}
+
+/// Standard tappable row: icon, title, optional detail, trailing accessory.
+struct OliveRow<Trailing: View>: View {
+    let symbol: String
+    var tint: Color = OliveTheme.accent
+    let title: String
+    var detail: String? = nil
+    var detailTint: Color = OliveTheme.muted
+    @ViewBuilder var trailing: Trailing
+    var body: some View {
+        HStack(spacing: 12) {
+            OliveIcon(symbol: symbol, size: 32, tint: tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body).foregroundStyle(OliveTheme.text).multilineTextAlignment(.leading)
+                if let detail, !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(detailTint).multilineTextAlignment(.leading) }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12).frame(minHeight: OliveTheme.minimumTouchTarget)
+        .contentShape(Rectangle())
+    }
+}
+
+extension OliveRow where Trailing == OliveChevron {
+    init(symbol: String, tint: Color = OliveTheme.accent, title: String, detail: String? = nil, detailTint: Color = OliveTheme.muted) {
+        self.init(symbol: symbol, tint: tint, title: title, detail: detail, detailTint: detailTint) { OliveChevron() }
+    }
+}
+
+struct OliveChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(OliveTheme.muted).accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Styles a system List/Form to sit on OLIVE surfaces instead of default grey.
+    func oliveListStyle() -> some View {
+        scrollContentBackground(.hidden).background(OliveTheme.surface)
+    }
+}
+
 /// Three softly bouncing dots for indeterminate work.
 struct OliveActivityDots: View {
     var color: Color = OliveTheme.accent

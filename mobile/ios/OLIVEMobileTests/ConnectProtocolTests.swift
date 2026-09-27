@@ -1423,6 +1423,38 @@ final class BackgroundOperationTests: XCTestCase {
 
 @MainActor
 final class CompanionProtocolTests: XCTestCase {
+    func testFileHistoryClearHidesReceiptsAndRemovesUnsavedFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let staging = FileStaging(directory: directory); try staging.prepare()
+        let peer = "dddddddd-1111-4111-8111-111111111111"
+        let received = "cccccccc-1111-4111-8111-111111111111", sent = "cccccccc-2222-4222-8222-222222222222"
+        let file = try staging.path(received, "bin"); try Data("History fixture".utf8).write(to: file)
+        let checked = try staging.digest(file)
+        let incoming = MobileFileReceipt(id: received, peerID: peer, incoming: true,
+            metadata: try FileMetadata(name: "Received.txt", size: checked.0, sha256: checked.1, mime: "text/plain"),
+            created: Date(), touched: Date(), received: checked.0, state: "completed")
+        let outgoing = MobileFileReceipt(id: sent, peerID: peer, incoming: false,
+            metadata: try FileMetadata(name: "Sent.txt", size: 4, sha256: String(repeating: "0", count: 64), mime: "text/plain"),
+            created: Date(), touched: Date(), received: 0, state: "cancelled")
+        let url = directory.appendingPathComponent("receipts-v1.json")
+        // Receipts written before the additive `hidden` field must still load.
+        try ProtectedStore<[MobileFileReceipt]>(url: url, maximumBytes: 8_000_000).save([incoming, outgoing])
+        XCTAssertFalse(try String(decoding: Data(contentsOf: url), as: UTF8.self).contains("hidden"))
+        let model = FilesModel(session: nil, background: nil, directory: directory)
+        XCTAssertTrue(model.available)
+        XCTAssertEqual(model.history.map(\.id), [sent, received])
+        XCTAssertTrue(model.active.isEmpty)
+        XCTAssertNoThrow(try model.exportURL(received))
+        model.clearHistory()
+        XCTAssertTrue(model.history.isEmpty)
+        XCTAssertEqual(model.receipts.count, 2, "Receipts stay in the ledger for replay checks")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "Unsaved received file is removed")
+        XCTAssertThrowsError(try model.exportURL(received))
+        let reopened = FilesModel(session: nil, background: nil, directory: directory)
+        XCTAssertTrue(reopened.history.isEmpty)
+        XCTAssertEqual(reopened.receipts.map(\.hidden), [true, true])
+    }
     func testFileRejectionsPreserveStorageAndReceiptReasonsWithoutWeakeningValidation() throws {
         let id = UUID().uuidString.lowercased()
         func rejected(_ code: String, requestID: String? = nil) -> Data {

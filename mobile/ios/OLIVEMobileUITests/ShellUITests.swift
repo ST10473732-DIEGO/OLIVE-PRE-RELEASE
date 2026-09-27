@@ -42,7 +42,7 @@ final class RealStudioBackgroundAcceptanceTests: XCTestCase {
         returnToFiles.tap()
         XCTAssertTrue(app.navigationBars["Files"].waitForExistence(timeout: 5))
         let state = app.staticTexts["files.state." + transfer]
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'completed'"), object: state)], timeout: 45), .completed,
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Sent · Verified by computer'"), object: state)], timeout: 45), .completed,
             "Expected C6 verified completion; observed \(state.label). Expiration/interruption is retained for diagnosis, never retried.")
     }
     func testRealSelectedChatTombstoneAcrossRelaunch() throws {
@@ -339,6 +339,22 @@ final class ShellUITests: XCTestCase {
         XCTAssertFalse(clear.exists)
         XCTAssertFalse(app.buttons["chat.scrollToBottom"].exists)
         capture("OLIVE Chat cleared")
+    }
+    func testFilesHistoryClear() {
+        app.terminate(); app.launchArguments += ["--ui-test-companion"]; app.launch()
+        let files = app.buttons["Files"]
+        for _ in 0..<5 { if files.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(files.waitForExistence(timeout: 3)); files.tap()
+        XCTAssertTrue(app.staticTexts["Transfer verified · Ready to Save"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Synthetic UI file.txt"].exists)
+        capture("OLIVE Files history")
+        app.buttons["files.clearHistory"].tap()
+        let confirm = app.buttons["files.clearHistoryConfirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3)); confirm.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["files.empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["files.export"].exists)
+        XCTAssertFalse(app.staticTexts["Synthetic UI file.txt"].exists)
+        capture("OLIVE Files history cleared")
     }
     func testAccessibilityTextSize() {
         app.terminate()

@@ -111,8 +111,7 @@ struct HomeView: View {
             .background(OliveTheme.raised, in: RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous).stroke(OliveTheme.border))
         }.buttonStyle(OlivePressableStyle())
-            .accessibilityElement(children: .ignore).accessibilityLabel(title).accessibilityHint(detail)
-            .accessibilityAddTraits(.isButton).accessibilityIdentifier(title)
+            .accessibilityLabel(title).accessibilityHint(detail).accessibilityIdentifier(title)
     }
 
     @ViewBuilder private func backgroundWork(_ background: BackgroundWorkCoordinator) -> some View {
