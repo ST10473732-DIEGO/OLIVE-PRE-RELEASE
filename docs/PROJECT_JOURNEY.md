@@ -717,3 +717,11 @@ completion before cancellation. Physical unit evidence is now 55 passed, 2 opt-i
 LAN skips; simulator-SDK and Release builds pass. A new relaunch test preserves
 verified files while interrupting and cleaning only unfinished owned staging.
 Normal app launch was restored for the real system cancellation check.
+
+
+The real cancellation follow-up also propagated to CachyOS. The phone receipt
+records cancelled at 16,842,752 bytes; the owner confirms desktop cancellation,
+then background disconnection and reconnection on reopening OLIVE. This is the
+expected release-after-work lifecycle. The owner separately confirmed cancelling
+through the system Live Activity while remaining outside OLIVE. The remaining
+network-loss/force-quit checks are still pending.

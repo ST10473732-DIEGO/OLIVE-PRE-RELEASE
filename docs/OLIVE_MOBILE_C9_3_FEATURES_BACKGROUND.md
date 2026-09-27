@@ -64,7 +64,7 @@ visible progress. File units reflect verified receipt byte counts; incoming byte
 are staged until the final size/hash check. Unknown-length Chat and Studio work
 stay indeterminate. Labels omit prompt, response, workspace and filename content.
 No custom ActivityKit extension or invented percentage is used. Actual system UI
-appearance is owner-confirmed on iOS 27 for both C6 directions; system cancellation remains an acceptance item.
+appearance is owner-confirmed on iOS 27 for both C6 directions, and system Live Activity cancellation propagated to the desktop in the test below.
 
 Reference: [Apple: performing long-running tasks on iOS and iPadOS](https://developer.apple.com/documentation/backgroundtasks/performing-long-running-tasks-on-ios-and-ipados).
 The installed Xcode 27 SDK declarations were also inspected.
@@ -327,18 +327,28 @@ CachyOS desktop, using mobile implementation `0cc209f`:
   deliberately closes the connection after background work completes; that fact
   does not establish the timing of the reported label.
 
+The next outgoing 64 MiB transfer was cancelled using mobile implementation
+`dc8ec93`. The independently read phone receipt
+`85966622-9a4a-46e6-9f68-23536397a863` records cancelled at 16,842,752
+acknowledged bytes. The owner confirms that the desktop also cancelled, the phone
+then appeared disconnected while the owner remained in another app, and reopening
+OLIVE reconnected. This establishes cancellation propagation and the expected
+post-cancellation release/reconnect behavior. The owner separately confirmed using
+Stop/Cancel in the system Live Activity while remaining outside OLIVE. The earlier
+ambiguous Offline observation is not retroactively treated as proven.
+
 The retained C6 maximum is 64 MiB, so a 100 MB acceptance file is prohibited by
 the existing protocol. These results prove the tested supported background file
-flows, not indefinite connectivity, cancellation, force-quit recovery or other
-capabilities.
+flows and the observed cancellation/reconnect path, not indefinite connectivity,
+force-quit recovery or other capabilities.
 
 ## Completion gate and limits
 
 Still pending: actual selected Chat/Today bidirectional records and conflict cases;
 C6 negative cases and the observed desktop presence timing; active
 Chat continuation/Stop; shared Studio save/revision/jobs/cancel and background
-behavior; system progress/cancellation, network loss, force quit, foreground
-recovery, permission Off/Ask/Allow, and C9.2 real-device regression.
+behavior; network loss, force quit and their recovery paths, permission
+Off/Ask/Allow, and C9.2 real-device regression.
 
 Additional implementation/coverage gaps above (recurrence parity, guided corrupted-store recovery, feature conflict/error UI acceptance)
 remain C9.3 work. They are not silently deferred to declare the milestone complete.
