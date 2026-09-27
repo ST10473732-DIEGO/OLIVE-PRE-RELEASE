@@ -958,3 +958,23 @@ C9.3 remains PARTIAL: file collision/revocation and final presence timing, remai
 permission matrices, Studio draft retention, final desktop deletion checks and
 Remote AI recovery/regression are still tracked separately. Another identical
 successful-transfer repeat is not requested merely to replace the truncated trace.
+
+### Owner collision / permission-revocation follow-up — 2026-09-27
+
+The owner confirmed that the existing-destination check was good and that the
+old transfer did not restart after the requested Receive files Off → Allow
+sequence. This records owner-assisted collision protection and no replay after
+capability withdrawal; it does not imply device trust itself was revoked.
+The bounded phone journal independently records the new transfer
+`346f7c82-7d5a-447c-a38b-f9c7735094e6` interrupted after 11,141,120 acknowledged
+bytes, with `systemReportedSuccess: false` and no expiration callback source.
+This corroborates interruption during transfer rather than a completed transfer
+being retrospectively called cancelled. The owner did not supply exact desktop
+error wording or a separate artifact query; those are not fabricated.
+
+No code changed in this evidence-only follow-up, which began at `9c3dcf9` on
+`feature/olive-mobile-c9-3`. Existing regression results remain applicable.
+Collision protection and active capability withdrawal/no replay now have real
+owner evidence. Remaining C5/C8 permission matrices, Studio draft retention,
+desktop deletion confirmations, exact desktop presence timing and final Remote
+AI checks still prevent milestone closure. C9.3 remains PARTIAL.

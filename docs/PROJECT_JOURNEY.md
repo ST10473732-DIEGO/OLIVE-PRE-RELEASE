@@ -909,3 +909,10 @@ bound before completion; it cannot explain the earlier expiration. No code chang
 occurred between these runs, so the success is retained alongside the failures
 without claiming a root-cause fix. Remaining edge/permission/regression acceptance
 keeps C9.3 PARTIAL; no further identical success repeat is requested.
+
+The owner then passed existing-file collision protection and confirmed no restart
+after Files capability Off → Allow. The phone journal corroborates interruption
+at 11,141,120 bytes with unsuccessful system completion and no expiration callback.
+This establishes capability-withdrawal/no-replay evidence, without claiming device
+trust revocation or unreported desktop artifact inspection. Remaining permission,
+Studio draft, deletion, presence and Remote AI checks keep C9.3 PARTIAL.

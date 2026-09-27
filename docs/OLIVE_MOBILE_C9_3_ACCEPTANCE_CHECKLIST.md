@@ -43,8 +43,9 @@ owner attempt completed all 64 MiB in 69.228 seconds with a real background gran
 and success recorded. Keep both results; no root-cause fix is claimed. The USB
 scheduler trace captured admission but hit its byte limit before completion.
 Do not repeat the successful transfer solely for that trace. Exact desktop UI
-presence timing is still open; collision and active permission revocation are the
-next file checks. Save/dismiss only owned completed fixtures if quota blocks them.
+presence timing is still open. Collision and active permission revocation/no replay
+now have owner confirmation; the phone journal corroborates an interrupted active
+transfer. Save/dismiss only owned completed fixtures if quota blocks later checks.
 
 The 5 MiB/64 MiB round trips, hashes, quarantine/export, background Stop,
 network loss and force quit already passed. The real invalid-hash rejection,
@@ -53,9 +54,8 @@ rejection also passed. Do not repeat those successful transfers unnecessarily.
 
 1. **Passed:** desktop Receive files Off blocked phone sending; Ask completed
    after one approval; Allow completed without approval. Do not repeat this matrix.
-   For that completed transfer, attempt desktop
-   Save over the fixture's existing `collision.bin`; cancellation/refusal must
-   preserve the existing file. Do not authorize replacing it.
+   **Passed:** owner confirmed the existing `collision.bin` Save protection check.
+   Do not repeat it or authorize replacing that fixture.
 2. **Passed:** Send selected files Off blocked desktop sending; Ask completed
    after one approval and phone acceptance; Allow completed without another
    desktop approval, retaining phone acceptance. Change both file permissions
@@ -72,10 +72,10 @@ rejection also passed. Do not repeat those successful transfers unnecessarily.
    ```
 
    Use OLIVE's actual configured profile if different; do not copy databases.
-4. Start a fresh 64 MiB phone send. While bytes are still increasing, change
-   desktop **Receive files** to Off. Confirm interruption, no completed artifact
-   and no automatic retry when restored to Allow. A transfer completed before
-   revocation does not establish this check.
+4. **Passed:** owner confirmed no restart after Receive files Off → Allow in the
+   active-transfer test. The phone journal shows interruption at 11,141,120 bytes
+   with unsuccessful system completion. Exact desktop wording/artifact inspection
+   was not separately provided; do not equate this with device trust revocation.
 5. If the owned 65 MiB fixture is already accessible in the phone's system file
    picker, select it and confirm **File too large** before transfer. Otherwise
    report picker case NOT RUN; do not try to send it through C6 to arrange this.
