@@ -387,6 +387,16 @@ failure reasons/finish times, and the draft message explicitly says nothing was
 resent. New physical tests cover old v1 decoding, persisted failure diagnosis,
 late-completion fencing, retained partial output and exactly one start on failure.
 
+During the requested system Chat Stop check, the owner reported that text stopped
+growing and OLIVE showed Interrupted · connection closed. The independently read
+journal has no running tasks; request `6f9a41a0-855d-4a3e-ae00-c47b67aed793`
+ended after 744 received answer bytes via the continued-task expiration handler
+(`expired`, `backgroundTaskExpired`). That callback also handles the system Stop
+control, so this code alone cannot distinguish a person cancelling from an iOS
+resource expiration. Confirmation of the exact control and desktop job release
+is still pending; the observed phone-side interruption is recorded without
+claiming desktop cancellation acknowledgement.
+
 The owner also reported an older activity still visible and clarified that it
 says Task failed. This is a terminal failure display; no running operation remains
 in OLIVE's journal. Apple's DTS explains that the system manages this UI
@@ -406,8 +416,8 @@ force-quit/relaunch/no-replay, not indefinite connectivity or other capabilities
 ## Completion gate and limits
 
 Still pending: actual selected Chat/Today bidirectional records and conflict cases;
-C6 negative cases and the observed desktop presence timing; active
-Chat active-response Stop and further interruption cases; shared Studio save/revision/jobs/cancel and background
+C6 negative cases and the observed desktop presence timing; Chat Stop desktop
+release/control confirmation and further interruption cases; shared Studio save/revision/jobs/cancel and background
 behavior; remaining direction-specific failure cases, permission Off/Ask/Allow,
 and C9.2 real-device regression.
 

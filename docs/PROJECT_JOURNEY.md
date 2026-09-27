@@ -768,3 +768,10 @@ and clarifies draft restoration. Physical unit tests now pass 57 cases with 2
 opt-in LAN skips; simulator-SDK and generic Release builds pass. Tests cover
 migration, persisted errors, late completion, and output-limit recovery without a
 second start. Normal app launch was restored for the active Chat Stop check.
+
+
+The requested Chat Stop check stopped visible text and showed Interrupted ·
+connection closed on the iPhone. The journal independently records the task ended
+after 744 received bytes through the system expiration callback, with no running
+operations. This callback can also represent user Stop; desktop job release and
+exact-control confirmation remain pending. Real Today Tasks acceptance is next.
