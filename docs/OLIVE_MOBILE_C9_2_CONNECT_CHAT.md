@@ -16,8 +16,10 @@ no new approval. After desktop revocation and an explicit phone Reconnect,
 the owner confirms the phone remains offline/disconnected with Chat unavailable.
 The owner also confirms mobile unpair removes the computer from Paired while
 the displayed phone identity remains unchanged, followed by an explicitly
-confirmed identity reset that shows a different Identity value. Unattended
-desktop restart recovery, fresh pairing and remaining security acceptance are pending.
+confirmed identity reset that shows a different Identity value. Fresh pairing
+then succeeds with Connected / Remote AI Off, requiring a new desktop permission
+decision. Temporary-rule cleanup, restored Chat under the new identity,
+unattended desktop restart recovery and remaining security acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -137,8 +139,9 @@ closed; only another explicit reset repairs it. Tests use separate disposable
 Keychain services. On 2026-09-27, after completing the revocation and local
 unpair checks, the owner explicitly confirmed reset on the production app and
 reported both the Identity reset notice and a changed displayed Identity value.
-Fresh pairing and desktop permission assignment remain pending; no restoration
-of the revoked identity's authority is claimed.
+The owner subsequently confirms fresh pairing succeeds with Connected / Remote
+AI Off. The new desktop permission assignment and subsequent Chat check remain
+pending; no restoration of the revoked identity's authority is claimed.
 
 Discovery cannot authenticate names or expose a pairing offer: desktop mDNS
 contains neither. Nearby therefore says **OLIVE computer — identity not yet
@@ -231,8 +234,8 @@ permission behavior changes.
 | Desktop revocation | **Passed, owner-observed 2026-09-27:** after following desktop Revoke device and phone Reconnect instructions, the phone remains offline/disconnected with Chat unavailable. The mobile pairing record was retained during this check; no key reset or new pairing was performed. This is real UI acceptance, not an independently captured TLS rejection trace |
 | Mobile-local unpair | **Passed, owner-observed 2026-09-27:** the owner confirms the computer disappears from Paired after Unpair and the displayed Identity value stays unchanged. This verifies the visible removal and identity preservation; automated repository tests separately verify removal of peer pin material. No removal of the desktop's revoked record is claimed |
 | Identity reset | **Passed, owner-observed 2026-09-27:** after explicit confirmation in Settings, the phone shows Identity reset and a different displayed Identity value. This follows successful unpair; the old desktop trust record remains revoked |
-| Fresh pairing after reset | Pending. Owner confirms the same phone address; `ss` shows only main TCP 33823 in the existing desktop process, and numbered UFW output confirms its phone-only allowance. The old temporary 52643 rule is also still listed despite the earlier cleanup report; requested removal before a fresh QR/listener check. New identity requires full two-sided confirmation and a fresh desktop Remote AI permission decision |
-| Fresh reset-recovery offer | Owner subsequently reports temporary TCP 50703 alongside main 33823, both in the same OLIVE process. Provided an allowance limited to the current phone, selected LAN interface/address and TCP 50703, with immediate scan and full two-sided confirmation. Pair result and old-rule deletion result remain pending. The temporary 50703 allowance must be removed after this attempt |
+| Fresh pairing after reset | **Passed, owner-observed 2026-09-27:** after the fresh QR and full two-sided confirmation instructions, the owner reports the phone connected again with Remote AI Off. The new identity does not inherit the old identity's Allow setting. Fresh desktop Allow and a subsequent arithmetic Chat check have been requested |
+| Fresh reset-recovery offer and cleanup | Owner reports temporary TCP 50703 alongside main 33823, both in the same OLIVE process. Provided an allowance limited to the current phone, selected LAN interface/address and TCP 50703. After successful pairing, requested exact deletion of the 50703 rule and numbered UFW output to verify cleanup, including the previously observed stale 52643 rule. Cleanup remains pending |
 | Wrong peer | Native wrong-pin tests pass; real cross-device wrong-peer check remains pending |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -426,7 +429,9 @@ Stop, subsequent requests and mobile interruption recovery have passed as
 recorded above. Desktop revocation also prevents reconnect and Chat in the
 owner's real-device check. Mobile-local unpair removes the paired device while
 preserving the displayed phone identity. Explicit identity reset then produced
-a changed displayed identity. Fresh pairing, remaining security acceptance and
+a changed displayed identity, and fresh pairing succeeds with Remote AI Off.
+Restored Chat after a new desktop Allow decision, temporary-rule cleanup,
+remaining security acceptance and
 final relevant tests remain. Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work

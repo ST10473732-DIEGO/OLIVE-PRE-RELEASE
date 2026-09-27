@@ -456,3 +456,9 @@ The fresh offer's listener is TCP 50703 alongside main 33823 in the same OLIVE
 process. Provided the exact phone-only allowance and instructed immediate scan
 and full two-sided confirmation, retaining Remote AI Off initially. Pairing,
 old-rule deletion and subsequent temporary-rule cleanup are not yet confirmed.
+
+The owner then confirmed fresh pairing completed and the iPhone is Connected /
+Remote AI Off. This verifies recovery with the new identity without inheriting
+the revoked identity's Allow permission. Requested deletion of the temporary
+50703 rule and numbered UFW output to verify cleanup, followed by a new desktop
+Allow decision and an explicit arithmetic request. Those results remain pending.
