@@ -65,6 +65,9 @@ export const connectSchemas = {
     })
     .strict(),
   "connect.revoke": z.object({ device_id: id }).strict(),
+  "connect.remove": z.object({ device_id: id }).strict(),
+  "connect.activity_clear": z.object({ device_id: id }).strict(),
+  "connect.files_clear": z.object({ device_id: id }).strict(),
   "connect.open": z
     .object({
       device_id: id,

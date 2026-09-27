@@ -39,7 +39,8 @@ class DevicesWorkspace:
         local['fingerprint'] = fingerprint(json.loads(row[0])) if row and row[1] == 'ready' else None
         local['core_available'] = True
         devices = []
-        for record in s.paired_devices():
+        removed = s.repository.removed()
+        for record in s.listed_devices():
             value = {k: v for k, v in record.items() if k != 'public_identity'}
             value['live'] = network.status(record['device_id']) if network else dict(
                 state='offline', error=None, encrypted=False, connection=None, latency_ms=None)
@@ -56,7 +57,7 @@ class DevicesWorkspace:
                 port=network.port if network else None, discovery=bool(network and network.discovery),
                 persistent=s.persistent_network, pairing_port=s.pairing_port or None),
             nearby=[{k: v for k, v in entry.items() if k != 'seen'} for entry in network.discovery.nearby()] if network and network.discovery else [],
-            sync=s.sync.status() if s.sync else None, activity=s.repository.activity()[-200:], pairing_recovery=recovery[-32:])
+            sync=s.sync.status() if s.sync else None, activity=[a for a in s.repository.activity() if a['source_device_id'] not in removed][-200:], pairing_recovery=recovery[-32:])
 
     def enable(self, address, discovery, persistent=False):
         with self.lock:

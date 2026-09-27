@@ -130,6 +130,23 @@ class FileTests(unittest.TestCase):
             self.assertFalse(self.b.files.store.path(offer.transfer_id,'bin').exists())
             self.assertFalse(self.b.files.store.path(offer.transfer_id,'part').exists())
 
+    def test_clear_hides_finished_transfers_and_keeps_replay_receipts(self):
+        self.allow()
+        row = self.send_file()
+        self.assertEqual(row['state'], 'completed', row)
+        artifact = self.b.files.store.path(row['transfer_id'], 'bin')
+        self.assertTrue(artifact.exists())
+        self.assertEqual(self.b.files.clear(self.c.local_id), {'cleared': 0})
+        self.assertEqual(self.b.files.clear(self.a.local_id), {'cleared': 1})
+        self.assertEqual(self.b.files.list(self.a.local_id), [])
+        self.assertFalse(artifact.exists())
+        self.assertEqual(self.a.files.clear(self.b.local_id), {'cleared': 1})
+        self.assertEqual(self.a.files.list(), [])
+        with self.b.repository.transaction(read_only=True) as db:
+            receipt = self.b.files.store.get(db, row['transfer_id'])
+        self.assertEqual((receipt['state'], receipt['cleared']), ('dismissed', True))
+        self.assertEqual(self.b.files.clear(self.a.local_id), {'cleared': 0})
+
     def test_completed_replay_and_changed_duplicate(self):
         from dataclasses import replace
         self.allow(); offer = self.offer()

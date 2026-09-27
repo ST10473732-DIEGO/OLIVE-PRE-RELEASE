@@ -272,7 +272,8 @@ class FileTransferService:
     def list(self, peer=None):
         with self.lock, self.service.repository.transaction(read_only=True) as db:
             return [{k: v for k, v in row.items() if k not in {'offer', 'permission_binding'}}
-                    for row in self.store.list(db) if peer is None or row['peer_id'] == peer][:100]
+                    for row in self.store.list(db) if (peer is None or row['peer_id'] == peer)
+                    and not row.get('cleared')][:100]
 
     @staticmethod
     def _open_regular(path):
@@ -526,6 +527,23 @@ class FileTransferService:
             row['state'] = 'dismissed'
             self.store.put(db, row)  # Retain replay receipt even after explicit local deletion.
         return {'dismissed': True}
+
+    def clear(self, device_id):
+        """Hide finished transfers with one device and delete unsaved received files.
+
+        Rows stay in the ledger as replay receipts; active transfers are untouched."""
+        cleared = 0
+        with self.lock, self.service.repository.transaction() as db:
+            for row in self.store.list(db):
+                if row['peer_id'] != device_id or row['state'] not in TERMINAL or row.get('cleared'):
+                    continue
+                if row['direction'] == 'incoming' and row['state'] == 'completed':
+                    self.store.path(row['transfer_id'], 'bin').unlink(missing_ok=True)
+                    row['state'] = 'dismissed'
+                row['cleared'] = True
+                self.store.put(db, row)
+                cleared += 1
+        return {'cleared': cleared}
 
     def close(self):
         with self.lock:

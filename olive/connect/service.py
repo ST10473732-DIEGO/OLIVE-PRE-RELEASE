@@ -103,6 +103,11 @@ class DesktopDeviceService:
     def paired_devices(self, *, timeout=10):
         return self.repository.devices(timeout=timeout)
 
+    def listed_devices(self):
+        """Devices shown to the user: removed revoked devices are left out."""
+        removed = self.repository.removed()
+        return [d for d in self.paired_devices() if d['device_id'] not in removed]
+
     def rename(self, device_id, name):
         identifier(device_id)
         name = display_name(name)
@@ -197,6 +202,25 @@ class DesktopDeviceService:
         if self.network is not None:
             self.network.disconnect(device_id, revoked=True)
         return record
+
+    def remove(self, device_id):
+        """Hide a revoked device from Devices. Its revoked record stays as a tombstone."""
+        identifier(device_id)
+        with self.repository.transaction() as db:
+            record = self.repository.get(db, device_id)
+            if not record or device_id == self.local_id:
+                raise ConnectError('unknown_device')
+            if record['trust_state'] != 'revoked':
+                raise ConnectError('device_not_revoked')
+            db.execute('INSERT OR IGNORE INTO removed_devices VALUES(?,?)', (device_id, int(self.clock())))
+            db.execute('DELETE FROM activity WHERE source_device_id=?', (device_id,))
+        self.files.clear(device_id)
+        return {'removed': True}
+
+    def clear_activity(self, device_id):
+        identifier(device_id)
+        self.device(device_id)
+        return {'cleared': self.repository.clear_activity(device_id)}
 
     def _authorize(self, db, request, peer, public=None):
         if self.closed or (public is None and not self.fixture_mode):

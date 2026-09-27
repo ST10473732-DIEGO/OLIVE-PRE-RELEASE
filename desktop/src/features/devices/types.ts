@@ -35,6 +35,7 @@ export interface Device {
   device_class: string;
   trust_state?: string;
   paired_at?: number;
+  revoked_at?: number | null;
   last_seen?: number;
   fingerprint?: string;
   identity_fingerprint?: string;

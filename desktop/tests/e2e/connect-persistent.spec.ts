@@ -33,7 +33,7 @@ test("persistent Connect is explicit, reports exact ports, and Off persists", as
     expect(saved.pairing_port).toBeGreaterThanOrEqual(1024);
     expect(saved.port).not.toBe(saved.pairing_port);
     await expect(page.getByText(`Connect port ${saved.port}. Pairing port ${saved.pairing_port} opens only during pairing.`)).toBeVisible();
-    await page.getByRole("button", { name: "Connect a device", exact: true }).click();
+    await page.getByRole("button", { name: "Pair a device", exact: true }).click();
     await expect(page.locator(".devices-qr svg")).toBeVisible();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);

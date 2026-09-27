@@ -1,17 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
-  Check,
-  Hand,
   Info,
-  Laptop,
+  KeyRound,
   Lock,
-  Monitor,
   Plus,
   Radio,
-  ShieldCheck,
-  Smartphone,
+  ShieldOff,
+  Trash2,
   Wifi,
 } from "lucide-react";
 import { call } from "../../services/api";
@@ -28,15 +25,56 @@ import {
   type PairingState,
   type SafeCapability,
 } from "./types";
+import { Confirm, DeviceIcon, Segmented, ago, dateLabel, deviceKind, fullTime, sentence } from "./ui";
 import "./devices.css";
-const time = (value?: number) =>
-  value ? new Date(value * 1000).toLocaleString() : "Not recorded";
+
+/** Capabilities this version offers as controls; everything else is listed as unavailable. */
+const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read"];
+const TABS = ["status", "permissions", "activity"] as const;
+type Tab = (typeof TABS)[number];
+
+const CAPABILITY_LABELS: Record<string, string> = {
+  ...Object.fromEntries(permissionGroups.flatMap(([, items]) => items.map(([cap, label]) => [cap, label]))),
+  "sync.tasks": "Tasks sync",
+  "sync.calendar": "Calendar sync",
+  "sync.reminders": "Reminders sync",
+  "sync.chat": "Chat sync",
+};
+const capabilityLabel = (cap: string) =>
+  CAPABILITY_LABELS[cap] || (cap.startsWith("studio.") ? `Studio ${cap.slice(7)}` : sentence(cap));
+
+const EVENT_LABELS: Record<string, string> = {
+  device_revoked: "Device revoked",
+  revoked_connection_closed: "Connection closed after revoke",
+  pairing_completed: "Paired",
+  connection_authenticated: "Connected securely",
+  connection_started: "Connecting",
+  connection_closed: "Disconnected",
+  connection_failed: "Connection failed",
+  permission_changed: "Permission changed",
+  permission_off: "Blocked · permission is Off",
+  confirmation_required: "Waiting for your approval",
+  file_offer: "File offered",
+  file_accepted: "File accepted",
+  file_declined: "File declined",
+  transfer_started: "Transfer started",
+  transfer_completed: "Transfer completed",
+  transfer_cancelled: "Transfer cancelled",
+  transfer_failed: "Transfer failed",
+};
+const eventLabel = (state: string) => EVENT_LABELS[state] || sentence(state);
+const eventTone = (state: string) =>
+  /revoked|failed|denied|declined|rejected|mismatch|invalid|error/.test(state) ? "error"
+  : /off|required|cancel|closed|expired/.test(state) ? "warning"
+  : /approved|completed|paired|authenticated|accepted|allowed/.test(state) ? "success"
+  : "neutral";
+
 export function Devices() {
   const [data, setData] = useState<DevicesState | null>(null),
     [error, setError] = useState(""),
     [selected, setSelected] = useState("this"),
     [detail, setDetail] = useState(false),
-    [tab, setTab] = useState("status"),
+    [tab, setTab] = useState<Tab>("status"),
     [busy, setBusy] = useState(false),
     [address, setAddress] = useState(""),
     [discovery, setDiscovery] = useState(false),
@@ -47,8 +85,13 @@ export function Devices() {
     [pairingCode, setPairingCode] = useState(""),
     [pairing, setPairing] = useState<PairingState | null>(null),
     [revoke, setRevoke] = useState(false),
+    [removing, setRemoving] = useState(false),
+    [clearingActivity, setClearingActivity] = useState(false),
     [endpoint, setEndpoint] = useState(""),
     [port, setPort] = useState("");
+  // Actions run one at a time. Controls stay enabled while one runs, so the
+  // page does not flash every button to its disabled look on each click.
+  const running = useRef(false);
   const refresh = useCallback(async () => {
     const value = await call<DevicesState>("connect.snapshot", {});
     setData(value);
@@ -75,6 +118,8 @@ export function Devices() {
     };
   }, []);
   const act = async (action: () => Promise<unknown>) => {
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     setError("");
     try {
@@ -85,6 +130,7 @@ export function Devices() {
         e instanceof Error ? e.message : "The action could not complete.",
       );
     } finally {
+      running.current = false;
       setBusy(false);
     }
   };
@@ -92,13 +138,14 @@ export function Devices() {
     setSelected(id);
     setDetail(true);
     setTab("status");
+    setEditing(false);
     setEndpoint("");
     setPort("");
   };
   const startPairing = () => {
     if (data?.network.state !== "on") {
       setError(
-        "Select a local interface and enable Connect in This device before pairing.",
+        "Turn on OLIVE Connect for this computer before pairing.",
       );
       select("this");
       return;
@@ -111,6 +158,12 @@ export function Devices() {
     selected === "this"
       ? data?.local
       : data?.devices.find((d) => d.device_id === selected);
+  // A removed device disappears from the snapshot; fall back to this computer.
+  useEffect(() => {
+    if (data && selected !== "this" && selected !== "nearby" && !device) setSelected("this");
+  }, [data, selected, device]);
+  const tone = (d: Device) =>
+    d.trust_state === "revoked" ? "error" : d.live?.state === "online" ? "online" : "offline";
   const row = (d: Device, local = false) => (
     <button
       key={d.device_id}
@@ -118,70 +171,57 @@ export function Devices() {
       onClick={() => select(local ? "this" : d.device_id)}
     >
       <span className="devices-icon">
-        {d.device_class === "phone" || d.device_class === "tablet" ? <Smartphone size={15} aria-hidden="true" /> : d.device_class === "laptop" ? <Laptop size={15} aria-hidden="true" /> : <Monitor size={15} aria-hidden="true" />}
+        <DeviceIcon device={d} />
       </span>
       <span>
         <strong>{d.display_name}</strong>
         <small>
           {local
-            ? `${d.public_identity_metadata?.os || d.platform} · Connect ${data?.network.state}`
+            ? `${d.public_identity_metadata?.os || d.platform} · Connect ${data?.network.state === "on" ? "on" : "off"}`
             : deviceStatus(d)}
         </small>
       </span>
-      {!local && (
-        <span
-          className="status-dot"
-          data-tone={d.trust_state === "revoked" ? "error" : d.live?.state === "online" ? "online" : "offline"}
-          aria-hidden="true"
-        />
-      )}
+      {!local && <span className="status-dot" data-tone={tone(d)} aria-hidden="true" />}
     </button>
   );
   const on = data?.network.state === "on";
+  const remote = device && selected !== "this" ? device : null;
+  const revoked = remote?.trust_state === "revoked";
+  const activity = remote && data ? data.activity.filter((a) => a.source_device_id === remote.device_id).reverse() : [];
   return (
-    <section className="devices-workspace" aria-label="Devices workspace">
+    <section className="devices-workspace" aria-label="Devices workspace" aria-busy={busy}>
       <header className="devices-head">
         <div>
           <h1>Devices</h1>
           <p>Pair your phone and other computers over your own network.</p>
         </div>
-        <span className="devices-pill" data-tone={data?.network.state === "on" ? "on" : undefined}>
-          <span className="status-dot" data-tone={data?.network.state === "on" ? "online" : "offline"} aria-hidden="true" />
-          Connect {data?.network.state || "unavailable"}
-        </span>
-        <button className="primary devices-pair-primary" disabled={busy || !data} onClick={startPairing}>
+        <button className="quiet devices-code" disabled={!data} onClick={() => setImporting(true)}>
+          <KeyRound size={15} aria-hidden="true" />
+          Enter pairing code
+        </button>
+        <button className="primary devices-pair-primary" disabled={!data} onClick={startPairing}>
           <Plus size={16} aria-hidden="true" />
           Pair a device
         </button>
       </header>
       {error && (
         <div className="devices-error" role="alert">
-          {error}
-          <button onClick={() => void act(refresh)}>Retry</button>
+          <span>{error}</span>
+          <button className="quiet" onClick={() => void act(refresh)}>Retry</button>
+          <button className="quiet" aria-label="Dismiss" onClick={() => setError("")}>✕</button>
         </div>
       )}
       {!data ? (
-        <div className="devices-empty">Loading local device state…</div>
+        <div className="devices-empty">Loading devices…</div>
       ) : (
         <div className="devices-body" data-detail={detail}>
           <aside className="devices-rail" aria-label="Device list">
-            <div className="devices-rail-head">
-              <strong>Devices</strong>
-              <button
-                className="icon-button"
-                aria-label="Connect a device"
-                disabled={busy}
-                onClick={startPairing}
-              >
-                <Plus size={18} />
-              </button>
-            </div>
             <div className="devices-rail-scroll">
-              <p className="devices-eyebrow">This device</p>
+              <p className="devices-eyebrow">This computer</p>
               {row(data.local, true)}
-              <button onClick={() => setImporting(true)}>Pair device</button>
               {data.pairing_recovery?.map((session) => (
                 <button
+                  className="devices-row devices-row-recovery"
                   key={session.session_id}
                   onClick={() =>
                     void act(async () =>
@@ -193,30 +233,34 @@ export function Devices() {
                     )
                   }
                 >
-                  Pairing completion ·{" "}
-                  {session.state === "completed" ? "Completed" : "Pending"}
+                  <span className="devices-icon"><KeyRound size={15} aria-hidden="true" /></span>
+                  <span>
+                    <strong>Finish pairing</strong>
+                    <small>{session.state === "completed" ? "Completed" : "Pending"}</small>
+                  </span>
                 </button>
               ))}
-              <p className="devices-eyebrow">Paired</p>
+              <p className="devices-eyebrow">
+                Paired
+                {data.devices.length > 0 && <span className="devices-count">{data.devices.length}</span>}
+              </p>
               {data.devices.map((d) => row(d))}
               {!data.devices.length && (
-                <div className="devices-rail-empty">
-                  No paired devices yet.
-                  <button onClick={startPairing} disabled={busy}>
-                    Connect first device
-                  </button>
-                </div>
+                <p className="devices-rail-empty">No paired devices yet.</p>
               )}
               <p className="devices-eyebrow">Nearby</p>
               {!data.nearby.length && (
                 <p className="devices-rail-empty">
-                  No nearby OLIVE devices found.
-                  {!data.network.discovery && " Nearby discovery is off."}
+                  {!on
+                    ? "Turn Connect on to find nearby devices."
+                    : data.network.discovery
+                      ? "No nearby OLIVE devices found."
+                      : "Nearby discovery is off."}
                 </p>
               )}
               {data.nearby.map((n) => (
                 <button
-                  className="devices-row unpaired"
+                  className={`devices-row unpaired ${selected === "nearby" && endpoint === n.address ? "selected" : ""}`}
                   key={n.instance}
                   onClick={() => {
                     select("nearby");
@@ -225,7 +269,7 @@ export function Devices() {
                   }}
                 >
                   <span className="devices-icon">
-                    <Radio size={18} />
+                    <Radio size={15} aria-hidden="true" />
                   </span>
                   <span>
                     <strong>OLIVE device</strong>
@@ -235,127 +279,93 @@ export function Devices() {
               ))}
             </div>
             <footer className="devices-rail-foot">
-              <Radio size={17} />
+              <span className="status-dot" data-tone={on ? "online" : "offline"} aria-hidden="true" />
               <span>
-                <strong>OLIVE Connect</strong>
+                <strong>OLIVE Connect {on ? "on" : "off"}</strong>
                 <small>
                   {on
                     ? `${data.network.interface?.name} · ${data.network.interface?.address}`
-                    : "Off — not reachable"}
+                    : "Not reachable by other devices"}
                 </small>
               </span>
               <button
+                className="quiet"
                 aria-label={on ? "Turn Connect off" : "Set up Connect"}
-                disabled={busy}
                 onClick={() =>
                   on
                     ? void act(() => call("connect.disable", {}))
                     : select("this")
                 }
               >
-                {on ? "Off" : "Set up"}
+                {on ? "Turn off" : "Set up"}
               </button>
             </footer>
           </aside>
           <main className="devices-main">
-            <div className="devices-main-inner">
+            <div className="devices-main-inner" key={selected}>
               <button
                 className="devices-back quiet"
                 onClick={() => setDetail(false)}
               >
-                <ArrowLeft size={16} />
+                <ArrowLeft size={16} aria-hidden="true" />
                 Back to devices
               </button>
               {selected === "nearby" ? (
                 <>
-                  <h2>Discovered OLIVE device</h2>
-                  <span className="devices-pill">Unpaired · Untrusted</span>
-                  <p>
-                    Discovery does not verify identity. Pairing requires both
-                    devices to compare and confirm the same value.
-                  </p>
-                  <p>
-                    {endpoint}:{port}
-                  </p>
-                  <button onClick={startPairing} disabled={busy}>
-                    Create pairing offer
-                  </button>
+                  <div className="devices-detail-head">
+                    <span className="devices-icon large"><Radio size={22} aria-hidden="true" /></span>
+                    <div>
+                      <h2>OLIVE device</h2>
+                      <p className="devices-sub-line">
+                        <span className="devices-pill">Unpaired · Untrusted</span>
+                        <span className="mono">{endpoint}:{port}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <section className="devices-card">
+                    <header className="devices-card-head">
+                      <div>
+                        <h3>Pair with this device</h3>
+                        <p>
+                          Discovery doesn’t prove who this is. Pairing asks both
+                          devices to compare and confirm the same code.
+                        </p>
+                      </div>
+                      <div className="devices-card-actions">
+                        <button className="primary" onClick={startPairing}>
+                          Create pairing offer
+                        </button>
+                      </div>
+                    </header>
+                  </section>
                 </>
               ) : (
                 device && (
                   <>
                     <div className="devices-detail-head">
                       <span className="devices-icon large">
-                        <Laptop size={26} />
+                        <DeviceIcon device={device} size={22} />
                       </span>
                       <div>
                         <h2>{device.display_name}</h2>
-                        <div className="devices-meta">
-                          <span className="devices-pill">
-                            {selected === "this"
-                              ? "This device"
-                              : deviceStatus(device)}
-                          </span>
-                          <span>
-                            {device.device_class} ·{" "}
-                            {device.public_identity_metadata?.os ||
-                              device.platform}
-                          </span>
-                          {device.paired_at ? <span>paired {new Date(device.paired_at * 1000).toLocaleDateString()}</span> : null}
-                        </div>
+                        <p className="devices-sub-line">
+                          {remote ? (
+                            <span className="devices-pill" data-tone={tone(remote)}>
+                              <span className="status-dot" data-tone={tone(remote)} aria-hidden="true" />
+                              {deviceStatus(remote)}
+                            </span>
+                          ) : (
+                            <span className="devices-pill">This computer</span>
+                          )}
+                          <span>{deviceKind(device)}</span>
+                          {remote?.paired_at ? <span>Paired {dateLabel(remote.paired_at)}</span> : null}
+                        </p>
                       </div>
                     </div>
-                    {selected !== "this" && (
-                      <>
-                        <dl className="devices-facts" aria-label="Connection, trust and encryption">
-                          <div>
-                            <dt>Connection</dt>
-                            <dd>
-                              <span className="status-dot" data-tone={device.trust_state === "revoked" ? "error" : device.live?.state === "online" ? "online" : "offline"} aria-hidden="true" />
-                              {deviceStatus(device)}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Trust</dt>
-                            <dd>
-                              {device.trust_state === "revoked" ? (
-                                "Revoked"
-                              ) : (
-                                <>
-                                  <ShieldCheck size={13} aria-hidden="true" />
-                                  Paired · code compared
-                                </>
-                              )}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Encryption</dt>
-                            <dd>
-                              {device.live?.encrypted && device.live.state === "online" && device.trust_state === "paired" ? (
-                                <span className="devices-tls">
-                                  <Lock size={13} aria-hidden="true" />
-                                  Encrypted · TLS 1.3
-                                </span>
-                              ) : (
-                                "No active connection"
-                              )}
-                            </dd>
-                          </div>
-                        </dl>
-                        {device.trust_state === "paired" && (
-                          <p className="notice devices-trust" role="note">
-                            <Info size={14} aria-hidden="true" />
-                            <span>
-                              Pairing proves this is {device.display_name}. <strong>It grants no access.</strong> Each capability starts Off and applies to what {device.display_name} can do on <strong>this PC</strong>. What this PC can do on {device.display_name} is set on {device.display_name}.
-                            </span>
-                          </p>
-                        )}
-                      </>
-                    )}
                     {selected === "this" ? (
                       <>
-                        <div className="devices-panel">
-                          <header>
+                        <section className="devices-card" aria-label="OLIVE Connect">
+                          <header className="devices-card-head">
                             <div>
                               <h3>OLIVE Connect</h3>
                               <p>
@@ -363,42 +373,34 @@ export function Devices() {
                                 local network.
                               </p>
                             </div>
-                            <span className="devices-pill">
-                              {busy ? "Working" : data.network.state}
+                            <span className="devices-pill" data-tone={on ? "online" : undefined}>
+                              {busy ? "Working…" : on ? "On" : data.network.state === "failed" ? "Failed" : "Off"}
                             </span>
                           </header>
-                          <div className="devices-panel-body">
-                            {!on && (
-                              <p className="devices-notice">
-                                Connect is off. Select a local interface
-                                explicitly before turning it on. It stays off
-                                after restarting OLIVE.
-                              </p>
-                            )}
-                            {data.network.error && (
-                              <p role="alert">
-                                Could not start Connect:{" "}
-                                {data.network.error.replaceAll("_", " ")}. Check
-                                the selected interface, secure key store and
-                                local firewall.
-                              </p>
-                            )}
-                            <p className="devices-eyebrow">Local interface</p>
+                          {data.network.error && (
+                            <p className="devices-inline-error" role="alert">
+                              Could not start Connect:{" "}
+                              {data.network.error.replaceAll("_", " ")}. Check
+                              the selected network, secure key store and
+                              firewall.
+                            </p>
+                          )}
+                          <div className="devices-field">
+                            <span className="devices-field-label">Network</span>
                             <div className="devices-interfaces">
                               {data.interfaces.map((i) => (
                                 <button
                                   key={i.address}
                                   aria-pressed={
-                                    address === i.address ||
-                                    (on &&
-                                      data.network.interface?.address ===
-                                        i.address)
+                                    on
+                                      ? data.network.interface?.address === i.address
+                                      : address === i.address
                                   }
-                                  disabled={on || busy}
+                                  disabled={on}
                                   className="devices-interface"
                                   onClick={() => setAddress(i.address)}
                                 >
-                                  <Wifi size={18} />
+                                  <Wifi size={16} aria-hidden="true" />
                                   <span>
                                     <strong>{i.name}</strong>
                                     <small>{i.address}</small>
@@ -407,42 +409,45 @@ export function Devices() {
                               ))}
                             </div>
                             {!data.interfaces.length && (
-                              <p>
-                                No approved local interfaces available.{" "}
+                              <p className="devices-hint">
+                                No approved local networks available.{" "}
                                 {data.interface_error?.replaceAll("_", " ")}
                               </p>
                             )}
-                            <label className="devices-check">
-                              <input
-                                type="checkbox"
-                                checked={
-                                  on ? data.network.discovery : discovery
-                                }
-                                disabled={on || busy}
-                                onChange={(e) => setDiscovery(e.target.checked)}
-                              />
+                          </div>
+                          <label className="devices-toggle">
+                            <input
+                              type="checkbox"
+                              className="switch"
+                              checked={
+                                on ? data.network.discovery : discovery
+                              }
+                              disabled={on}
+                              onChange={(e) => setDiscovery(e.target.checked)}
+                            />
+                            <span>
                               Nearby discovery
                               <small>
-                                Advertise this device on the selected network.
+                                Advertise this computer on the selected network.
                               </small>
-                            </label>
-                            <label className="devices-check">
-                              <input type="checkbox" checked={on ? !!data.network.persistent : persistent}
-                                disabled={on || busy} onChange={(e) => setPersistent(e.target.checked)} />
+                            </span>
+                          </label>
+                          <label className="devices-toggle">
+                            <input type="checkbox" className="switch" checked={on ? !!data.network.persistent : persistent}
+                              disabled={on} onChange={(e) => setPersistent(e.target.checked)} />
+                            <span>
                               Keep Connect available after restart
-                              <small>Remember this interface and use stable ports. Turning Connect off cancels automatic startup.</small>
-                            </label>
-                            {data.network.persistent && <p className="muted">
-                              Connect port {data.network.port}. Pairing port {data.network.pairing_port} opens only during pairing.
-                            </p>}
+                              <small>Remember this network and use stable ports.</small>
+                            </span>
+                          </label>
+                          <div className="devices-card-foot">
                             <button
-                              className="primary"
+                              className={on ? "" : "primary"}
                               disabled={
-                                busy ||
-                                (!on &&
-                                  !data.interfaces.some(
-                                    (i) => i.address === address,
-                                  ))
+                                !on &&
+                                !data.interfaces.some(
+                                  (i) => i.address === address,
+                                )
                               }
                               onClick={() =>
                                 void act(() =>
@@ -458,193 +463,227 @@ export function Devices() {
                             >
                               {on ? "Turn Connect off" : "Turn Connect on"}
                             </button>
-                            <p className="muted">
-                              To change interface or discovery, turn Connect off
-                              first. OLIVE does not alter your firewall.
-                            </p>
+                            <span className="devices-hint">
+                              {on
+                                ? "Turn Connect off to change these settings."
+                                : "Pick a network first. OLIVE never changes your firewall."}
+                            </span>
                           </div>
-                        </div>
-                        <div className="devices-panel">
-                          <div className="devices-panel-body">
-                            <h3>This Device</h3>
-                            <p>
-                              OLIVE Core{" "}
-                              {device.core_available
-                                ? "available"
-                                : "unavailable"}
-                            </p>
-                            {editing ? (
-                              <form
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  void act(async () => {
-                                    await call("connect.rename", { name });
-                                    setEditing(false);
-                                  });
-                                }}
-                              >
-                                <label>
-                                  Display name
-                                  <input
-                                    value={name}
-                                    maxLength={100}
-                                    onChange={(e) => setName(e.target.value)}
-                                  />
-                                </label>
-                                <button disabled={busy || !name.trim()}>
-                                  Save name
-                                </button>
-                              </form>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  setName(device.display_name);
-                                  setEditing(true);
-                                }}
-                              >
-                                Edit display name
+                          {data.network.persistent && <p className="devices-hint devices-card-note">
+                            Connect port {data.network.port}. Pairing port {data.network.pairing_port} opens only during pairing.
+                          </p>}
+                        </section>
+                        <section className="devices-card" aria-label="Display name">
+                          {editing ? (
+                            <form
+                              className="devices-rename"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                void act(async () => {
+                                  await call("connect.rename", { name });
+                                  setEditing(false);
+                                });
+                              }}
+                            >
+                              <label>
+                                Display name
+                                <input
+                                  autoFocus
+                                  value={name}
+                                  maxLength={100}
+                                  onChange={(e) => setName(e.target.value)}
+                                />
+                              </label>
+                              <button type="button" className="quiet" onClick={() => setEditing(false)}>Cancel</button>
+                              <button className="primary" disabled={!name.trim()}>
+                                Save name
                               </button>
-                            )}
-                          </div>
-                        </div>
+                            </form>
+                          ) : (
+                            <header className="devices-card-head">
+                              <div>
+                                <h3>Display name</h3>
+                                <p>Other devices see this computer as <strong>{device.display_name}</strong>.</p>
+                              </div>
+                              <div className="devices-card-actions">
+                                <button
+                                  onClick={() => {
+                                    setName(device.display_name);
+                                    setEditing(true);
+                                  }}
+                                >
+                                  Edit display name
+                                </button>
+                              </div>
+                            </header>
+                          )}
+                        </section>
                         <details className="devices-disclosure">
                           <summary>Advanced details</summary>
                           <dl>
+                            <dt>OLIVE Core</dt>
+                            <dd>{device.core_available ? "Available" : "Unavailable"}</dd>
                             <dt>Device ID</dt>
-                            <dd>{device.device_id}</dd>
+                            <dd className="mono">{device.device_id}</dd>
                             <dt>Fingerprint</dt>
-                            <dd>
+                            <dd className="mono">
                               {device.fingerprint ||
-                                "Not provisioned. Created through the secure vault when you enable Connect or create pairing."}
+                                "Created in the secure vault when you turn on Connect or pair."}
                             </dd>
                             <dt>Protocol</dt>
                             <dd>{data.protocol}</dd>
-                            <dt>Selected interface</dt>
+                            <dt>Selected network</dt>
                             <dd>{data.network.interface?.address || "None"}</dd>
                             <dt>Connect port</dt>
                             <dd>{data.network.port || "Not listening"}</dd>
                           </dl>
                           <p>
-                            Only the selected Connect TCP port and local mDNS
-                            UDP 5353 are relevant to firewall configuration. Do
-                            not open Ollama or Studio ports.
+                            Only the Connect TCP port and local mDNS (UDP 5353)
+                            matter for your firewall. Don’t open Ollama or
+                            Studio ports.
                           </p>
                         </details>
                       </>
-                    ) : (
+                    ) : remote && (
                       <>
                         <div
                           className="devices-tabs"
                           role="group"
                           aria-label="Device details"
+                          style={{ "--i": TABS.indexOf(tab) } as CSSProperties}
                         >
-                          {["status", "permissions", "activity"].map((t) => (
+                          <span className="devices-seg-thumb" aria-hidden="true" />
+                          {TABS.map((t) => (
                             <button
                               key={t}
                               aria-pressed={tab === t}
                               onClick={() => setTab(t)}
                             >
                               {t[0].toUpperCase() + t.slice(1)}
+                              {t === "activity" && activity.length > 0 && <span className="devices-count" aria-hidden="true">{activity.length}</span>}
                             </button>
                           ))}
                         </div>
-                        {tab === "status" && (
-                          <div className="devices-panel">
-                            <div className="devices-panel-body">
-                              {device.trust_state === "revoked" ? (
-                                <p className="devices-notice">
-                                  Revoked · disconnected. This identity cannot
-                                  reconnect. Re-pairing this revoked identity is
-                                  not supported; its security history is
-                                  retained.
-                                </p>
+                        <div className="devices-view" key={tab}>
+                          {tab === "status" && (
+                            <>
+                              {revoked ? (
+                                <section className="devices-card devices-revoked" aria-label="Revoked">
+                                  <header className="devices-card-head">
+                                    <span className="devices-card-icon"><ShieldOff size={16} aria-hidden="true" /></span>
+                                    <div>
+                                      <h3>Revoked{remote.revoked_at ? ` ${dateLabel(remote.revoked_at)}` : ""}</h3>
+                                      <p>
+                                        {remote.display_name} is disconnected and
+                                        can’t reconnect. This identity can’t be
+                                        paired again.
+                                      </p>
+                                    </div>
+                                  </header>
+                                </section>
                               ) : (
-                                <>
-                                  <dl>
-                                    <dt>Trust</dt>
-                                    <dd>Paired</dd>
-                                    <dt>Connection</dt>
-                                    <dd>{deviceStatus(device)}</dd>
-                                    <dt>Paired since</dt>
-                                    <dd>{time(device.paired_at)}</dd>
-                                    <dt>Last seen</dt>
-                                    <dd>{time(device.last_seen)}</dd>
+                                <section className="devices-card" aria-label="Connection">
+                                  <header className="devices-card-head">
+                                    <div>
+                                      <h3>Connection</h3>
+                                      <p>
+                                        {remote.last_seen
+                                          ? <>Last seen <span title={fullTime(remote.last_seen)}>{ago(remote.last_seen)}</span></>
+                                          : "Not connected yet."}
+                                      </p>
+                                    </div>
+                                    {remote.live?.state === "online" && (
+                                      <div className="devices-card-actions">
+                                        <button
+                                          onClick={() =>
+                                            void act(async () => {
+                                              const r = await call<{
+                                                state: string;
+                                                error?: string;
+                                              }>("connect.ping", {
+                                                device_id: remote.device_id,
+                                              });
+                                              if (r.state !== "completed")
+                                                throw new Error(
+                                                  (r.error === "confirmation_required"
+                                                    ? "Waiting for approval on the other device. After approval, select Measure latency again."
+                                                    : r.error?.replaceAll("_", " ")) || "Ping not completed",
+                                                );
+                                            })
+                                          }
+                                        >
+                                          Measure latency
+                                        </button>
+                                        <button
+                                          className="quiet"
+                                          onClick={() =>
+                                            void act(() =>
+                                              call("connect.disconnect", {
+                                                device_id: remote.device_id,
+                                              }),
+                                            )
+                                          }
+                                        >
+                                          Disconnect
+                                        </button>
+                                      </div>
+                                    )}
+                                  </header>
+                                  <dl className="devices-facts">
+                                    <div>
+                                      <dt>Status</dt>
+                                      <dd>
+                                        <span className="status-dot" data-tone={tone(remote)} aria-hidden="true" />
+                                        {deviceStatus(remote)}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt>Encryption</dt>
+                                      <dd>
+                                        {remote.live?.encrypted && remote.live.state === "online" ? (
+                                          <span className="devices-tls">
+                                            <Lock size={13} aria-hidden="true" />
+                                            TLS 1.3
+                                          </span>
+                                        ) : (
+                                          "Not connected"
+                                        )}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt>Identity</dt>
+                                      <dd>Verified at pairing</dd>
+                                    </div>
                                   </dl>
-                                  {device.live?.error && (
-                                    <p role="alert">
-                                      {device.live.error.replaceAll("_", " ")}.
-                                      Check Connect is enabled on both devices,
-                                      the paired identity and selected
-                                      interface/port firewall rules.
+                                  {remote.live?.error && (
+                                    <p className="devices-inline-error" role="alert">
+                                      {sentence(remote.live.error)}. Check Connect
+                                      is on for both devices and the port is
+                                      allowed by the firewall.
                                     </p>
                                   )}
-                                  {device.live?.state === "online" ? (
-                                    <div className="devices-actions">
-                                      <button
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void act(async () => {
-                                            const r = await call<{
-                                              state: string;
-                                              error?: string;
-                                            }>("connect.ping", {
-                                              device_id: device.device_id,
-                                            });
-                                            if (r.state !== "completed")
-                                              throw new Error(
-                                                (r.error ===
-                                                "confirmation_required"
-                                                  ? "Waiting for approval on the other device. After approval, select Measure latency again to retry this exact request."
-                                                  : r.error?.replaceAll(
-                                                      "_",
-                                                      " ",
-                                                    )) || "Ping not completed",
-                                              );
-                                          })
-                                        }
-                                      >
-                                        Measure latency
-                                      </button>
-                                      <button
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void act(() =>
-                                            call("connect.disconnect", {
-                                              device_id: device.device_id,
-                                            }),
-                                          )
-                                        }
-                                      >
-                                        Disconnect
-                                      </button>
-                                    </div>
-                                  ) : (
+                                  {remote.live?.state !== "online" && (
                                     <form
+                                      className="devices-endpoint"
                                       onSubmit={(e) => {
                                         e.preventDefault();
                                         void act(() =>
                                           call("connect.open", {
-                                            device_id: device.device_id,
+                                            device_id: remote.device_id,
                                             address: endpoint,
                                             port: Number(port),
                                           }),
                                         );
                                       }}
                                     >
-                                      <p>
-                                        Choose the paired device’s local Connect
-                                        endpoint. Its identity is verified again
-                                        before connecting.
-                                      </p>
                                       {data.nearby.length > 0 && (
                                         <label>
-                                          Discovered endpoint (untrusted)
+                                          Discovered endpoint
                                           <select
                                             value=""
                                             onChange={(e) => {
                                               const n = data.nearby.find(
-                                                (n) =>
-                                                  n.instance === e.target.value,
+                                                (n) => n.instance === e.target.value,
                                               );
                                               if (n) {
                                                 setEndpoint(n.address);
@@ -652,14 +691,9 @@ export function Devices() {
                                               }
                                             }}
                                           >
-                                            <option value="">
-                                              Choose endpoint
-                                            </option>
+                                            <option value="">Choose…</option>
                                             {data.nearby.map((n) => (
-                                              <option
-                                                key={n.instance}
-                                                value={n.instance}
-                                              >
+                                              <option key={n.instance} value={n.instance}>
                                                 {n.address}:{n.port}
                                               </option>
                                             ))}
@@ -671,226 +705,179 @@ export function Devices() {
                                         <input
                                           value={endpoint}
                                           maxLength={64}
-                                          onChange={(e) =>
-                                            setEndpoint(e.target.value)
-                                          }
+                                          placeholder="192.168.1.20"
+                                          onChange={(e) => setEndpoint(e.target.value)}
                                         />
                                       </label>
-                                      <label>
+                                      <label className="devices-endpoint-port">
                                         Connect port
                                         <input
                                           type="number"
                                           min={1}
                                           max={65535}
                                           value={port}
-                                          onChange={(e) =>
-                                            setPort(e.target.value)
-                                          }
+                                          onChange={(e) => setPort(e.target.value)}
                                         />
                                       </label>
-                                      <button
-                                        disabled={
-                                          !on || busy || !endpoint || !port
-                                        }
-                                      >
+                                      <button className="primary" disabled={!on || !endpoint || !port}>
                                         Connect
                                       </button>
+                                      <p className="devices-hint">
+                                        {on
+                                          ? "The device’s identity is checked again before connecting."
+                                          : "Turn on Connect for this computer first."}
+                                      </p>
                                     </form>
                                   )}
-                                </>
+                                </section>
                               )}
-                            </div>
-                          </div>
-                        )}
-                        {tab === "status" &&
-                          device.device_id !== data.local.device_id && <RemoteAI device={device} refresh={refresh}/>}
-                        {tab === "status" &&
-                          device.device_id !== data.local.device_id && (
-                            <FilesPanel
-                              key={`files-${device.device_id}`}
-                              device={device}
-                              refresh={refresh}
-                            />
+                              {(!revoked || remote.transfers?.some((t) => t.state !== "dismissed")) && <FilesPanel
+                                key={`files-${remote.device_id}`}
+                                device={remote}
+                                refresh={refresh}
+                              />}
+                              {data.sync && !revoked && (
+                                <SyncPanel
+                                  key={remote.device_id}
+                                  device={remote}
+                                  data={data}
+                                  refresh={refresh}
+                                />
+                              )}
+                              {!revoked && <RemoteAI device={remote} refresh={refresh} />}
+                              {revoked ? (
+                                <section className="devices-danger" aria-label="Remove device">
+                                  <div>
+                                    <strong>Remove from Devices</strong>
+                                    <p>Removes {remote.display_name} and its activity from this list. OLIVE keeps it blocked.</p>
+                                  </div>
+                                  <button className="danger" onClick={() => setRemoving(true)}>
+                                    <Trash2 size={14} aria-hidden="true" />
+                                    Remove device
+                                  </button>
+                                </section>
+                              ) : (
+                                <section className="devices-danger" aria-label="Revoke pairing">
+                                  <div>
+                                    <strong>Revoke pairing</strong>
+                                    <p>{remote.display_name} loses every permission at once and can’t reconnect.</p>
+                                  </div>
+                                  <button className="danger" onClick={() => setRevoke(true)}>
+                                    Revoke device
+                                  </button>
+                                </section>
+                              )}
+                            </>
                           )}
-                        {tab === "status" &&
-                          data.sync &&
-                          device.trust_state === "paired" && (
-                            <SyncPanel
-                              key={device.device_id}
-                              device={device}
-                              data={data}
-                              refresh={refresh}
-                            />
-                          )}
-                        {(tab === "permissions" || tab === "status") && device.trust_state === "paired" && <StudioShares key={`studio-${device.device_id}`} device={device} refresh={refresh} />}
-                        {tab === "permissions" && (
-                          <div className="devices-panel">
-                            {device.trust_state === "revoked" && (
-                              <p className="devices-notice">
-                                Permissions are inactive for this revoked
-                                device.
+                          {tab === "permissions" && (
+                            revoked ? (
+                              <p className="devices-note" role="note">
+                                <ShieldOff size={14} aria-hidden="true" />
+                                <span>Permissions are inactive for this revoked device.</span>
                               </p>
-                            )}
-                            {permissionGroups.map(([group, items]) => {
-                              const shown = items.filter(([cap]) => {
-                                const metadata = data.capabilities.find((c) => c.capability === cap);
-                                return metadata && metadata.supported && !metadata.policy_disabled &&
-                                  ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read"].includes(cap);
-                              });
-                              if (!shown.length) return null;
-                              return (
-                              <section
-                                className="devices-permission-group"
-                                key={group}
-                              >
-                                <h3 className="devices-eyebrow">{group}</h3>
-                                {shown.map(([cap, label]) => {
-                                  const metadata = data.capabilities.find(
-                                    (c) => c.capability === cap,
-                                  );
-                                  if (!metadata) return null;
-                                  const available =
-                                    metadata.supported &&
-                                    !metadata.policy_disabled &&
-                                    [
-                                      "files.send",
-                                      "models.remote",
-                                      "files.receive",
-                                      "connect.ping",
-                                      "device.status",
-                                      "chat.metadata.read",
-                                    ].includes(cap);
-                                  const decision =
-                                    device.permissions?.find(
-                                      (p) =>
-                                        p.capability === cap &&
-                                        p.scope === null,
-                                    )?.decision || "deny";
-                                  return (
-                                    <div
-                                      className="devices-permission"
-                                      key={cap}
-                                    >
-                                      <span>
-                                        <strong>{label}</strong>
-                                        {!available && (
-                                          <small>Not yet available</small>
-                                        )}
-                                      </span>
-                                      {available ? (
-                                        <div
-                                          className="devices-permission-seg"
-                                          role="group"
-                                          aria-label={label}
-                                        >
-                                          {(
-                                            ["deny", "ask", "allow"] as const
-                                          ).map((v) => (
-                                            <button
-                                              data-value={v}
-                                              aria-pressed={v === decision}
-                                              disabled={
-                                                busy ||
-                                                device.trust_state === "revoked"
+                            ) : (
+                              <>
+                                <p className="devices-note" role="note">
+                                  <Info size={14} aria-hidden="true" />
+                                  <span>
+                                    Pairing proves this is {remote.display_name} but <strong>grants no access</strong>.
+                                    These settings control what it can do on this computer.
+                                  </span>
+                                </p>
+                                <section className="devices-card" aria-label="Permissions">
+                                  {permissionGroups.map(([group, items]) => {
+                                    const shown = items.filter(([cap]) => {
+                                      const metadata = data.capabilities.find((c) => c.capability === cap);
+                                      return metadata && metadata.supported && !metadata.policy_disabled && OFFERED.includes(cap);
+                                    });
+                                    if (!shown.length) return null;
+                                    return (
+                                      <div className="devices-group" key={group}>
+                                        <h3 className="devices-eyebrow">{group}</h3>
+                                        {shown.map(([cap, label]) => (
+                                          <div className="devices-row-line devices-permission" key={cap}>
+                                            <span className="devices-row-label">{label}</span>
+                                            <Segmented
+                                              label={label}
+                                              value={
+                                                remote.permissions?.find(
+                                                  (p) => p.capability === cap && p.scope === null,
+                                                )?.decision || "deny"
                                               }
-                                              key={v}
-                                              onClick={() =>
-                                                void act(() =>
+                                              onChange={(decision) =>
+                                                act(() =>
                                                   call("connect.permission", {
-                                                    device_id: device.device_id,
-                                                    capability:
-                                                      cap as SafeCapability,
-                                                    decision: v,
+                                                    device_id: remote.device_id,
+                                                    capability: cap as SafeCapability,
+                                                    decision,
                                                   }),
                                                 )
                                               }
-                                            >
-                                              {v === decision && v === "ask" && <Hand size={12} aria-hidden="true" />}
-                                              {v === decision && v === "allow" && <Check size={12} aria-hidden="true" />}
-                                              {v === "deny"
-                                                ? "Off"
-                                                : v === "ask"
-                                                  ? "Ask"
-                                                  : "Allow"}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <span className="devices-unavailable">
-                                          Unavailable
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </section>
-                              );
-                            })}
-                            {(() => {
-                              const all: (readonly [string, string])[] = permissionGroups.flatMap(([, items]) => [...items] as (readonly [string, string])[]);
-                              const unavailable = all.filter(([cap]) => {
-                                const metadata = data.capabilities.find((c) => c.capability === cap);
-                                return metadata && !(metadata.supported && !metadata.policy_disabled &&
-                                  ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read"].includes(cap));
-                              });
-                              return unavailable.length ? (
-                                <p className="devices-unavailable-line">
-                                  <span className="devices-unavailable">Unavailable</span> in this version:{" "}
-                                  {unavailable.map(([, label]) => label).join(", ")}. They are not offered as controls.
-                                </p>
-                              ) : null;
-                            })()}
-                          </div>
-                        )}
-                        {tab === "activity" && (
-                          <div className="devices-panel">
-                            <ol className="devices-timeline">
-                              {data.activity
-                                .filter(
-                                  (a) =>
-                                    a.source_device_id === device.device_id,
-                                )
-                                .reverse()
-                                .map((a) => (
-                                  <li key={a.id}>
-                                    <span>
-                                      {a.result_state.replaceAll("_", " ")}
-                                      {a.capability ? ` · ${a.capability}` : ""}
-                                    </span>
-                                    <time
-                                      dateTime={new Date(
-                                        a.timestamp * 1000,
-                                      ).toISOString()}
-                                    >
-                                      {time(a.timestamp)}
-                                    </time>
-                                  </li>
-                                ))}
-                            </ol>
-                            {!data.activity.some(
-                              (a) => a.source_device_id === device.device_id,
-                            ) && (
-                              <p className="devices-rail-empty">
-                                No device activity yet.
-                              </p>
-                            )}
-                            <footer>
-                              Connection and permission events only. No message
-                              or file content.
-                            </footer>
-                          </div>
-                        )}
-                        {tab === "status" && device.trust_state !== "revoked" && (
-                          <section className="devices-danger" aria-label="Revoke pairing">
-                            <div>
-                              <strong>Revoke pairing</strong>
-                              <p>{device.display_name} loses every capability immediately and must pair again with a new code.</p>
-                            </div>
-                            <button className="danger" onClick={() => setRevoke(true)}>
-                              Revoke device
-                            </button>
-                          </section>
-                        )}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+                                  {(() => {
+                                    const all: (readonly [string, string])[] = permissionGroups.flatMap(([, items]) => [...items] as (readonly [string, string])[]);
+                                    const unavailable = all.filter(([cap]) => {
+                                      const metadata = data.capabilities.find((c) => c.capability === cap);
+                                      return metadata && !(metadata.supported && !metadata.policy_disabled && OFFERED.includes(cap));
+                                    });
+                                    return unavailable.length ? (
+                                      <p className="devices-unavailable-line">
+                                        <span className="devices-unavailable">Unavailable</span>
+                                        <span>Not in this version: {unavailable.map(([, label]) => label).join(", ")}.</span>
+                                      </p>
+                                    ) : null;
+                                  })()}
+                                </section>
+                                <StudioShares key={`studio-${remote.device_id}`} device={remote} refresh={refresh} />
+                              </>
+                            )
+                          )}
+                          {tab === "activity" && (
+                            <section className="devices-card" aria-label="Activity">
+                              <header className="devices-card-head">
+                                <div>
+                                  <h3>Activity</h3>
+                                  <p>Connection and permission events. Never message or file content.</p>
+                                </div>
+                                <div className="devices-card-actions">
+                                  <button
+                                    className="quiet"
+                                    disabled={!activity.length}
+                                    onClick={() => setClearingActivity(true)}
+                                  >
+                                    Clear activity
+                                  </button>
+                                </div>
+                              </header>
+                              {activity.length ? (
+                                <ol className="devices-activity">
+                                  {activity.map((a) => (
+                                    <li key={a.id} data-tone={eventTone(a.result_state)}>
+                                      <span className="devices-activity-dot" aria-hidden="true" />
+                                      <span className="devices-activity-text">
+                                        <strong>{eventLabel(a.result_state)}</strong>
+                                        {a.capability && <span>{capabilityLabel(a.capability)}</span>}
+                                      </span>
+                                      <time
+                                        dateTime={new Date(a.timestamp * 1000).toISOString()}
+                                        title={fullTime(a.timestamp)}
+                                      >
+                                        {ago(a.timestamp)}
+                                      </time>
+                                    </li>
+                                  ))}
+                                </ol>
+                              ) : (
+                                <p className="devices-empty-line">No device activity yet.</p>
+                              )}
+                            </section>
+                          )}
+                        </div>
                       </>
                     )}
                   </>
@@ -904,11 +891,11 @@ export function Devices() {
         <Dialog.Portal>
           <Dialog.Overlay className="devices-overlay" />
           <Dialog.Content className="devices-modal">
-            <Dialog.Title>Pair device</Dialog.Title>
+            <Dialog.Title>Enter pairing code</Dialog.Title>
             <Dialog.Description>
-              Paste the public offer from the other OLIVE desktop. Select and
-              enable your local Connect interface first. A completion code can
-              also reconcile a previously confirmed session.
+              Paste the pairing code shown on the other OLIVE computer. Turn on
+              Connect for this computer first. A completion code can also
+              finish a pairing you already confirmed.
             </Dialog.Description>
             <label>
               Pairing code
@@ -921,12 +908,13 @@ export function Devices() {
             {error && (
               <p role="alert">
                 Could not use this pairing code. Check the code, expiry and
-                selected interface.
+                selected network.
               </p>
             )}
             <div className="devices-modal-actions">
-              <button onClick={() => setImporting(false)}>Cancel</button>
+              <Dialog.Close>Cancel</Dialog.Close>
               <button
+                className="primary"
                 disabled={busy || !pairingCode.trim()}
                 onClick={() =>
                   void act(async () => {
@@ -958,14 +946,12 @@ export function Devices() {
         <Dialog.Portal>
           <Dialog.Overlay className="devices-overlay" />
           <Dialog.Content className="devices-modal">
-            <Dialog.Title>Revoke device</Dialog.Title>
+            <Dialog.Title>Revoke {device?.display_name}?</Dialog.Title>
             <Dialog.Description>
-              This device will lose OLIVE Connect access immediately. The
-              revocation is permanent for this identity.
+              {device?.display_name} is disconnected right away and loses every
+              permission. This can’t be undone; the same identity can’t pair
+              again.
             </Dialog.Description>
-            <p className="devices-notice">
-              {device?.display_name} will be disconnected right away.
-            </p>
             <div className="devices-modal-actions">
               <Dialog.Close>Cancel</Dialog.Close>
               <button
@@ -984,6 +970,41 @@ export function Devices() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      <Confirm
+        open={removing}
+        onOpenChange={setRemoving}
+        title={`Remove ${remote?.display_name ?? "device"}?`}
+        action="Remove device"
+        onConfirm={async () => {
+          if (!remote) return;
+          await call("connect.remove", { device_id: remote.device_id });
+          await refresh();
+          setSelected("this");
+          setDetail(false);
+        }}
+      >
+        <p>
+          It disappears from Devices along with its activity and finished file
+          transfers. Unsaved received files are deleted.
+        </p>
+        <p>OLIVE still remembers the revoked identity, so it stays blocked.</p>
+      </Confirm>
+      <Confirm
+        open={clearingActivity}
+        onOpenChange={setClearingActivity}
+        title="Clear activity"
+        action="Clear activity"
+        onConfirm={async () => {
+          if (!remote) return;
+          await call("connect.activity_clear", { device_id: remote.device_id });
+          await refresh();
+        }}
+      >
+        <p>
+          Deletes {activity.length === 1 ? "1 event" : `${activity.length} events`} for{" "}
+          {remote?.display_name}. Pairing and permissions don’t change.
+        </p>
+      </Confirm>
     </section>
   );
 }

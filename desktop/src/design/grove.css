@@ -1012,30 +1012,7 @@ input[type="radio"] {
 .feature-page.agent-page > .ws-body > .ws-rail,
 .ws.agent > .ws-body > .ws-rail { order: 2; border-right: 0; border-left: 1px solid var(--border-subtle); }
 
-/* ---------- Devices: the artifact's header, cards and network buttons ---------- */
-.devices-workspace { background: var(--bg-surface); }
-.devices-head { min-height: 68px; padding: 18px 24px 14px; border-bottom: 1px solid var(--border-subtle); }
-.devices-head > div { flex-direction: column; align-items: flex-start; gap: 2px; }
-.devices-head h1 { font: 650 22px/1.15 var(--font-display); letter-spacing: -0.01em; }
-.devices-head p { font-size: 13px; color: var(--text-muted); }
-.devices-pair-primary { height: 34px; min-height: 34px; padding: 0 14px; border-radius: var(--r-md); }
-.devices-rail { background: var(--bg-surface); }
-.devices-panel,
-.devices-disclosure { border-radius: var(--r-lg); border: 1px solid var(--border-subtle); background: var(--bg-raised); }
-.devices-panel > header h2,
-.devices-panel-body h3 { font: 650 16px/1.25 var(--font-display); }
-.devices-interface {
-  justify-content: flex-start !important;
-  gap: 10px !important;
-  padding: 10px 12px !important;
-  border-radius: var(--r-md) !important;
-  border: 1px solid var(--border-subtle) !important;
-  background: var(--bg-raised) !important;
-  text-align: left;
-}
-.devices-interface[aria-pressed="true"] { border-color: var(--border-active) !important; background: var(--accent-blue-soft) !important; }
-.devices-interface small { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
-.devices-pill { border-radius: 999px; }
+/* ---------- Devices: styled in features/devices/devices.css ---------- */
 
 /* A minimised or hidden window pauses every animation (Chromium can report the
    page as visible when minimised on some compositors; the main process knows). */

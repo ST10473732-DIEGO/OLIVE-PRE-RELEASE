@@ -55,7 +55,7 @@ class RemoteInferenceClient:
 
     async def targets(self):
         result = []
-        for record in self.service.paired_devices()[:256]:
+        for record in self.service.listed_devices()[:256]:
             value = dict(device_id=record['device_id'], display_name=record['display_name'],
                          state='offline', permission='deny', busy=False, presets={p: False for p in PRESETS})
             try:

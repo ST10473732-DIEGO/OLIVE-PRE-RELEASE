@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { call } from "../../services/api";
 import type { Device, DevicesState } from "./types";
+import { Segmented, ago, fullTime, sentence } from "./ui";
 
 type Version = {
   kind: string;
@@ -81,6 +82,7 @@ export function SyncPanel({
   const running =
     status && ["running", "awaiting_approval"].includes(status.state);
   async function act(action: () => Promise<unknown>) {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -94,72 +96,42 @@ export function SyncPanel({
   }
   const review = async () =>
     setConflicts(await call<Conflict[]>("connect.sync_conflicts", {}));
+  const summary = status
+    ? [
+        {
+          completed: "Last sync completed",
+          running: "Syncing now",
+          awaiting_approval: "Waiting for approval on the other device",
+          failed: "Last sync failed",
+          cancelled: "Last sync cancelled",
+        }[status.state] || sentence(status.state),
+        `${status.sent} sent`,
+        `${status.received} received`,
+        `${status.conflicts} ${status.conflicts === 1 ? "conflict" : "conflicts"}`,
+      ].join(" · ") + (status.error ? ` · ${sentence(status.error)}` : "")
+    : "";
   return (
-    <section className="devices-panel" aria-label="Sync">
-      <header>
-        <h3>Sync</h3>
-        <p>Choose what this device may send and receive.</p>
-      </header>
-      <div className="devices-panel-body">
-        {domains.map(([capability, label]) => (
-          <div className="devices-permission" key={capability}>
-            <strong>{label}</strong>
-            <div
-              role="group"
-              aria-label={`${label} sync`}
-              className="devices-permission-seg"
-            >
-              {(["deny", "ask", "allow"] as const).map((decision) => (
-                <button
-                  key={decision}
-                  disabled={busy || device.trust_state !== "paired"}
-                  aria-pressed={
-                    (device.permissions?.find(
-                      (p) => p.capability === capability && p.scope === null,
-                    )?.decision || "deny") === decision
-                  }
-                  onClick={() =>
-                    void act(() =>
-                      call("connect.permission", {
-                        device_id: device.device_id,
-                        capability,
-                        decision,
-                      }),
-                    )
-                  }
-                >
-                  {decision === "deny"
-                    ? "Off"
-                    : decision === "ask"
-                      ? "Ask"
-                      : "Allow"}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-        <p>
-          Reminders notify independently on each device. Overdue reminders first
-          received from another device do not trigger catch-up notifications.
-        </p>
-        <p>
-          Last sync:{" "}
-          {status?.last_sync
-            ? new Date(status.last_sync * 1000).toLocaleString()
-            : "Not recorded"}
-        </p>
-        {status && (
-          <p role="status">
-            {status.state.replaceAll("_", " ")} · {status.sent} sent ·{" "}
-            {status.received} received · {status.conflicts} conflicts
-            {status.error ? ` · ${status.error.replaceAll("_", " ")}` : ""}
+    <section className="devices-card" aria-label="Sync">
+      <header className="devices-card-head">
+        <div>
+          <h3>Sync</h3>
+          <p>
+            {status?.last_sync
+              ? <>Last synced <span title={fullTime(status.last_sync)}>{ago(status.last_sync)}</span></>
+              : "Choose what stays in sync with this device."}
           </p>
-        )}
-        {error && <p role="alert">{error}</p>}
-        <div className="devices-actions">
+        </div>
+        <div className="devices-card-actions">
+          {running && (
+            <button
+              className="quiet"
+              onClick={() => void act(() => call("connect.sync_cancel", {}))}
+            >
+              Cancel sync
+            </button>
+          )}
           <button
             disabled={
-              busy ||
               !!running ||
               device.live?.state !== "online" ||
               device.trust_state !== "paired"
@@ -172,36 +144,61 @@ export function SyncPanel({
           >
             Sync now
           </button>
-          {running && (
-            <button
-              onClick={() => void act(() => call("connect.sync_cancel", {}))}
-            >
-              Cancel sync
-            </button>
-          )}
-          <button onClick={() => void act(review)}>Review conflicts</button>
-          <button
-            onClick={() =>
-              void act(async () =>
-                setChats(
-                  await call<Selection[]>("connect.sync_chats", {
-                    device_id: device.device_id,
-                  }),
-                ),
-              )
-            }
-          >
-            Select conversations
-          </button>
         </div>
+      </header>
+      <div className="devices-rows">
+        {domains.map(([capability, label]) => (
+          <div className="devices-row-line" key={capability}>
+            <span className="devices-row-label">{label}</span>
+            <Segmented
+              label={`${label} sync`}
+              disabled={device.trust_state !== "paired"}
+              value={
+                device.permissions?.find(
+                  (p) => p.capability === capability && p.scope === null,
+                )?.decision || "deny"
+              }
+              onChange={(decision) =>
+                act(() =>
+                  call("connect.permission", {
+                    device_id: device.device_id,
+                    capability,
+                    decision,
+                  }),
+                )
+              }
+            />
+          </div>
+        ))}
+      </div>
+      {status && <p className="devices-status-line" role="status">{summary}</p>}
+      {error && <p className="devices-inline-error" role="alert">{error}</p>}
+      <div className="devices-card-foot">
+        <button className="quiet" onClick={() => void act(review)}>Review conflicts</button>
+        <button
+          className="quiet"
+          onClick={() =>
+            void act(async () =>
+              setChats(
+                await call<Selection[]>("connect.sync_chats", {
+                  device_id: device.device_id,
+                }),
+              ),
+            )
+          }
+        >
+          Select conversations
+        </button>
+        <span className="devices-hint">Reminders notify separately on each device.</span>
+      </div>
         {chats && (
-          <div aria-label="Selected conversations">
-            <p>
+          <div className="devices-sub" aria-label="Selected conversations">
+            <p className="devices-hint">
               Only selected conversations are shared with this device.
               Attachments do not transfer.
             </p>
             {chats.map((chat) => (
-              <label key={chat.id}>
+              <label className="devices-check-row" key={chat.id}>
                 <input
                   type="checkbox"
                   checked={chat.selected}
@@ -225,12 +222,12 @@ export function SyncPanel({
           </div>
         )}
         {conflicts && (
-          <div aria-label="Sync conflicts">
-            {conflicts.length === 0 && <p>No conflicts require review.</p>}
+          <div className="devices-sub" aria-label="Sync conflicts">
+            {conflicts.length === 0 && <p className="devices-hint">No conflicts require review.</p>}
             {conflicts.map((conflict) => (
-              <article key={conflict.id}>
+              <article className="devices-conflict" key={conflict.id}>
                 <h4>{conflict.incoming.kind} conflict</h4>
-                <p>{conflict.reason.replaceAll("_", " ")}</p>
+                <p className="devices-hint">{sentence(conflict.reason)}</p>
                 <h5>This device</h5>
                 <Fields version={conflict.local} />
                 <h5>
@@ -274,7 +271,6 @@ export function SyncPanel({
             ))}
           </div>
         )}
-      </div>
     </section>
   );
 }

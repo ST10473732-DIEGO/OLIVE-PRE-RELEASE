@@ -108,7 +108,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     expect(networkSettings.port).not.toBe(networkSettings.pairing_port);
     await expect(page.getByText(`Connect port ${networkSettings.port}. Pairing port ${networkSettings.pairing_port} opens only during pairing.`)).toBeVisible();
     await page
-      .getByRole("button", { name: "Connect a device", exact: true })
+      .getByRole("button", { name: "Pair a device", exact: true })
       .click();
     await expect(page.locator(".devices-qr svg")).toBeVisible();
     await shot("pairing-qr");
@@ -125,7 +125,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     expect(await control("listener")).toBe(false);
     const remoteOffer = await control("responder_offer");
     await page
-      .getByRole("button", { name: "Pair device", exact: true })
+      .getByRole("button", { name: "Enter pairing code", exact: true })
       .click();
     await page
       .getByLabel("Pairing code", { exact: true })
@@ -206,7 +206,9 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     ).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Activity", exact: true }).click();
     await expect(
-      page.getByText("request approved · connect.ping"),
+      page.locator(".devices-activity li")
+        .filter({ hasText: "Request approved" })
+        .filter({ hasText: "Connect ping" }),
     ).toBeVisible();
     await shot("activity");
     // C5 uses the ordinary UI, native repositories and this already-authenticated
@@ -231,7 +233,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     await syncPanel
       .getByRole("button", { name: "Sync now", exact: true })
       .click();
-    await expect(syncPanel.getByRole("status")).toContainText("1 conflicts");
+    await expect(syncPanel.getByRole("status")).toContainText("1 conflict");
     await syncPanel
       .getByRole("button", { name: "Review conflicts", exact: true })
       .click();
@@ -281,7 +283,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       .poll(async () => (await control("file_list"))[0].state)
       .toBe("failed");
     await page.getByRole("button", { name: "Status", exact: true }).click();
-    await expect(files.locator("article").first()).toContainText("declined");
+    await expect(files.locator("article").first()).toContainText("declined", { ignoreCase: true });
     await control("file_send");
     await page.getByRole("button", { name: "Allow once", exact: true }).click();
     await expect
@@ -295,11 +297,11 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       .getByRole("button", { name: "Cancel transfer", exact: true })
       .first()
       .click();
-    await expect(files.locator("article").first()).toContainText("cancelled");
+    await expect(files.locator("article").first()).toContainText("cancelled", { ignoreCase: true });
     await control("file_send");
     await page.getByRole("button", { name: "Allow once", exact: true }).click();
     await expect(files.locator("article").first()).toContainText(
-      "Received · Transfer verified",
+      "Received · verified",
       { timeout: 20000 },
     );
     const receivedPath = path.join(profile, "exported-C6.bin");
@@ -351,7 +353,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     await files
       .getByRole("button", { name: "Send reviewed file", exact: true })
       .click();
-    await expect(files.locator("article").first()).toContainText("failed");
+    await expect(files.locator("article").first()).toContainText("failed", { ignoreCase: true });
     await writeFile(
       receivedPath,
       Buffer.from(Array.from({ length: 2097152 }, (_, i) => i % 256)),
@@ -361,7 +363,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
       .getByRole("button", { name: "Send reviewed file", exact: true })
       .click();
     await expect(files.locator("article").first()).toContainText(
-      "Sent · Transfer verified",
+      "Sent · verified",
       { timeout: 20000 },
     );
     await expect
@@ -441,7 +443,7 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     expect((await control("peer_status")).encrypted).toBe(true);
     await page.getByRole("button", { name: "Revoke", exact: true }).click();
     await expect(page.locator(".devices-detail-head")).toContainText("Revoked");
-    await expect(files.locator("article").first()).toContainText("interrupted");
+    await expect(files.locator("article").first()).toContainText("interrupted", { ignoreCase: true });
     await shot("revoked");
     expect(await control("peer_status")).toMatchObject({
       encrypted: false,
@@ -450,6 +452,21 @@ test("C4 actual Devices UI with a second C2/C3 process and exact local Ask", asy
     await expect(
       page.getByRole("button", { name: "Connect", exact: true }),
     ).toHaveCount(0);
+    // Clear files and activity, then remove the revoked device from the list.
+    await files.getByRole("button", { name: "Clear", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Clear files", exact: true }).click();
+    await expect(files.locator("article")).toHaveCount(0);
+    await page.getByRole("button", { name: "Activity", exact: true }).click();
+    await expect(page.locator(".devices-activity li").first()).toBeVisible();
+    await page.getByRole("button", { name: "Clear activity", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Clear activity", exact: true }).click();
+    await expect(page.getByText("No device activity yet.")).toBeVisible();
+    await page.getByRole("button", { name: "Status", exact: true }).click();
+    await page.getByRole("button", { name: "Remove device", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Remove device", exact: true }).click();
+    await expect(page.getByRole("button", { name: /^Paired device/ })).toHaveCount(0);
+    await expect(page.getByText("No paired devices yet.")).toBeVisible();
+    await shot("revoked-removed");
     await page.getByRole("button", { name: /^This device/ }).click();
     await page
       .getByRole("button", { name: "Turn Connect off", exact: true })
@@ -550,7 +567,7 @@ test("C4 expiry, regeneration and mismatched comparison never pair", async () =>
       .getByRole("button", { name: "Turn Connect on", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Connect a device", exact: true })
+      .getByRole("button", { name: "Pair a device", exact: true })
       .click();
     await expect(page.locator(".devices-qr svg")).toBeVisible();
     await command("expire");
@@ -562,7 +579,7 @@ test("C4 expiry, regeneration and mismatched comparison never pair", async () =>
     expect(await command("listener")).toBe(false);
     const unreachable = await command("responder_unreachable");
     await page
-      .getByRole("button", { name: "Pair device", exact: true })
+      .getByRole("button", { name: "Enter pairing code", exact: true })
       .click();
     await page
       .getByLabel("Pairing code", { exact: true })
@@ -576,7 +593,7 @@ test("C4 expiry, regeneration and mismatched comparison never pair", async () =>
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
 
     await page
-      .getByRole("button", { name: "Connect a device", exact: true })
+      .getByRole("button", { name: "Pair a device", exact: true })
       .click();
     await expect(page.locator(".devices-qr svg")).toBeVisible();
     await command("pair");

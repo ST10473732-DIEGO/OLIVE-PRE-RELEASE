@@ -43,6 +43,38 @@ class WorkspaceTests(unittest.TestCase):
         for secret in ('certificate_der', 'private_key', 'vault', 'comparison'):
             self.assertNotIn(secret, payload)
 
+    def test_remove_revoked_device_keeps_tombstone_and_clears_activity(self):
+        pair(self.a, self.b)
+        peer = self.b.local_id
+        with self.assertRaisesRegex(ConnectError, 'device_not_revoked'):
+            self.a.remove(peer)
+        with self.assertRaisesRegex(ConnectError, 'unknown_device'):
+            self.a.remove(self.a.local_id)
+        self.a.revoke(peer)
+        self.assertTrue(any(a['source_device_id'] == peer for a in self.ui.snapshot()['activity']))
+        self.assertEqual(self.a.remove(peer), {'removed': True})
+        after = self.ui.snapshot()
+        self.assertEqual(after['devices'], [])
+        self.assertEqual(self.a.listed_devices(), [])
+        self.assertFalse(any(a['source_device_id'] == peer for a in after['activity']))
+        # The revoked record stays, so the identity is still refused everywhere.
+        self.assertEqual(self.a.device(peer)['trust_state'], 'revoked')
+        self.assertEqual(self.a.permission(peer, 'connect.ping').value, 'deny')
+        self.assertEqual(self.a.remove(peer), {'removed': True})
+
+    def test_clear_activity_is_per_device(self):
+        pair(self.a, self.b)
+        peer = self.b.local_id
+        with self.a.repository.transaction() as db:
+            self.a.repository.audit(db, peer, None, 'connect.ping', 1, 'request_approved')
+            self.a.repository.audit(db, 'other-device', None, None, 1, 'pairing_failed')
+        self.assertGreater(self.a.clear_activity(peer)['cleared'], 0)
+        remaining = self.a.repository.activity()
+        self.assertFalse(any(a['source_device_id'] == peer for a in remaining))
+        self.assertTrue(any(a['source_device_id'] == 'other-device' for a in remaining))
+        with self.assertRaisesRegex(ConnectError, 'unknown_device'):
+            self.a.clear_activity('00000000-0000-4000-8000-000000000000')
+
     def test_real_interface_enable_disable_and_failed(self):
         self.assertEqual(self.ui.enable('0.0.0.0', False)['network']['state'], 'failed')
         value = self.ui.enable('127.0.0.1', False)

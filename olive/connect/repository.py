@@ -27,6 +27,9 @@ class DeviceRepository:
             db.execute('CREATE TABLE IF NOT EXISTS connect_keys (device_id TEXT PRIMARY KEY, public TEXT NOT NULL, state TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS pairing_ledger (session_id TEXT PRIMARY KEY, state TEXT NOT NULL, peer_id TEXT, completion_hash TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS pairing_completion_v1 (session_id TEXT PRIMARY KEY, record TEXT NOT NULL)')
+            # Removed revoked devices keep their device row as a tombstone, so a
+            # revoked identity can never reconnect or pair again; only the list hides them.
+            db.execute('CREATE TABLE IF NOT EXISTS removed_devices (device_id TEXT PRIMARY KEY, removed_at INTEGER NOT NULL)')
             db.execute('PRAGMA user_version=2')
 
     @contextmanager
@@ -110,3 +113,11 @@ class DeviceRepository:
         with self.transaction() as db:
             db.row_factory = sqlite3.Row
             return [dict(row) for row in db.execute('SELECT * FROM activity ORDER BY id')]
+
+    def clear_activity(self, device_id):
+        with self.transaction() as db:
+            return db.execute('DELETE FROM activity WHERE source_device_id=?', (device_id,)).rowcount
+
+    def removed(self):
+        with self.transaction(read_only=True) as db:
+            return {row[0] for row in db.execute('SELECT device_id FROM removed_devices')}

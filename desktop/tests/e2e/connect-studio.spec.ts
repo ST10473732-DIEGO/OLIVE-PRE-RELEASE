@@ -26,6 +26,7 @@ test("C8 native sharing, approval, remote editor conflicts, jobs and offline dra
     await page.getByRole("button", {name: "Turn Connect on", exact: true}).click();
     const connected = await control("connect");
     await page.getByRole("button", {name: /^C8 paired desktop.*Online/}).click();
+    await page.getByRole("button", {name: "Permissions", exact: true}).click();
     const sharing = page.getByRole("region", {name: "Remote Studio sharing"});
     await sharing.getByLabel("Local workspace to share").selectOption({label: "Target fixture"});
     await sharing.getByRole("button", {name: "Share workspace", exact: true}).click();

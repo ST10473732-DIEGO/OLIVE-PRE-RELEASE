@@ -47,9 +47,11 @@ describe("OLIVE Inbox state vocabulary", () => {
     expect(transferState({ state: "offered", direction: "incoming" })).toEqual({ label: "Waiting for you", tone: "ask" });
     expect(transferState({ state: "transferring", direction: "incoming" }).label).toBe("Receiving");
     expect(transferState({ state: "transferring", direction: "outgoing" }).label).toBe("Sending");
-    expect(transferState({ state: "verifying", direction: "incoming" }).label).toContain("SHA-256");
-    expect(transferState({ state: "completed", direction: "incoming" })).toEqual({ label: "Complete · verified", tone: "success" });
-    expect(transferState({ state: "interrupted", direction: "incoming" }).label).toContain("partial data removed");
+    expect(transferState({ state: "offered", direction: "outgoing" }).label).toBe("Ready to send");
+    expect(transferState({ state: "verifying", direction: "incoming" })).toEqual({ label: "Verifying", tone: "computing" });
+    expect(transferState({ state: "completed", direction: "incoming" })).toEqual({ label: "Received · verified", tone: "success" });
+    expect(transferState({ state: "completed", direction: "outgoing" }).label).toBe("Sent · verified");
+    expect(transferState({ state: "interrupted", direction: "incoming" })).toEqual({ label: "Interrupted", tone: "warning" });
     expect(transferState({ state: "failed", direction: "incoming" }).tone).toBe("error");
     expect(transferState({ state: "declined", direction: "incoming" }).label).toBe("Declined");
     expect(transferState({ state: "cancelled", direction: "outgoing" }).label).toBe("Cancelled");
