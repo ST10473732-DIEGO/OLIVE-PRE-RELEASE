@@ -820,3 +820,33 @@ tests (2 unit and 1 UI opt-in LAN skips), simulator-SDK build-for-testing, gener
 Release, and Python/Swift C2/C3/C5/C6/C7/C8 plus calendar interop. Normal production
 launch was restored after the test run. Source compile passed; the four Mac
 Python baseline failures remain explicitly recorded. No push was performed.
+
+2026-09-27: C9.3 final acceptance resumed from clean `22dad872` on
+`feature/olive-mobile-c9-3`. `40d6f5c` adds opt-in real-peer probes and owned
+fixtures. The real iPhone/CachyOS invalid-hash test passed with a durable failed
+receipt; device oversized metadata and closed-session rejection also passed.
+Studio fixture setup and remaining physical checks are batched for the owner.
+Fresh interop, SDK/signed builds, source compile, desktop typecheck, 101 frontend
+tests and production build passed. Full Mac Python has 2 failures/3 errors/58
+skips across 1,456 cases, including an intermittent injected SQLite-lock test
+that subsequently passed on baseline and current-source focused runs. This is
+not reported as an all-green regression. CachyOS remains `fd63db2`; C9.3 remains
+PARTIAL. No new major features, desktop deployment or push were introduced.
+
+C9.3 acceptance subsequently proved all four C5 conflict resolutions, recurring
+Calendar exceptions, linked Task completion acknowledgement, and selected-message
+tombstone ordering across real iPhone relaunches. A captured incoming desktop C7
+availability request exposed a mobile duplex-dispatch defect; the fix reports
+no mobile inference provider while preserving the authenticated session. Real
+C8 build/test, 80-second disconnect/no-replay observation, and 65-second iOS
+background Run followed by cancellation passed. C9.3 remains partial pending the
+remaining gate and final regressions; no CachyOS patch or C9.4/C10 work was added.
+
+The final synthetic Today and selected-Chat tombstone phase also passed without
+resurrection on cold resync. Post-fix iPhone regression: 75 unit cases (66 passed,
+9 opt-in skips) and 13 UI cases (10 passed, 3 opt-in skips), with the live cases
+run separately; all required SDK/signed builds passed. Mac source/interop/types/
+101 frontend/build checks passed. Mac full Python retained four known platform /
+baseline failures (1,456 cases, 58 skips); Connect retained the owned-descendant
+cleanup timeout. Local code/test checkpoints are `92e416d` and `296a2ee`. Remaining
+owner checks are consolidated in `OLIVE_MOBILE_C9_3_ACCEPTANCE_CHECKLIST.md`.

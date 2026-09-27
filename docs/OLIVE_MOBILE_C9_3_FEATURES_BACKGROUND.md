@@ -518,3 +518,208 @@ changes mobile code, test fixtures and documentation, so no further desktop patc
 or divergent-branch merge is required. If future desktop changes become necessary,
 prepare another expected-HEAD guarded desktop-only patch; do not blindly pull,
 reset or cherry-pick the complete Mac mobile history into the deployed checkout.
+
+## Final acceptance run — 2026-09-27, still in progress
+
+This run starts from `BASELINE_HEAD=22dad8729153ddab38412d4728c250ff44f095e8`,
+`BASELINE_BRANCH=feature/olive-mobile-c9-3`, `WORKTREE_STATUS=clean`. Later commits
+after the old `347d0eb` checkpoint are preserved. The original implementation
+baseline above is historical and is not replaced. Final closure HEAD and complete
+gate results remain pending. CachyOS is unchanged at
+`fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`; no deployment, recovery-ref, trust or
+firewall changes were made.
+
+Local commit `40d6f5c` adds explicitly opt-in physical acceptance probes and an
+owned fixture/timing utility. These are acceptance tooling, not new product
+features. The normal Release app and Connect protocols are unchanged. The DEBUG
+test shell avoids opening a competing channel while XCTest uses the existing
+production identity on-device; keys and private profiles are never exported.
+
+**New real C6 evidence:** `RealCompanionEdgeTests` passed on the connected physical
+iPhone against its existing authenticated CachyOS peer (one test, zero failures;
+`/private/tmp/olive-c93-closeout-edges.xcresult`). Synthetic transfer
+`cc444e48-e841-404f-b4ef-8c8d32a68a7b` advertises the hash of four owned bytes and
+sends four different bytes. Complete returns `content_integrity_failed`, Status
+returns `failed`, and another Complete remains failed. This proves remote hash
+rejection and an immutable failed receipt, not a desktop artifact inspection.
+The read-only owner timing utility separately checks that this exact synthetic
+receipt has neither a `.bin` nor `.part` artifact. The phone's production metadata
+validator rejects 64 MiB + 1 with `fileTooLarge` before transfer. Closing the test
+channel then attempting an offer returns `peerOffline`, without queuing it. These
+last two assertions cover the device codec/transport, not system picker UI or a
+malformed oversized remote offer. Permission was already Allow and was not changed.
+
+The opt-in `RealStudioAcceptanceTests` passed for the owner-created and explicitly
+shared **C93 Acceptance Shared** workspace. It restricts mutation to exact owned
+`notes.txt` fixture content, verifies read/save/hash/stale refusal, restores with
+the verified revision, and checks real build/test jobs. Build
+`1221a71b-d822-4d33-ac5e-739a1b17bd75` and Test
+`17972169-f31a-4911-8648-8fa838c0c769` completed; the test result contained one passed
+owned Python case. Its prohibited-operation assertions exercise the
+production Swift encoder; those alone are not remote adversarial acceptance.
+
+The remaining owner actions are grouped in
+[the acceptance checklist](OLIVE_MOBILE_C9_3_ACCEPTANCE_CHECKLIST.md). Following a
+request for simpler instructions, fixture creation and workspace sharing were
+completed first. The owner then set sync domains to Allow, created the two named
+synthetic Chat conversations, selected only Shared, and opened the separate
+Unshared fixture without sharing it. Timing
+capture uses only synthetic receipt metadata and matching ordered connection
+audit events. Audit timestamps have one-second resolution and cannot by themselves
+establish when desktop UI changed; the owner observation is still required.
+The fixture utility was run locally and its observer checked against a disposable
+synthetic SQLite database. Those utility checks are not CachyOS acceptance.
+
+**New real C5 evidence:** `RealSyncAcceptanceTests.testOwnedTodayAndSelectedChat`
+passed against CachyOS with the production phone sync model/store. Synthetic task,
+calendar, recurring event and linked reminder were created, acknowledged by the
+desktop, explicitly synced repeatedly and reloaded with stable IDs/revisions.
+Selected desktop conversation `1d20bcdd-bb21-497e-88df-9d43933f78e4` arrived with
+four ordered messages and stable IDs across repeated sync. The named unselected
+Private conversation did not appear. A real completed C7 turn
+`8bfc77d2-1fde-4c24-aa68-a7c8a05ffca0` was imported using only that synthetic turn,
+without selecting historic mobile turns, and repeatedly synced with stable user
+`00e757a2-c5ab-4039-a15d-56babb6a90bb` and assistant
+`063c6ae5-d8ef-404f-a6c5-54ea7f83f1ee` IDs. The owner confirmed it appears exactly
+once on desktop, and confirmed the Today records and three daily event dates.
+
+The owner edited Task/Event titles and the Reminder time on desktop. The first
+automated pull did not find an expected title and stopped before writing phone
+edits. A later explicit sync passed with the exact desktop titles/time; no product
+change was made. Phone title/time edits then received desktop acknowledgements.
+Unsent phone changes were prepared for all four domains for the next owner batch.
+Real conflict preservation/resolution and tombstones are still pending.
+
+**Studio background chronology:** the first UI attempt overlapped requested
+desktop permission changes and ended with `remotePermissionDenied`
+(`19283035-3ff6-4fed-b0ae-835f40f5f925`). This is not used as a background completion
+pass. The next run, `74db8ee8-18e1-4c91-93ff-30103a3f5be3`, had a real visible iOS
+continued-processing grant, remained backgrounded for at least 65 seconds, and
+the journal records completed after about 75.4 seconds. Its actual UI showed
+`completed · 0 passed, 0 failed, 0 skipped`; the test incorrectly expected only
+`completed` and timed out. That assertion was corrected without a product change.
+A subsequent attempt (`44a4f20e-5b12-41f2-998a-b50c10ce384a`) instead interrupted
+after about 5.3 seconds with `peerOffline`; its cause remains under investigation.
+An opt-in DEBUG trace now records only bounded connection phases/typed failure
+codes in eight protected slots, with no content, endpoint or key material.
+The full background-plus-cancel UI test remains open despite the independently
+verified completed run. A separate deliberate-disconnect test observed a fresh
+connection retiring before its first later read; its test reconnection now requires
+a real read-only admission response, matching normal session setup. No protocol
+timeout or authority rule was weakened to make these checks pass.
+
+Fresh automated results for this run:
+
+- Xcode listing, signed device build-for-testing, simulator-SDK build-for-testing
+  and generic iOS Release build passed. No simulator runtime execution is claimed.
+  Full physical unit/UI execution remains pending; the prior 67/11 case results
+  above are retained as prior evidence, not relabelled fresh. Normal production
+  identity launch was restored after the real C6 test so owner setup can proceed.
+- Python/Swift interop passed, including C5/C6/C8 and calendar fixtures.
+- Repository-scoped source compilation passed with dependencies excluded.
+- Mac Connect: 254 cases, one existing owned-descendant cleanup timeout.
+- Mac full Python: 1,456 cases, 58 skips, **2 failures and 3 errors**. In addition
+  to the four previously documented Mac failures, the injected SQLite-lock receipt
+  test reported `connection_closed` with `SQLITE_BUSY`. An immediate focused rerun
+  also failed. A baseline archive at `22dad872` and a later current-source focused
+  rerun both passed after concurrent builds finished. Desktop/test source is
+  identical across that comparison. This is recorded as intermittent, not erased
+  from the failed full-suite result or established as a product regression.
+- Desktop typecheck, 101 frontend tests across 20 files, and production build
+  passed. No additional desktop patch is justified by current real-device evidence.
+
+Logs use `/private/tmp/olive-c93-closeout-*.log`. C9.3 remains PARTIAL until the
+remaining real cases, final physical suite and any required fixes are complete.
+Independent iOS resource expiration has not been observed; prior system Stop
+uses the same callback and is not proof of resource expiration. C9.4/C10 and
+optional reminder notification scheduling remain deferred.
+
+### Further live acceptance and connection fix — 2026-09-27
+
+The four synthetic concurrent edits (Task, Event, Reminder and selected Chat)
+were retained as conflicts through repeated sync and protected-store reload.
+The owner resolved all four through desktop **Keep this device** and confirmed
+that those conflicts disappeared. The physical phone then verified strictly
+dominating revisions, cleared conflict state, the desktop titles, and daily
+recurrence with October 2 moved to October 4 and October 3 cancelled. Linked
+Task completion received a desktop acknowledgement. Deleting the first shared
+message preserved the later message and ordering indexes. A real UI test
+relaunched the production app twice, explicitly synced and read only the owned
+conversation: FIRST stayed absent and SECOND remained visible. Whole-record
+Today/conversation deletion remains a separate pending phase.
+
+A bounded transport trace reproduced the Studio disconnect as incoming C7
+request frame **9**, previously rejected by the mobile response-only dispatch.
+Desktop Chat polls paired-device model availability, so this valid duplex probe
+could close the shared authenticated connection during unrelated companion work.
+The mobile transport now strictly validates the existing C7 request, including
+pinned-channel source/target binding, protocol, IDs, time bounds, fields and
+arguments. Status reports all presets unavailable, permission `deny`, and not
+busy. Other valid incoming operations return correlated `permission_denied`;
+expired requests return `expired_request`. Malformed or mismatched frames still
+close the channel. No mobile inference provider or additional authority exists.
+
+Validation after that fix:
+
+- 18 protocol unit tests plus the real resolved-conflict/tombstone test passed
+  (19 cases, zero failures). Python decodes the independently produced Swift
+  status/denial replies; full existing C5/C6/C8 interop also passed.
+- Real C8 read/save/hash/stale refusal, Build and Test passed. A started Run
+  (`4fc342d3-1302-4f13-a972-5f2cf8b318d8`) was deliberately disconnected. The
+  replacement channel could not adopt it; 80 seconds of bounded read-only
+  observation found neither late DONE nor replay in the owned fixture log.
+- Real UI background Run/Cancel and selected-message tombstone/relaunch passed
+  (two cases, zero failures). Studio had a visible actual continued-processing
+  grant and spent at least 65 seconds backgrounded before completed status;
+  a fresh explicit Run was then cancelled through the mobile UI.
+
+Evidence: `/private/tmp/olive-c93-incoming-fix-{unit-sync,studio,real-ui}.xcresult`
+and matching logs; `olive-c93-incoming-fix-interop.log`. These supersede the open
+outcomes above without erasing their failed attempts. Final whole-suite regression,
+remaining permission/file edges and independent expiration are still open.
+
+The owner subsequently confirmed the completed desktop Task and cancelled linked
+reminder delivery. Desktop Chat retained the bot's FIRST reply while removing
+only the deliberately tombstoned user prompt; SECOND remained. This is the
+expected individual-message deletion, not deletion of the entire first turn.
+
+The post-fix full physical regression passed: **75 unit cases, 66 passed and
+9 explicit live-test skips; 13 UI cases, 10 passed and 3 explicit live-test skips**.
+The separately enabled real cases above are reported independently of those
+skips. Xcode listing, signed device build-for-testing, simulator-SDK
+build-for-testing and generic iOS Release build passed. No simulator runtime
+execution is claimed. Logs: `olive-c93-current-{device-build,full-unit-ui,list,
+simulator,release}.log`; full physical bundle `olive-c93-current-full-unit-ui.xcresult`.
+
+The subsequent real tombstone phase passed: Task, Event, linked Reminder,
+selected Conversation and all its remaining messages were deleted using the
+production authoring path, acknowledged by CachyOS and retained as tombstones
+after cold-store load and repeated explicit sync. The unselected Private
+conversation stayed absent. Evidence: `olive-c93-real-sync-delete.xcresult`
+(one case, zero failures). Final desktop deletion UI confirmation is requested
+in the updated five-part owner checklist. The normal signed app was explicitly
+installed and launched under its existing production identity successfully.
+
+Post-fix Mac regression finished against implementation/test checkpoint
+`296a2ee7765c3550edfcfcc6e7723bfa31dc4032`:
+
+- Source compile, Python/Swift interop, desktop typecheck, all 101 frontend tests
+  in 20 files, and desktop production build passed.
+- Connect: 254 tests, one previously documented Mac owned-descendant cleanup
+  timeout. Full Python: 1,456 tests, 58 skips, two failures and two errors:
+  owned-descendant cleanup, Linux process-readiness on macOS, selected-workspace
+  project run, and the detected-JDK availability expectation. The intermittent
+  SQLite-lock receipt case passed in this full rerun; its earlier failure above
+  remains recorded. This is not an all-green Mac Python result.
+- CachyOS remains at `fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`; no desktop code,
+  recovery ref, firewall, identity or permissions were changed by these fixes.
+  The earlier native 254/1,443/101 validation remains the deployed evidence.
+
+Local implementation/test commits after this run's baseline `22dad872`:
+`40d6f5c` (real-peer probes/owned fixture tooling), `92e416d` (duplex C7 fix and
+interop), `296a2ee` (C5 conflict/tombstone and C8 lifecycle acceptance). A docs-only
+checkpoint follows. No push, merge, tag or release was performed. Status remains
+**PARTIAL**, awaiting the remaining batched physical results, including permission
+matrix, file collision/revocation/presence timing, real Studio draft retention,
+final C9.2 Chat recovery and independent system expiration. The current checklist
+marks passed checks and requests only the remaining owner actions.
