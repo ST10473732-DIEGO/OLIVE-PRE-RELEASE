@@ -929,3 +929,15 @@ phone stale-save check. The stale draft remained on the phone and newer desktop
 bytes were preserved. This closes the outstanding Studio policy/editor acceptance
 observations without changing code or authority. Final Remote AI recovery and
 remaining presence/platform closeout remain open; C9.3 stays PARTIAL.
+
+The final owner Chat batch passed reconnect/retained Allow, normal response and
+code rendering, Stop/new request, and Wi-Fi interruption/recovery. The reported
+timeout restored the draft and resent nothing; the bounded operation journal
+corroborates cancellation, timeout and later explicit successful requests.
+The consolidated C9.3 audit preserves two unproven gate observations: exact
+desktop presence-label timing during successful transfer, and independently
+identified system expiration during C7. Neither is inferred from earlier C6
+failures or system Stop. Latest installed code is `6cba75e`; its final physical
+78-unit/14-UI suites passed with 10/4 opt-in skips, builds and interop passed,
+and the documented Mac baseline failures remain. C9.3 stays PARTIAL; no push,
+desktop history synchronization, C9.4 or C10 work was performed.

@@ -2,6 +2,11 @@
 
 **Status: implementation delivered; real-device acceptance remains partial. The complete iPhone + CachyOS milestone gate has NOT passed.**
 
+Latest audit (2026-09-27): owner C5/C8 policy matrices, desktop deletions, Studio
+stale-draft safety and final C9.2/Chat recovery passed. Exact desktop presence-label
+timing and independently identified system expiration during C7 remain unproven.
+See the final audit below; earlier partial entries are chronological evidence.
+
 Native Today/selected Chat sync, Files, Remote Studio, capability status and
 continued-processing coordination are implemented and installed on the physical
 iPhone. Unit/UI/build checks do not establish real background execution. The
@@ -27,7 +32,8 @@ No simulator or Mac-hosted desktop is being substituted for CachyOS acceptance.
   were not treated as proof of equivalent source.
 - `FINAL_HEAD`: pending milestone acceptance. The current documentation checkpoint
   is resolvable with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
-- Latest implementation/test checkpoint: `347d0eb` (final validation below).
+- Original implementation/test checkpoint: `347d0eb`; latest installed code/test
+  checkpoint: `6cba75e` (later validation below).
 
 Local `COMMITS` to date:
 
@@ -1021,3 +1027,86 @@ This documentation-only follow-up began at
 changes. The installed code and its last full regression remain current. Final
 Remote AI/reconnect/Stop/connection-loss recovery, remaining presence timing and
 platform limitations still require truthful closeout; C9.3 remains PARTIAL.
+
+### Final owner Chat regression — 2026-09-27
+
+The owner confirmed all three final Chat checks passed: automatic reconnect with
+Remote AI Allow retained, completed Chat and fenced code rendering; explicit Stop
+followed by a successful new request; and active-response Wi-Fi interruption with
+safe recovery and another successful explicit request. The exact reported error
+was “Failed The request timed out Draft restored nothing was resent.” This is the
+expected interrupted network-loss outcome, not response completion or replay.
+
+The bounded journal corroborates the sequence without exporting Chat content:
+
+| Operation | Result |
+| --- | --- |
+| `b61b3e17-eecf-4abf-bdb1-357e9dff64b7` | Completed; 254 verified answer bytes |
+| `bcd8ff2d-f5bb-44f3-b910-b05d2217f9da` | Cancelled; 449 partial bytes; unsuccessful system completion |
+| `4483a4c6-2810-4feb-977e-5277b774f728` | New explicit request completed |
+| `66cb963f-8532-4d47-91c0-4d8e67c2a006` | Interrupted; `requestTimeout`; 1,784 partial bytes; unsuccessful system completion |
+| `57086080-eebd-4b92-a02b-ab637d4d98d9` | Subsequent explicit request completed |
+
+No independent continued-task expiration is inferred from `requestTimeout`.
+
+## Final closeout audit — PARTIAL, 2026-09-27
+
+- `BASELINE_HEAD` for this acceptance run: `22dad8729153ddab38412d4728c250ff44f095e8`.
+  The original milestone baseline remains recorded at the beginning of this report.
+- Audited documentation head before this entry: `c517a63dcf2db524fde1311f646dbad6ab940473`.
+- `FINAL_HEAD`: no completed-milestone head declared. This local evidence checkpoint
+  resolves with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
+- `BRANCH`: `feature/olive-mobile-c9-3`; worktree clean before this evidence update.
+- Code/test `COMMITS` after acceptance baseline: `40d6f5c`, `92e416d`, `296a2ee`,
+  `813e3b8`, `6cba75e`. Later local documentation commits preserve owner results
+  and failures; no rewrite, push, merge, tag or release was performed.
+- CachyOS remains `fd63db203a56ab2c8f4d3b26d93a1d20363e3f5c`; recovery branch,
+  firewall, trust and persistent listener behavior preserved.
+
+| Area | Current evidence |
+| --- | --- |
+| Selected Chat | Selected/unselected isolation, stable ordered IDs, mobile turn exactly once, repeat sync, tombstones/reload, conflict preservation/resolution and desktop deletion passed |
+| Today | Tasks/Calendar/linked Reminders, bidirectional edits/completion, recurrence/exceptions, tombstones/conflicts and desktop deletion passed |
+| Files | Real foreground round trip and both background directions, SHA-256, quarantine/export, Off/Ask/Allow, invalid hash/artifact absence, on-device oversize metadata rejection, collision, cancel, network/force-quit interruption and capability-withdrawal/no replay passed |
+| File coverage limits | Actual 65 MiB system-picker selection was not reported; the production size validator was exercised on-device. Exact desktop presence-label timing remains unproven |
+| Studio | Shared/unshared isolation, tree/read/save/hash, protocol and native editor stale refusal/draft retention, real build/test/run/cancel/background/channel-loss/no replay and five-scope policy matrix passed; prohibited authority unavailable |
+| Background Chat | Completion, system Stop, explicit Stop, network timeout, retained draft/no resend and new request afterward passed; independent system expiration during C7 unproven |
+| Device/permissions | Actual capability/connection states and C5/C6/C8 Off/Ask/Allow/withdrawal; no mobile Owner Mode |
+| C9.2 regression | Reconnect, retained Remote AI Allow, normal Chat, code rendering, Stop and successful later request passed |
+| Final iOS units/UI | 78 unit cases: 68 passed, 10 opt-in skips; 14 UI cases: 10 passed, 4 opt-in skips. Real opt-in acceptance is separately recorded above |
+| Builds/install | Xcode list, simulator-SDK build-for-testing, generic Release, signed physical build/install and normal launch passed; no simulator runtime claim |
+| Interop | Python/Swift C5/C6/C8 and calendar plus existing C2/C3/C7 interop passed |
+| Mac | Source compile, typecheck, 101 frontend cases/20 files and build passed. Full Python 1,456 cases/58 skips retained two failures/two errors; Connect retained the descendant-cleanup error. Not all green |
+| Native CachyOS | Source compile, 254 Connect cases, 1,443 Python cases/8 skips, typecheck, 101 frontend cases and build passed; no later desktop code change |
+
+### Unresolved completion-gate evidence
+
+1. **Desktop label timing:** the failed instrumented upload recorded cancellation
+   and channel closure in the same second. A successful phone trace proves receipt
+   decoding before local session release. Neither timestamps the desktop Devices
+   label during a successful run. The original ambiguous observation is not
+   retroactively resolved; a timed UI observation remains required. No presence
+   defect has been demonstrated.
+2. **Independent C7 system expiration:** system Live Activity Stop exercised the
+   C7 expiration-handler path; a later C6 run recorded a grant followed by the
+   system callback. Apple exposes no stop-reason distinction in that callback.
+   These are not proof of an independently identified expiration during active
+   Chat. There is no public deterministic API to force that system decision.
+   No private hook, fake progress, idle keepalive or speculative cause was used
+   to manufacture acceptance.
+
+The failed/interrupted runs stay failures despite the later Instagram success.
+Repeated identical trials cannot substitute for missing evidence. The implementation
+and completed acceptance are preserved; **C9.3 remains PARTIAL under the requested
+strict completion gate**. No product/test source changed after `6cba75e`; evidence-
+only follow-ups did not repeat passing regression without a new change.
+
+C9.4 polish, optional reminder scheduling and distribution remain deferred.
+C10, cloud/APNs infrastructure, EventKit, mobile Owner Mode and arbitrary remote
+control/terminal/debug/package authority were not started.
+
+If the owner elects to publish this explicitly PARTIAL source checkpoint, the
+recommended command is `git push -u origin feature/olive-mobile-c9-3`. It has not
+been executed. No desktop synchronization is needed now: desktop content has not
+changed. Do not blindly pull divergent Mac history into the validated CachyOS
+checkout; future desktop fixes require the guarded desktop-only flow.

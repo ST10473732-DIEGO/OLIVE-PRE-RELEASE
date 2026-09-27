@@ -1,5 +1,13 @@
 # C9.3 remaining physical checks — updated 2026-09-27
 
+**Current gate audit:** the owner completed the C5 and C8 policy/deletion/editor
+batches and all three final Chat checks. Do not repeat those sections. Remaining
+unproven gate observations are exact desktop presence-label timing during a
+successful file transfer and independent system expiration during active C7 Chat.
+The latter cannot be deterministically forced through a public API; system Stop
+is separately passed, and network timeout is not proof of system expiration.
+The primary report retains PARTIAL status and all earlier failed runs.
+
 The normal phone app is installed and available. Automated phone tests are
 finished for this batch. Use only the owned `C93 Acceptance ...` records and
 fixture directory printed by setup. No re-pairing or desktop installation is
@@ -119,6 +127,12 @@ no-replay observation already passed. No need to repeat them here. Mobile has no
 terminal, PTY, debugger, package installation or Owner Mode controls.
 
 ## 5. Final Remote AI regression and connection-loss recovery
+
+**Steps 1–3 passed by owner:** reconnect/Allow/code, Stop/new request, and Wi-Fi
+loss/recovery. Exact reported failure: “Failed The request timed out Draft restored
+nothing was resent.” The journal corroborates interrupted `requestTimeout` and a
+later explicit successful request. Step 4 remains unproven for independent C7
+expiration; do not relabel the already-passed system Stop as that event.
 
 1. Background the idle phone, then reopen OLIVE: reconnect without re-pairing,
    desktop Remote AI Allow retained. Ask for a short Python function in a fenced
