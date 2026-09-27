@@ -603,3 +603,11 @@ desktop at the comparison step before either confirmation. The paired-device
 list stayed unchanged; the phone truthfully reported connection loss and no
 automatic replay. Phone-side abort, test-identity cleanup, updated Fast history
 acceptance and deployed Start status verification remain before completion.
+
+The subsequent real phone-side abort also passed: desktop pairing cancelled,
+the phone returned to unpaired, and the desktop trust list remained unchanged.
+The isolated-test cleanup launch then reopened normal production identity/trust;
+visible reconnection confirmation remains pending. The Start patch installer
+had a stray `L n` prefix and failed before running; it was regenerated and checked
+for a fresh copy/paste attempt. Native frontend deployment and accumulated Fast
+history acceptance are still required before closing C9.2.

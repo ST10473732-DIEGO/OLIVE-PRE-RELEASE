@@ -27,8 +27,8 @@ after installing and restarting it, the owner confirms all eight requested
 short sequential questions complete without reconnecting. The later persistent
 listener update and two scoped UFW rules now pass unattended desktop restart and
 automatic phone reconnect with Chat. Desktop-side pairing cancellation also
-leaves the paired-device list unchanged. Phone-side pairing abort, accumulated
-Fast history acceptance and deployment of the Start status correction remain
+leaves the paired-device list unchanged. Phone-side pairing abort also passed.
+Accumulated Fast history acceptance and deployment of the Start status correction remain
 pending; see the latest checkpoints below for current ports and validation.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
@@ -299,7 +299,7 @@ permission behavior changes.
 | Fresh pairing listener | Owner returned main TCP 47235 and temporary TCP 52643, both in the existing OLIVE process on the selected LAN interface. Provided a phone-only rule for that exact temporary port, followed by immediate scan/two-sided confirmation instructions |
 | First connection report | Owner first reports “ok they connected,” then confirms the phone shows Connected / Remote AI Off. This is owner-observed production UI evidence; no Chat response or pairing/session timing is claimed |
 | Pairing-rule cleanup | Owner initially reported deletion of the phone-to-temporary-port 52643 rule, but a later numbered UFW output still listed it. Cleanup was requested again. The final owner-supplied numbered output after fresh pairing now confirms both temporary rules (52643 and 50703) are absent. Only the phone-specific main 33823 allowance remains alongside the pre-existing KDE Connect rules; the Mac remains excluded |
-| Both confirmations / denial / abort | Real two-sided pairing passed. With a separate test identity, desktop Cancel before either confirmation left the paired-device list unchanged and the phone reported connection loss. Phone-side abort remains pending |
+| Both confirmations / denial / abort | Real two-sided pairing passed. With a separate test identity, desktop Cancel before either confirmation left the paired-device list unchanged and the phone reported connection loss. Phone Cancel on a fresh attempt also cancelled on desktop, returned the phone to unpaired, and left the desktop paired-device list unchanged |
 | Paired record / app relaunch | **Passed, real-device screenshot reviewed:** after installing the composer update and relaunching the normal app, Devices shows the retained desktop under Paired with Connected / Remote AI Allow. No new pairing ceremony was performed |
 | Background / foreground reconnect | **Passed, owner-observed:** after about ten seconds in the background, the phone returns to Connected / Remote AI Allow without re-pairing, and an explicitly submitted hash-function question receives another answer. Reconnection described as almost instant; no numeric timing claimed |
 | Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
@@ -742,7 +742,7 @@ It is now being used for the owner-assisted negative pairing checks recorded
 below. Cleanup is explicitly confined to that test namespace; normal production
 state is retained.
 
-**Remaining gate:** finish real phone-side pairing abort, retest accumulated Fast Chat
+**Remaining gate:** retest accumulated Fast Chat
 against the restarted updated runtime, and deploy/verify the newly reported
 Welcome status correction. Saved-port firewall setup and unattended restart have
 passed as recorded below. No C9.2 completion claim yet.
@@ -813,5 +813,26 @@ owner reports that the desktop paired-device list **stays unchanged** and the
 phone displays **“Connection lost. The request will not be sent again
 automatically.”** This records the actual close/error behavior, not a claimed
 typed denial message. No new desktop trust was added. The working production
-pairing is retained in its separate namespace. Phone-side abort is requested
-next; cleanup and return to the production identity remain pending.
+pairing is retained in its separate namespace.
+
+### Real phone-side pairing abort and return to normal identity
+
+On a fresh desktop QR attempt, the owner cancelled on the physical phone before
+confirmation. The owner reports that this **also cancelled on the desktop**, the
+phone **returned to an unpaired state**, and the desktop paired-device list
+**remained unchanged**. Both owner-assisted pairing cancellation directions have
+now passed without adding trust.
+
+The app was subsequently launched successfully with the debug-only
+`--c92-cleanup-pairing-check` flag. This requests removal of only the isolated
+acceptance Keychain accounts, preferences and directory, and opens the normal
+production identity/trust store. The normal connection's visible state remains
+to be confirmed by the owner; launch success alone does not certify every
+best-effort cleanup operation.
+
+The first Start status installer attempt failed in Fish with unknown command
+`L npython3`; inspection found the same stray prefix in the Mac text file.
+The command was regenerated from the prepared installer, with its one-line shell
+argument structure and decoded Python syntax checked. No desktop patch success
+is inferred from the failed attempt. The corrected handoff is
+`/tmp/OLIVE-C92-START-STATUS-CLEAN.txt`; native frontend results remain pending.
