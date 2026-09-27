@@ -621,3 +621,28 @@ as `698b002e13ba76aef8bcd1a391b33280764e1bad`. Fresh native CachyOS type checkin
 The follow-up is frontend-only; the previously green native Connect/full Python
 regression remains applicable. Deployed Start label verification after restart
 and accumulated Fast Chat acceptance are the remaining checks before closure.
+
+### C9.2 complete — real iPhone Connect and Chat, 2026-09-27
+
+The owner confirms the deployed Start status/restart check works and connects
+after about five seconds. Following the requested accumulated Fast conversation
+check, the final multiplication answer is 391. These are owner-reported results,
+not independently instrumented per-turn timings. This closes the remaining
+C9.2 acceptance items on the physical iPhone and CachyOS desktop.
+
+Real discovery, two-sided pairing, Keychain/trust persistence, permission
+Off/Allow, Chat/code, actual Stop and subsequent requests, interruption recovery,
+revocation/unpair/reset, both pairing cancellation directions, wrong-pin rejection
+and cancellation boundaries have passed. Saved main/pairing ports with exact
+phone/interface/address-scoped UFW rules preserve default-deny and now survive
+normal OLIVE restarts without manual firewall edits. The phone discovers those
+endpoints dynamically; mobile Owner Mode or another protocol was not introduced.
+
+Final deployed desktop commit: `698b002e13ba76aef8bcd1a391b33280764e1bad`.
+Native regression: 253 Connect tests; 1,442 Python tests with 8 skipped; 101
+frontend tests; type checking and build passed. Physical iOS: 43 unit and 8 UI
+tests passed, with simulator-SDK and generic device builds also passing.
+Known Mac Python baseline failures, Electron C6 timing limitations and unmeasured
+timings remain documented in `OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`; no blanket
+all-platform green claim is made. This is a local milestone closeout, with no
+push, merge, tag or release. C9.3, C10 and OLIVE OS have not begun.

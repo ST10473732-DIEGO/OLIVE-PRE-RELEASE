@@ -1,37 +1,30 @@
 # OLIVE Mobile C9.2 — Connect client and real LAN acceptance
 
-**Status: in progress; completion gate has not passed.** Real iPhone Bonjour
-acceptance passed. After identifying UFW admission as the initial TCP blocker
-and providing phone-only rules for the existing listeners, the owner reports
-that the phone shows Connected / Remote AI Off. With Off unchanged, the harmless
-arithmetic draft stays visible and Send is disabled. After the desktop Allow
-workflow, the owner confirms the correct arithmetic reply on the phone and a
-second Swift answer rendered in a distinct code block. The owner also confirms
-remote cancellation (0.09 s acknowledgement) and a complete subsequent answer.
-App relaunch, background/foreground reconnection and Wi-Fi interruption recovery
-also pass, with no automatic draft submission. After desktop restart and a
-phone-only firewall rule replacement for its changed listener port, the owner
-confirms reconnect, retained Remote AI Allow and another arithmetic answer with
-no new approval. After desktop revocation and an explicit phone Reconnect,
-the owner confirms the phone remains offline/disconnected with Chat unavailable.
-The owner also confirms mobile unpair removes the computer from Paired while
-the displayed phone identity remains unchanged, followed by an explicitly
-confirmed identity reset that shows a different Identity value. Fresh pairing
-then succeeds with Connected / Remote AI Off, requiring a new desktop permission
-decision. After a new desktop Allow decision, the owner confirms the arithmetic
-answer is 391. Current numbered UFW output verifies both temporary pairing rules
-are absent; only the phone-specific main-listener rule remains alongside the
-pre-existing KDE Connect rules at that checkpoint. The later quota follow-up
-removes the six-starts-per-minute limit and fixes mobile rejection recovery;
-after installing and restarting it, the owner confirms all eight requested
-short sequential questions complete without reconnecting. The later persistent
-listener update and two scoped UFW rules now pass unattended desktop restart and
-automatic phone reconnect with Chat. Desktop-side pairing cancellation also
-leaves the paired-device list unchanged. Phone-side pairing abort also passed.
-Accumulated Fast history acceptance and real-device verification of the deployed
-Start status correction remain pending; see the latest checkpoints below for
-current ports and validation.
-Isolated protocol tests and successful builds are not substitutes for those checks.
+**Status: COMPLETE — C9.2 real-device completion gate passed on 2026-09-27.**
+
+The physical iPhone 15 Pro Max discovers and securely pairs with the real
+CachyOS desktop through existing Connect, retains its Keychain identity and
+trust, sends real C7 Chat, renders code, cancels desktop inference and sends new
+requests afterward. Permission Off/Allow, revocation, unpair, explicit identity
+reset, fresh pairing, wrong-pin rejection, both pairing cancellation directions
+and cancellation boundary checks passed with the evidence distinguished below.
+
+Persistent, opt-in listener ports and exactly scoped UFW allowances preserve
+default-deny filtering. Unattended desktop restart now reconnects the phone
+without firewall edits or re-pairing. After the Start status fix, the owner reports
+connection in about **five seconds** and successful accumulated Fast Chat ending
+with the multiplication answer **391**. No automatic request replay is introduced.
+
+Final deployed desktop commit: `698b002e13ba76aef8bcd1a391b33280764e1bad`.
+Fresh native CachyOS regression passed: **253 Connect tests**, **1,442 Python
+tests (8 skipped)**, and **101 frontend tests**, plus type checking and build.
+Physical iOS validation passed **43 unit tests and 8 UI tests**. The Mac Python
+baseline failures and Electron timing limitations remain explicitly recorded;
+completion does not assert that every test on every platform was green.
+
+The chronological record below retains failed attempts and repairs. Its earlier
+pending states and temporary per-port rules are superseded by the final closure
+record. C9.3, C10 and OLIVE OS have not begun.
 
 ## Repository checkpoint
 
@@ -40,7 +33,8 @@ Isolated protocol tests and successful builds are not substitutes for those chec
 - `WORKTREE_STATUS`: clean at start; no later commits to preserve.
 - `FINAL_HEAD`: the documentation checkpoint containing this report; resolve
   with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`.
-  Validated implementation: `5cafbfff631a11f9d5feb4c9db4457c7f1c5af2f`
+  Final validated implementation: `f96b7f3e587bb91bae4931a5fa36070a6621c803`
+  (earlier mobile admission checkpoint `5cafbfff631a11f9d5feb4c9db4457c7f1c5af2f`)
   (Connect implementation `004c72f`, Stop control `e1dc9c1`, identity recovery
   and clear-on-send/Stop draft follow-up `ac2f3ab`).
 - `COMMITS`: `004c72f` — native Connect client, UI and interop tests; followed by
@@ -64,9 +58,10 @@ Isolated protocol tests and successful builds are not substitutes for those chec
 - No Git reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
-historical mobile design assumptions. The only desktop runtime change is the
-explicitly requested C7 admission-quota removal described below. C2/C3 transport,
-pairing, permissions and wire versions remain unchanged.
+historical mobile design assumptions. Desktop changes comprise the requested C7
+admission-quota removal, bounded model-context fitting, opt-in saved listener
+ports/startup and the Start status correction. C2/C3 TLS and pairing trust
+semantics, permissions and wire versions remain unchanged.
 No C10, cloud account, model download, mobile Owner Mode or remote desktop tools.
 
 ## iOS and native dependency
@@ -312,7 +307,7 @@ permission behavior changes.
 | Hash prompt / new request after Stop | **Passed, owner-observed:** after cancellation, “Explain in two sentences what a hash function does” returns a complete answer. Exact answer text has not been collected |
 | Remote Stop | **Passed, owner-observed C7 cancellation:** phone output stops, desktop activity reports Remote AI cancelled, and phone diagnostic reports Stop acknowledgement **0.09 s** for request `e3a9bd09-bef4-4faf-bc2f-d89d9009ca93`. This is the displayed rounded acknowledgement duration, not a separate provider-internal timing |
 | Wi-Fi interruption / offline draft | **Passed, owner-observed:** Wi-Fi Off produces Offline with disabled Send and a preserved draft; restoring Wi-Fi reconnects with the draft still unsent; pressing Send explicitly produces an answer |
-| Desktop restart | **Retained trust and Chat passed after host rule repair:** main listener moved from TCP 47235 to TCP 33823 in a new process; phone initially Offline. Owner confirms the phone-specific rule for 33823 was added and the old 47235 rule deleted, then the phone reconnected with Remote AI Allow and answered the arithmetic prompt without another approval. Unattended restart recovery is not certified; no numeric reconnect time measured |
+| Desktop restart | **Retained trust and Chat passed after host rule repair:** main listener moved from TCP 47235 to TCP 33823 in a new process; phone initially Offline. Owner confirms the phone-specific rule for 33823 was added and the old 47235 rule deleted, then the phone reconnected with Remote AI Allow and answered the arithmetic prompt without another approval. This initial workaround was superseded by saved listener ports; unattended restart later passed with no firewall edit, and the final owner-reported reconnect was about five seconds |
 | Desktop revocation | **Passed, owner-observed 2026-09-27:** after following desktop Revoke device and phone Reconnect instructions, the phone remains offline/disconnected with Chat unavailable. The mobile pairing record was retained during this check; no key reset or new pairing was performed. This is real UI acceptance, not an independently captured TLS rejection trace |
 | Mobile-local unpair | **Passed, owner-observed 2026-09-27:** the owner confirms the computer disappears from Paired after Unpair and the displayed Identity value stays unchanged. This verifies the visible removal and identity preservation; automated repository tests separately verify removal of peer pin material. No removal of the desktop's revoked record is claimed |
 | Identity reset | **Passed, owner-observed 2026-09-27:** after explicit confirmation in Settings, the phone shows Identity reset and a different displayed Identity value. This follows successful unpair; the old desktop trust record remains revoked |
@@ -321,8 +316,8 @@ permission behavior changes.
 | Wrong peer | **Passed, physical iPhone → real CachyOS:** opt-in test authenticates the saved correct pin, then requires `certificateMismatch` for an in-memory wrong expected certificate at that same endpoint. Saved trust and phone identity remain unchanged. Run 10: 0.230 s; run 11: 0.249 s for the complete positive/negative check |
 | Rapid sequential Chat after quota update | **Passed, owner-observed 2026-09-27:** following instructions to send eight short questions within one minute and wait for each response, the owner reports all work without reconnecting. The desktop had been patched, passed 243 native Connect tests and restarted with main TCP 54981. No exact per-request timings are claimed |
 
-No proxy, simulator, fixture response or mock peer was substituted for these
-pending steps. No SSH, extra remote-access method or exposure of Ollama was
+No proxy, simulator, fixture response or mock peer was substituted for the
+real-device acceptance steps. No SSH, extra remote-access method or exposure of Ollama was
 introduced. The owner's explicit main-listener firewall exception is recorded
 above; there is no blanket LAN or port-range allowance. Public routing
 diagnostics stay local in ignored logs.
@@ -535,23 +530,25 @@ requires C7 acknowledgement/actual job cleanup, not just a terminal database row
 
 ## Completion gate
 
-C9.2 remains **incomplete**. Real pairing, permission-respecting Chat/code,
-Stop, subsequent requests and mobile interruption recovery have passed as
-recorded above. Desktop revocation also prevents reconnect and Chat in the
-owner's real-device check. Mobile-local unpair removes the paired device while
-preserving the displayed phone identity. Explicit identity reset then produced
-a changed displayed identity, and fresh pairing succeeds with Remote AI Off.
-Chat is restored after a new desktop Allow decision, and both temporary UFW
-rules are confirmed absent. Remaining security acceptance and final relevant
-tests remain outstanding. The quota follow-up is installed and passes the
-owner's eight-request sequential-Chat check without reconnecting. The deployed desktop patch commit and final pre-update UFW state are now
-recorded above. The persistent-listener follow-up is under validation; unattended
-restart and remaining negative acceptance must pass before completion.
-This is not classified as an Apple platform limitation. No C9.3/C10 work
-begins and no release claim is made.
+C9.2 is **complete** for the tested physical iPhone and local CachyOS desktop.
+All functional items in the requested completion gate have evidence: discovery,
+secure pairing, durable identity/trust, truthful connection/capability state,
+real Chat and code rendering, actual remote cancellation and subsequent requests,
+interruption/restart recovery, permission Off/Allow, revocation and unpair.
+
+The persistent listener architecture removes manual per-restart firewall edits
+on the selected LAN. It retains UFW default deny, exact source/interface/address
+scope, mutual identity verification and existing Connect capability permissions.
+Both manual pairing cancellation directions and automated physical wrong-pin,
+early/repeated/completion-race/socket-loss cancellation checks passed. Native
+CachyOS and physical iOS regression results are recorded below. Known Mac
+baseline failures and unrelated Electron transfer timing failures remain visible.
+
+This closes C9.2 only: no C9.3/C10, cloud relay, mobile Owner Mode, release, push,
+merge or tag is part of this checkpoint.
 
 
-## Final closure follow-up (in progress)
+## Final closure follow-up and evidence
 
 The owner requests completion of C9.2, including unattended restart through
 UFW, rather than proceeding to C9.3. The latest Mac starting HEAD is
@@ -743,10 +740,9 @@ It is now being used for the owner-assisted negative pairing checks recorded
 below. Cleanup is explicitly confined to that test namespace; normal production
 state is retained.
 
-**Remaining gate:** retest accumulated Fast Chat
-against the restarted updated runtime, and verify the deployed Welcome status
-correction on the real desktop. Saved-port firewall setup and unattended restart have
-passed as recorded below. No C9.2 completion claim yet.
+**Gate status at this checkpoint:** accumulated Fast Chat and the deployed
+Welcome label still required real-device confirmation. Both subsequently passed
+in the final closure record below.
 
 ### Saved endpoints confirmed by owner
 
@@ -857,3 +853,73 @@ Python runtime. No firewall, identity or permission changes were made by the
 installer. Normal desktop restart with the phone open is now requested to verify
 the corrected Start label and automatic reconnection in the deployed build.
 Accumulated Fast Chat acceptance remains pending; C9.2 is not yet marked complete.
+
+
+### Final real-device confirmation and C9.2 closure — 2026-09-27
+
+After successful installation and native regression of desktop
+`698b002e13ba76aef8bcd1a391b33280764e1bad`, the owner was asked to restart OLIVE
+normally with Connect enabled, leave the phone open, and verify Start → Your
+devices within five seconds. The second requested check used **Fast**, eight
+sequential requests in one conversation for “Explain hash functions in about
+250 words, with one simple example,” waiting for each response, then
+“What is 17 × 23?” without reconnecting. The owner reports **“ok it works and
+connects after 5 seconds, the answer i got is 391.”** This is owner-observed
+acceptance of those requested checks. No per-turn transcripts, exact response
+lengths, role receipts or independently instrumented five-second timing were
+supplied; none are fabricated. The earlier native context-fitting regression
+separately verifies keeping recent complete turns and rejecting an oversized
+latest question.
+
+The corrected Start label, restart recovery and accumulated Fast conversation
+check now pass. The normal phone identity previously returned to **Connected /
+Remote AI Allow** after the isolated negative pairing checks. There are no
+remaining C9.2 functional acceptance items in the completion gate.
+
+Final firewall configuration remains the owner's supplied active UFW policy:
+**deny incoming / allow outgoing / routed disabled**, unchanged KDE Connect
+rules, and only these OLIVE inbound TCP exceptions:
+
+| Interface | Source phone | Destination desktop | Saved port | Listener lifetime |
+| --- | --- | --- | --- | --- |
+| `enp111s0` | `192.168.10.37` | `192.168.10.196` | `44795` | Enabled Connect main listener |
+| `enp111s0` | `192.168.10.37` | `192.168.10.196` | `34537` | Explicit bounded pairing session only |
+
+No new firewall changes were requested for either final restart. The mobile app
+continues to discover endpoints; these addresses/ports are host acceptance
+configuration, not mobile constants or authentication credentials.
+
+Final implementation checkpoints are Mac `f96b7f3e587bb91bae4931a5fa36070a6621c803`
+and deployed desktop `698b002e13ba76aef8bcd1a391b33280764e1bad`. The final local
+closeout commit contains only this report and the project journey. Resolve its
+exact hash with the `FINAL_HEAD` command above; it is also supplied in the handoff.
+No push, merge, tag or release was performed.
+
+### Measurement and scope limits at closure
+
+- Discovery: measured Nearby appearance **1.098 s** in the physical test, excluding
+  initial permission/app bootstrap. Pairing and initial TLS/session durations
+  were not separately measured.
+- First Chat reply: owner described it as instant; first-visible and complete
+  response latencies were not instrumented. Wire polling delivers real incremental
+  events; no timer-generated token presentation is used.
+- Stop: owner diagnostic **0.09 s**; physical early-cancel test **0.092667958 s**.
+  These are acknowledgement timings, not independently measured GPU teardown.
+- Foreground reconnect: owner described almost instant. Final desktop restart
+  reconnect: owner-reported **about five seconds**, including app startup and
+  discovery rather than a separately measured TLS handshake.
+- DHCP remains automatic. If either scoped address or the selected interface
+  changes, host admission must be reviewed; no broad subnet rule or silent
+  fallback is added. Process restart on the tested LAN requires no firewall edit.
+- No simulator runtime is installed; simulator-SDK and generic device builds pass
+  and physical iPhone tests pass. Mac full Python retains the four recorded
+  baseline/platform failures; native CachyOS full Python passes. The complete
+  Electron end-to-end suite is not claimed green because of the recorded C6
+  transfer timing behavior also seen on baseline.
+- Expiry/malformed-message checks use protocol and isolated integration tests;
+  wrong-peer rejection also ran against the real LAN desktop. No spoofing
+  campaign against unrelated LAN devices was performed.
+- The public-offer clipboard failure from initial acceptance remains a recorded
+  fallback limitation; the normal real QR pairing path passes. Broader Chat
+  synchronization, files/Studio/task UI, notifications, cloud accounts, relay,
+  C10 and OLIVE OS remain outside C9.2.
