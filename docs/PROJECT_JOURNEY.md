@@ -584,3 +584,22 @@ OLIVE TCP rules and unchanged KDE Connect allowances. After instructions not to
 tap Reconnect, the owner reports the phone connected and answered the explicit
 multiplication prompt with 391. Normal desktop restart with no firewall edit is
 the next separate acceptance step; it is not inferred from this initial success.
+
+### C9.2 unattended restart passed; Welcome status correction
+
+After the no-firewall-edit/no-Reconnect restart instructions, the owner reports
+the iPhone connected automatically as soon as OLIVE ran, and Chat answered. This
+is owner-observed success; no numeric duration or listener PID comparison was
+returned. The owner found a stale Start/Your devices label saying Connect was off.
+The Welcome view read once after 300 ms while the shared live poll waited for Home;
+it now consumes the same five-second Connect snapshot from startup (`f96b7f3`).
+Type checking, build and 101 desktop unit tests pass. A real Electron/Python
+regression verifies Off → On → Connected → Off without leaving Start (1 passed).
+Desktop deployment is prepared against the owner's clean `00940235` checkpoint.
+This is a C9.2 status fix, not OLIVE OS work.
+
+Using a separate debug-only phone identity, the owner cancelled pairing on the
+desktop at the comparison step before either confirmation. The paired-device
+list stayed unchanged; the phone truthfully reported connection loss and no
+automatic replay. Phone-side abort, test-identity cleanup, updated Fast history
+acceptance and deployed Start status verification remain before completion.

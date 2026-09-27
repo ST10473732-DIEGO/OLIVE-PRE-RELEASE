@@ -24,8 +24,12 @@ are absent; only the phone-specific main-listener rule remains alongside the
 pre-existing KDE Connect rules at that checkpoint. The later quota follow-up
 removes the six-starts-per-minute limit and fixes mobile rejection recovery;
 after installing and restarting it, the owner confirms all eight requested
-short sequential questions complete without reconnecting. Unattended desktop
-restart recovery and remaining security acceptance are pending.
+short sequential questions complete without reconnecting. The later persistent
+listener update and two scoped UFW rules now pass unattended desktop restart and
+automatic phone reconnect with Chat. Desktop-side pairing cancellation also
+leaves the paired-device list unchanged. Phone-side pairing abort, accumulated
+Fast history acceptance and deployment of the Start status correction remain
+pending; see the latest checkpoints below for current ports and validation.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -295,7 +299,7 @@ permission behavior changes.
 | Fresh pairing listener | Owner returned main TCP 47235 and temporary TCP 52643, both in the existing OLIVE process on the selected LAN interface. Provided a phone-only rule for that exact temporary port, followed by immediate scan/two-sided confirmation instructions |
 | First connection report | Owner first reports “ok they connected,” then confirms the phone shows Connected / Remote AI Off. This is owner-observed production UI evidence; no Chat response or pairing/session timing is claimed |
 | Pairing-rule cleanup | Owner initially reported deletion of the phone-to-temporary-port 52643 rule, but a later numbered UFW output still listed it. Cleanup was requested again. The final owner-supplied numbered output after fresh pairing now confirms both temporary rules (52643 and 50703) are absent. Only the phone-specific main 33823 allowance remains alongside the pre-existing KDE Connect rules; the Mac remains excluded |
-| Both confirmations / denial / abort | The owner followed the two-sided confirmation flow and obtained an authenticated paired connection. Separate denial/abort checks on the real devices remain pending |
+| Both confirmations / denial / abort | Real two-sided pairing passed. With a separate test identity, desktop Cancel before either confirmation left the paired-device list unchanged and the phone reported connection loss. Phone-side abort remains pending |
 | Paired record / app relaunch | **Passed, real-device screenshot reviewed:** after installing the composer update and relaunching the normal app, Devices shows the retained desktop under Paired with Connected / Remote AI Allow. No new pairing ceremony was performed |
 | Background / foreground reconnect | **Passed, owner-observed:** after about ten seconds in the background, the phone returns to Connected / Remote AI Allow without re-pairing, and an explicitly submitted hash-function question receives another answer. Reconnection described as almost instant; no numeric timing claimed |
 | Remote AI Off | **Passed, owner-observed mobile UI:** while Connected / Remote AI Off, the arithmetic question remains visible and the Send arrow is disabled. This verifies the normal mobile submission path; it is not a live malicious-client bypass test |
@@ -734,13 +738,14 @@ independent GPU telemetry is claimed.
 A debug-only pairing acceptance launch mode has separate app-scoped Keychain,
 trust and draft storage and a visible test-identity banner. This permits real
 owner denial/phone abort checks without unpairing or resetting the working phone.
-It has not yet been used for the owner-assisted negative pairing checks. Cleanup
-is explicitly confined to that test namespace; normal production state is retained.
+It is now being used for the owner-assisted negative pairing checks recorded
+below. Cleanup is explicitly confined to that test namespace; normal production
+state is retained.
 
-**Remaining gate:** install the two scoped UFW rules
-and remove the superseded main rule, verify unattended normal restart/reconnect
-without any firewall edit, and finish real pairing denial/abort. Retest accumulated
-Fast Chat against the restarted updated runtime. No C9.2 completion claim yet.
+**Remaining gate:** finish real phone-side pairing abort, retest accumulated Fast Chat
+against the restarted updated runtime, and deploy/verify the newly reported
+Welcome status correction. Saved-port firewall setup and unattended restart have
+passed as recorded below. No C9.2 completion claim yet.
 
 ### Saved endpoints confirmed by owner
 
@@ -765,6 +770,48 @@ The initial post-rule check **passed, owner-observed**: after instructions to
 leave the phone open without tapping Reconnect, the owner reports it connected
 and answered the explicit multiplication prompt with **391**. Successful Chat
 establishes Remote AI admission; no separate permission-label observation or
-numeric connection duration was supplied. This remains separate from the
-subsequent unattended desktop restart check, which is still pending. No server
-IP or port is configured in the mobile app.
+numeric connection duration was supplied. No server IP or port is configured in
+the mobile app.
+
+### Unattended restart passed; stale Welcome label found
+
+Following instructions to quit OLIVE while leaving Connect enabled, wait one
+minute, reopen normally, and avoid both firewall edits and phone Reconnect, the
+owner reports: **“it reconnected automatically and as soon as olive ran it
+connected”**, and Chat answered again. This passes the owner-assisted unattended
+application-restart/automatic-reconnect check on the selected LAN. No numeric
+duration or before/after listener PID output was supplied; “as soon as” remains
+qualitative evidence, not a measured TLS or startup duration. No firewall change
+was requested or reported during this restart.
+
+The owner also observed Start → Your devices displaying **iPhone paired · Connect
+is off** while phone Chat worked. Source diagnosis: `Welcome.tsx` fetched
+`connect.snapshot` only once, 300 ms after mounting, before saved network startup
+could finish; the app's shared poll previously began only after entering Home.
+The correction runs that existing non-overlapping five-second poll throughout
+Welcome and Home and passes the same snapshot to Welcome. Pairing and live
+connection remain distinct: a paired offline phone with the listener on says
+Connect is on; an authenticated online peer says connected. Unknown/failed
+status is not represented as an explicit Off. No transport or permission change.
+
+The fix is committed as `f96b7f3e587bb91bae4931a5fa36070a6621c803`.
+Fresh Mac validation: type checking and production build pass; **101 desktop unit
+tests across 20 files pass**. The Electron regression uses actual paired Python
+Connect peers and verifies Off → On → Connected → Off while Welcome remains
+open: **1 passed, 16.9 s test / 17.2 s total**. No Python or iOS runtime changed.
+The desktop patch SHA-256 is
+`3fd635d269c174e990f23736c686f5340789f4bff61faf7ce62b700d6bed3153`;
+its installer requires the recorded clean desktop `00940235` checkpoint and
+runs fresh native frontend type, unit and build checks. Deployment is pending.
+
+### Real desktop pairing denial with separate identity
+
+The physical phone was explicitly launched in the debug-only pairing acceptance
+namespace. The owner scanned a fresh desktop QR, reached the comparison step,
+and clicked **Cancel on the desktop before confirming on either side**. The
+owner reports that the desktop paired-device list **stays unchanged** and the
+phone displays **“Connection lost. The request will not be sent again
+automatically.”** This records the actual close/error behavior, not a claimed
+typed denial message. No new desktop trust was added. The working production
+pairing is retained in its separate namespace. Phone-side abort is requested
+next; cleanup and return to the production identity remain pending.
