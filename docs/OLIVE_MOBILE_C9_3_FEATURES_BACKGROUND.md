@@ -27,7 +27,7 @@ No simulator or Mac-hosted desktop is being substituted for CachyOS acceptance.
   were not treated as proof of equivalent source.
 - `FINAL_HEAD`: pending milestone acceptance. The current documentation checkpoint
   is resolvable with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
-- Latest validated mobile implementation: `fc21ec0`.
+- Latest validated mobile implementation: `0cc209f`.
 
 Local `COMMITS` to date:
 
@@ -42,12 +42,18 @@ Local `COMMITS` to date:
 | `5de9793` | Companion protocol and native navigation tests |
 | `891c866` | Late completion fencing, metadata, conflict review and Chat ordering |
 | `fc21ec0` | Durable Today drafts and actual per-workspace Studio permission labels |
+| `e313830` | Unique system task IDs, stale callback fencing and iOS27 asynchronous submission |
+| `0cc209f` | Stored-artifact C6 rehash, exclusive publication and exact offer checks |
 
 ## Background execution
 
 `BackgroundWorkCoordinator` uses availability-gated
 `BGContinuedProcessingTaskRequest` / `BGContinuedProcessingTask` on iOS 26+.
-Registration is once per production coordinator. Requests start only with an
+Each explicit user action registers one unique fully composed identifier under
+the permitted bundle-prefixed wildcard. Grant/expiration callbacks bind to that
+identifier and operation, preventing an old callback from affecting new work.
+iOS27 uses `submitTaskRequest(_:)` asynchronously off the main actor to receive
+submission errors; iOS26 uses the availability-gated original submission API. Requests start only with an
 explicit Chat request, reviewed outgoing file, accepted incoming file, or Studio
 build/test/run. Submission uses `.fail`; it never queues a later effect.
 The iOS deployment target remains 17.
@@ -212,7 +218,7 @@ committed.
 | `xcodebuild -list` | Passed with installed Xcode selected via `DEVELOPER_DIR` |
 | Simulator SDK build-for-testing | Passed; no simulator runtime execution claimed |
 | Generic iOS Release build | Passed |
-| Signed physical build/install/test | Passed: 55 unit cases, 2 opt-in LAN skips, 0 failures; **53 passed** |
+| Signed physical build/install/test | Passed: 56 unit cases, 2 opt-in LAN skips, 0 failures; **54 passed** |
 | Physical UI tests | Passed: 9 cases, 1 opt-in LAN skip, 0 failures; **8 passed** |
 | Normal production-identity launch | `devicectl` launch succeeded after tests; real feature observations pending |
 | Python ↔ Swift interop | Existing C2/C3/C7 vectors/TLS pairing plus new C5/C6/C8 vectors passed |
@@ -228,8 +234,8 @@ run outcome and detected Java toolchain expectation. No blanket Mac regression
 pass is claimed. Using a canonical `/private/tmp` test directory removed additional
 macOS `/var` vs `/private/var` alias failures from the first run.
 
-Latest local evidence: `/tmp/olive-c93-device-tests-4.xcresult`,
-`/tmp/olive-c93-device-tests-4.log`, `/tmp/olive-c93-simulator-final.log`,
+Latest local evidence: `/tmp/olive-c93-device-tests-5.xcresult`,
+`/tmp/olive-c93-device-tests-5.log`, `/tmp/olive-c93-simulator-final.log`,
 `/tmp/olive-c93-release-final.log`, `/tmp/olive-c93-interop-final.log`,
 `/tmp/olive-c93-compile-final.log`, `/tmp/olive-c93-python-2.log`,
 `/tmp/olive-c93-connect.log`, `/tmp/olive-c93-desktop-tests-2.log`.
@@ -238,8 +244,10 @@ in strict decimal parsing and a Stop/background race were repaired before the
 passing runs. Unit tests also cover version preservation, expired cleanup,
 no-replay launch, stale progress fencing, immutable Chat order, tombstones,
 signed conflict handling, durable uncommitted Today drafts, file bounds, Studio
-hash rejection and private labels. The final Studio permission-label changes
-received a fresh signed build/install and normal launch after the test run.
+hash rejection and private labels. The C6 follow-up adds a physical stored-byte
+tamper/collision test. The last full UI run is `olive-c93-device-tests-4.xcresult`;
+the C6/background follow-up reran all unit tests plus simulator/Release builds
+and normal launch, without claiming another full UI run.
 
 ## Deployed CachyOS regression
 
@@ -272,15 +280,24 @@ CachyOS restart and that permission rows show Off/Ask/Allow rather than unknown
 capability status. Individual permission values were not supplied; no broader
 Off/Ask/Allow operation matrix is inferred from that report.
 
-Synthetic owned-file preparation and the first 5 MiB desktop-to-phone transfer
-have been requested. Expected fixtures use repeated byte values 0...255:
+The owner completed the first 5 MiB desktop-to-phone transfer and explicitly
+exported/saved the file to the phone. The app-owned receipt was read independently:
+transfer `7d80c8a0-598a-45ff-b3a2-6c21c5dabc1b`, incoming, completed, 5,242,880
+received bytes and the expected 5 MiB SHA-256 below. This foreground check ran on
+the earlier `fc21ec0` build; subsequent C6 integrity changes are installed for
+the return-transfer and background checks. Expected fixtures use repeated byte values 0...255:
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
 | `olive-c93-5MiB.bin` | 5,242,880 | `2e7cab6314e9614b6f2da12630661c3038e5592025f6534ba5823c3b340a1cb6` |
 | `olive-c93-64MiB.bin` | 67,108,864 | `281e519df3077b557c6b03f5da83c4e8d397219259615dd7c3308f89cae8f2a6` |
 
-No transfer outcome, export or background duration has yet been reported.
+The owner also reports sending the exported file back from iPhone to CachyOS
+and explicitly saving the desktop copy. The phone's outgoing receipt
+`0982bac0-21d8-46a5-840f-d090bd0b9377` independently records completed,
+5,242,880 acknowledged bytes and the same expected SHA-256. The independent
+`sha256sum` check of the exported desktop copy is still pending. No background
+transfer duration or other background acceptance has yet passed.
 
 ## Completion gate and limits
 

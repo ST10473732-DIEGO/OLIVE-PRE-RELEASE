@@ -673,8 +673,23 @@ baseline regression failures remain explicitly recorded.
 
 C9.3 is IN PROGRESS. The real-device feature/background completion gate and
 remaining implementation edge cases are documented in
-`OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`. C6 remains capped at64MiB, so no
-100MB transfer is claimed. C8 remains channel-owned, so no cross-reconnect job
+`OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`. C6 remains capped at 64 MiB, so no
+100 MB transfer is claimed. C8 remains channel-owned, so no cross-reconnect job
 continuation is invented. Idle iOS suspension, force quit and active continued
 processing are distinguished; uncertain effects are never automatically replayed.
 C9.4, C10, cloud access and mobile Owner Mode remain outside this work.
+
+
+The first C9.3 foreground C6 desktop-to-phone fixture succeeded. The owner saved
+it through the explicit phone exporter; a read of the app-owned receipt confirms
+completed, 5,242,880 bytes and the synthetic fixture's expected SHA-256. Normal
+connection and actual capability rows were also owner-confirmed after restart.
+The return transfer/hash comparison and background tests remain open.
+
+Follow-ups `e313830` and `0cc209f` bind each system continued-processing callback
+to its own operation, adopt iOS27 asynchronous submission, and match C6's exact
+clock-skew/offer checks and stored-artifact verification before publication.
+The new physical integrity test passes: current unit evidence is 54 passed with 2
+opt-in LAN skips. Latest full UI evidence remains 8 passed with 1 LAN skip; fresh
+simulator-SDK and Release builds and normal launch pass. No background success
+is inferred from these checks.
