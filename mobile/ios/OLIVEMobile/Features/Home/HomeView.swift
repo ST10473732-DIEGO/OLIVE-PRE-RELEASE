@@ -43,6 +43,23 @@ struct HomeView: View {
                         }
                     }
                 }
+                NavigationLink { TodayView() } label: { Label("Today", systemImage: "calendar") }
+                NavigationLink { SelectedChatView() } label: { Label("Selected Chat", systemImage: "bubble.left.and.bubble.right") }
+                if let background = state.background {
+                    if let operation = background.active {
+                        OliveCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(operation.label).font(.headline)
+                                if let total = operation.totalUnits, total > 0 {
+                                    ProgressView(value: Double(operation.verifiedUnits), total: Double(total))
+                                } else { ProgressView() }
+                                Text(background.continuationGranted ? "Background continuation active" : "Keep OLIVE open to finish")
+                                Button("Cancel work", role: .destructive) { Task { await background.cancel() } }
+                            }
+                        }.accessibilityIdentifier("home.backgroundWork")
+                    }
+                    if let notice = background.notice { Text(notice).font(.footnote).foregroundStyle(OliveTheme.attention) }
+                }
                 Label("Drafts stay on this iPhone.", systemImage: "iphone")
                     .font(.footnote).foregroundStyle(OliveTheme.muted)
             }.padding(OliveTheme.Space.page).frame(maxWidth: 640, alignment: .leading).frame(maxWidth: .infinity)

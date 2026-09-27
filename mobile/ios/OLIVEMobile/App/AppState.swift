@@ -9,6 +9,8 @@ final class AppState {
     var isSettingsPresented = false
     private(set) var persistenceNotice: String?
     var connection: MobileConnectionState { session?.connected == true ? .connected : session?.selected != nil ? .offline : .notPaired }
+    @ObservationIgnored lazy var sync = SyncModel(session: session, store: MobileSyncStore(directory: companionDirectory))
+    let companionDirectory: URL
     let background: BackgroundWorkCoordinator?
     let chatStore: MobileChatStore?
     let session: ConnectSession?
@@ -29,6 +31,7 @@ final class AppState {
     private(set) var totalResponseSeconds: Double?
     private(set) var stopSeconds: Double?
     private var requestStarted = ContinuousClock.now
+    private var verifiedAnswer = ""
     private var history: [(String, String)] = []
     private(set) var messages: [ChatMessage] = []
     let connectClient: any ConnectClient
@@ -40,8 +43,9 @@ final class AppState {
     init(store: any ShellStore, connectClient: any ConnectClient = DisconnectedConnectClient(),
          pairingService: any PairingService = UnavailablePairingService(), session: ConnectSession? = nil, chatConnection: (any ChatRemoteSession)? = nil) {
         self.session = session
-        background = session == nil ? nil : BackgroundWorkCoordinator()
-        chatStore = session == nil ? nil : MobileChatStore()
+        companionDirectory = store.companionDirectory ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        background = session == nil ? nil : BackgroundWorkCoordinator(directory: companionDirectory)
+        chatStore = session == nil ? nil : MobileChatStore(directory: companionDirectory)
         self.chatConnection = chatConnection ?? session
         self.store = store
         self.connectClient = connectClient
@@ -64,6 +68,7 @@ final class AppState {
         let text = draft, token = UUID(), answerID = UUID()
         let sentDraftRevision = draftRevision
         let peerID = chatConnection?.selectedID ?? "", selectedPreset = preset
+        verifiedAnswer = ""
         requestStarted = .now; firstResponseSeconds = nil; totalResponseSeconds = nil; stopSeconds = nil
         chatGeneration = token; admittedRequest = nil; clearedDraftRevision = nil
         active = true; stopping = false; chatStatus = "Sending"
@@ -86,21 +91,21 @@ final class AppState {
                 }
                 guard chatGeneration == token else { return }
                 if !stopping {
-                    if let answer = messages.first(where: { $0.id == answerID }) {
+                    if messages.contains(where: { $0.id == answerID }) {
                         try chatStore?.append(MobileChatTurn(id: jobID, userID: user.id.uuidString.lowercased(),
                             assistantID: answerID.uuidString.lowercased(), peerID: peerID, preset: selectedPreset,
-                            user: text, answer: answer.plainText, createdAt: Date()))
+                            user: text, answer: verifiedAnswer, createdAt: Date()))
                     }
-                    background?.finish(.completed)
+                    background?.finish(.completed, id: jobID)
                     session?.finishBackgroundWork()
                     chatStatus = "Completed"
                     totalResponseSeconds = requestStarted.duration(to: .now).secondsValue
                     if let i = messages.firstIndex(where: { $0.id == answerID }) { messages[i].status = "Completed" }
-                    if let answer = messages.first(where: { $0.id == answerID }) { history = Array((history + [("user", text), ("assistant", answer.plainText)]).suffix(24)) }
+                    if messages.contains(where: { $0.id == answerID }) { history = Array((history + [("user", text), ("assistant", verifiedAnswer)]).suffix(24)) }
                 }
             } catch {
                 guard chatGeneration == token else { return }
-                if !stopping { background?.finish(.interrupted); session?.finishBackgroundWork(); chatStatus = "Failed · " + (error as? ConnectFailure ?? .connectionLost).localizedDescription }
+                if !stopping { background?.finish(.interrupted, id: jobID); session?.finishBackgroundWork(); chatStatus = "Failed · " + (error as? ConnectFailure ?? .connectionLost).localizedDescription }
                 if let i = messages.firstIndex(where: { $0.id == user.id }) { messages[i].status = chatStatus }
                 if let i = messages.firstIndex(where: { $0.id == answerID }) { messages[i].status = "Incomplete" }
                 // Retain a failed request for explicit retry, but Stop must not
@@ -117,6 +122,7 @@ final class AppState {
             if draftRevision == sentDraftRevision { draft = ""; clearedDraftRevision = draftRevision }
         }
         chatStatus = ["awaiting_approval": "Waiting for approval on computer", "queued": "Queued", "starting": "Starting", "streaming": "Receiving", "completed": "Completed"][status] ?? status
+        verifiedAnswer = answer
         lastRequestID = job
         do { try background?.progress(Int64(answer.utf8.count)) } catch { persistenceNotice = error.localizedDescription }
         if !answer.isEmpty {
@@ -154,17 +160,37 @@ final class AppState {
     private func markCurrentTurn(_ status: String) {
         for i in messages.indices where messages[i].id == currentUserID || messages[i].id == currentAnswerID { messages[i].status = status }
     }
-    func activate() { session?.activate() }
+    func restoreCompletedChat() {
+        guard !active, let chatStore else { return }
+        let turns = chatStore.turns.filter { $0.peerID == session?.selectedID }.suffix(24)
+        history = turns.flatMap { [("user", $0.user), ("assistant", $0.answer)] }
+        messages = turns.flatMap { turn -> [ChatMessage] in
+            guard let user = UUID(uuidString: turn.userID), let assistant = UUID(uuidString: turn.assistantID) else { return [] }
+            return [ChatMessage(id: user, role: .user, blocks: [.text(turn.user)], status: "Completed"),
+                ChatMessage(id: assistant, role: .assistant, blocks: ChatMessage.parse(turn.answer), status: "Completed",
+                    attribution: .init(deviceID: turn.peerID, preset: turn.preset, requestID: turn.id))]
+        }
+    }
+    func activate() {
+        if messages.isEmpty { restoreCompletedChat() }
+        background?.onIdle = { [weak self] in self?.session?.finishBackgroundWork() }
+        session?.activate()
+    }
     func suspend() {
         saveDraft()
-        if active, background?.continuationGranted == true { session?.suspend(continuing: true); return }
-        guard active else { session?.suspend(); return }
+        if background?.active != nil, background?.continuationGranted == true { session?.suspend(continuing: true); return }
+        guard active || background?.active != nil else { session?.suspend(); return }
+        if active {
+            chatGeneration = UUID() // Fence any outstanding Stop completion immediately.
+            chatStatus = "Interrupted · connection closed"; markCurrentTurn(chatStatus)
+        }
         // iOS17–25 (or denied continued processing): short cancellation/cleanup
         // only. This assertion never promises to finish long work.
         let assertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE cleanup") { [weak self] in
             Task { @MainActor in self?.session?.suspend() }
         }
         Task {
+            await background?.cancel(expired: true)
             await interruptForBackground()
             background?.finish(.interrupted)
             if assertion != .invalid { UIApplication.shared.endBackgroundTask(assertion) }
@@ -175,7 +201,7 @@ final class AppState {
             stopping = true; chatTask?.cancel()
             if let client = chatConnection?.inference { _ = try? await client.stop() }
             await chatTask?.value
-            chatStatus = "Interrupted · no automatic resend"; markCurrentTurn(chatStatus)
+            chatStatus = "Interrupted · connection closed"; markCurrentTurn(chatStatus)
         }
         chatGeneration = UUID(); active = false; stopping = false; chatTask = nil
         session?.suspend()

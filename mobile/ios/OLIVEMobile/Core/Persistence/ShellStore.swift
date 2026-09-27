@@ -2,11 +2,14 @@ import Foundation
 
 @MainActor
 protocol ShellStore {
+    var companionDirectory: URL? { get }
     func loadDestination() -> Destination
     func saveDestination(_ destination: Destination)
     func loadDraft() throws -> String
     func saveDraft(_ draft: String) throws
 }
+
+extension ShellStore { var companionDirectory: URL? { nil } }
 
 /// Navigation is non-secret preferences. Draft text is a protected, local-only
 /// file, excluded from backup; this is not a desktop conversation repository.
@@ -14,6 +17,7 @@ protocol ShellStore {
 final class LocalShellStore: ShellStore {
     private let defaults: UserDefaults
     private let directory: URL
+    var companionDirectory: URL? { directory.lastPathComponent == "Shell" ? directory.deletingLastPathComponent().appendingPathComponent("Companion") : directory.appendingPathComponent("Companion") }
     private var draftURL: URL { directory.appendingPathComponent("draft-v1.json") }
     private struct Draft: Codable { let version: Int; let text: String }
     enum StoreError: Error { case unsupportedVersion }

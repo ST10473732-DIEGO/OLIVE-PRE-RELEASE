@@ -6,6 +6,11 @@ struct DevicesView: View {
     @State private var unpairID: String?
     @State private var notice: String?
     @State private var completionCode = ""
+    private func permission(_ session: ConnectSession, _ capability: String) -> String {
+        guard let value = session.companionCapability else { return "Unknown · C9.3 desktop status unavailable" }
+        guard value["supported"][capability] == .bool(true) else { return "Unavailable" }
+        return ["deny": "Off", "ask": "Ask on computer", "allow": "Allow"][value["permissions"][capability].string ?? ""] ?? "Unknown"
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: OliveTheme.Space.section) {
@@ -24,6 +29,17 @@ struct DevicesView: View {
                                     Text(peer.id == session.selectedID ? session.status : "Offline").foregroundStyle(OliveTheme.secondary)
                                     if peer.id == session.selectedID, let capability = session.capability {
                                         Text("Remote AI · \(capability["permission"].string == "allow" ? "Allow" : capability["permission"].string == "ask" ? "Ask on computer" : "Off")")
+                                    }
+                                    if peer.id == session.selectedID {
+                                        Text("Connect 1 · TLS 1.3").font(.caption)
+                                        Text("Lifecycle · " + session.lifecycle.rawValue).font(.caption)
+                                        ForEach(["tasks", "calendar", "reminders", "chat"], id: \.self) { domain in
+                                            Text("Sync \(domain) · \(permission(session, "sync." + domain))").font(.caption)
+                                        }
+                                        Text("Send to computer · " + permission(session, "files.receive"))
+                                        Text("Receive from computer · " + permission(session, "files.send")).font(.caption)
+                                        Text("Studio · permissions shown per shared workspace").font(.caption)
+                                        if let work = state.background?.active { Text("Active · " + work.label) }
                                     }
                                     HStack {
                                         Button(peer.id == session.selectedID ? "Reconnect" : "Use for Chat") {

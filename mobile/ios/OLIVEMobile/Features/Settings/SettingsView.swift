@@ -28,6 +28,15 @@ struct SettingsView: View {
                 Text("Paired devices: \(state.session?.peers.count ?? 0)")
             } header: { Text("OLIVE Connect") }
                 .listRowBackground(OliveTheme.raised)
+            if let notifications = state.background?.notifications {
+                Section("Notifications") {
+                    Toggle("Operation completion", isOn: Binding(get: { notifications.enabled }, set: { value in
+                        Task { await notifications.setEnabled(value) }
+                    }))
+                    Text("Private labels only: response ready, file transfer complete or Studio operation finished.").font(.footnote)
+                    if !notifications.notice.isEmpty { Text(notifications.notice) }
+                }
+            }
             Section {
                 DisclosureGroup("Advanced connection diagnostics") {
                     Text("Connect 1 · Pairing TLS13/2 · Inference 1")

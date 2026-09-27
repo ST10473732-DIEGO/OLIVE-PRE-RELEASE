@@ -8,6 +8,7 @@ import UIKit
 @MainActor @Observable
 final class BackgroundWorkCoordinator {
     private static let identifier = "io.github.st10473732-diego.olive.mobile.continued"
+    let notifications = CompletionNotifications()
     private let store: ProtectedStore<[BackgroundOperationRecord]>
     private(set) var records: [BackgroundOperationRecord] = []
     private(set) var notice: String?
@@ -15,6 +16,7 @@ final class BackgroundWorkCoordinator {
     private var systemTask: AnyObject?
     private var submitted = false
     private var registered = false
+    var onIdle: (@MainActor () -> Void)?
     private var cancelWork: (@MainActor () async -> Void)?
     var active: BackgroundOperationRecord? { records.last(where: { $0.state == .running }) }
     var continuationGranted: Bool { systemTask != nil && active != nil }
@@ -77,11 +79,12 @@ final class BackgroundWorkCoordinator {
         }
     }
 
-    func finish(_ state: BackgroundOperationRecord.State) {
+    func finish(_ state: BackgroundOperationRecord.State, id: String? = nil) {
+        if let id, active?.id != id { return }
         guard state != .running else { return }
         if let index = records.lastIndex(where: { $0.state == .running }) {
             var next = records; next[index].state = state
-            do { try store.save(next); records = next }
+            do { try store.save(next); records = next; if state == .completed { notifications.completed(next[index]) } }
             catch {
                 records[index].state = .interrupted; canWrite = false
                 notice = "The last operation could not be saved. Its result must be checked."
@@ -101,6 +104,11 @@ final class BackgroundWorkCoordinator {
         // Persist interruption before yielding to cancellation/network operations.
         finish(expired ? .expired : .cancelled)
         notice = (expired ? ConnectFailure.backgroundTaskExpired : .backgroundTaskCancelled).localizedDescription
+        let assertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE cancellation") { [weak self] in
+            Task { @MainActor in self?.onIdle?() }
+        }
         await cleanup?()
+        onIdle?()
+        if assertion != .invalid { UIApplication.shared.endBackgroundTask(assertion) }
     }
 }

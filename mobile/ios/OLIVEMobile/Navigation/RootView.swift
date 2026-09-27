@@ -18,6 +18,7 @@ struct RootView: View {
         .toolbarBackground(.visible, for: .tabBar)
         .sheet(isPresented: $state.isSettingsPresented) { NavigationStack { SettingsView() } }
         .task { state.activate() }
+        .onChange(of: state.session?.selectedID) { _, _ in state.restoreCompletedChat() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .inactive { state.saveDraft() }
             if phase == .background { state.suspend() }
