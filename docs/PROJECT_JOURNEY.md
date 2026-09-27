@@ -493,3 +493,9 @@ The owner confirmed CachyOS is clean on feature/olive-mobile-c9 at the exact
 C9.1 baseline. A desktop-only patch was verified with git am against an isolated
 checkout of that baseline. Deployment, native CachyOS checks and more-than-six
 real sequential replies are pending; the live desktop still has its old quota.
+
+The owner reports the desktop patch installer completed with “Patch committed”
+and identified the checkout's `.venv/bin/python` as an available test interpreter.
+The source update is therefore installed, but the installer did not run tests
+and the existing OLIVE process has not been restarted. Native compilation,
+C1–C8 results, the resulting desktop commit ID and live acceptance are pending.

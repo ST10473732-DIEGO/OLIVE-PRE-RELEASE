@@ -191,17 +191,22 @@ and close on failed cancellation. Drafts remain available for explicit retry;
 no automatic request replay is introduced. This also works against older
 desktop builds that still have the six-request quota.
 
-The phone fix is installed and the normal app reopened. Desktop deployment is
-pending: the owner confirmed a clean CachyOS checkout on `feature/olive-mobile-c9`
-at exact `BASELINE_HEAD`. Desktop-only patch
+The phone fix is installed and the normal app reopened. The owner confirmed
+a clean CachyOS checkout on `feature/olive-mobile-c9` at exact `BASELINE_HEAD`,
+then reported that the patch installer completed and committed the update.
+The available desktop test interpreter is the checkout's `.venv/bin/python`.
+This confirms source installation, not test completion or activation in the
+still-running desktop process; the resulting commit ID is requested with the
+native test results. Desktop-only patch
 `/tmp/olive-c92-desktop-chat-quota.patch` has SHA-256
 `483f59137556598f6fc04e4f6adac20cf5b4828ff055da203c06689455ce43b4`.
 It applies cleanly with `git am` to an isolated checkout of that exact baseline,
 producing identical runtime, regression tests and C7 documentation. The prepared
 copy/paste installer checks the baseline, clean worktree, patch checksum and
 patch applicability before committing it locally. No remote access, push or
-firewall change is part of this installer. Native CachyOS regression, desktop
-restart and more-than-six real sequential requests remain pending.
+firewall change is part of this installer. The installer does not run tests.
+Native CachyOS compilation/C1–C8 regression, desktop restart and more-than-six
+real sequential requests remain pending.
 
 The desktop runs inference and owns model selection/policy. Mobile sends only
 its explicit user/assistant context: ≤24 messages, ≤16000 bytes/message,
