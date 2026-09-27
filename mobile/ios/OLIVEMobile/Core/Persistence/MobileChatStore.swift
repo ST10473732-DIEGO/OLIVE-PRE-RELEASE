@@ -32,4 +32,11 @@ final class MobileChatStore {
         guard turns.count < 128 else { throw ConnectFailure.localStorageUnavailable }
         let next = turns + [turn]; try store.save(next); turns = next
     }
+    /// User-requested clear of one computer's iPhone Chat history. Other computers' turns are kept.
+    func removeTurns(peerID: String) throws {
+        guard available else { throw ConnectFailure.localStorageUnavailable }
+        let next = turns.filter { $0.peerID != peerID }
+        guard next.count != turns.count else { return }
+        try store.save(next); turns = next
+    }
 }

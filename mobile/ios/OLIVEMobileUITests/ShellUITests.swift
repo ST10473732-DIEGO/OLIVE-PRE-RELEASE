@@ -280,6 +280,66 @@ final class ShellUITests: XCTestCase {
         tab("Devices")
         XCTAssertTrue(app.staticTexts["No paired devices"].waitForExistence(timeout: 5))
     }
+    func testScrollToLatestButton() {
+        app.terminate(); app.launchArguments += ["--ui-test-long-chat"]; app.launch()
+        tab("Chat")
+        let jump = app.buttons["chat.scrollToBottom"]
+        let chat = app.scrollViews.firstMatch
+        let latest = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Synthetic answer 24, line 1.'")).firstMatch
+        func expectJump(_ visible: Bool, _ step: String, file: StaticString = #filePath, line: UInt = #line) {
+            let predicate = NSPredicate(format: visible ? "exists == true AND hittable == true" : "exists == false")
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: jump)], timeout: 4), .completed,
+                           "\(step): expected jump button \(visible ? "visible" : "hidden")", file: file, line: line)
+        }
+        func returnWithJump(_ step: String) {
+            jump.tap()
+            expectJump(false, step + " after tap")
+            XCTAssertTrue(latest.waitForExistence(timeout: 3), step + ": latest answer on screen")
+        }
+        XCTAssertTrue(chat.waitForExistence(timeout: 5))
+        expectJump(false, "Opens at latest")
+        XCTAssertTrue(latest.exists)
+        for cycle in 1...4 {
+            chat.swipeDown(velocity: .slow)
+            expectJump(true, "Cycle \(cycle) small scroll")
+            returnWithJump("Cycle \(cycle) small scroll")
+            for _ in 0..<12 { chat.swipeDown(velocity: .fast) }
+            expectJump(true, "Cycle \(cycle) top")
+            XCTAssertTrue(app.staticTexts["Synthetic question 1"].exists, "Reached the top")
+            returnWithJump("Cycle \(cycle) top")
+        }
+        chat.swipeDown(velocity: .slow)
+        expectJump(true, "Before manual return")
+        for _ in 0..<3 { chat.swipeUp(velocity: .fast) }
+        expectJump(false, "Manual scroll back to latest")
+        capture("OLIVE Chat at latest")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        expectJump(false, "Landscape at latest")
+        chat.swipeDown(velocity: .slow)
+        expectJump(true, "Landscape small scroll")
+        capture("OLIVE Chat jump button landscape")
+        returnWithJump("Landscape")
+        for _ in 0..<15 { chat.swipeDown(velocity: .fast) }
+        expectJump(true, "Landscape top")
+        returnWithJump("Landscape top")
+    }
+    func testClearChat() {
+        XCTAssertFalse(app.buttons["chat.clear"].exists)
+        app.terminate(); app.launchArguments += ["--ui-test-long-chat"]; app.launch()
+        tab("Chat")
+        let clear = app.buttons["chat.clear"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        clear.tap()
+        let confirm = app.buttons["chat.clearConfirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        capture("OLIVE Clear chat confirmation")
+        confirm.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["chat.empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Synthetic question 24"].exists)
+        XCTAssertFalse(clear.exists)
+        XCTAssertFalse(app.buttons["chat.scrollToBottom"].exists)
+        capture("OLIVE Chat cleared")
+    }
     func testAccessibilityTextSize() {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]

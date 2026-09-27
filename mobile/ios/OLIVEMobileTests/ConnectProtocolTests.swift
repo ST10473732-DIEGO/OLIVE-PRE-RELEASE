@@ -1405,6 +1405,20 @@ final class BackgroundOperationTests: XCTestCase {
         XCTAssertThrowsError(try store.append(MobileChatTurn(id: "request", userID: "u", assistantID: "a",
             peerID: "p", preset: "normal", user: "2+2", answer: "5", createdAt: Date())))
     }
+    func testClearingChatRemovesOnlyThatComputersTurns() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = MobileChatStore(directory: directory)
+        for (id, peer) in [("one", "p"), ("two", "q"), ("three", "p")] {
+            try store.append(MobileChatTurn(id: id, userID: id + "u", assistantID: id + "a", peerID: peer, preset: "normal",
+                user: "question", answer: "answer", createdAt: Date()))
+        }
+        try store.removeTurns(peerID: "p")
+        XCTAssertEqual(store.turns.map(\.id), ["two"])
+        XCTAssertEqual(MobileChatStore(directory: directory).turns.map(\.id), ["two"])
+        try store.removeTurns(peerID: "absent")
+        XCTAssertEqual(MobileChatStore(directory: directory).turns.map(\.id), ["two"])
+    }
 }
 
 @MainActor

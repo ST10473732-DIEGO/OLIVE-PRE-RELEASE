@@ -20,8 +20,16 @@ enum OliveTheme {
         static let section: CGFloat = 32
     }
     enum Radius {
-        static let control: CGFloat = 10
-        static let card: CGFloat = 14
+        static let control: CGFloat = 12
+        static let card: CGFloat = 18
+        static let composer: CGFloat = 22
+    }
+    /// Readable column width; pages centre within it in both orientations.
+    static let pageWidth: CGFloat = 640
+    enum Motion {
+        static let press = Animation.spring(response: 0.25, dampingFraction: 0.7)
+        static let settle = Animation.spring(response: 0.42, dampingFraction: 0.86)
+        static let appear = Animation.spring(response: 0.55, dampingFraction: 0.85)
     }
     enum TypeStyle {
         static let display = Font.system(.largeTitle, design: .rounded, weight: .semibold)

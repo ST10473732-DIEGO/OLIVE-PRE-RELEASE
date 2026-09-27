@@ -222,6 +222,26 @@ final class AppState {
         session?.finishBackgroundWork()
     }
     func openChat() { destination = .chat }
+    var canClearChat: Bool { !active && !messages.isEmpty }
+    /// Clears the visible conversation, its model context and this computer's saved iPhone history.
+    func clearChat() {
+        guard canClearChat else { return }
+        if let chatStore, let peer = session?.selectedID {
+            do { try chatStore.removeTurns(peerID: peer) }
+            catch { chatStatus = "Chat history could not be cleared. Nothing was removed."; return }
+        }
+        messages = []; history = []; chatStatus = ""
+    }
+    #if DEBUG
+    /// Isolated UI-test fixture only: a long synthetic conversation held in memory, never persisted.
+    func prepareLongChatUIFixture() {
+        messages = (1...24).flatMap { turn -> [ChatMessage] in
+            let lines = (1...(turn % 5 == 0 ? 40 : 1 + turn % 4)).map { "Synthetic answer \(turn), line \($0)." }
+            return [ChatMessage(id: UUID(), role: .user, blocks: [.text("Synthetic question \(turn)")]),
+                    ChatMessage(id: UUID(), role: .assistant, blocks: ChatMessage.parse(lines.joined(separator: "\n")), status: "Completed")]
+        }
+    }
+    #endif
 }
 
 extension Duration {

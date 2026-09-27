@@ -71,6 +71,7 @@ struct OLIVEMobileApp: App {
                 } catch { assertionFailure("Could not prepare isolated sync conflict fixture") }
             }
             if args.contains("--ui-test-companion") { isolated.studio.prepareOfflineUIFixture() }
+            if args.contains("--ui-test-long-chat") { isolated.prepareLongChatUIFixture() }
             _state = State(initialValue: isolated)
             return
         }

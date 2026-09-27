@@ -14,8 +14,7 @@ struct RootView: View {
                 .tabItem { Label("Devices", systemImage: Destination.devices.symbol) }.tag(Destination.devices)
         }
         .foregroundStyle(OliveTheme.text)
-        .toolbarBackground(OliveTheme.ground, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
+        .modifier(TabBarBackground())
         .sheet(isPresented: $state.isSettingsPresented) { NavigationStack { SettingsView() } }
         .task { state.activate() }
         .onChange(of: state.session?.selectedID) { _, _ in state.restoreCompletedChat() }
@@ -23,6 +22,15 @@ struct RootView: View {
             if phase == .inactive { state.saveDraft() }
             if phase == .background { state.suspend() }
             if phase == .active { state.activate() }
+        }
+    }
+}
+
+/// iOS 26+ floats a glass tab bar over content; forcing a solid bar there leaves a black band behind it.
+private struct TabBarBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) { content } else {
+            content.toolbarBackground(OliveTheme.ground, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
         }
     }
 }
