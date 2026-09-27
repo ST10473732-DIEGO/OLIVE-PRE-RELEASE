@@ -205,7 +205,7 @@ final class AppState {
             Task { @MainActor in self?.session?.finishBackgroundWork() }
         }
         Task {
-            await background?.cancel(expired: true)
+            await background?.cancel(expired: true, source: .noGrantAtBackground)
             await interruptForBackground()
             background?.finish(.interrupted)
             if assertion != .invalid { UIApplication.shared.endBackgroundTask(assertion) }

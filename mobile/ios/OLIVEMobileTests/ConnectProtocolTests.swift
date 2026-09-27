@@ -3,6 +3,34 @@ import CryptoKit
 import Network
 @testable import OLIVEMobile
 
+final class RealFileBackgroundPreparationTests: XCTestCase {
+    @MainActor func testPrepareOwned64MiBSelection() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_FILE_PREPARE_ACCEPTANCE"] == "1", "Explicit synthetic fixture staging only; no transfer starts here")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let journal = ProtectedStore<[BackgroundOperationRecord]>(url: URL.applicationSupportDirectory.appendingPathComponent("Companion/operations-v1.json"), maximumBytes: 256000)
+        guard !(try journal.load() ?? []).contains(where: { $0.state == .running }) else { throw XCTSkip("Do not disturb existing work") }
+        let token = UUID().uuidString.lowercased()
+        let directory = URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/FileBackground/" + token)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+        var protected = directory; var values = URLResourceValues(); values.isExcludedFromBackup = true
+        try protected.setResourceValues(values)
+        let source = directory.appendingPathComponent("olive-c93-64MiB.bin")
+        XCTAssertTrue(FileManager.default.createFile(atPath: source.path, contents: nil,
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]))
+        let handle = try FileHandle(forWritingTo: source)
+        let block = Data((0..<1048576).map { UInt8(truncatingIfNeeded: $0) })
+        for _ in 0..<64 { try handle.write(contentsOf: block) }
+        try handle.close()
+        let checked = try FileStaging(directory: directory).digest(source)
+        XCTAssertEqual(checked.0, 67108864)
+        XCTAssertEqual(checked.1, "281e519df3077b557c6b03f5da83c4e8d397219259615dd7c3308f89cae8f2a6")
+        print("C93 OWNED FILE READY \(token)")
+    }
+}
+
 /// Opt-in, physical-device acceptance against the already paired desktop. No
 /// permission changes, profile exports, private records or alternate server.
 final class RealCompanionEdgeTests: XCTestCase {
@@ -1241,6 +1269,42 @@ final class RealConnectCancellationTests: XCTestCase {
 
 @MainActor
 final class BackgroundOperationTests: XCTestCase {
+    func testFileBackgroundExpirationPreservesCauseWithoutClaimingUserCancellation() async throws {
+        for expired in [true, false] {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let coordinator = BackgroundWorkCoordinator(directory: directory, register: false)
+            let identity = try ConnectIdentity.generate()
+            let trust = directory.appendingPathComponent("Trust")
+            try FileManager.default.createDirectory(at: trust, withIntermediateDirectories: true)
+            let peer = TrustedConnectPeer(identity: identity.publicIdentity, displayName: "Synthetic")
+            try ConnectJSON.object(["version": .int(1), "peers": .array([peer.wire]), "ledger": .object([:])]).canonical
+                .write(to: trust.appendingPathComponent("trust-v1.json"))
+            // Isolated public fixture; never activate or connect this session.
+            let session = ConnectSession(repository: ConnectTrustRepository(directory: trust))
+            let files = FilesModel(session: session, background: coordinator, directory: directory.appendingPathComponent("Files"))
+            let selected = directory.appendingPathComponent("synthetic.bin")
+            try Data("test".utf8).write(to: selected)
+            await files.select(selected)
+            let id = try XCTUnwrap(files.receipts.first?.id)
+            XCTAssertEqual(files.receipts.first?.state, "offered")
+            try coordinator.begin(BackgroundOperationRecord(id: id, capability: "files.receive", peerID: peer.id,
+                label: "Sending file", protocolID: id, requestDigest: "digest", startedAt: Date(), totalUnits: 4)) {
+                    await files.cancel(id)
+                }
+            await coordinator.cancel(expired: expired, source: expired ? .systemExpirationOrStop : .userCancelled)
+            coordinator.finish(.completed, id: id)
+            let saved = BackgroundWorkCoordinator(directory: directory, register: false).records.last
+            XCTAssertEqual(saved?.state, expired ? .expired : .cancelled)
+            XCTAssertEqual(saved?.continuationEnd, expired ? .systemExpirationOrStop : .userCancelled)
+            XCTAssertEqual(saved?.failure, expired ? .backgroundTaskExpired : .backgroundTaskCancelled)
+            XCTAssertNil(saved?.systemReportedSuccess)
+            XCTAssertEqual(files.receipts.first?.state, expired ? "interrupted" : "cancelled")
+            XCTAssertTrue(files.notice.hasPrefix(expired ? "Background execution ended" : "Cancelled locally"))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: try files.staging.path(id, "out").path))
+            XCTAssertEqual(try Data(contentsOf: selected), Data("test".utf8))
+        }
+    }
     func testLaunchNeverReplaysUnfinishedWork() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -1285,10 +1349,16 @@ final class BackgroundOperationTests: XCTestCase {
         legacy.removeValue(forKey: "scope")
         legacy.removeValue(forKey: "failure")
         legacy.removeValue(forKey: "finishedAt")
+        for key in ["continuationGrantedAt", "continuationEnd", "systemCompletedUnits", "systemTotalUnits", "systemReportedSuccess"] { legacy.removeValue(forKey: key) }
         let migrated = try JSONDecoder().decode(BackgroundOperationRecord.self, from: JSONSerialization.data(withJSONObject: legacy))
         XCTAssertNil(migrated.scope)
         XCTAssertNil(migrated.failure)
         XCTAssertNil(migrated.finishedAt)
+        XCTAssertNil(migrated.continuationGrantedAt)
+        XCTAssertNil(migrated.continuationEnd)
+        XCTAssertNil(migrated.systemCompletedUnits)
+        XCTAssertNil(migrated.systemTotalUnits)
+        XCTAssertNil(migrated.systemReportedSuccess)
         XCTAssertEqual(migrated.retrySafety, "explicitFreshRequestOnly")
         try coordinator.begin(migrated) {}
         try coordinator.progress(90, total: 100, id: "old")

@@ -43,10 +43,13 @@ final class BackgroundWorkCoordinator {
                     task.setTaskCompleted(success: false); return
                 }
                 self.systemTask = continued
+                if let index = self.records.lastIndex(where: { $0.id == operation }) {
+                    self.records[index].continuationGrantedAt = Date()
+                }
                 continued.expirationHandler = { [weak self] in
                     Task { @MainActor in
                         guard self?.submittedIdentifier == identifier, self?.active?.id == operation else { return }
-                        await self?.cancel(expired: true)
+                        await self?.cancel(expired: true, source: .systemExpirationOrStop)
                     }
                 }
                 self.publishProgress()
@@ -88,7 +91,7 @@ final class BackgroundWorkCoordinator {
         if #available(iOS 26.0, *), let task = systemTask as? BGContinuedProcessingTask { task.setTaskCompleted(success: false) }
         systemTask = nil
         notice = ConnectFailure.backgroundTaskUnavailable.localizedDescription
-        if UIApplication.shared.applicationState == .background { Task { await cancel(expired: true) } }
+        if UIApplication.shared.applicationState == .background { Task { await cancel(expired: true, source: .submissionFailed) } }
     }
 
     func progress(_ units: Int64, total: Int64? = nil, id: String? = nil) throws {
@@ -105,8 +108,9 @@ final class BackgroundWorkCoordinator {
     private func publishProgress() {
         if #available(iOS 26.0, *), let task = systemTask as? BGContinuedProcessingTask, let record = active {
             // Unknown-length Chat/Studio stays indeterminate, never elapsed-time percent.
-            task.progress.totalUnitCount = record.totalUnits ?? -1
-            task.progress.completedUnitCount = record.verifiedUnits
+            let progress = task.progress
+            progress.totalUnitCount = record.totalUnits ?? -1
+            progress.completedUnitCount = record.verifiedUnits
             task.updateTitle("OLIVE", subtitle: record.label)
         }
     }
@@ -118,6 +122,12 @@ final class BackgroundWorkCoordinator {
             var next = records; next[index].state = state
             next[index].failure = state == .completed ? nil : failure
             next[index].finishedAt = Date()
+            if #available(iOS 26.0, *), let task = systemTask as? BGContinuedProcessingTask {
+                let progress = task.progress
+                next[index].systemCompletedUnits = progress.completedUnitCount
+                next[index].systemTotalUnits = progress.totalUnitCount
+                next[index].systemReportedSuccess = state == .completed && canWrite
+            }
             do { try store.save(next); records = next; if state == .completed { notifications.completed(next[index]) } }
             catch {
                 records[index].state = .interrupted; canWrite = false
@@ -125,6 +135,8 @@ final class BackgroundWorkCoordinator {
             }
         }
         if #available(iOS 26.0, *), let task = systemTask as? BGContinuedProcessingTask {
+            let subtitle = state == .completed && canWrite ? "Completed" : state == .cancelled ? "Cancelled" : "Interrupted"
+            task.updateTitle("OLIVE", subtitle: subtitle)
             task.setTaskCompleted(success: state == .completed && canWrite)
         }
         systemTask = nil
@@ -132,11 +144,14 @@ final class BackgroundWorkCoordinator {
         submittedIdentifier = nil; cancelWork = nil
     }
 
-    func cancel(expired: Bool = false) async {
+    func cancel(expired: Bool = false, source: BackgroundOperationRecord.ContinuationEnd? = nil) async {
         guard active != nil, !cancelling else { return }
         cancelling = true
         defer { cancelling = false }
         let cleanup = cancelWork
+        if let index = records.lastIndex(where: { $0.state == .running }) {
+            records[index].continuationEnd = source ?? (expired ? nil : .userCancelled)
+        }
         // Persist interruption before yielding to cancellation/network operations.
         finish(expired ? .expired : .cancelled, failure: expired ? .backgroundTaskExpired : .backgroundTaskCancelled)
         notice = (expired ? ConnectFailure.backgroundTaskExpired : .backgroundTaskCancelled).localizedDescription

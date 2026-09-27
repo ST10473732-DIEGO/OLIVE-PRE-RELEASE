@@ -15,6 +15,14 @@ struct BackgroundOperationRecord: Codable, Identifiable, Equatable, Sendable {
     var scope: [String: String]? = nil // Additive v1 migration: older records omit this field.
     var failure: ConnectFailure? = nil // Fixed public code only; never provider text or content.
     var finishedAt: Date? = nil // Unknown for work interrupted by process termination.
+    // Additive v1 diagnostics distinguish our fallback from the system callback.
+    // Apple uses the same callback for expiration and the system Stop button.
+    enum ContinuationEnd: String, Codable { case systemExpirationOrStop, submissionFailed, noGrantAtBackground, userCancelled }
+    var continuationGrantedAt: Date? = nil
+    var continuationEnd: ContinuationEnd? = nil
+    var systemCompletedUnits: Int64? = nil
+    var systemTotalUnits: Int64? = nil
+    var systemReportedSuccess: Bool? = nil
     // C6 has no offset resume; C7/C8 jobs are channel-owned. Never replay effects.
     private(set) var retrySafety = "explicitFreshRequestOnly"
     private(set) var desktopMayContinueIndependently = false

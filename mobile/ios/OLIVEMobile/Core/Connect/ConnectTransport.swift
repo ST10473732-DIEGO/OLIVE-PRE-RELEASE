@@ -24,11 +24,14 @@ actor ConnectTransport: InferenceTransport {
     private let acceptanceTraceID = UUID()
     private var incomingInferenceReplies = 0
     private var acceptanceEvents: [AcceptanceEvent] = []
-    private func acceptanceTrace(_ phase: String, error: (any Error)? = nil) {
+    private func acceptanceTrace(_ phase: String, error: (any Error)? = nil, persist: Bool = true) {
         guard ProcessInfo.processInfo.arguments.contains("--c93-transport-trace") ||
             ProcessInfo.processInfo.environment["OLIVE_C93_TRACE_ACCEPTANCE"] == "1" else { return }
         acceptanceEvents = Array(acceptanceEvents.suffix(15)) + [AcceptanceEvent(time: Date(), phase: phase,
             failure: error.map { ($0 as? ConnectFailure ?? .connectionLost).rawValue })]
+        // Keep per-frame observations in memory. Diagnostic disk writes for
+        // every C6 chunk would unnecessarily compete with background file work.
+        guard persist else { return }
         let slot = Int(acceptanceTraceID.uuid.0) % 8
         let store = ProtectedStore<AcceptanceTrace>(url: URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/Trace/transport-\(slot).json"), maximumBytes: 4096)
         try? store.save(AcceptanceTrace(id: acceptanceTraceID, incomingInferenceReplies: incomingInferenceReplies, events: acceptanceEvents))
@@ -115,7 +118,7 @@ actor ConnectTransport: InferenceTransport {
             while !closed {
                 let frame = try await readFrame(timeout: 30)
                 #if DEBUG
-                acceptanceTrace("frame-\(frame.kind)-bytes-\(frame.payload.count)")
+                acceptanceTrace("frame-\(frame.kind)-bytes-\(frame.payload.count)", persist: false)
                 #endif
                 if frame.kind == 9, let ids = authenticatedIDs {
                     let reply = try InferenceWire.clientReply(frame.payload, local: ids.local, peer: ids.peer)
@@ -136,7 +139,7 @@ actor ConnectTransport: InferenceTransport {
                 guard [2, 6, 8, 10, 12].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
                 let v = try ConnectJSON.decode(frame.payload, limit: ConnectFrame.limit(frame.kind), allowDecimals: frame.kind == 12)
                 #if DEBUG
-                acceptanceTrace("decoded-\(frame.kind)")
+                acceptanceTrace("decoded-\(frame.kind)", persist: false)
                 #endif
                 let id = try v["request_id"].uuid()
                 if let (kind, _, continuation) = pending.removeValue(forKey: id) {

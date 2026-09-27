@@ -23,6 +23,7 @@ struct FilesView: View {
                 Section(row.metadata.name) {
                     Text(row.incoming ? "Incoming" : "To computer")
                     Text(row.state == "completed" && row.incoming ? "Transfer verified · Ready to Save" : row.state)
+                        .accessibilityIdentifier("files.state." + row.id)
                     Text("\(row.received) of \(row.metadata.size) bytes").font(.caption.monospacedDigit())
                     if row.metadata.size > 0 { ProgressView(value: Double(row.received), total: Double(row.metadata.size)) }
                     if row.state == "awaiting_approval", row.incoming {
@@ -30,6 +31,7 @@ struct FilesView: View {
                     }
                     if row.state == "offered", !row.incoming {
                         Button("Send reviewed file") { Task { await model.send(row.id) } }
+                            .accessibilityIdentifier("files.send." + row.id)
                             .disabled(state.session?.connected != true || state.background?.active != nil)
                     }
                     if !FileWire.terminal.contains(row.state) {

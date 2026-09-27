@@ -4,6 +4,45 @@ import XCTest
 /// No offline UI fixture or simulated background grant is used.
 @MainActor
 final class RealStudioBackgroundAcceptanceTests: XCTestCase {
+    func testRealOwnedFileBackgroundTransfer() throws {
+        let id = ProcessInfo.processInfo.environment["OLIVE_C93_FILE_UI_ID"] ?? ""
+        try XCTSkipUnless(UUID(uuidString: id)?.uuidString.lowercased() == id, "Explicit prepared owned transfer ID required")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["--c93-transport-trace", "--c93-select-owned-file", id]; app.launch()
+        app.tabBars.buttons["Home"].tap()
+        let files = app.buttons["Files"]
+        for _ in 0..<5 { if files.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(files.waitForExistence(timeout: 10)); files.tap()
+        let send = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'files.send.'")).firstMatch
+        XCTAssertTrue(send.waitForExistence(timeout: 10))
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: send)], timeout: 25), .completed)
+        let transfer = String(send.identifier.dropFirst("files.send.".count))
+        print("C93 FILE BACKGROUND TRANSFER \(transfer)")
+        send.tap() // One explicit user action; no retries.
+        app.navigationBars.buttons["Home"].tap()
+        for _ in 0..<5 { if app.staticTexts["Background continuation active"].isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Background continuation active"].waitForExistence(timeout: 15))
+        let started = Date(); XCUIDevice.shared.press(.home)
+        let elapsed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in Date().timeIntervalSince(started) >= 65 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [elapsed], timeout: 70), .completed)
+        XCTAssertNotEqual(app.state, .runningForeground)
+        app.activate()
+        // Reacquire navigation after the active-work card has disappeared and
+        // foreground reconnect has settled; do not reuse its old hit snapshot.
+        app.tabBars.buttons["Devices"].tap()
+        XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 25))
+        app.tabBars.buttons["Home"].tap()
+        let returnToFiles = app.buttons.matching(identifier: "Files").firstMatch
+        for _ in 0..<5 { if returnToFiles.isHittable { break }; app.swipeUp() }
+        returnToFiles.tap()
+        XCTAssertTrue(app.navigationBars["Files"].waitForExistence(timeout: 5))
+        let state = app.staticTexts["files.state." + transfer]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'completed'"), object: state)], timeout: 45), .completed,
+            "Expected C6 verified completion; observed \(state.label). Expiration/interruption is retained for diagnosis, never retried.")
+    }
     func testRealSelectedChatTombstoneAcrossRelaunch() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_C93_CHAT_TOMBSTONE_UI_ACCEPTANCE"] == "1", "Explicit synthetic real Chat tombstone phase only")
         #if targetEnvironment(simulator)

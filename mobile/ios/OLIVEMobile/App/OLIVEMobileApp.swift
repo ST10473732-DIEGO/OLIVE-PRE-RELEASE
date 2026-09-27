@@ -15,7 +15,8 @@ struct OLIVEMobileApp: App {
             ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_EDIT_ACCEPTANCE"] == "1" ||
             ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_CONFLICT_ACCEPTANCE"] == "1" ||
             ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_RESOLVED_ACCEPTANCE"] == "1" ||
-            ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_DELETE_ACCEPTANCE"] == "1" {
+            ProcessInfo.processInfo.environment["OLIVE_C93_SYNC_DELETE_ACCEPTANCE"] == "1" ||
+            ProcessInfo.processInfo.environment["OLIVE_C93_FILE_PREPARE_ACCEPTANCE"] == "1" {
             // The XCTest owns the one real channel; the shell must not create a
             // competing session that would interrupt its cancellation probes.
             let directory = URL.applicationSupportDirectory.appendingPathComponent("C92TransportTests")
@@ -74,7 +75,24 @@ struct OLIVEMobileApp: App {
             return
         }
         #endif
-        _state = State(initialValue: AppState(store: LocalShellStore(), session: ConnectSession()))
+        let production = AppState(store: LocalShellStore(), session: ConnectSession())
+        _state = State(initialValue: production)
+        #if DEBUG
+        // Opt-in owned acceptance fixture: select only, never initiate a send.
+        // This bypasses the document picker, not C6 or its desktop permissions.
+        if let index = args.firstIndex(of: "--c93-select-owned-file"), args.indices.contains(index + 1),
+           UUID(uuidString: args[index + 1])?.uuidString.lowercased() == args[index + 1] {
+            let directory = URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/FileBackground/" + args[index + 1])
+            let source = directory.appendingPathComponent("olive-c93-64MiB.bin")
+            Task {
+                defer { try? FileManager.default.removeItem(at: source); try? FileManager.default.removeItem(at: directory) }
+                let checked = try? await Task.detached { try FileStaging(directory: directory).digest(source) }.value
+                guard checked?.0 == 67108864, checked?.1 == "281e519df3077b557c6b03f5da83c4e8d397219259615dd7c3308f89cae8f2a6",
+                      production.background?.active == nil else { return }
+                await production.files.select(source)
+            }
+        }
+        #endif
     }
     var body: some Scene {
         WindowGroup {

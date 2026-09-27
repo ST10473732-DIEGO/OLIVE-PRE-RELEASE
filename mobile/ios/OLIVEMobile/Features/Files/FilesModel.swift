@@ -167,7 +167,10 @@ final class FilesModel {
             end(id, state: "completed"); notice = "Transfer verified by computer."
         } catch {
             end(id, state: "interrupted")
-            notice = receipts.first(where: { $0.id == id })?.state == "completed" ? "Transfer verified by computer." : error is ConnectFailure ? error.localizedDescription : ConnectFailure.fileTransferInterrupted.localizedDescription
+            if receipts.first(where: { $0.id == id })?.state == "completed" { notice = "Transfer verified by computer." }
+            else if background?.records.last(where: { $0.id == id })?.state == .expired {
+                notice = "Background execution ended · transfer interrupted · partial data discarded"
+            } else { notice = error is ConnectFailure ? error.localizedDescription : ConnectFailure.fileTransferInterrupted.localizedDescription }
         }
     }
     func accept(_ id: String) {
@@ -181,15 +184,18 @@ final class FilesModel {
     }
     func cancel(_ id: String) async {
         guard let row = receipts.first(where: { $0.id == id }), !FileWire.terminal.contains(row.state) else { return }
+        let backgroundEnded = background?.records.last(where: { $0.id == id })?.state == .expired
+        let terminalState = backgroundEnded ? "interrupted" : "cancelled"
         // Fence producers and discard partial bytes before yielding, but retain
         // the channel long enough to send C6 cancel and inspect its receipt.
-        end(id, state: "cancelled", deferCompletion: true)
+        end(id, state: terminalState, deferCompletion: true)
         var completedBeforeCancel = false
         defer {
-            background?.finish(completedBeforeCancel ? .completed : .cancelled, id: id)
+            background?.finish(completedBeforeCancel ? .completed : backgroundEnded ? .interrupted : .cancelled, id: id)
             session?.finishBackgroundWork()
         }
-        guard let session else { notice = "Cancelled locally · computer receipt unavailable"; return }
+        let unavailable = backgroundEnded ? "Background execution ended · interrupted locally · computer receipt unavailable" : "Cancelled locally · computer receipt unavailable"
+        guard let session else { notice = unavailable; return }
         do {
             let result = try await exchange(row, operation: "cancel", context: session.context())
             if !row.incoming, result["state"] == .string("completed"), result["received_size"] == .int(row.metadata.size) {
@@ -198,8 +204,8 @@ final class FilesModel {
                 var verified = row; verified.state = "completed"; verified.received = row.metadata.size; verified.touched = Date()
                 try put(verified); completedBeforeCancel = true
                 notice = "Computer had already verified this transfer."
-            } else { notice = "Transfer cancelled · partial data discarded" }
-        } catch { notice = "Cancelled locally · computer receipt unavailable" }
+            } else { notice = backgroundEnded ? "Background execution ended · transfer interrupted · partial data discarded" : "Transfer cancelled · partial data discarded" }
+        } catch { notice = unavailable }
     }
     func reconcile(_ id: String) async {
         guard let row = receipts.first(where: { $0.id == id && !$0.incoming }), let session else { return }
