@@ -916,3 +916,10 @@ at 11,141,120 bytes with unsuccessful system completion and no expiration callba
 This establishes capability-withdrawal/no-replay evidence, without claiming device
 trust revocation or unreported desktop artifact inspection. Remaining permission,
 Studio draft, deletion, presence and Remote AI checks keep C9.3 PARTIAL.
+
+The owner subsequently passed all four C5 domain permission sequences (Off, Ask,
+Allow, back to Off) and the desktop deletion checks. The synthetic Task, event,
+linked Reminder and Shared Chat are gone, while the unselected Private Chat
+remains. These close the outstanding C5 policy/deletion observations; Studio
+policy/draft safety, final Chat recovery and remaining presence/platform details
+still prevent C9.3 closure. No code changed in this follow-up.

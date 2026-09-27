@@ -7,6 +7,9 @@ needed. Report exact failures; do not silently work around them.
 
 ## 1. Today — final desktop deletion check
 
+**Passed by owner:** synthetic Task, Calendar event and linked Reminder deleted
+on desktop. Do not repeat the checks below; they describe the completed procedure.
+
 Phone creation, bidirectional edits, four-domain conflicts/resolution, recurring
 Calendar exceptions and linked Task completion have passed. The phone has now
 explicitly tombstoned the synthetic Task, Event and linked Reminder; repeated
@@ -18,6 +21,10 @@ sync and a fresh store load passed.
 2. Do not recreate these records or repeat the already-passed edits.
 
 ## 2. Selected Chat — final desktop deletion check
+
+**Passed by owner:** Shared Chat deleted; Private remains unselected on desktop.
+The deletion checks below are complete. The optional idle availability-probe
+observation was not separately reported in this batch.
 
 Selection, unselected isolation, stable ordered IDs, mobile turn exactly once,
 conflicts/resolution and FIRST-prompt tombstone across two real app relaunches
@@ -85,16 +92,17 @@ rejection also passed. Do not repeat those successful transfers unnecessarily.
 Keep desktop Remote AI Allow unchanged. No Owner Mode. Scope changes may cancel
 active jobs, so wait for each operation to end before the next policy change.
 
-1. For desktop Sync **Tasks, Calendar, Reminders, Selected chats**, cycle each
-   Off → Ask → Allow → Off. On phone use its corresponding explicit Sync button
-   after each change. Off must deny; Ask must retain one exact pending request
-   until desktop approval; Allow must work without repeated approval; final Off
-   must deny. Note mobile text and any duplicate approval. Restore Allow.
+1. **Passed by owner:** Sync Tasks, Calendar, Reminders and Selected chats each
+   passed Off → Ask → Allow → Off, explicit phone Sync after each change, approval
+   without duplication under Ask, no approval under Allow, and restoration to
+   Allow afterward. Do not repeat this matrix.
 2. On desktop shared **C93 Acceptance Shared** workspace, cycle each permission
    **view/edit/build/test/run** through the same sequence using phone Refresh /
    Save / Build / Test / Run respectively. Keep other required scopes allowed.
    Ask approval must continue the same save/job once. Cancel the 75-second Run
-   explicitly after checking admission. Restore Allow between scopes.
+   explicitly after checking admission. Restore Allow between scopes. After each
+   policy change, refresh workspaces and reopen the share before the tested
+   operation so its share revision is current; keep other scopes Allow.
 3. Phone Studio: open `notes.txt`, edit it to `C93 Acceptance phone draft` without
    saving. On desktop edit that owned file to `C93 Acceptance desktop newer` and
    save. Attempt phone **Save with revision check**: stale refusal, phone draft

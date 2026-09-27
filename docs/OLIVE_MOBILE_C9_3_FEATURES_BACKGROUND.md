@@ -978,3 +978,25 @@ Collision protection and active capability withdrawal/no replay now have real
 owner evidence. Remaining C5/C8 permission matrices, Studio draft retention,
 desktop deletion confirmations, exact desktop presence timing and final Remote
 AI checks still prevent milestone closure. C9.3 remains PARTIAL.
+
+### Owner C5 policy matrix and desktop deletion checks — 2026-09-27
+
+The owner confirmed “four permission checks and deletion checks passed” after
+the requested Tasks / Calendar / Reminders / Selected chats sequence. For each
+domain, Off denied the explicit phone Sync, Ask completed after desktop approval
+without duplicate approvals, Allow synced without approval, and changing back to
+Off denied again before restoring Allow. This is real owner-assisted policy
+evidence; exact screen wording was not supplied and is not invented.
+
+The same report confirms desktop removal of the synthetic Task, Calendar event,
+linked Reminder and Shared Chat, while the unselected `C93 Acceptance Private`
+conversation remains. These desktop checks complete the deletion observations
+following the previously verified phone tombstones/cold resync. They do not imply
+deletion of the bot's FIRST reply when only its user message was tombstoned; that
+earlier message-level behavior remains correctly recorded separately.
+
+This evidence-only follow-up began at `271f6fc6e6bbaca45b273e5d4c121c41d4e08de2`
+on `feature/olive-mobile-c9-3`, with a clean worktree. No implementation, deployed
+desktop, identity, protocol or regression result changed. C9.3 remains PARTIAL
+pending remaining Studio policy/draft checks, final Remote AI recovery/regression
+and the separately recorded unresolved presence/platform acceptance details.
