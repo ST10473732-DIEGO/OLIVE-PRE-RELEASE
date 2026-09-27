@@ -5,7 +5,10 @@ actor ConnectTransport: InferenceTransport {
     private let socket: ConnectSocket
     private var tls: ConnectTLS?
     private var reader: Task<Void, Never>?
-    private var pending: [String: (String, CheckedContinuation<ConnectJSON, Error>)] = [:]
+    private var pending: [String: (UInt8, UUID, CheckedContinuation<Data, Error>)] = [:]
+    private var sender: Task<Void, Error>?
+    private var inbound: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?
+    func setInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?) { inbound = handler }
     private var plaintext = Data()
     private var ready = false
     private var closed = false
@@ -38,8 +41,21 @@ actor ConnectTransport: InferenceTransport {
         if !out.isEmpty { try await socket.send(out) }
     }
     private func write(_ data: Data) async throws {
+        let previous = sender
+        let task = Task {
+            _ = try await previous?.value
+            try await self.writeSerial(data)
+        }
+        sender = task
+        try await task.value
+    }
+    private func writeSerial(_ data: Data) async throws {
         guard !closed, let tls else { throw ConnectFailure.connectionLost }
-        try tls.write(data); try await flush()
+        var offset = 0
+        while offset < data.count {
+            let end = min(offset + 16384, data.count)
+            try tls.write(Data(data[offset..<end])); try await flush(); offset = end
+        }
     }
     private func readFrame(timeout: Double) async throws -> ConnectFrame {
         var frameDeadline: ContinuousClock.Instant? = plaintext.isEmpty ? nil : .now.advanced(by: .seconds(3))
@@ -58,7 +74,7 @@ actor ConnectTransport: InferenceTransport {
             if !decoded.isEmpty {
                 if plaintext.isEmpty { frameDeadline = .now.advanced(by: .seconds(3)) }
                 plaintext.append(decoded)
-                guard plaintext.count <= 88000 else { throw ConnectFailure.responseMalformed }
+                guard plaintext.count <= 416390 else { throw ConnectFailure.responseMalformed }
                 continue
             }
             try await flush()
@@ -72,40 +88,59 @@ actor ConnectTransport: InferenceTransport {
         do {
             while !closed {
                 let frame = try await readFrame(timeout: 30)
-                guard frame.kind == 10 else { throw ConnectFailure.responseMalformed }
-                let v = try InferenceWire.response(frame.payload)
+                if [5, 7].contains(frame.kind), let inbound {
+                    let reply = try await inbound(frame)
+                    guard reply.kind == frame.kind + 1 else { throw ConnectFailure.responseMalformed }
+                    try await write(reply.encode())
+                    continue
+                }
+                guard [2, 6, 8, 10, 12].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
+                let v = try ConnectJSON.decode(frame.payload, limit: ConnectFrame.limit(frame.kind), allowDecimals: frame.kind == 12)
                 let id = try v["request_id"].uuid()
-                if let (job, continuation) = pending.removeValue(forKey: id) {
-                    guard v["job_id"] == .string(job) else {
-                        continuation.resume(throwing: ConnectFailure.identityMismatch)
-                        throw ConnectFailure.identityMismatch
+                if let (kind, _, continuation) = pending.removeValue(forKey: id) {
+                    guard kind == frame.kind else {
+                        continuation.resume(throwing: ConnectFailure.responseMalformed)
+                        throw ConnectFailure.responseMalformed
                     }
-                    continuation.resume(returning: v)
+                    continuation.resume(returning: frame.payload)
                 }
                 // Late responses never create or attach to a new request.
             }
         } catch { await close() }
     }
     func exchange(_ request: ConnectJSON) async throws -> ConnectJSON {
+        let raw = try await exchangeFrame(kind: 9, id: request["request_id"].uuid(), payload: request.canonical)
+        let value = try InferenceWire.response(raw)
+        guard value["job_id"] == request["job_id"] else { await close(); throw ConnectFailure.identityMismatch }
+        return value
+    }
+    func exchangeFrame(kind: UInt8, id: String, payload: Data) async throws -> Data {
         guard ready, !closed else { throw ConnectFailure.peerOffline }
-        let id = try request["request_id"].uuid(), job = try request["job_id"].uuid()
+        guard [1, 5, 7, 9, 11].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
+        _ = try ConnectJSON.string(id).uuid()
+        let encoded = try ConnectFrame(kind: kind, payload: payload).encode()
         guard pending.count < 8, pending[id] == nil else { throw ConnectFailure.resourceBusy }
         return try await withCheckedThrowingContinuation { c in
-            pending[id] = (job, c)
+            let ticket = UUID()
+            pending[id] = (kind + 1, ticket, c)
             Task {
-                do { try await write(ConnectFrame(kind: 9, payload: request.canonical).encode()) }
+                do { try await write(encoded) }
                 catch { await close() }
             }
             Task {
                 try? await Task.sleep(for: .seconds(7))
-                if pending[id] != nil { await close() }
+                if let (_, currentTicket, continuation) = pending[id], currentTicket == ticket {
+                    pending.removeValue(forKey: id)
+                    continuation.resume(throwing: ConnectFailure.requestTimeout)
+                    if kind == 9 { await close() }
+                }
             }
         }
     }
     func close() async {
-        closed = true; ready = false; reader?.cancel(); reader = nil
+        closed = true; ready = false; sender?.cancel(); sender = nil; inbound = nil; reader?.cancel(); reader = nil
         let waiting = pending; pending.removeAll()
-        for (_, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
+        for (_, _, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
         await socket.close(); tls = nil; plaintext.removeAll()
     }
     #if DEBUG

@@ -8,9 +8,9 @@ struct InferenceWire {
                         arguments: ConnectJSON = .object([:]), now: Int64 = Int64(Date().timeIntervalSince1970), id: String = UUID().uuidString.lowercased()) throws -> ConnectJSON {
         _ = try ConnectJSON.string(source).uuid(); _ = try ConnectJSON.string(target).uuid()
         _ = try ConnectJSON.string(id).uuid(); if let job { _ = try ConnectJSON.string(job).uuid() }
-        guard ["start", "poll", "cancel", "status"].contains(operation) else { throw ConnectFailure.responseMalformed }
+        guard ["start", "poll", "cancel", "status", "capabilities"].contains(operation) else { throw ConnectFailure.responseMalformed }
         if operation == "poll" { try arguments.fields(["after"]); _ = try arguments["after"].number(0...64000) }
-        if operation == "status" || operation == "cancel" { try arguments.fields([]) }
+        if operation == "status" || operation == "capabilities" || operation == "cancel" { try arguments.fields([]) }
         return .object(["protocol_version": .string("olive-inference/1"), "request_id": .string(operation == "start" ? job ?? id : id),
             "source_device_id": .string(source), "target_device_id": .string(target), "job_id": .string(job ?? id),
             "operation": .string(operation), "arguments": arguments, "timestamp": .int(now), "expires_at": .int(now + 120)])
@@ -45,6 +45,13 @@ struct InferenceWire {
             try r["presets"].fields(["fast", "normal", "max"])
             guard ["deny", "ask", "allow"].contains(try r["permission"].text()), r["busy"].boolean != nil,
                   r["presets"].object!.values.allSatisfy({ $0.boolean != nil }) else { throw ConnectFailure.responseMalformed }
+        } else if r.object?["connect_version"] != nil {
+            try r.fields(["connect_version", "permissions", "supported", "studio_scope"])
+            let names: Set<String> = ["sync.tasks", "sync.calendar", "sync.reminders", "sync.chat", "files.receive", "files.send"]
+            try r["permissions"].fields(names); try r["supported"].fields(names.union(["studio"]))
+            guard r["connect_version"] == .int(1), r["studio_scope"] == .string("workspace"),
+                  r["permissions"].object!.values.allSatisfy({ ["deny", "ask", "allow"].contains($0.string ?? "") }),
+                  r["supported"].object!.values.allSatisfy({ $0.boolean != nil }) else { throw ConnectFailure.responseMalformed }
         } else {
             try r.fields(["state", "events", "error"])
             guard states.contains(try r["state"].text()), r["error"] == .null || r["error"].string.map(errors.contains) == true,

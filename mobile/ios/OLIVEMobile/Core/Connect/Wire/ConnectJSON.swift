@@ -1,8 +1,9 @@
 import Foundation
 import CryptoKit
 
-/// The integer-only subset used by C2/C3/C7. Reject duplicate keys before decoding.
+/// Strict bounded JSON. Fractional tokens are only consumed by C8 result metrics.
 indirect enum ConnectJSON: Equatable, Sendable {
+    case decimal(String)
     case object([String: ConnectJSON]), array([ConnectJSON]), string(String), int(Int64), bool(Bool), null
     var object: [String: ConnectJSON]? { if case .object(let x) = self { x } else { nil } }
     var array: [ConnectJSON]? { if case .array(let x) = self { x } else { nil } }
@@ -30,6 +31,7 @@ indirect enum ConnectJSON: Equatable, Sendable {
         case .null: return "null"
         case .bool(let b): return b ? "true" : "false"
         case .int(let n): return String(n)
+        case .decimal(let token): return token
         case .string(let s):
             return "\"" + s.unicodeScalars.map { scalar in
                 switch scalar.value {
@@ -52,9 +54,9 @@ indirect enum ConnectJSON: Equatable, Sendable {
             }.joined(separator: ",") + "}"
         }
     }
-    static func decode(_ data: Data, limit: Int = 72_000) throws -> Self {
+    static func decode(_ data: Data, limit: Int = 72_000, allowDecimals: Bool = false) throws -> Self {
         guard data.count <= limit else { throw ConnectFailure.responseMalformed }
-        var parser = Parser(bytes: Array(data))
+        var parser = Parser(bytes: Array(data), allowDecimals: allowDecimals)
         let result = try parser.value(depth: 0)
         parser.space()
         guard parser.i == parser.bytes.count else { throw ConnectFailure.responseMalformed }
@@ -62,6 +64,7 @@ indirect enum ConnectJSON: Equatable, Sendable {
     }
     private struct Parser {
         let bytes: [UInt8]
+        let allowDecimals: Bool
         var i = 0
         mutating func space() { while i < bytes.count && [9,10,13,32].contains(bytes[i]) { i += 1 } }
         mutating func take(_ byte: UInt8) throws {
@@ -110,8 +113,16 @@ indirect enum ConnectJSON: Equatable, Sendable {
                 if bytes[i] == 45 { i += 1 }
                 let digitStart = i
                 while i < bytes.count && (48...57).contains(bytes[i]) { i += 1 }
-                guard i > digitStart, i - digitStart == 1 || bytes[digitStart] != 48,
-                      let n = Int64(String(decoding: bytes[start..<i], as: UTF8.self)) else { throw ConnectFailure.responseMalformed }
+                guard i > digitStart, i - digitStart == 1 || bytes[digitStart] != 48 else { throw ConnectFailure.responseMalformed }
+                if i < bytes.count, [46, 69, 101].contains(bytes[i]) {
+                    guard allowDecimals else { throw ConnectFailure.responseMalformed }
+                    while i < bytes.count && (48...57).contains(bytes[i]) || i < bytes.count && [46, 69, 101, 43, 45].contains(bytes[i]) { i += 1 }
+                    let token = String(decoding: bytes[start..<i], as: UTF8.self)
+                    guard token.range(of: #"^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$"#, options: .regularExpression) != nil,
+                          let number = Double(token), number.isFinite else { throw ConnectFailure.responseMalformed }
+                    return .decimal(token)
+                }
+                guard let n = Int64(String(decoding: bytes[start..<i], as: UTF8.self)) else { throw ConnectFailure.responseMalformed }
                 return .int(n)
             }
         }

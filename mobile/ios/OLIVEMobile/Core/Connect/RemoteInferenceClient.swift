@@ -26,6 +26,10 @@ actor RemoteInferenceClient {
         if let rejection = error as? Rejection { return InferenceWire.failure(rejection.code) }
         return error
     }
+    func companionStatus() async throws -> ConnectJSON {
+        do { return try await exchange(InferenceWire.request(source: source, target: target, operation: "capabilities")) }
+        catch { throw publicError(error) }
+    }
     func status() async throws -> ConnectJSON {
         do {
             let r = try await exchange(InferenceWire.request(source: source, target: target, operation: "status"))

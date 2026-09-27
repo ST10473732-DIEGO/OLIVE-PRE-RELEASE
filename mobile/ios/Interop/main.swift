@@ -35,6 +35,37 @@ if CommandLine.arguments[1] == "--pair-fixture" {
     exit(0)
 }
 
+if CommandLine.arguments[1] == "--companion-fixture" {
+    let fixture = try ConnectJSON.decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2])), limit: 256000)
+    for value in fixture["records"].array! { _ = try SignedSyncRecord(value) }
+    for value in fixture["invalid_records"].array! {
+        var rejected = false
+        do { _ = try SignedSyncRecord(value) } catch { rejected = true }
+        precondition(rejected)
+    }
+    var studio: [String: ConnectJSON] = [:], files: [String: ConnectJSON] = [:]
+    for (op, req) in fixture["studio"].object! {
+        studio[op] = try StudioWire.request(source: req["source_device_id"].uuid(), target: req["target_device_id"].uuid(), operation: op,
+            workspace: req["workspace_id"].string, revision: req["share_revision"].integer!, arguments: req["arguments"],
+            id: req["request_id"].uuid(), now: req["timestamp"].integer!)
+        precondition(studio[op]!.canonical == req.canonical)
+    }
+    for (op, packet) in fixture["files"].object! {
+        let (req, bytes) = try FileWire.decode(Data(base64Encoded: packet.string!)!)
+        let encoded = try FileWire.request(source: req["source_device_id"].uuid(), target: req["target_device_id"].uuid(),
+            transfer: req["transfer_id"].uuid(), operation: op, arguments: req["arguments"], id: req["request_id"].uuid(), now: req["timestamp"].integer!)
+        files[op] = .string(try FileWire.packet(encoded, bytes: bytes).base64EncodedString())
+        precondition(files[op] == packet)
+    }
+    let identity = try ConnectIdentity.generate()
+    let record = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "Swift authored fixture"), identity: identity)
+    let request = try SyncWire.request(source: identity.publicIdentity.deviceID, target: "22222222-2222-4222-8222-222222222222", domain: "tasks", records: [record], cursor: 0)
+    let output = ConnectJSON.object(["studio": .object(studio), "files": .object(files), "records": .array([record.wire]), "sync_request": request])
+    try output.canonical.write(to: URL(fileURLWithPath: CommandLine.arguments[3]))
+    print("Swift C5 signatures, C6 binary packets and C8 requests verified")
+    exit(0)
+}
+
 let fixture = URL(fileURLWithPath: CommandLine.arguments[1])
 let v = try ConnectJSON.decode(Data(contentsOf: fixture), limit: 200_000)
 let offer = try PairingOffer(v["offer"].canonical, now: v["offer"]["created_at"].integer!)

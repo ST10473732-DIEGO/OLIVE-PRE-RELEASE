@@ -8,7 +8,8 @@ struct ConnectFrame: Equatable, Sendable {
         case 1...4, 8: 16_384
         case 5, 6: 256_000
         case 9, 10: 72_000
-        // C9.2 never receives files or Studio; fail closed without allocating them.
+        case 7: 69_636
+        case 11, 12: 400_000
         default: throw ConnectFailure.capabilityUnavailable
         }
     }

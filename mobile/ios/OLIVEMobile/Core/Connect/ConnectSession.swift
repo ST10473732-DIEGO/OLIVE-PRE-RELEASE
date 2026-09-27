@@ -11,6 +11,8 @@ protocol ChatRemoteSession: AnyObject {
 
 @MainActor @Observable
 final class ConnectSession: ChatRemoteSession {
+    var onChannelReady: (@MainActor (ConnectTransport, ConnectIdentity, TrustedConnectPeer) async -> Void)?
+    var onDisconnect: (@MainActor () -> Void)?
     let discovery = ConnectDiscoveryService()
     let repository: ConnectTrustRepository
     let pairing: ConnectPairingClient
@@ -20,6 +22,8 @@ final class ConnectSession: ChatRemoteSession {
     private(set) var status = "Not connected"
     private(set) var diagnostic = "idle"
     private(set) var connected = false
+    private(set) var companionCapability: ConnectJSON?
+    private var capabilityProbe = true
     private(set) var capability: ConnectJSON?
     private(set) var fingerprint: String?
     private(set) var resettingIdentity = false
@@ -54,12 +58,18 @@ final class ConnectSession: ChatRemoteSession {
             self.connect()
         }
     }
+    func context() async throws -> (ConnectTransport, ConnectIdentity, TrustedConnectPeer) {
+        guard connected, let transport, let peer = selected else { throw ConnectFailure.peerOffline }
+        let identity = try await identities.load(allowCreation: false)
+        guard connected, self.transport === transport, selectedID == peer.id else { throw ConnectFailure.peerOffline }
+        return (transport, identity, peer)
+    }
     func refreshPeers() {
         peers = repository.peers
         if selectedID == nil { selectedID = peers.first?.id }
         if foreground { connect() }
     }
-    func select(_ id: String) { selectedID = id; disconnect(); if foreground { connect() } }
+    func select(_ id: String) { capabilityProbe = true; selectedID = id; disconnect(); if foreground { connect() } }
     func activate() {
         foreground = true; lifecycle = connected ? .foregroundConnected : selected == nil ? .unpaired : .foregroundConnecting; discovery.start()
         let identityToken = identityGeneration
@@ -75,10 +85,11 @@ final class ConnectSession: ChatRemoteSession {
         else { disconnect(); lifecycle = selected == nil ? .unpaired : .backgroundSuspendedExpected; status = "Background · suspended" }
     }
     func disconnect() {
+        onDisconnect?()
         generation = UUID(); reconnect?.cancel(); reconnect = nil
         discoveryRetry?.cancel(); discoveryRetry = nil
         if let transport { Task { await transport.close() } }
-        transport = nil; inference = nil; capability = nil; connected = false
+        transport = nil; inference = nil; capability = nil; companionCapability = nil; connected = false
         status = selected == nil ? "Not connected" : "Offline"
         lifecycle = selected == nil ? .unpaired : .pairedOffline
     }
@@ -109,9 +120,19 @@ final class ConnectSession: ChatRemoteSession {
                         let client = RemoteInferenceClient(transport: channel, source: identity.publicIdentity.deviceID, target: peer.id)
                         diagnostic = "inference_status"
                         let capabilities = try await client.status()
+                        if capabilityProbe {
+                            do { companionCapability = try await client.companionStatus() }
+                            catch {
+                                // Older desktop rejects the optional operation. Retain
+                                // exact pinned reconnect, then use its existing C7 status.
+                                capabilityProbe = false
+                                throw error
+                            }
+                        }
                         guard generation == token else { await channel.close(); return }
                         lifecycle = .foregroundConnected
                         inference = client; capability = capabilities; connected = true; status = "Connected"; diagnostic = "authenticated"
+                        await onChannelReady?(channel, identity, peer)
                         attempt = 0 // A later disconnection gets a fresh bounded recovery cycle.
                         // C7 status is the existing public role/policy negotiation and heartbeat.
                         while generation == token && !Task.isCancelled {
@@ -119,11 +140,13 @@ final class ConnectSession: ChatRemoteSession {
                             let fresh = try await client.status()
                             guard generation == token else { return }
                             capability = fresh
+                            if capabilityProbe { companionCapability = try await client.companionStatus() }
                         }
                     } catch {
                         await channel.close()
                         guard generation == token else { return }
-                        connected = false; inference = nil; capability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
+                        onDisconnect?()
+                        connected = false; inference = nil; capability = nil; companionCapability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
                         diagnostic += ":" + (error as? ConnectFailure ?? .connectionLost).rawValue
                         status = (error as? ConnectFailure) == .certificateMismatch ? "Identity rejected" : "Offline"
                     }
@@ -135,7 +158,7 @@ final class ConnectSession: ChatRemoteSession {
             }
         }
     }
-    func retry() { disconnect(); connect() }
+    func retry() { capabilityProbe = true; disconnect(); connect() }
     func unpair(_ id: String) throws {
         if selectedID == id { disconnect() }
         try repository.unpair(id); peers = repository.peers

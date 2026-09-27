@@ -22,3 +22,6 @@ xcrun swiftc -swift-version 6 -module-cache-path "$OUT/cache" \
 "$PYTHON" scripts/mobile_connect_vectors.py --swift-output "$OUT/swift.json"
 
 OLIVE_SWIFT_INTEROP="$OUT/interop" "$PYTHON" -m unittest tests.test_mobile_pairing_interop -v
+
+"$OUT/interop" --companion-fixture tests/fixtures/mobile_connect/companion.json "$OUT/companion.json"
+"$PYTHON" scripts/mobile_companion_vectors.py --swift-output "$OUT/companion.json"
