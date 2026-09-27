@@ -41,9 +41,9 @@ rejection also passed. Do not repeat those successful transfers unnecessarily.
    For that completed transfer, attempt desktop
    Save over the fixture's existing `collision.bin`; cancellation/refusal must
    preserve the existing file. Do not authorize replacing it.
-2. Exercise **Send selected files** Off → Ask → Allow from desktop using the
-   same 5 MiB fixture; approve the exact Ask request once and explicitly Accept
-   incoming transfer on phone. Record each result. Change both file permissions
+2. **Passed:** Send selected files Off blocked desktop sending; Ask completed
+   after one approval and phone acceptance; Allow completed without another
+   desktop approval, retaining phone acceptance. Change both file permissions
    back to Off and confirm new sends are denied; then restore Allow for steps 3–4.
 3. Start the observer on CachyOS, then send the saved 64 MiB file from phone and
    use another app for 60 seconds. Watch desktop Devices. Note the observer's

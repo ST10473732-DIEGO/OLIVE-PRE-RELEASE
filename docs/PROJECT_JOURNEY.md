@@ -854,3 +854,7 @@ owner checks are consolidated in `OLIVE_MOBILE_C9_3_ACCEPTANCE_CHECKLIST.md`.
 C9.3 owner follow-up: real phone-to-desktop Files permission Off blocked sending,
 Ask completed after one approval, and Allow completed without another approval.
 Reverse-direction policy and remaining file edges are still pending.
+
+The owner also passed the reverse-direction C6 Send selected files Off/Ask/Allow
+checks, retaining explicit iPhone acceptance. Both file permission admission
+matrices are now evidenced; collision, active revocation and timing remain open.

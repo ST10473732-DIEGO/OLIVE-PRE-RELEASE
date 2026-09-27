@@ -736,3 +736,11 @@ On the real paired iPhone and CachyOS desktop, the owner tested desktop
 This establishes the phone-to-desktop admission matrix for those policies. It
 does not establish the reverse-direction policy, an active-transfer revocation,
 existing-destination collision or instrumented presence timing; those remain open.
+
+The owner then completed the reverse-direction **Send selected files** batch
+with the same owned 5 MiB fixture: Off blocked desktop sending; Ask completed
+after one desktop approval and explicit phone acceptance; Allow reached Ready
+to Save with phone acceptance and without another desktop permission approval.
+Both directional file admission matrices now have real-device owner evidence.
+Mid-transfer capability revocation, collision and presence timing remain open;
+these successes do not substitute for those edge checks.
