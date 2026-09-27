@@ -733,3 +733,13 @@ partial-data removal, and the system activity ended. Restoring Wi-Fi and
 reconnecting caused no automatic transfer replay. The independently read phone
 receipt records interrupted at 6,750,208 bytes. Force-quit acceptance remains
 separate and pending; C9.3 is still in progress.
+
+
+Force-quitting OLIVE during a separate outgoing C6 transfer immediately produced
+Task failed in the system activity, disconnected the phone, and reported
+Interrupted on both devices. The phone's persisted receipt independently records
+interrupted at 7,208,960 bytes. The desktop reported partial-data removal. The
+owner then confirmed that reopening preserved Interrupted without automatic
+restart, closing this outgoing force-quit/relaunch check. No execution after force
+quit is promised. The next live check covers a user-initiated C7 response in
+background.
