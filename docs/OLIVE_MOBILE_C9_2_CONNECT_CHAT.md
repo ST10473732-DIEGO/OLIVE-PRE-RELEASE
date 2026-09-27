@@ -32,7 +32,7 @@ Isolated protocol tests and successful builds are not substitutes for those chec
 - `WORKTREE_STATUS`: clean at start; no later commits to preserve.
 - `FINAL_HEAD`: the documentation checkpoint containing this report; resolve
   with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md`.
-  Validated implementation: `ac2f3ab63cb52e962032da7b05fe6837b3b4995a`
+  Validated implementation: `5cafbfff631a11f9d5feb4c9db4457c7f1c5af2f`
   (Connect implementation `004c72f`, Stop control `e1dc9c1`, identity recovery
   and clear-on-send/Stop draft follow-up `ac2f3ab`).
 - `COMMITS`: `004c72f` — native Connect client, UI and interop tests; followed by
@@ -49,10 +49,16 @@ Isolated protocol tests and successful builds are not substitutes for those chec
   Composer follow-up: `ios(chat): turn the send control into remote Stop while busy`.
   Recovery/composer follow-up: `ac2f3ab` — explicit identity reset with receipt
   invalidation, interrupted-reset tests and draft revision/cancellation fixes.
+  Chat quota follow-up: `0788cdf` — owner-requested removal of C7's six-starts
+  per minute admission quota; concurrency and transport budgets preserved.
+  Rejection recovery: `5cafbff` — keep healthy mobile connections after rejected
+  admission; distinct rate-limit error and cross-language error fixtures.
 - No Git reset, stash, force push, branch deletion, merge, tag, release, or push.
 
 Current source, especially C2/C3/C4.1/C7 implementations, takes precedence over
-historical mobile design assumptions. C1–C8 runtime sources remain unchanged.
+historical mobile design assumptions. The only desktop runtime change is the
+explicitly requested C7 admission-quota removal described below. C2/C3 transport,
+pairing, permissions and wire versions remain unchanged.
 No C10, cloud account, model download, mobile Owner Mode or remote desktop tools.
 
 ## iOS and native dependency
@@ -157,6 +163,45 @@ The mobile network path rejects loopback offers even though the portable desktop
 codec permits them for tests.
 
 ## Chat, cancellation and lifecycle
+
+### Rapid sequential Chat follow-up (2026-09-27)
+
+The owner reported that several rapid questions were followed by a misleading
+busy error and a need to reconnect. Source inspection found the existing C7
+six-new-start-attempts per peer per rolling minute quota. Swift mapped
+`rate_limited` to busy and attempted to cancel a rejected, nonexistent job.
+The resulting `unknown_request` caused it to close the healthy transport.
+
+At the owner's explicit request, desktop commit `0788cdf` removes that separate
+question quota. Admission still enforces actual capacity: one unfinished job
+per peer, one active remote generation, two waiting jobs, bounded approvals,
+32 transient jobs and 10,000 durable receipts. C3 retains its 600 C7 frames per
+peer/minute budget across reconnects. This enables continued sequential Chat
+within resource bounds, not unbounded simultaneous work or additional authority.
+The old quota test is updated for this requested policy change, with additional
+tests for twelve completed requests in one frozen admission-clock window and
+continued frame-budget enforcement across reconnects. Wire identifiers and
+Off/Ask/Allow remain unchanged; old peers stay compatible.
+
+Swift commit `5cafbff` distinguishes rate-limit rejection from resource busy.
+An explicit initial `busy`, `rate_limited` or `model_unavailable` rejection no
+longer triggers cancellation of a nonexistent job or closes the session.
+Uncertain starts and failures after job admission still perform bounded cleanup
+and close on failed cancellation. Drafts remain available for explicit retry;
+no automatic request replay is introduced. This also works against older
+desktop builds that still have the six-request quota.
+
+The phone fix is installed and the normal app reopened. Desktop deployment is
+pending: the owner confirmed a clean CachyOS checkout on `feature/olive-mobile-c9`
+at exact `BASELINE_HEAD`. Desktop-only patch
+`/tmp/olive-c92-desktop-chat-quota.patch` has SHA-256
+`483f59137556598f6fc04e4f6adac20cf5b4828ff055da203c06689455ce43b4`.
+It applies cleanly with `git am` to an isolated checkout of that exact baseline,
+producing identical runtime, regression tests and C7 documentation. The prepared
+copy/paste installer checks the baseline, clean worktree, patch checksum and
+patch applicability before committing it locally. No remote access, push or
+firewall change is part of this installer. Native CachyOS regression, desktop
+restart and more-than-six real sequential requests remain pending.
 
 The desktop runs inference and owns model selection/policy. Mobile sends only
 its explicit user/assistant context: ≤24 messages, ≤16000 bytes/message,
@@ -346,13 +391,13 @@ this host-configuration limitation.
 ## Validation so far
 
 - Pinned TLS libraries built for iPhone arm64 and both simulator architectures.
-- `xcodebuild -list` succeeded. Final simulator app/test build and generic iOS
+- `xcodebuild -list` succeeded. Earlier simulator app/test build and generic iOS
   Release build passed after the identity recovery and draft update
   (`olive-c92-recovery-composer-simulator.log`,
   `olive-c92-recovery-composer-generic.log`). The initial sandboxed recovery
   build could not run Xcode's Observation macro plugin; the same source built
   successfully with the required host Xcode access.
-- Final physical signed build/install/test: **34 unit tests + 8 UI tests passed**
+- Earlier physical signed build/install/test: **34 unit tests + 8 UI tests passed**
   in `/tmp/olive-c92-device-tests-8.xcresult` (unit 2.409 s, UI 72.749 s),
   including real-LAN discovery. The app was reopened normally without test
   arguments. The two new identity tests cover durable replacement and
@@ -363,6 +408,14 @@ this host-configuration limitation.
   eight UI tests each. The owner then confirmed that sending clears Message
   OLIVE while retaining the question in the conversation, and Stop leaves the
   input empty. Both live composer checks passed.
+- Latest physical signed build/install/test: **38 unit tests + 8 UI tests passed**
+  in `/tmp/olive-c92-device-tests-9.xcresult` (unit 2.461 s, UI 72.574 s).
+  Added rejection tests verify no cancel/close on rejected admission, explicit
+  retry over the same client, cleanup for uncertain starts, cancellation after
+  admitted-job errors, and preserved draft without automatic retry. Simulator
+  app/test and generic-device Release builds also passed
+  (`olive-c92-chat-limit-simulator.log`, `olive-c92-chat-limit-generic.log`).
+  The updated app was reopened normally with its production pairing preserved.
 - Run 6 screenshot `artifacts/mobile-c9-2/device-6/4401A306-2E53-4CC7-8720-F0FC1133C33D.png`
   was reviewed: retained real pairing, Connected and Remote AI Allow after
   relaunch. Screenshots stay ignored locally. The same run checks multiline,
@@ -378,7 +431,11 @@ this host-configuration limitation.
   wrong-pin and same-key/different-certificate rejection tests passed (three
   native TLS tests). Full Swift/desktop C4.1 two-sided receipt fixture passed.
 - Canonical artifact: `tests/fixtures/mobile_connect/vectors.json`, SHA-256
-  `79fb23c90e6a59a6c6e7c25c63ac2f4f2e1cce304cd90747baac10d978d9bcba`.
+  `d37903c75fdc6997906b877666e6ff44b2b821a97f9d7b732fc8417ef2b0c75c`.
+  The follow-up adds canonical `busy`, `rate_limited`, `model_unavailable` and
+  `unknown_request` responses without replacing the original public identities.
+  Production Python validation and independent Swift re-encoding passed, along
+  with the full two-sided pairing harness (`olive-c92-chat-limit-interop.log`).
   Contains disposable public certificates only, no private seeds or user data.
 - `python -m compileall -q .`: passed using disposable writable bytecode cache.
 - Earlier full Python regression after the Stop control update: **1439 run, 1377
@@ -387,7 +444,7 @@ this host-configuration limitation.
   ordinary discovery and passes separately in the interop harness. The same
   four failures/errors were already reproduced against a fresh `git archive`
   of exact `BASELINE_HEAD`; no desktop source change or test weakening.
-- Latest full Python regression during the recovery/composer follow-up:
+- Earlier full Python regression during the recovery/composer follow-up:
   **1439 run, 1376 passed, 58 skipped, 2 failures, 3 errors**, 196.638 s
   (`/tmp/olive-c92-reset-python.log`). In addition to those four failures/errors,
   Studio's `test_save_receipt_commit_precedes_success_acknowledgement` hit
@@ -395,7 +452,15 @@ this host-configuration limitation.
   isolated current run. Baseline initially passed, then reproduced the same
   error in one of three bounded repeats
   (`/tmp/olive-c92-reset-studio-baseline-repeat.log`). The test and Connect
-  runtime source are unchanged from C9.1. No test expectations were weakened.
+  runtime source were unchanged from C9.1 at that checkpoint. No test
+  expectations were weakened to hide that failure.
+- Latest full Python regression after the quota/recovery changes: **1441 run,
+  1379 passed, 58 skipped, 2 failures, 2 errors**, 197.038 s
+  (`/tmp/olive-c92-chat-limit-python.log`). These are the four previously
+  reproduced baseline issues; the intermittent SQLite test passed this run.
+  Separate full C1–C8 discovery ran **243 tests: 242 passed, one baseline Studio
+  descendant timeout**, 101.942 s (`olive-c92-chat-limit-connect.log`). Focused
+  C7 ran **35 tests, all passed**, 19.964 s (`olive-c92-chat-limit-c7.log`).
 - First Python run used `/tmp` instead of canonical `/private/tmp` for temporary
   files, causing path equality failures. Retained as failed evidence; corrected
   environment rerun above is the comparison run.
@@ -436,7 +501,8 @@ preserving the displayed phone identity. Explicit identity reset then produced
 a changed displayed identity, and fresh pairing succeeds with Remote AI Off.
 Chat is restored after a new desktop Allow decision, and both temporary UFW
 rules are confirmed absent. Remaining security acceptance and final relevant
-tests remain outstanding. Desktop restart retains trust and permission,
+tests remain outstanding. The quota follow-up also requires installation and
+real sequential-Chat acceptance on CachyOS. Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
 begins and no release claim is made.

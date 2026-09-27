@@ -471,3 +471,25 @@ pre-existing KDE Connect IPv4/IPv6 rules. Recovery through revoke, local unpair,
 explicit identity reset, fresh pairing and a new permission decision is now
 verified by the owner. Unattended restart remains limited by C3's changing
 listener port; C9.2 is not marked complete.
+
+The owner reported busy errors after rapid questions and a need to reconnect,
+then explicitly requested a less restrictive Chat policy. C7 had a six-starts
+per peer per rolling minute quota. The phone also mapped rate limiting to busy,
+cancelled the nonexistent rejected job and closed on unknown_request. Desktop
+commit `0788cdf` removes the separate question quota while retaining concurrent
+job, frame, output, timeout and durable receipt bounds. Swift commit `5cafbff`
+keeps the healthy channel after explicit admission rejection, distinguishes
+rate limiting, retains the draft and allows explicit retry without replay.
+
+The phone update passed 38 unit and eight UI tests, simulator and generic-device
+builds, and was reopened normally. Updated Python/Swift error vectors and the
+pairing harness passed. C7 passed all 35 tests, including twelve sequential
+requests within one frozen clock window and retained frame-budget enforcement.
+Full Python ran 1,441 tests: 1,379 passed, 58 skipped and the four known baseline
+failures/errors. Separate C1–C8 ran 243 tests: 242 passed and the known Studio
+descendant timeout remained. No frontend/Electron code changed.
+
+The owner confirmed CachyOS is clean on feature/olive-mobile-c9 at the exact
+C9.1 baseline. A desktop-only patch was verified with git am against an isolated
+checkout of that baseline. Deployment, native CachyOS checks and more-than-six
+real sequential replies are pending; the live desktop still has its old quota.
