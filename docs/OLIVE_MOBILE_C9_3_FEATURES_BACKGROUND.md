@@ -884,3 +884,39 @@ the earlier background expiration. The owner was directed to Save if needed and
 explicitly Dismiss from Inbox one completed owned 64 MiB test transfer, which
 would reduce retained usage to 143 MiB, before choosing and sending the file again.
 Dismissal and the subsequent timed transfer are not yet reported as completed.
+
+### Granted continuation expired during the Instagram repeat — 2026-09-27
+
+The next owner attempt progressed past admission, but did not complete. For
+`2be9d269-3e01-4bff-a94e-ee9918d1a3bc`, the phone journal records:
+
+- Start: 15:12:25.821561 UTC; actual continued-processing grant: 15:12:25.856676.
+- End: 15:13:02.241982 UTC, 36.420 seconds after start.
+- Acknowledged progress: 36,241,408 / 67,108,864 bytes (54.00%). The system
+  Progress object's completed and total units matched these values at expiration.
+- Terminal state `expired`, failure `backgroundTaskExpired`, callback source
+  `systemExpirationOrStop`, and `systemReportedSuccess: false`.
+
+The owner reported using Instagram and seeing “Background execution ended ·
+transfer interrupted · partial data discarded.” The journal establishes a real
+grant followed by the system callback, excluding the no-grant and failed-submission
+fallback paths for this run. Apple uses this callback for system expiration and
+system UI Stop; it does not expose the underlying reason. The owner specified
+Instagram but did not separately answer the Stop/force-quit portion of the bundled
+question. Do not claim a proven resource-pressure cause or attribute fault to
+Instagram. Matching final progress counters also do not establish the scheduler's
+internal progress observations or prove there was no preceding stall.
+
+Source inspection confirms direct acknowledged-byte progress reporting and the
+existing cancellation path on expiration; no demonstrated new code defect has
+been established. No speculative lifecycle workaround, resource entitlement,
+limit change, automatic retry or success claim was introduced. No app rebuild was
+needed for this documentation-only investigation. The installed `6cba75e` code
+and its regression evidence remain current; CachyOS is unchanged. This follow-up
+started at `0be1697bcdb60c29019d649bb2275db29e24ae37` with a clean worktree.
+
+This is a failed other-app continuation attempt, distinct from the passed Home
+screen diagnostic runs. The repeat is paused pending a useful additional
+diagnostic step, rather than requesting another identical owner run. Keeping
+OLIVE foregrounded is the available fallback, not completion of the background
+acceptance gate. C9.3 remains **PARTIAL**.

@@ -38,13 +38,13 @@ needed, then Dismiss from Inbox one completed owned 64 MiB test transfer before
 the timed repeat. Retain user files. The updated phone explains quota rejection
 and missing receipts explicitly.
 
-**Next action:** the revised app is installed normally. Two diagnostic transfers
-completed with the phone on its Home screen; the second passed its full UI check.
-Repeat only step 3 below while using another app for at least 60 seconds, keeping
-permissions unchanged. Report final phone/desktop status and the observer's final
-transfer state plus audit events; the hundreds of intermediate byte-count lines
-are unnecessary. The earlier 71.58% failure remains recorded and unresolved for
-this other-app workload. Leave collision/revocation checks until this repeat ends.
+**Timing repeat paused:** the subsequent Instagram attempt was granted continued
+processing, then received the system expiration/Stop callback after 36.420 seconds
+at 54.00%. This is recorded as a failed run. Do not repeat step 3 again without a
+new diagnostic plan. The installed app remains available; foreground transfer is
+a fallback, not a substitute for the unresolved other-app acceptance. Two earlier
+Home-screen diagnostic transfers passed, but do not erase this failure. The
+callback exposes no underlying stop reason; no cause is assigned to Instagram.
 
 The 5 MiB/64 MiB round trips, hashes, quarantine/export, background Stop,
 network loss and force quit already passed. The real invalid-hash rejection,

@@ -892,3 +892,12 @@ The owner confirmed six completed inbox files totaling 207 MiB: a new 64 MiB
 offer exceeds the 256 MiB C6 quota. Existing explicit dismissal of one owned
 completed test transfer is the recovery step; no quota increase or automatic
 deletion is needed. The timed other-app retest remains pending.
+
+The subsequent Instagram repeat passed file admission but expired at 54.00%
+after 36.420 seconds. The new journal proves an actual iOS continued-processing
+grant followed by the system expiration/Stop callback, with matching progress
+counters and unsuccessful completion. It excludes OLIVE's no-grant/submission
+fallback, but the API does not identify the underlying stop reason. The failure
+is preserved separately from earlier successful Home-screen runs. No speculative
+code change or automatic retry was made; other-app acceptance and C9.3 remain
+PARTIAL, and identical owner retries are paused pending further diagnostics.
