@@ -713,3 +713,80 @@ final class BackgroundOperationTests: XCTestCase {
             peerID: "p", preset: "normal", user: "2+2", answer: "5", createdAt: Date())))
     }
 }
+
+@MainActor
+final class CompanionProtocolTests: XCTestCase {
+    func testSignedSyncConflictStaleTombstoneAndChangedRevision() throws {
+        let identity = try ConnectIdentity.generate(), other = try ConnectIdentity.generate()
+        let record = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "Owned fixture"), identity: identity)
+        var snapshot = SyncSnapshot()
+        XCTAssertEqual(try MobileSyncStore.apply(record, peer: identity.publicIdentity.deviceID, in: &snapshot), "applied")
+        XCTAssertEqual(try MobileSyncStore.apply(record, peer: identity.publicIdentity.deviceID, in: &snapshot), "duplicate")
+        let left = try SyncWire.author(kind: "task", id: record.id, payload: SyncPayload.task(title: "Left"), parents: [record], identity: identity)
+        let right = try SyncWire.author(kind: "task", id: record.id, payload: SyncPayload.task(title: "Right"), parents: [record], identity: other)
+        XCTAssertEqual(try MobileSyncStore.apply(left, peer: identity.publicIdentity.deviceID, in: &snapshot), "applied")
+        XCTAssertEqual(try MobileSyncStore.apply(right, peer: other.publicIdentity.deviceID, in: &snapshot), "conflict")
+        XCTAssertEqual(snapshot.conflicts.count, 1)
+        XCTAssertEqual(snapshot.records[record.id]?.revision, left.revision)
+        let tombstone = try SyncWire.author(kind: "task", id: record.id, payload: .object([:]), deleted: true, parents: [left, right], identity: identity)
+        XCTAssertEqual(try MobileSyncStore.apply(tombstone, peer: identity.publicIdentity.deviceID, in: &snapshot), "applied")
+        XCTAssertTrue(snapshot.conflicts.isEmpty)
+        XCTAssertEqual(try MobileSyncStore.apply(record, peer: identity.publicIdentity.deviceID, in: &snapshot), "stale")
+        let resurrected = try SyncWire.author(kind: "task", id: record.id, payload: record.payload, parents: [tombstone], identity: identity)
+        XCTAssertEqual(try MobileSyncStore.apply(resurrected, peer: identity.publicIdentity.deviceID, in: &snapshot), "conflict")
+        var changed = left.wire.object!; changed["payload"] = SyncPayload.task(title: "Tamper")
+        XCTAssertThrowsError(try SignedSyncRecord(.object(changed)))
+        XCTAssertTrue(snapshot.records[record.id]!.deleted)
+    }
+    func testSyncStoreAtomicReopenAndMissingDependency() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let identity = try ConnectIdentity.generate()
+        let reminder = try SyncWire.author(kind: "reminder", payload: .object(["target_kind": .string("task"), "target_id": .string(UUID().uuidString.lowercased()), "at": .string(""), "offset_minutes": .int(30), "timezone": .string("UTC")]), identity: identity)
+        let store = MobileSyncStore(directory: directory); var value = store.snapshot
+        XCTAssertEqual(try MobileSyncStore.apply(reminder, peer: identity.publicIdentity.deviceID, in: &value), "conflict")
+        XCTAssertNil(value.records[reminder.id])
+        try store.commit(value)
+        let restarted = MobileSyncStore(directory: directory)
+        XCTAssertEqual(restarted.snapshot.conflicts.count, 1)
+        XCTAssertNotNil(restarted.snapshot.receipts[reminder.revision])
+    }
+    func testC6BoundsRawBytesAndOwnedStaging() throws {
+        let source = UUID().uuidString.lowercased(), target = UUID().uuidString.lowercased(), id = UUID().uuidString.lowercased()
+        let meta = try FileMetadata(name: "fixture.bin", size: 3, sha256: String(repeating: "a", count: 64), mime: "application/octet-stream")
+        let req = FileWire.request(source: source, target: target, transfer: id, operation: "chunk", arguments: .object(["offset": .int(0)]))
+        let bytes = Data([0, 255, 1]), decoded = try FileWire.decode(FileWire.packet(req, bytes: bytes))
+        XCTAssertEqual(decoded.1, bytes)
+        XCTAssertThrowsError(try FileMetadata(name: "../secret", size: 1, sha256: meta.sha256, mime: meta.mime))
+        XCTAssertThrowsError(try FileMetadata(name: "CON.txt", size: 1, sha256: meta.sha256, mime: meta.mime))
+        XCTAssertThrowsError(try FileMetadata(name: "large", size: FileWire.maximumFile + 1, sha256: meta.sha256, mime: meta.mime))
+        XCTAssertThrowsError(try FileWire.packet(req, bytes: Data(repeating: 0, count: 65537)))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let staging = FileStaging(directory: directory); try staging.prepare()
+        XCTAssertThrowsError(try staging.path("../../outside", "out"))
+        let file = directory.appendingPathComponent("owned.bin"); try bytes.write(to: file)
+        let copied = try staging.copySelection(file, id: id)
+        XCTAssertEqual(copied.size, 3)
+        XCTAssertEqual(try staging.digest(staging.path(id, "out")).1, copied.sha256)
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+    }
+    func testStudioReadHashAndStaleSaveResponse() throws {
+        let source = UUID().uuidString.lowercased(), target = UUID().uuidString.lowercased(), workspace = UUID().uuidString.lowercased()
+        let req = try StudioWire.request(source: source, target: target, operation: "read", workspace: workspace, revision: 1, arguments: .object(["path": .string("main.py")]))
+        let response = ConnectJSON.object(["protocol_version": .string("olive-studio/1"), "request_id": req["request_id"], "error": .null,
+            "result": .object(["path": .string("main.py"), "text": .string("changed"), "revision": .string(String(repeating: "a", count: 64))])])
+        XCTAssertThrowsError(try StudioWire.response(response.canonical, request: req))
+        XCTAssertThrowsError(try StudioWire.request(source: source, target: target, operation: "terminal", workspace: workspace, revision: 1))
+        XCTAssertThrowsError(try StudioWire.path(.string("../secret")))
+        XCTAssertEqual(StudioWire.failure("revision_conflict"), .studioRevisionStale)
+        XCTAssertThrowsError(try ConnectJSON.decode(Data("1.5".utf8)))
+        XCTAssertEqual(try ConnectJSON.decode(Data("1.5".utf8), allowDecimals: true), .decimal("1.5"))
+        for value in ["1e999", "1.e2", "1.2.3", "NaN"] { XCTAssertThrowsError(try ConnectJSON.decode(Data(value.utf8), allowDecimals: true)) }
+    }
+    func testNotificationLabelsContainNoContent() {
+        XCTAssertEqual(CompletionNotifications.message(for: "models.remote"), "Response ready")
+        XCTAssertEqual(CompletionNotifications.message(for: "files.receive"), "File transfer complete")
+        XCTAssertEqual(CompletionNotifications.message(for: "studio.test"), "Studio operation finished")
+    }
+}

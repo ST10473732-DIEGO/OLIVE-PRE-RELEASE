@@ -23,6 +23,16 @@ final class ShellUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+    func testCompanionNavigationOffline() {
+        for (label, title) in [("Today", "Today"), ("Files", "Files"), ("Remote Studio", "Studio"), ("Selected Chat", "Selected Chat")] {
+            let link = app.buttons[label]
+            for _ in 0..<4 { if link.isHittable { break }; app.swipeUp() }
+            XCTAssertTrue(link.waitForExistence(timeout: 3)); link.tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 3))
+            capture("OLIVE " + title)
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+    }
     func testLaunchAndHome() {
         XCTAssertTrue(app.staticTexts["home.heading"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["home.ask"].exists)
