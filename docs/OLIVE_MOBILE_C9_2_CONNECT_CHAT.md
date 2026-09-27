@@ -737,8 +737,29 @@ owner denial/phone abort checks without unpairing or resetting the working phone
 It has not yet been used for the owner-assisted negative pairing checks. Cleanup
 is explicitly confined to that test namespace; normal production state is retained.
 
-**Remaining gate:** enable the persistent setting on the newly rebuilt desktop,
-record the saved ports and exact updated HEAD, install the two scoped UFW rules
+**Remaining gate:** install the two scoped UFW rules
 and remove the superseded main rule, verify unattended normal restart/reconnect
 without any firewall edit, and finish real pairing denial/abort. Retest accumulated
 Fast Chat against the restarted updated runtime. No C9.2 completion claim yet.
+
+### Saved endpoints confirmed by owner
+
+After restarting the rebuilt desktop and following the opt-in setup instructions,
+the owner reports the Devices UI displays **Connect port 44795** and **Pairing
+port 34537 opens only during pairing**. The supplied terminal output confirms
+desktop HEAD `00940235d5edf24c33a294555f107f970d1b34e9` on
+`feature/olive-mobile-c9`, with empty `git status --short`.
+This is the deployed desktop-only history; it is not the Mac mobile branch HEAD.
+
+The requested one-time UFW replacement is inbound TCP on `enp111s0`, source
+phone `192.168.10.37`, destination desktop `192.168.10.196`, exact ports 44795
+and 34537, followed by deletion of the superseded identically scoped 54981 rule.
+Both saved-port rules are intended to persist. The pairing listener remains
+session-bound even though its firewall rule persists. Existing KDE Connect
+rules and incoming-deny/outgoing-allow defaults are retained. The commands were
+provided to the owner; execution and final verbose UFW state are still pending.
+
+The initial post-rule check requests automatic phone connection without tapping
+Reconnect, retained Remote AI Allow, and an explicitly submitted arithmetic
+request. This is separate from the subsequent unattended desktop restart check;
+neither is marked passed yet. No server IP or port is configured in the mobile app.

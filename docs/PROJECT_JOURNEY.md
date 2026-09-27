@@ -563,3 +563,14 @@ The owner has been directed to restart the rebuilt desktop and explicitly enable
 persistent Connect on the selected LAN interface. Saved-port firewall setup,
 unattended restart acceptance, denial/abort and updated Fast Chat acceptance
 remain pending. C9.2 is still in progress; no C9.3, C10 or OLIVE OS work started.
+
+### C9.2 persistent desktop endpoints confirmed
+
+The owner confirms the rebuilt desktop at clean HEAD
+`00940235d5edf24c33a294555f107f970d1b34e9`, with saved Connect port 44795 and
+pairing port 34537 shown in Devices after opt-in setup. The one-time UFW
+replacement commands are scoped to the existing selected interface, desktop
+address and individual phone address; they add the two exact saved ports and
+remove old main port 54981. Execution, final firewall state, automatic connection
+and subsequent unattended restart acceptance remain pending. Pairing denial/abort
+and real accumulated Fast Chat retesting also remain; C9.2 is not yet complete.
