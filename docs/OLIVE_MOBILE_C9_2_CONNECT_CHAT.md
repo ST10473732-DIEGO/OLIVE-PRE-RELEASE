@@ -195,9 +195,10 @@ The phone fix is installed and the normal app reopened. The owner confirmed
 a clean CachyOS checkout on `feature/olive-mobile-c9` at exact `BASELINE_HEAD`,
 then reported that the patch installer completed and committed the update.
 The available desktop test interpreter is the checkout's `.venv/bin/python`.
-This confirms source installation, not test completion or activation in the
-still-running desktop process; the resulting commit ID is requested with the
-native test results. Desktop-only patch
+The owner subsequently reports native C1–C8 regression completed successfully:
+243 tests in 92.708 s, OK. Compilation confirmation and the resulting desktop
+commit ID remain requested. Activation in the restarted desktop process and
+real sequential-Chat acceptance are not yet claimed. Desktop-only patch
 `/tmp/olive-c92-desktop-chat-quota.patch` has SHA-256
 `483f59137556598f6fc04e4f6adac20cf5b4828ff055da203c06689455ce43b4`.
 It applies cleanly with `git am` to an isolated checkout of that exact baseline,
@@ -205,8 +206,9 @@ producing identical runtime, regression tests and C7 documentation. The prepared
 copy/paste installer checks the baseline, clean worktree, patch checksum and
 patch applicability before committing it locally. No remote access, push or
 firewall change is part of this installer. The installer does not run tests.
-Native CachyOS compilation/C1–C8 regression, desktop restart and more-than-six
-real sequential requests remain pending.
+Native CachyOS C1–C8 regression passed according to the owner's terminal summary.
+Compilation confirmation, desktop restart and more-than-six real sequential
+requests remain pending.
 
 The desktop runs inference and owns model selection/policy. Mobile sends only
 its explicit user/assistant context: ≤24 messages, ≤16000 bytes/message,
@@ -466,6 +468,12 @@ this host-configuration limitation.
   Separate full C1–C8 discovery ran **243 tests: 242 passed, one baseline Studio
   descendant timeout**, 101.942 s (`olive-c92-chat-limit-connect.log`). Focused
   C7 ran **35 tests, all passed**, 19.964 s (`olive-c92-chat-limit-c7.log`).
+- Native CachyOS C1–C8 regression after applying the desktop patch:
+  **243 tests passed**, 92.708 s, **OK**, as reported by the owner from the
+  terminal summary. Command used the checkout's `.venv/bin/python`, isolated
+  `OLIVE_DATA_DIR` and `unittest discover -s tests -p 'test_connect*.py' -v`.
+  Requested log destination: `/tmp/olive-c92-desktop-connect.log` on CachyOS.
+  The full log has not been independently read; this is owner-reported evidence.
 - First Python run used `/tmp` instead of canonical `/private/tmp` for temporary
   files, causing path equality failures. Retained as failed evidence; corrected
   environment rerun above is the comparison run.
@@ -477,7 +485,8 @@ run passed all eight tests.
 Remaining baseline failures: Connect Studio descendant timeout and intermittent
 receipt/SQLite contention, Linux ELF check on macOS, Owner Chat project run,
 and missing-toolchain JDK wording. The desktop
-gate is **not fully green on this Mac**. No native CachyOS regression is claimed.
+gate is **not fully green on this Mac**. Native CachyOS C1–C8 nevertheless passed
+all 243 tests as reported above; no full native Python-suite result is claimed.
 
 ## Reproduction
 

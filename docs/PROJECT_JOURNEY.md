@@ -499,3 +499,10 @@ and identified the checkout's `.venv/bin/python` as an available test interprete
 The source update is therefore installed, but the installer did not run tests
 and the existing OLIVE process has not been restarted. Native compilation,
 C1–C8 results, the resulting desktop commit ID and live acceptance are pending.
+
+The owner reports native CachyOS C1–C8 completed with **243 tests in 92.708 s,
+OK** after applying the patch. This is the terminal summary supplied by the
+owner; the full log has not been independently read. Desktop restart and
+the new main-listener check are next, followed by more-than-six real sequential
+Chat requests without reconnect. Compilation confirmation and desktop HEAD
+remain requested.
