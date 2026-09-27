@@ -723,3 +723,16 @@ checkpoint follows. No push, merge, tag or release was performed. Status remains
 matrix, file collision/revocation/presence timing, real Studio draft retention,
 final C9.2 Chat recovery and independent system expiration. The current checklist
 marks passed checks and requests only the remaining owner actions.
+
+### Owner file-permission acceptance follow-up
+
+On the real paired iPhone and CachyOS desktop, the owner tested desktop
+**Receive files** with the owned 5 MiB fixture and reported:
+
+- Off: phone send blocked.
+- Ask: completed after exactly one desktop approval.
+- Allow: completed without approval.
+
+This establishes the phone-to-desktop admission matrix for those policies. It
+does not establish the reverse-direction policy, an active-transfer revocation,
+existing-destination collision or instrumented presence timing; those remain open.

@@ -36,11 +36,9 @@ network loss and force quit already passed. The real invalid-hash rejection,
 durable failed receipt, oversized metadata rejection and disconnected-channel
 rejection also passed. Do not repeat those successful transfers unnecessarily.
 
-1. Desktop Devices → iPhone → **Receive files**: set Off. Phone Home → Files:
-   choose the saved `olive-c93-5MiB.bin` and Send reviewed file. Record denial/no
-   accepted transfer. Change desktop to Ask; explicitly send again. Approve the
-   one pending request and verify one completion. Change to Allow; a later send
-   must need no repeated approval. For that completed transfer, attempt desktop
+1. **Passed:** desktop Receive files Off blocked phone sending; Ask completed
+   after one approval; Allow completed without approval. Do not repeat this matrix.
+   For that completed transfer, attempt desktop
    Save over the fixture's existing `collision.bin`; cancellation/refusal must
    preserve the existing file. Do not authorize replacing it.
 2. Exercise **Send selected files** Off → Ask → Allow from desktop using the

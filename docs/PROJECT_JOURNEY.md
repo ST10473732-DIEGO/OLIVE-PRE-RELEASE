@@ -850,3 +850,7 @@ run separately; all required SDK/signed builds passed. Mac source/interop/types/
 baseline failures (1,456 cases, 58 skips); Connect retained the owned-descendant
 cleanup timeout. Local code/test checkpoints are `92e416d` and `296a2ee`. Remaining
 owner checks are consolidated in `OLIVE_MOBILE_C9_3_ACCEPTANCE_CHECKLIST.md`.
+
+C9.3 owner follow-up: real phone-to-desktop Files permission Off blocked sending,
+Ask completed after one approval, and Allow completed without another approval.
+Reverse-direction policy and remaining file edges are still pending.
