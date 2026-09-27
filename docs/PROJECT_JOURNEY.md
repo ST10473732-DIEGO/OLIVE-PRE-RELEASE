@@ -444,3 +444,10 @@ record remains revoked. Fresh two-sided pairing and a new desktop permission
 decision are still required to restore Chat; no trust or permission is carried
 over automatically. Current listener and phone address checks precede opening
 the short-lived pairing offer.
+
+The pre-pair check confirms the phone address is unchanged and the existing
+main listener is still TCP 33823 with its phone-only UFW allowance. Current
+numbered UFW output also shows the old temporary TCP 52643 allowance, contrary
+to the earlier owner-reported deletion. The current output takes precedence;
+exact-rule cleanup was requested again before creating and checking a fresh
+pairing offer. No new port or pairing success is inferred.
