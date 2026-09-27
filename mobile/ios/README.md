@@ -1,10 +1,12 @@
-# OLIVE for iPhone — C9.2 development
+# OLIVE for iPhone — C9.3 companion
 
 Native SwiftUI Connect client, preserving the C9.1 Home, Chat, Devices and
 Settings foundation. C9.2 implements Bonjour discovery, Keychain identity,
 existing C2/C4 pairing, C3 transport and C7 incremental remote Chat with Stop.
-Real iPhone discovery passed; real LAN pairing and Chat acceptance remain
-incomplete. See the acceptance report before treating this milestone as complete.
+C9.2 real-device pairing/Chat acceptance is complete. C9.3 adds Home links to
+Today/agenda, selected Chat, C6 Files and C8 Remote Studio, with protected local
+stores and Apple continued-processing support for user-started work on iOS 26+.
+Real C9.3 acceptance remains partial; see the evidence report before sign-off.
 No Python runtime or cloud service is embedded.
 
 Open `OLIVEMobile.xcodeproj`; select the shared **OLIVEMobile** scheme.
@@ -91,12 +93,13 @@ development step; Xcode does not fetch dependencies.
 
 - `App`: composition root and main-actor Observation state.
 - `Navigation`: three native tabs and a Settings sheet.
-- `Features`: small Home, Chat, Devices and Settings views.
+- `Features`: Home, Chat/selected Chat, Today/agenda, Files, Studio, Devices and Settings.
 - `DesignSystem`: Grove semantic colors, type, spacing and components.
 - `Core/Models`: local presentation values, not desktop database replicas.
-- `Core/Persistence`: versioned, protected local draft file; navigation defaults.
+- `Core/Persistence`: atomic protected stores and explicit preserved-data recovery; keys stay in Keychain.
+- `Core/Background`: user-initiated continued processing, operation journal and opt-in completion notifications.
 - `Core/Connect`: discovery, identity, pairing, trust, transport, session and C7 client.
-- `Core/Connect/Wire`: bounded canonical JSON, C2 offers, C3 frames and C7 messages.
+- `Core/Connect/Wire`: canonical C2/C3/C5/C6/C7/C8 mappings and bounded calendar recurrence.
 - `Core/Security`: injectable, device-only Keychain boundary.
 - `NativeConnect`: in-process Ed25519 X.509 and TLS memory-BIO adapter.
 - `OLIVEMobileTests`, `OLIVEMobileUITests`: state, persistence, Keychain and UI checks.
@@ -110,3 +113,12 @@ swift mobile/ios/scripts/render-icon.swift assets/branding/olive-source.png \
 
 See [the unchanged C9.1 foundation report](../../../docs/OLIVE_MOBILE_C9_1_FOUNDATION.md)
 and [C9.2 protocol mapping and acceptance](../../../docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md).
+
+
+See [C9.3 implementation and acceptance](../../../docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md)
+for background/force-quit semantics, the 64 MiB C6 limit, Swift/Python fixtures,
+explicit Sync/retry behavior and the remaining real CachyOS acceptance matrix.
+`check-connect-interop.sh` also checks canonical calendar validation/occurrences
+against `scripts/mobile_calendar_vectors.py`, using the desktop production code.
+Debug-only UI fixtures run under a separate `--ui-test-session` directory; they
+cannot establish a connection or confer desktop authority.

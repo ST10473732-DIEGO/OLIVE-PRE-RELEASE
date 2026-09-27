@@ -799,3 +799,24 @@ inside the editor (`d83e1b1`). Physical validation passed: 58 unit and 9 UI test
 with 2 unit and 1 UI opt-in LAN skips, and no failures. Simulator-SDK and generic
 Release builds passed; normal production-identity launch was restored. Explicit
 real conflict resolution and tombstone acceptance remain pending.
+
+
+C9.3 autonomous implementation follow-up: the owner confirmed the resolved Tasks
+title now shows the desktop version and requested no more per-case acceptance
+questions. `954fbe1` adds the bounded native calendar agenda, durable remote
+conflict receipts, protected sync recovery and selected-Chat tombstones;
+`7f1ee4b` fences Studio cancellation and authenticated revocation; `d84cefc`
+cleans app-owned export copies; `347d0eb` adds Python/Swift calendar vectors and
+physical unit/UI coverage. No additional desktop patch, trust or firewall change
+was made. The native full Python rerun has 1,456 cases and the same four documented
+Mac failures (2 failures, 2 errors, 58 skips); it is not labelled green. The initial
+sandboxed run could not bind fixture listeners and is not used as regression
+evidence. C9.3 implementation and real-device sign-off are tracked separately;
+remaining acceptance cases are consolidated in the C9.3 report without a question
+loop. C10 and mobile Owner Mode remain out of scope.
+
+Final C9.3 follow-up validation passed 65 physical unit tests and 10 physical UI
+tests (2 unit and 1 UI opt-in LAN skips), simulator-SDK build-for-testing, generic
+Release, and Python/Swift C2/C3/C5/C6/C7/C8 plus calendar interop. Normal production
+launch was restored after the test run. Source compile passed; the four Mac
+Python baseline failures remain explicitly recorded. No push was performed.

@@ -1,6 +1,6 @@
 # OLIVE Mobile C9.3 — companion features and background continuation
 
-**Status: IN PROGRESS. The real iPhone + CachyOS completion gate has NOT passed.**
+**Status: implementation delivered; real-device acceptance remains partial. The complete iPhone + CachyOS milestone gate has NOT passed.**
 
 Native Today/selected Chat sync, Files, Remote Studio, capability status and
 continued-processing coordination are implemented and installed on the physical
@@ -27,7 +27,7 @@ No simulator or Mac-hosted desktop is being substituted for CachyOS acceptance.
   were not treated as proof of equivalent source.
 - `FINAL_HEAD`: pending milestone acceptance. The current documentation checkpoint
   is resolvable with `git log -1 --format=%H -- docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md`.
-- Latest validated mobile implementation: `d83e1b1`.
+- Latest implementation/test checkpoint: `347d0eb` (final validation below).
 
 Local `COMMITS` to date:
 
@@ -47,6 +47,10 @@ Local `COMMITS` to date:
 | `dc8ec93` | Send C6 cancellation before releasing session; fence late admission; test interrupted-transfer recovery |
 | `d181864` | Persist typed background failure diagnostics and clarify explicit-only draft retry |
 | `d83e1b1` | Retain unresolved sync conflict warnings and expose both versions from the Today editor |
+| `954fbe1` | Native calendar agenda, durable remote conflict markers, ordered Chat tombstones and protected sync recovery |
+| `7f1ee4b` | Fence Studio cancellation/Ask retries and display authenticated revocation |
+| `d84cefc` | Clean temporary app-owned export copies on launch |
+| `347d0eb` | Calendar Python/Swift vectors, recovery/tombstone tests and verified-file/Studio UI fixtures |
 
 ## Background execution
 
@@ -81,7 +85,11 @@ With a granted active task, Bonjour scanning stops and only the required existin
 Connect session remains. Without work, the session closes for suspension.
 Foreground return restarts discovery and exact-pin connection as needed. Lifecycle
 states distinguish foreground connection/connecting, active background work,
-expected suspension, offline, reconnecting, revoked and unpaired.
+expected suspension, offline, reconnecting, revoked and unpaired. Explicit
+authenticated C7/C8 revocation errors now set Revoked for the exact peer and stop
+session retries. Network EOF never implies revocation. This observed revocation
+flag is session-local; after relaunch the normal exact-pin handshake determines
+availability again, without replaying work or changing stored trust.
 
 A bounded protected journal stores operation ID, capability, peer, label,
 protocol ID, request digest, start time, verified progress, state and required
@@ -133,13 +141,32 @@ predecessors survive revisions; tombstoned predecessors do not hide later messag
 Completed C7 turns are stored with stable IDs and imported once into a deliberately
 selected mobile conversation. C7 context still includes only mobile-owned turns,
 not private desktop context. Conflict review shows incoming/local field values and
-binds resolution to the local revision reviewed by the user.
+binds resolution to the local revision reviewed by the user. Remote-only conflict
+receipts now persist across relaunch and empty exchanges, clearing only on a
+strictly dominating revision. Today labels pending revisions and conflicts;
+an editor refresh adopts a new synced revision only when it has no unsaved edit.
+Explicit shared-conversation deletion signs message tombstones before the parent
+conversation in one atomic local commit; sharing still needs Sync Chat. Imported
+C7 turn IDs remain recorded, so later selection cannot resurrect deleted turns.
 
-Remaining C5 limits: recurrence/exception data is preserved, but full parity with
-the Python dateutil recurrence/exception validator and recurring agenda expansion
-is not yet established. Contact/project relationships outside this milestone are
-held as missing dependencies. Real selected/unselected, duplicate, tombstone and
-conflict acceptance is pending. Do not describe all C5 edge cases as complete.
+Today now includes a native day agenda over stored signed records: due/overdue
+tasks, calendar instances and linked reminder times. It does not create flattened
+sync records. The bounded Swift calendar engine covers the existing C5 daily,
+weekly, monthly and yearly rule keys, ordinal weekdays, counts/until, local time
+transitions, moved/cancelled exceptions and half-open intervals. It preserves the
+desktop's invalid-local-time/count behavior and task reminder default of 09:00 in
+the task timezone. Python's production validator/expander generates 27 valid and
+7 rejected canonical cases; Swift checks validation and exact occurrence fields.
+Physical unit tests also cover DST, invalid exceptions and reminder suppression
+for completed/cancelled targets. Agenda work runs off the main actor and honours
+cancellation; expansion is bounded and reports failure without changing records.
+Advanced recurrence editing stays on the desktop; these vectors establish their
+covered cases, not every possible dateutil input or historical timezone rule.
+
+Contact/project relationships outside this milestone remain held as missing
+dependencies, rather than dropping those fields or claiming nonexistent records.
+Real selected/unselected, duplicate, Chat tombstone and remaining domain conflict
+acceptance is still pending.
 
 ## C6: Files
 
@@ -169,6 +196,9 @@ require a fresh explicit picker/send; no unsafe offset resume or parallel mobile
 file protocol was added. Explicit receipt checks reconcile uncertain outgoing
 completion without sending data again. Abandoned app-owned UUID staging files are
 cleaned on launch; unrelated selected/exported user files are never deleted.
+Temporary copies inside the dedicated app-owned Exports folder are now cleared
+on launch and before another export. Cleanup skips symlinks/directories, retains
+verified inbox bytes and does not access the user's chosen Files destination.
 
 Off/Allow, invalid hash, oversize, cancel, collision, quarantine/export, revocation,
 disconnection, both transfer directions, >=60 seconds of background use, and
@@ -186,6 +216,10 @@ Jobs persist their exact request IDs and scope before starting, poll the origina
 channel at bounded intervals, and cancel according to C8. Reconnect does not
 restart jobs or pretend to query an operation on a replacement channel. The
 existing 15-second missed-poll and disconnect behavior remains authoritative.
+UI cancellation now sends run_cancel for the exact request ID immediately, fences
+subsequent Ask retries, and prevents a late cancellation failure from closing a
+replacement job's session. If the original session ends without a terminal
+receipt, the result stays unconfirmed/interrupted, not fabricated as cancelled.
 
 No mobile terminal, PTY, debugger, package installation, arbitrary command,
 unrestricted filesystem or Owner Mode authority exists. Shared/unshared, read,
@@ -209,7 +243,13 @@ protection permits user-started background work after unlock. Keys remain in
 Keychain, outside ordinary stores. Unreadable/unknown-version files are preserved
 and writes fail closed. Optional operation scope/message-predecessor fields allow
 additive v1 decoding; corruption recovery does not erase or silently overwrite data.
-A guided recovery/resync UI is still outstanding.
+Today offers explicit recovery only when its sync store cannot be opened. It
+preserves the exact original bytes in protected, backup-excluded recovery storage
+before atomically creating a fresh empty store. Up to four recovery archives are
+retained; existing copies are never evicted. Oversized/nonregular sources fail
+closed. The UI explains unsynced edits remain in the preserved file; desktop data
+returns only through explicit domain sync. Drafts, receipts and Keychain identity
+are not reset. Recovery does not authorize replay of an uncertain operation.
 
 The app/Core boundary remains: native views/models orchestrate existing Connect
 contracts; desktop inference, persistence, shared-workspace execution and capability
@@ -228,12 +268,12 @@ committed.
 | `xcodebuild -list` | Passed with installed Xcode selected via `DEVELOPER_DIR` |
 | Simulator SDK build-for-testing | Passed; no simulator runtime execution claimed |
 | Generic iOS Release build | Passed |
-| Signed physical build/install/test | Passed: 60 unit cases, 2 opt-in LAN skips, 0 failures; **58 passed** |
-| Physical UI tests | Passed: 10 cases, 1 opt-in LAN skip, 0 failures; **9 passed** |
+| Signed physical build/install/test | Passed: 67 unit cases, 2 opt-in LAN skips, 0 failures; **65 passed** |
+| Physical UI tests | Passed: 11 cases, 1 opt-in LAN skip, 0 failures; **10 passed** |
 | Normal production-identity launch | `devicectl` normal launch succeeded after tests; observed C6 results below |
 | Python ↔ Swift interop | Existing C2/C3/C7 vectors/TLS pairing plus new C5/C6/C8 vectors passed |
 | Mac `python -m compileall -q .` | Passed |
-| Mac full Python | 1,455 cases, 58 skipped, 2 failures + 2 errors; NOT green |
+| Mac full Python | 1,456 cases, 58 skipped, 2 failures + 2 errors; NOT green |
 | Mac Connect | 254 cases; C8 descendant-reaping timeout remains; NOT all green |
 | Mac desktop typecheck/unit/build | Passed; 101 tests across 20 files |
 | Diff review | No personal fixture data, secrets, branding downgrade or unrelated data changes |
@@ -244,10 +284,10 @@ run outcome and detected Java toolchain expectation. No blanket Mac regression
 pass is claimed. Using a canonical `/private/tmp` test directory removed additional
 macOS `/var` vs `/private/var` alias failures from the first run.
 
-Latest local evidence: `/tmp/olive-c93-device-tests-8.xcresult`,
-`/tmp/olive-c93-device-tests-8.log`, `/tmp/olive-c93-simulator-conflicts.log`,
-`/tmp/olive-c93-release-conflicts.log`, `/tmp/olive-c93-interop-final.log`,
-`/tmp/olive-c93-compile-final.log`, `/tmp/olive-c93-python-2.log`,
+Latest local evidence: `/tmp/olive-c93-device-tests-11.xcresult`,
+`/tmp/olive-c93-device-tests-11.log`, `/tmp/olive-c93-simulator-completion-final.log`,
+`/tmp/olive-c93-release-completion-final.log`, `/tmp/olive-c93-interop-completion-final.log`,
+`/tmp/olive-c93-compile-completion.log`, `/tmp/olive-c93-python-completion-native.log`,
 `/tmp/olive-c93-connect.log`, `/tmp/olive-c93-desktop-tests-2.log`.
 These are local logs, not portable committed artifacts. Earlier physical failures
 in strict decimal parsing and a Stop/background race were repaired before the
@@ -255,8 +295,8 @@ passing runs. Unit tests also cover version preservation, expired cleanup,
 no-replay launch, stale progress fencing, immutable Chat order, tombstones,
 signed conflict handling, durable uncommitted Today drafts, file bounds, Studio
 hash rejection and private labels. The C6 follow-up adds a physical stored-byte
-tamper/collision test. The latest full unit/UI run is `olive-c93-device-tests-8.xcresult`, including
-the new conflict persistence and editor review tests. Simulator-SDK and Release
+tamper/collision test. The latest full unit/UI run is `olive-c93-device-tests-11.xcresult`, including
+the new conflict persistence, calendar, recovery, Chat tombstone, file cleanup and Studio cancellation tests. UI coverage includes verified quarantine/export and offline Studio conflict/actions. Simulator-SDK and Release
 builds passed, and normal production-identity launch was restored. The recovery test
 seeds a partial and a verified transfer, relaunches the store, and checks interrupted
 state, partial cleanup, no replay and preservation of verified/unrelated files.
@@ -426,7 +466,10 @@ complete on the phone and did not see both versions there. A read-only review of
 desktop Devices → Sync → Review conflicts then showed task conflict / concurrent
 edit with both distinct titles, while the phone retained C93 conflict phone.
 Thus the real C5 conflict was preserved instead of overwriting the desktop; the
-phone presentation was misleading. Explicit resolution and tombstones remain open.
+phone presentation was misleading. After the installed fix and requested resolution,
+the owner confirmed the phone now displays the desktop title. Desktop conflict-list
+clearance was not separately confirmed; no further questions were requested.
+Tasks tombstone acceptance remains open.
 
 The follow-up UI fix keeps a conflict warning when the current peer/domain still
 has unresolved local conflicts, clears a stale editor save notice before showing
@@ -450,11 +493,28 @@ interruption cases; shared Studio save/revision/jobs/cancel and background
 behavior; remaining direction-specific failure cases, permission Off/Ask/Allow,
 and C9.2 real-device regression.
 
-Additional implementation/coverage gaps above (recurrence parity, guided corrupted-store recovery, feature conflict/error UI acceptance)
-remain C9.3 work. They are not silently deferred to declare the milestone complete.
+The owner asked to stop the per-case question loop and finish implementation
+without more prompts. Remaining implementation work was completed in the local
+commits above; available build/unit/UI/interop/regression checks were run as one
+autonomous batch. Unperformed real CachyOS + iPhone checks remain recorded here,
+not converted to passes or silently deferred to declare C9.3 complete. Synthetic
+UI fixtures establish rendering/error states only and never stand in for a real
+peer, real sync or a real Studio job. No additional desktop code patch is needed
+for this batch; deployed CachyOS remains at the validated commit above.
 Reminder notification scheduling is optional and currently omitted.
 
 C9.4 remains deferred: share extension, advanced notification polish, transfer
 soak, second-device readiness, additional accessibility, final battery/performance
 tuning and distribution preparation. C10 remains deferred: different-network
 access. No cloud account, relay or APNs infrastructure has been introduced.
+
+
+## Recommended source synchronization (not executed)
+
+Review the clean Mac branch and push `feature/olive-mobile-c9-3` only when desired:
+`git push -u origin feature/olive-mobile-c9-3`. No push has been executed. Retain
+the CachyOS C9.2 recovery branch and deployed `fd63db2` checkout. This follow-up
+changes mobile code, test fixtures and documentation, so no further desktop patch
+or divergent-branch merge is required. If future desktop changes become necessary,
+prepare another expected-HEAD guarded desktop-only patch; do not blindly pull,
+reset or cherry-pick the complete Mac mobile history into the deployed checkout.
