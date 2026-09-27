@@ -522,3 +522,44 @@ per-request timestamps were captured. Corrected desktop HEAD, explicit
 compilation confirmation and final numbered UFW output remain uncollected;
 successful Chat alone does not prove the old 33823 rule was deleted. The
 separate changing-listener-port restart limitation remains open.
+
+
+### C9.2 closure follow-up — persistent listener validation underway
+
+The owner supplied clean CachyOS HEAD `25e0cf9f9ce5f070456f638b6eba20e608ee0c97`
+after the C7 quota patch and 243 passing native Connect tests. The main listener
+was TCP 54981. Numbered UFW output confirms only its exact phone/interface/address
+rule alongside existing KDE Connect rules; old pairing exceptions are absent.
+
+Implementation is underway for opt-in saved main/pairing ports and exact-interface
+startup, preserving default-Off for existing installations, UFW default-deny,
+C2 trust and C3/C7 protocols. The phone will resume bounded recovery when Bonjour
+announces a restarted desktop. A reported Fast failure exposed overly generic
+mobile error text and missing byte-aware history selection; those are being
+corrected without a per-minute Chat quota. C9.2 remains incomplete pending real
+unattended restart, remaining security checks and final regressions. C9.3/C10 and
+OLIVE OS have not begun.
+
+
+### C9.2 native desktop regression and real cancellation boundaries passed
+
+The owner installed the persistent-listener/model-context desktop patch and
+returned all native checks green: 253 Connect tests (93.338 s), 1,442 full Python
+tests (168.131 s, 8 skipped), 98 frontend tests, types, compile and desktop build.
+The final Mac full Python run retains four known baseline/platform failures;
+these are not hidden by the native success. Dedicated persistent Devices UI
+acceptance passes; the older combined Electron workflow retains C6 timing failures
+also observed in the unchanged baseline.
+
+Physical iPhone run 11 passes 43 unit and 8 UI tests, including correct-pin versus
+wrong-pin rejection, early/repeated cancel (0.092667958 s acknowledgement),
+completion-race cancel preserving completed, and deliberate loss of the cancel
+acknowledgement followed by fresh pinned reconnect and a completed new real-model
+request. Production phone identity and pairing are retained. The reported Fast
+failure was confirmed as model-window `input_too_large`, not an admission quota;
+the new desktop adapter retains only recent complete supplied turns that fit.
+
+The owner has been directed to restart the rebuilt desktop and explicitly enable
+persistent Connect on the selected LAN interface. Saved-port firewall setup,
+unattended restart acceptance, denial/abort and updated Fast Chat acceptance
+remain pending. C9.2 is still in progress; no C9.3, C10 or OLIVE OS work started.

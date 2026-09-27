@@ -199,12 +199,20 @@ a clean CachyOS checkout on `feature/olive-mobile-c9` at exact `BASELINE_HEAD`,
 then reported that the patch installer completed and committed the update.
 The available desktop test interpreter is the checkout's `.venv/bin/python`.
 The owner subsequently reports native C1–C8 regression completed successfully:
-243 tests in 92.708 s, OK. Compilation confirmation and the resulting desktop
-commit ID remain requested. The owner then reports the restarted desktop's
-main listener at TCP 54981 in a new process. The Git HEAD command was mistyped
-with a hyphen instead of the home-directory tilde and did not run; a full-path
-command was provided. Requested replacement of the exact phone-only 33823 rule
-with 54981 and a numbered-rule check before real sequential-Chat acceptance.
+243 tests in 92.708 s, OK. The owner subsequently supplied exact desktop
+HEAD `25e0cf9f9ce5f070456f638b6eba20e608ee0c97` and an empty `git status --short`.
+The restarted desktop was listening on TCP 54981, Python PID 403444.
+The final numbered UFW output at this checkpoint was active with exactly:
+
+- KDE Connect IPv4, Allow In, Anywhere;
+- TCP 54981, input interface `enp111s0`, destination `192.168.10.196`,
+  source phone `192.168.10.37`, Allow In;
+- KDE Connect IPv6, Allow In, Anywhere (v6).
+
+The earlier pairing exceptions for 52643 and 50703 and main-listener rules for
+47235 and 33823 are absent. The previously verified incoming-deny/outgoing-allow
+policy was not changed by the scoped rule replacements. The phone uses DHCP;
+its source address is a firewall restriction, not a Connect identity.
 No new pairing is needed or requested. Desktop-only patch
 `/tmp/olive-c92-desktop-chat-quota.patch` has SHA-256
 `483f59137556598f6fc04e4f6adac20cf5b4828ff055da203c06689455ce43b4`.
@@ -305,7 +313,7 @@ permission behavior changes.
 | Identity reset | **Passed, owner-observed 2026-09-27:** after explicit confirmation in Settings, the phone shows Identity reset and a different displayed Identity value. This follows successful unpair; the old desktop trust record remains revoked |
 | Fresh pairing after reset | **Passed, owner-observed 2026-09-27:** after the fresh QR and full two-sided confirmation instructions, the owner reports the phone connected again with Remote AI Off. The new identity does not inherit the old identity's Allow setting. After a new desktop Allow decision, the owner confirms the phone answers the arithmetic question with 391 |
 | Fresh reset-recovery offer and cleanup | Temporary TCP 50703 was confirmed alongside main 33823 in the same OLIVE process and admitted only for the phone on the selected LAN interface/address. After pairing, the final numbered UFW output confirms its deletion and removal of stale 52643. UFW remains active; main TCP 33823 is still restricted to the same phone and selected interface/address. Existing KDE Connect IPv4/IPv6 rules remain |
-| Wrong peer | Native wrong-pin tests pass; real cross-device wrong-peer check remains pending |
+| Wrong peer | **Passed, physical iPhone → real CachyOS:** opt-in test authenticates the saved correct pin, then requires `certificateMismatch` for an in-memory wrong expected certificate at that same endpoint. Saved trust and phone identity remain unchanged. Run 10: 0.230 s; run 11: 0.249 s for the complete positive/negative check |
 | Rapid sequential Chat after quota update | **Passed, owner-observed 2026-09-27:** following instructions to send eight short questions within one minute and wait for each response, the owner reports all work without reconnecting. The desktop had been patched, passed 243 native Connect tests and restarted with main TCP 54981. No exact per-request timings are claimed |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
@@ -322,7 +330,8 @@ desktop Remote AI cancelled event, then confirmed a complete new answer. The
 owner did not independently inspect runtime objects or provider telemetry.
 C7's audited terminal acknowledgement is withheld until provider-stream closure
 and task/lease release; desktop activity alone would not establish that release.
-Early/completion-race/drop-during-cancel cases still need live-device coverage.
+Physical run 11 subsequently passed early, repeated, completion-race and
+connection-loss-during-cancel checks, detailed in the closure results below.
 
 ### SYN trace interpretation (owner-supplied, 2026-09-26)
 
@@ -530,9 +539,206 @@ a changed displayed identity, and fresh pairing succeeds with Remote AI Off.
 Chat is restored after a new desktop Allow decision, and both temporary UFW
 rules are confirmed absent. Remaining security acceptance and final relevant
 tests remain outstanding. The quota follow-up is installed and passes the
-owner's eight-request sequential-Chat check without reconnecting. The exact
-desktop commit ID and final numbered firewall output remain uncollected.
-Desktop restart retains trust and permission,
-but its changing port requires host firewall rule repair in this setup.
+owner's eight-request sequential-Chat check without reconnecting. The deployed desktop patch commit and final pre-update UFW state are now
+recorded above. The persistent-listener follow-up is under validation; unattended
+restart and remaining negative acceptance must pass before completion.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
 begins and no release claim is made.
+
+
+## Final closure follow-up (in progress)
+
+The owner requests completion of C9.2, including unattended restart through
+UFW, rather than proceeding to C9.3. The latest Mac starting HEAD is
+`e83be43e325189af5df5b6c6120e8c2e488fcfb8`; its worktree was clean.
+The independently patched CachyOS starting HEAD is
+`25e0cf9f9ce5f070456f638b6eba20e608ee0c97`, also clean.
+
+### Persistent listener design
+
+A new trusted-desktop checkbox, **Keep Connect available after restart**, is
+explicit opt-in. Existing installations and calls without this option remain
+session-only and start off. Enabling it selects two OS-assigned unprivileged
+ports once and saves them with the exact interface name, address, subnet and
+Nearby-discovery setting in the profile's `connect/network-v1.json`.
+This versioned, bounded, atomic local settings store contains no trust or keys;
+absence preserves legacy behavior and malformed data is preserved and fails
+closed. It does not change the Connect database schema or wire protocols.
+
+At subsequent application startup, after runtime services are attached, the
+service reopens the same main port only on that exact currently available
+interface/address/subnet. Port conflicts or unavailable interfaces fail closed
+with a diagnostic. There is no random-port fallback or wildcard bind.
+Explicit **Turn Connect off** clears startup intent before closing the listener;
+normal process shutdown preserves the owner's opt-in. Changing the selected
+interface requires a new explicit enable and firewall scope review.
+
+The saved pairing port is not a permanent listener. Each owner-created C4 offer
+opens it for that bounded pairing session and closes it on completion, abort,
+expiry or disable. The QR still carries the actual address/port. TLS, mutual
+identity checks, two-sided confirmation, signed receipts and permission defaults
+are unchanged. A conflicting pairing port fails rather than advertising another.
+
+On POSIX, listeners use SO_REUSEADDR for restart after TIME_WAIT; no SO_REUSEPORT
+is enabled. Windows uses SO_EXCLUSIVEADDRUSE, never the permissive Windows
+SO_REUSEADDR behavior. Real socket tests check concurrent-listener exclusion and
+same-port reuse after an accepted connection is actively closed. Windows can
+still report a port temporarily unavailable; it must never substitute another
+port. See [Linux socket options](https://man7.org/linux/man-pages/man7/socket.7.html)
+and [Microsoft exclusive address binding](https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse).
+
+The firewall design is two exact inbound TCP rules, scoped to the selected
+interface, desktop address and authorized phone address. The existing mDNS rule
+already works and needs no change. UFW remains default-deny. OLIVE does not run
+sudo, modify firewall rules, introduce a privileged helper, open Ollama/SSH,
+or request an ephemeral-port range. UFW cannot pin these input rules to the
+Python executable; exact socket binding plus unchanged Connect authentication
+remain necessary. DHCP address changes fail closed and need a scoped rule update;
+this design certifies process restarts on the same selected LAN, not arbitrary
+network/address changes. No live firewall change for this architecture has yet
+been reported.
+
+### Mobile reconnect and Chat follow-up
+
+A new Bonjour service instance can restart an exhausted mobile recovery cycle.
+Announcements are coalesced to at most one new cycle per minute, with the existing
+six bounded attempts and eight candidate endpoints. A successful session resets
+the retry budget for later disconnection. Every connection still requires the
+saved peer certificate. No inference is replayed after interruption.
+
+Owner reports Fast failing with “Connect received an invalid message,” request
+`ead0de10-2f68-44ce-bf97-cb746e0904d8`, then another role answering. The exact desktop
+receipt subsequently confirmed `input_too_large`, detailed below. Inspection found
+that valid `inference_failed`, input/output-limit and stream errors all mapped to
+that generic message. They now have distinct typed messages. Conversation
+context now selects a recent suffix of whole completed turns within C7's
+24-message, 16,000-byte/message and 48,000-byte total bounds. Visible messages
+are retained. This removes an avoidable long-conversation input failure without
+changing desktop protocol limits or adding a usage quota.
+
+Validation and deployment results for this follow-up will be recorded as they
+complete. Wrong-peer acceptance has an explicit opt-in physical-iPhone test:
+a correct pinned handshake selects the real endpoint before testing a wrong
+expected certificate; TCP failure alone cannot pass it. The test does not change
+saved identity or trust. Pairing denial/abort remain pending. The cancellation
+race/loss cases were separately tested in physical run 11, not inferred from
+the earlier generic Stop acceptance.
+
+
+The owner's read-only receipt query resolved the Fast failure:
+`('fast', 'failed', 'input_too_large', 10429, 0, 71)` — preset, state, error,
+input bytes, output bytes and duration ms. Source inspection confirms the model
+adapter rejected its context estimate before calling the provider. This was
+not a per-minute quota. A desktop follow-up now fits the newest complete supplied
+turns to the selected model's effective context window, preserving static
+framing and the requested output reserve. Oversized latest questions still fail
+explicitly. The phone error mapping and byte-bounded context changes alone would
+not fix the model-specific history limit; the desktop adapter change is required.
+
+Physical test run 10 passed 42 unit tests (2.666 s) and 8 UI tests (73.223 s),
+including the real LAN wrong-pin test (0.230 s) with positive authentication first.
+The saved production identity and trusted peer records were unchanged; the normal
+app was reopened afterward. This is actual iPhone-to-CachyOS certificate rejection,
+not just a canonical vector or a simulated endpoint.
+
+
+### Closure validation and deployment checkpoint — 2026-09-27
+
+Local implementation commits:
+
+- `5c3b373b3e25bff7da1ab3e34c0449575026f3a0`: opt-in persistent listener ports,
+  exact-interface startup, trusted desktop control and regression tests.
+- `3f74e26ef45456747d3b4f17a4112521ef00b298`: fit requester history to the actual
+  selected-model context, with oversized-latest-question rejection retained.
+- `875dee8004a96c52a8e82fa3ef4a4fc739425383`: mobile discovery recovery, bounded
+  history, distinct model errors and physical wrong-pin test.
+- `c8a23cf640d8af330be46bbe8a9101735b554349`: real physical cancellation boundaries
+  and debug-only isolated pairing acceptance mode.
+
+The desktop-only two-commit patch has SHA-256
+`a04585a5c94991da86e264ea0cb6d6b08f38aecac3512d2a4a55f9e8cbba1b83`.
+It was verified by applying the original quota patch and both new commits in an
+isolated C9.1 baseline worktree, then comparing affected desktop files with the
+Mac implementation (no differences). The copy/paste installer requires exact
+CachyOS starting HEAD `25e0cf9f9ce5f070456f638b6eba20e608ee0c97`, a clean worktree,
+the expected patch digest and a successful applicability check before `git am`.
+It creates local commits only. No restart, firewall change, network download,
+remote-access setup, push or trust edit is performed by the installer.
+
+The owner reported **PATCH COMMITTED** and returned the complete native
+verification summary:
+
+| Native CachyOS check | Result |
+| --- | --- |
+| Python compile (`olive`, `tests`) | Exit 0 |
+| Connect C1–C8 | **253 tests, 93.338 s, OK** |
+| Full Python | **1,442 tests, 168.131 s, OK; 8 skipped** |
+| Desktop TypeScript | Exit 0 |
+| Desktop unit tests | **98 passed, 19 files** |
+| Desktop production build | Exit 0 |
+
+This is owner-supplied native terminal evidence, not a claim of remote shell
+access. The new exact desktop HEAD and clean status have been requested. The
+native full-suite count differs from the Mac checkout because the desktop-only
+patch does not install the mobile-specific Python fixture tests.
+
+Final Mac checks at this checkpoint:
+
+- Python compileall over the checkout passed.
+- Full Python: **1,451 run, 1,389 passed, 58 skipped, 2 failures and 2 errors**,
+  200.615 s. All four are the previously recorded baseline/platform results:
+  Connect Studio descendant reaping timeout, Linux native process readiness on
+  macOS, owner-workspace project execution, and installed-JDK discovery.
+  Native CachyOS full regression above passed; no all-green Mac Python claim.
+- Dedicated pre-context-fix Connect run: 252 tests, one known Studio descendant
+  error. After the model-context change, all **45 focused C7/listener tests**
+  passed; the final full Python run included the new regression as well.
+- Desktop types and production build passed; **98/98 frontend tests** passed
+  using canonical `/private/tmp` to avoid macOS `/var` symlink path assertions.
+  The initial noncanonical-temp run had two path-equality failures, retained
+  in its log; no test assertions were weakened.
+- Dedicated persistent Devices UI acceptance passed (2.9 s test / 3.2 s total):
+  explicit default-off checkbox, exact saved ports, temporary pairing abort,
+  explicit Off and an actual application relaunch remaining Off.
+- Existing combined C4/C5/C6 Electron workflow reached the unrelated C6 transfer
+  cancellation timing check and failed; its separate expiry/mismatched-comparison
+  test passed. The unchanged C9.1 baseline also failed in that workflow's C6
+  transfer-progress timing check. These are retained limitations, not a claim
+  that the complete Electron end-to-end suite is green. The pairing-abort check
+  now observes listener cleanup after the UI acknowledges cancellation instead
+  of racing its in-flight IPC; production cancellation logic was unchanged.
+- Python/Swift canonical interoperability and signed C4 TLS pairing harness passed.
+- Final simulator-SDK build and generic iOS **Release** build passed. No simulator
+  runtime execution is claimed. Debug fault-injection and isolated-identity launch
+  controls are excluded from Release.
+
+Physical iPhone test run 11 passed **43 unit tests** (8.556 s) and **8 UI tests**
+(72.770 s), followed by reopening the normal application with its original
+production Keychain identity and pairing. The full cancellation boundary test
+ran for 5.866 s against the actual CachyOS model stack using harmless prompts:
+
+| Physical iPhone → CachyOS check | Request evidence and result |
+| --- | --- |
+| Early Stop immediately after admission | `fb7fef41-9abf-406d-aaf3-2dc2e6137e77`: target `cancelled`, acknowledgement 0.092667958 s; repeated cancel remained `cancelled` |
+| Completion-race Stop | `ceba172e-6552-4a45-a25a-f04c0691b259`: complete real answer polled, immediate cancel preserved `completed` |
+| Connection lost during cancellation | `b7ad252a-3201-48fa-b667-5ca98198028b`: actual C7 cancel written, then the phone closed its socket without awaiting acknowledgement |
+| New request after that loss | Fresh exact-pin TLS connection, desktop status returned idle, and `48f17696-ebbc-47e2-9add-977604f0f7ba` completed the hash-function request |
+| Wrong expected certificate | Positive real pinned handshake followed by required `certificateMismatch`; no TCP-timeout substitute; saved trust and identity unchanged |
+
+The loss test deliberately cuts the phone's actual Connect socket; it does not
+claim to time a physical Wi-Fi toggle within the 93 ms acknowledgement window.
+No uncertain start is replayed. Target cancellation acknowledgements and admission
+of the new real request exercise actual provider/task/residency release. No
+independent GPU telemetry is claimed.
+
+A debug-only pairing acceptance launch mode has separate app-scoped Keychain,
+trust and draft storage and a visible test-identity banner. This permits real
+owner denial/phone abort checks without unpairing or resetting the working phone.
+It has not yet been used for the owner-assisted negative pairing checks. Cleanup
+is explicitly confined to that test namespace; normal production state is retained.
+
+**Remaining gate:** enable the persistent setting on the newly rebuilt desktop,
+record the saved ports and exact updated HEAD, install the two scoped UFW rules
+and remove the superseded main rule, verify unattended normal restart/reconnect
+without any firewall edit, and finish real pairing denial/abort. Retest accumulated
+Fast Chat against the restarted updated runtime. No C9.2 completion claim yet.
