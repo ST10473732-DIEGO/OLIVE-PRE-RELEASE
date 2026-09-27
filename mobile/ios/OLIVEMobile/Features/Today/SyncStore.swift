@@ -25,10 +25,12 @@ struct SyncSnapshot: Codable {
 
 @MainActor
 final class MobileSyncStore {
+    let drafts: TodayDraftStore
     private let store: ProtectedStore<SyncSnapshot>
     private(set) var snapshot = SyncSnapshot()
     private(set) var available = true
     init(directory: URL = URL.applicationSupportDirectory.appendingPathComponent("Companion")) {
+        drafts = TodayDraftStore(directory: directory)
         store = ProtectedStore(url: directory.appendingPathComponent("sync-v1.json"), maximumBytes: 96 * 1024 * 1024)
         do { snapshot = try store.load() ?? SyncSnapshot(); try bounds(snapshot) }
         catch { available = false }
@@ -108,5 +110,40 @@ final class MobileSyncStore {
         try put(incoming, in: &value)
         if let conversation, value.selection[peer + ":" + conversation] == nil { value.selection[peer + ":" + conversation] = true }
         return "applied"
+    }
+}
+
+struct TodayDraft: Codable {
+    let original: SignedSyncRecord?
+    let fields: Data
+}
+
+@MainActor
+final class TodayDraftStore {
+    private let store: ProtectedStore<[String: TodayDraft]>
+    private var values: [String: TodayDraft] = [:]
+    private(set) var available = true
+    init(directory: URL) {
+        store = ProtectedStore(url: directory.appendingPathComponent("today-drafts-v1.json"), maximumBytes: 8_000_000)
+        do {
+            values = try store.load() ?? [:]
+            guard values.count <= 64 else { throw ConnectFailure.localStorageUnavailable }
+            for value in values.values { guard try ConnectJSON.decode(value.fields, limit: 72000).object != nil else { throw ConnectFailure.localStorageUnavailable } }
+        } catch { available = false }
+    }
+    func get(_ key: String) throws -> TodayDraft? {
+        guard available else { throw ConnectFailure.localStorageUnavailable }
+        return values[key]
+    }
+    func save(_ key: String, original: SignedSyncRecord?, fields: [String: ConnectJSON]?) throws {
+        guard available else { throw ConnectFailure.localStorageUnavailable }
+        var next = values
+        if let fields {
+            let data = ConnectJSON.object(fields).canonical
+            guard data.count <= 72000 else { throw ConnectFailure.localStorageUnavailable }
+            next[key] = TodayDraft(original: original, fields: data)
+        } else { next.removeValue(forKey: key) }
+        guard next.count <= 64 else { throw ConnectFailure.localStorageUnavailable }
+        try store.save(next); values = next
     }
 }

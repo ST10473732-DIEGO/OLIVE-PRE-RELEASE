@@ -793,6 +793,22 @@ final class CompanionProtocolTests: XCTestCase {
         XCTAssertEqual(restarted.snapshot.conflicts.count, 1)
         XCTAssertNotNil(restarted.snapshot.receipts[reminder.revision])
     }
+    func testTodayDraftRetainsOriginalRevisionAcrossLaunchWithoutApplying() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let identity = try ConnectIdentity.generate()
+        let original = try SyncWire.author(kind: "task", payload: SyncPayload.task(title: "Original"), identity: identity)
+        let changed = SyncPayload.task(title: "Offline draft")
+        let store = MobileSyncStore(directory: directory)
+        try store.drafts.save(original.id, original: original, fields: changed.object)
+        let restarted = MobileSyncStore(directory: directory)
+        XCTAssertTrue(restarted.snapshot.records.isEmpty)
+        let draft = try XCTUnwrap(restarted.drafts.get(original.id))
+        XCTAssertEqual(draft.original?.revision, original.revision)
+        XCTAssertEqual(try ConnectJSON.decode(draft.fields), changed)
+        try restarted.drafts.save(original.id, original: nil, fields: nil)
+        XCTAssertNil(try TodayDraftStore(directory: directory).get(original.id))
+    }
     func testC6BoundsRawBytesAndOwnedStaging() throws {
         let source = UUID().uuidString.lowercased(), target = UUID().uuidString.lowercased(), id = UUID().uuidString.lowercased()
         let meta = try FileMetadata(name: "fixture.bin", size: 3, sha256: String(repeating: "a", count: 64), mime: "application/octet-stream")

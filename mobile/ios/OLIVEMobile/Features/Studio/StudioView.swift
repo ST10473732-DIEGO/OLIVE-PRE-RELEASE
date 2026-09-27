@@ -14,6 +14,10 @@ struct StudioView: View {
             }
             if let workspace = model.workspace {
                 Section(workspace["display_name"].string ?? "Workspace") {
+                    ForEach(["view", "edit", "build", "test", "run"], id: \.self) { capability in
+                        let decision = workspace["permissions"]["studio." + capability].string ?? ""
+                        Text(capability.capitalized + " · " + (["deny": "Off", "ask": "Ask on computer", "allow": "Allow"][decision] ?? "Unknown")).font(.caption)
+                    }
                     ForEach(model.entries, id: \.digest) { item in
                         if item["directory"].boolean != true {
                             Button(item["path"].string ?? "File") { Task { await model.read(item["path"].string ?? "") } }

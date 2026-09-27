@@ -57,6 +57,13 @@ struct TodayEditor: View {
     @State private var deleting = false
     @State private var saving = false
     @State private var current: SignedSyncRecord?
+    @State private var loaded = false
+    @State private var draftKey = ""
+    private func persistDraft() {
+        guard loaded else { return }
+        do { try state.sync.store.drafts.save(draftKey, original: current, fields: current?.payload.object == fields ? nil : fields) }
+        catch { notice = "Draft could not be saved. Keep this editor open to retain your text." }
+    }
     private func text(_ key: String) -> Binding<String> { Binding(get: { fields[key]?.string ?? "" }, set: { fields[key] = .string($0) }) }
     var body: some View {
         Form {
@@ -97,6 +104,7 @@ struct TodayEditor: View {
                 Task {
                     do {
                         current = try await state.sync.save(kind: kind, payload: .object(fields), old: current)
+                        try state.sync.store.drafts.save(draftKey, original: nil, fields: nil)
                         notice = "Saved · tap Sync to commit to computer"
                     } catch { notice = error.localizedDescription }
                     saving = false
@@ -107,10 +115,25 @@ struct TodayEditor: View {
             if current != nil { Button("Delete", role: .destructive) { deleting = true }.disabled(!state.sync.online || saving || state.sync.busy) }
             Text(notice.isEmpty ? state.sync.notice : notice)
         }.navigationTitle(kind.capitalized)
-            .onAppear { if fields.isEmpty { current = old; fields = old?.payload.object ?? defaults() } }
+            .onAppear {
+                guard !loaded else { return }
+                draftKey = (state.session?.selectedID ?? "local") + ":" + (old?.id ?? "new-" + kind)
+                current = old; fields = old?.payload.object ?? defaults()
+                do {
+                    if let draft = try state.sync.store.drafts.get(draftKey) {
+                        current = draft.original
+                        fields = try ConnectJSON.decode(draft.fields, limit: 72000).object ?? fields
+                        notice = "Restored unsaved draft · reconnect to save"
+                        if current?.revision != old?.revision { notice = "The saved record changed. Your draft is preserved; saving will refuse a stale revision." }
+                    }
+                } catch { notice = "Saved draft unavailable; existing data preserved." }
+                loaded = true
+            }
+            .onChange(of: fields) { _, _ in persistDraft() }
+            .onDisappear { persistDraft() }
             .confirmationDialog("Delete this record? A tombstone will sync when requested.", isPresented: $deleting) {
                 Button("Delete", role: .destructive) { Task {
-                    do { try await state.sync.save(kind: kind, payload: .object([:]), old: current, deleted: true); notice = "Deleted locally · sync pending" }
+                    do { current = try await state.sync.save(kind: kind, payload: .object([:]), old: current, deleted: true); fields = [:]; notice = "Deleted locally · sync pending" }
                     catch { notice = error.localizedDescription }
                 } }
             }

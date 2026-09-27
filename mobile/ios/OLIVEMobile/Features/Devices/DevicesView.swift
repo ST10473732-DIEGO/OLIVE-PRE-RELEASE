@@ -38,7 +38,9 @@ struct DevicesView: View {
                                         }
                                         Text("Send to computer · " + permission(session, "files.receive"))
                                         Text("Receive from computer · " + permission(session, "files.send")).font(.caption)
-                                        Text("Studio · permissions shown per shared workspace").font(.caption)
+                                        if let capabilities = session.companionCapability {
+                                            Text(capabilities["supported"]["studio"] == .bool(true) ? "Studio · available; permissions apply per workspace" : "Studio · unavailable").font(.caption)
+                                        } else { Text("Studio · status unavailable").font(.caption) }
                                         if let work = state.background?.active { Text("Active · " + work.label) }
                                     }
                                     HStack {
