@@ -21,8 +21,11 @@ then succeeds with Connected / Remote AI Off, requiring a new desktop permission
 decision. After a new desktop Allow decision, the owner confirms the arithmetic
 answer is 391. Current numbered UFW output verifies both temporary pairing rules
 are absent; only the phone-specific main-listener rule remains alongside the
-pre-existing KDE Connect rules. Unattended desktop restart recovery and remaining
-security acceptance are pending.
+pre-existing KDE Connect rules at that checkpoint. The later quota follow-up
+removes the six-starts-per-minute limit and fixes mobile rejection recovery;
+after installing and restarting it, the owner confirms all eight requested
+short sequential questions complete without reconnecting. Unattended desktop
+restart recovery and remaining security acceptance are pending.
 Isolated protocol tests and successful builds are not substitutes for those checks.
 
 ## Repository checkpoint
@@ -212,8 +215,13 @@ patch applicability before committing it locally. No remote access, push or
 firewall change is part of this installer. The installer does not run tests.
 Native CachyOS C1–C8 regression passed according to the owner's terminal summary.
 Desktop restart is owner-confirmed by the new main listener/process.
-Compilation confirmation, corrected desktop HEAD, rule replacement and
-more-than-six real sequential requests remain pending.
+After the rule-replacement and eight-questions-within-one-minute instructions,
+the owner confirms all eight requests work without reconnecting. Real
+sequential-Chat acceptance therefore passed as owner-reported evidence;
+per-request timestamps were not independently captured. Compilation
+confirmation, corrected desktop HEAD and numbered UFW output after the main
+rule replacement remain outstanding. Successful Chat establishes reachability
+but does not independently verify removal of the old 33823 rule.
 
 The desktop runs inference and owns model selection/policy. Mobile sends only
 its explicit user/assistant context: ≤24 messages, ≤16000 bytes/message,
@@ -298,6 +306,7 @@ permission behavior changes.
 | Fresh pairing after reset | **Passed, owner-observed 2026-09-27:** after the fresh QR and full two-sided confirmation instructions, the owner reports the phone connected again with Remote AI Off. The new identity does not inherit the old identity's Allow setting. After a new desktop Allow decision, the owner confirms the phone answers the arithmetic question with 391 |
 | Fresh reset-recovery offer and cleanup | Temporary TCP 50703 was confirmed alongside main 33823 in the same OLIVE process and admitted only for the phone on the selected LAN interface/address. After pairing, the final numbered UFW output confirms its deletion and removal of stale 52643. UFW remains active; main TCP 33823 is still restricted to the same phone and selected interface/address. Existing KDE Connect IPv4/IPv6 rules remain |
 | Wrong peer | Native wrong-pin tests pass; real cross-device wrong-peer check remains pending |
+| Rapid sequential Chat after quota update | **Passed, owner-observed 2026-09-27:** following instructions to send eight short questions within one minute and wait for each response, the owner reports all work without reconnecting. The desktop had been patched, passed 243 native Connect tests and restarted with main TCP 54981. No exact per-request timings are claimed |
 
 No proxy, simulator, fixture response or mock peer was substituted for these
 pending steps. No SSH, extra remote-access method or exposure of Ollama was
@@ -520,8 +529,10 @@ preserving the displayed phone identity. Explicit identity reset then produced
 a changed displayed identity, and fresh pairing succeeds with Remote AI Off.
 Chat is restored after a new desktop Allow decision, and both temporary UFW
 rules are confirmed absent. Remaining security acceptance and final relevant
-tests remain outstanding. The quota follow-up also requires installation and
-real sequential-Chat acceptance on CachyOS. Desktop restart retains trust and permission,
+tests remain outstanding. The quota follow-up is installed and passes the
+owner's eight-request sequential-Chat check without reconnecting. The exact
+desktop commit ID and final numbered firewall output remain uncollected.
+Desktop restart retains trust and permission,
 but its changing port requires host firewall rule repair in this setup.
 This is not classified as an Apple platform limitation. No C9.3/C10 work
 begins and no release claim is made.

@@ -513,3 +513,12 @@ the home-directory tilde; supplied a full-path command. Requested replacement
 of the exact phone-only 33823 allowance with 54981, retaining the saved pairing,
 and verification of current numbered rules. Eight short sequential real Chat
 requests within one minute are the next live quota-removal check.
+
+The owner confirms all eight short requests work without reconnecting after
+the quota update and desktop restart. This passes the real sequential-Chat
+acceptance for removing the six-per-minute cap and fixing rejection recovery.
+The result follows the within-one-minute instructions; no independent
+per-request timestamps were captured. Corrected desktop HEAD, explicit
+compilation confirmation and final numbered UFW output remain uncollected;
+successful Chat alone does not prove the old 33823 rule was deleted. The
+separate changing-listener-port restart limitation remains open.
