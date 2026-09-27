@@ -581,6 +581,27 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['error'], 'input_too_large')
         self.assertEqual(self.eb.calls, [])
 
+    async def test_target_context_keeps_recent_complete_turns_without_reconnect(self):
+        await self.policy('allow')
+        messages = [
+            {'role': 'user', 'content': 'old question ' + 'x' * 8000},
+            {'role': 'assistant', 'content': 'old answer ' + 'y' * 8000},
+            {'role': 'user', 'content': 'recent question'},
+            {'role': 'assistant', 'content': 'recent answer'},
+            {'role': 'user', 'content': 'What is 17 * 23?'},
+        ]
+        req = self.start_request(preset='fast', messages=messages, input_fingerprint=digest(messages))
+        await self.send(req)
+        result, _ = await self.terminal(req)
+        self.assertEqual(result['state'], 'completed')
+        sent = self.eb.calls[-1]['messages']
+        self.assertEqual(sent[0]['role'], 'system')
+        self.assertEqual(sent[1:], messages[2:])
+        self.assertEqual(messages[0]['content'], 'old question ' + 'x' * 8000)
+        next_request = self.start_request(preset='fast')
+        await self.send(next_request)
+        self.assertEqual((await self.terminal(next_request))[0]['state'], 'completed')
+
     async def test_frontend_receives_only_allowlisted_remote_failure_guidance(self):
         from olive.bridge.public_errors import public_error
         from olive.connect.inference_client import MESSAGES

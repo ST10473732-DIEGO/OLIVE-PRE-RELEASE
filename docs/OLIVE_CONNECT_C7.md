@@ -147,7 +147,7 @@ Blocking transport/repository synchronization runs off the model/UI event loop.
 | Inference frame payload | 72,000 bytes |
 | Messages / accepted roles | 24 / user and assistant only |
 | One message / total input UTF-8 | 16,000 / 48,000 bytes |
-| Context estimate | Existing character/4 estimate plus framing and output reserve must fit the target's effective local context window |
+| Context estimate | Newest whole requester turns fitting the existing character/4 estimate, static framing and output reserve within the target's effective local context window; latest question alone must fit |
 | Requested generated tokens | 1–2,048 |
 | Visible output | 1–64,000 UTF-8 bytes, enforced independently of token limits |
 | One visible event | At most 4,096 UTF-8 bytes |
@@ -455,3 +455,18 @@ are included in the repair diff. No hosted repair success is claimed.
 This is a lifecycle-only change: no permission defaults, approval bindings,
 identity checks, fingerprints, model mappings, quotas, tool/context boundaries
 or Ollama exposure policy changed. No C8 work is included.
+
+
+### C9.2 repeated-Chat context correction
+
+A real Fast request failed with `input_too_large` after accumulated history:
+10,429 input bytes, no output, 71 ms. This is distinct from the removed request
+admission quota. Model-specific context can be smaller than C7's wire-size limit.
+The compute-only adapter now omits oldest complete requester turns until the
+newest suffix plus static framing and requested output reserve fits the actual
+model window. The latest user question is never split or discarded. If it alone
+does not fit, `input_too_large` still rejects before provider execution. Wire
+limits, request fingerprints, permissions and receipt semantics are unchanged;
+no target-private context, fallback model or extra request is introduced.
+Regression retains the oversized-single-question rejection and adds accumulated
+history followed by another request on the same channel.
