@@ -4,6 +4,46 @@ struct InferenceWire {
     static let states: Set<String> = ["awaiting_approval", "queued", "starting", "streaming", "completed", "cancelled", "failed", "timed_out", "connection_lost", "revoked"]
     static let terminal = states.subtracting(["awaiting_approval", "queued", "starting", "streaming"])
     static let errors: Set<String> = ["permission_denied", "confirmation_required", "device_revoked", "device_unavailable", "model_unavailable", "busy", "rate_limited", "input_too_large", "output_limit", "generation_timeout", "cancelled", "connection_lost", "inference_failed", "invalid_request", "changed_duplicate", "expired_request", "unknown_request", "stream_invalid", "request_indeterminate", "ledger_full"]
+    /// C7 is duplex even when this device is only a client. Desktop discovery
+    /// may query our availability while C5/C6/C8 use the same authenticated TLS
+    /// channel. Report no inference provider; never accept executable work.
+    static func clientReply(_ bytes: Data, local: String, peer: String,
+                            now: Int64 = Int64(Date().timeIntervalSince1970)) throws -> ConnectJSON {
+        let v = try ConnectJSON.decode(bytes)
+        try v.fields(["protocol_version", "request_id", "source_device_id", "target_device_id",
+                      "job_id", "operation", "arguments", "timestamp", "expires_at"])
+        guard v["protocol_version"] == .string("olive-inference/1") else { throw ConnectFailure.protocolVersionUnsupported }
+        for key in ["request_id", "source_device_id", "target_device_id", "job_id"] { _ = try v[key].uuid() }
+        guard v["source_device_id"] == .string(peer), v["target_device_id"] == .string(local) else { throw ConnectFailure.identityMismatch }
+        let timestamp = try v["timestamp"].number(0...253402300799)
+        let expiry = try v["expires_at"].number(0...253402300799)
+        guard (1...120).contains(expiry - timestamp) else { throw ConnectFailure.responseMalformed }
+        let operation = try v["operation"].text(), arguments = v["arguments"]
+        switch operation {
+        case "start":
+            try arguments.fields(["preset", "messages", "input_fingerprint", "max_tokens", "max_output_bytes", "seconds"])
+            guard let messages = arguments["messages"].array else { throw ConnectFailure.responseMalformed }
+            let contents = try messages.map { message -> (String, String) in
+                try message.fields(["role", "content"])
+                return (try message["role"].text(), try message["content"].text())
+            }
+            let validated = try startArguments(preset: arguments["preset"].text(), messages: contents)
+            guard arguments["input_fingerprint"] == validated["input_fingerprint"], v["request_id"] == v["job_id"] else { throw ConnectFailure.responseMalformed }
+            _ = try arguments["max_tokens"].number(1...2048)
+            _ = try arguments["max_output_bytes"].number(1...64000)
+            _ = try arguments["seconds"].number(1...120)
+        case "poll":
+            try arguments.fields(["after"]); _ = try arguments["after"].number(0...64000)
+        case "status", "capabilities", "cancel": try arguments.fields([])
+        default: throw ConnectFailure.responseMalformed
+        }
+        let expired = timestamp > now + 5 || expiry <= now
+        let status = operation == "status" && !expired
+        return .object(["protocol_version": .string("olive-inference/1"), "request_id": v["request_id"], "job_id": v["job_id"],
+            "result": status ? .object(["presets": .object(["fast": .bool(false), "normal": .bool(false), "max": .bool(false)]),
+                                         "permission": .string("deny"), "busy": .bool(false)]) : .null,
+            "error": status ? .null : .string(expired ? "expired_request" : "permission_denied")])
+    }
     static func request(source: String, target: String, operation: String, job: String? = nil,
                         arguments: ConnectJSON = .object([:]), now: Int64 = Int64(Date().timeIntervalSince1970), id: String = UUID().uuidString.lowercased()) throws -> ConnectJSON {
         _ = try ConnectJSON.string(source).uuid(); _ = try ConnectJSON.string(target).uuid()

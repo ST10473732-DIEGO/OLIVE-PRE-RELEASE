@@ -98,4 +98,13 @@ if __name__ == '__main__':
             assert response(canonical(reverse[name])) == response(canonical(value[name]))
         for code, expected in value['admission_errors'].items():
             assert response(canonical(reverse['admission_errors'][code])) == response(canonical(expected))
+        for name in ('start', 'poll', 'cancel', 'status'):
+            client = response(canonical(reverse['client_replies'][name]))
+            assert client['request_id'] == value[name]['request_id']
+            assert client['job_id'] == value[name]['job_id']
+            if name == 'status':
+                assert client['error'] is None
+                assert client['result'] == dict(presets=dict(fast=False, normal=False, max=False), permission='deny', busy=False)
+            else:
+                assert client['result'] is None and client['error'] == 'permission_denied'
     print('Production Python vectors passed; SHA-256:', hashlib.sha256(FIXTURE.read_bytes()).hexdigest())

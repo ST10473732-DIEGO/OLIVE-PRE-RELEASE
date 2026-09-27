@@ -15,6 +15,25 @@ actor ConnectTransport: InferenceTransport {
     private var plaintext = Data()
     private var ready = false
     private var closed = false
+    private var authenticatedIDs: (local: String, peer: String)?
+    #if DEBUG
+    // Explicit acceptance-only diagnostics: bounded typed metadata, never frame
+    // contents, endpoint names, identities or credentials. Eight protected slots.
+    private struct AcceptanceEvent: Codable { let time: Date; let phase: String; let failure: String? }
+    private struct AcceptanceTrace: Codable { let id: UUID; let incomingInferenceReplies: Int; let events: [AcceptanceEvent] }
+    private let acceptanceTraceID = UUID()
+    private var incomingInferenceReplies = 0
+    private var acceptanceEvents: [AcceptanceEvent] = []
+    private func acceptanceTrace(_ phase: String, error: (any Error)? = nil) {
+        guard ProcessInfo.processInfo.arguments.contains("--c93-transport-trace") ||
+            ProcessInfo.processInfo.environment["OLIVE_C93_TRACE_ACCEPTANCE"] == "1" else { return }
+        acceptanceEvents = Array(acceptanceEvents.suffix(15)) + [AcceptanceEvent(time: Date(), phase: phase,
+            failure: error.map { ($0 as? ConnectFailure ?? .connectionLost).rawValue })]
+        let slot = Int(acceptanceTraceID.uuid.0) % 8
+        let store = ProtectedStore<AcceptanceTrace>(url: URL.applicationSupportDirectory.appendingPathComponent("C93Acceptance/Trace/transport-\(slot).json"), maximumBytes: 4096)
+        try? store.save(AcceptanceTrace(id: acceptanceTraceID, incomingInferenceReplies: incomingInferenceReplies, events: acceptanceEvents))
+    }
+    #endif
     init(endpoint: NWEndpoint) { socket = ConnectSocket(endpoint: endpoint) }
     func connect(identity: ConnectIdentity, peer: ConnectPublicIdentity) async throws {
         do {
@@ -34,7 +53,11 @@ actor ConnectTransport: InferenceTransport {
             try await write(ConnectFrame(kind: 4, payload: Data()).encode())
             let hello = try await readFrame(timeout: 3)
             guard hello.kind == 4, hello.payload.isEmpty, !closed else { throw ConnectFailure.protocolVersionUnsupported }
+            authenticatedIDs = (identity.publicIdentity.deviceID, peer.deviceID)
             ready = true
+            #if DEBUG
+            acceptanceTrace("authenticated")
+            #endif
             reader = Task { await readLoop() }
         } catch { await close(); throw error }
     }
@@ -91,6 +114,18 @@ actor ConnectTransport: InferenceTransport {
         do {
             while !closed {
                 let frame = try await readFrame(timeout: 30)
+                #if DEBUG
+                acceptanceTrace("frame-\(frame.kind)-bytes-\(frame.payload.count)")
+                #endif
+                if frame.kind == 9, let ids = authenticatedIDs {
+                    let reply = try InferenceWire.clientReply(frame.payload, local: ids.local, peer: ids.peer)
+                    try await write(ConnectFrame(kind: 10, payload: reply.canonical).encode())
+                    #if DEBUG
+                    incomingInferenceReplies = min(incomingInferenceReplies + 1, 1_000_000)
+                    acceptanceTrace("incoming-inference-replied")
+                    #endif
+                    continue
+                }
                 if [5, 7].contains(frame.kind), let inbound {
                     let reply = try await inbound(frame)
                     guard reply.kind == frame.kind + 1 else { throw ConnectFailure.responseMalformed }
@@ -100,6 +135,9 @@ actor ConnectTransport: InferenceTransport {
                 }
                 guard [2, 6, 8, 10, 12].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
                 let v = try ConnectJSON.decode(frame.payload, limit: ConnectFrame.limit(frame.kind), allowDecimals: frame.kind == 12)
+                #if DEBUG
+                acceptanceTrace("decoded-\(frame.kind)")
+                #endif
                 let id = try v["request_id"].uuid()
                 if let (kind, _, continuation) = pending.removeValue(forKey: id) {
                     guard kind == frame.kind else {
@@ -110,7 +148,12 @@ actor ConnectTransport: InferenceTransport {
                 }
                 // Late responses never create or attach to a new request.
             }
-        } catch { await close() }
+        } catch {
+            #if DEBUG
+            acceptanceTrace("reader", error: error)
+            #endif
+            await close()
+        }
     }
     func exchange(_ request: ConnectJSON) async throws -> ConnectJSON {
         let raw = try await exchangeFrame(kind: 9, id: request["request_id"].uuid(), payload: request.canonical)
@@ -129,7 +172,12 @@ actor ConnectTransport: InferenceTransport {
             pending[id] = (kind + 1, ticket, c)
             Task {
                 do { try await write(encoded) }
-                catch { await close() }
+                catch {
+                    #if DEBUG
+                    acceptanceTrace("writer", error: error)
+                    #endif
+                    await close()
+                }
             }
             Task {
                 try? await Task.sleep(for: .seconds(7))
@@ -142,7 +190,10 @@ actor ConnectTransport: InferenceTransport {
         }
     }
     func close() async {
-        closed = true; ready = false; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; reader?.cancel(); reader = nil
+        #if DEBUG
+        if !closed { acceptanceTrace("close") }
+        #endif
+        closed = true; ready = false; authenticatedIDs = nil; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; reader?.cancel(); reader = nil
         let waiting = pending; pending.removeAll()
         for (_, _, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
         await socket.close(); tls = nil; plaintext.removeAll()

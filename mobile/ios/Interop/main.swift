@@ -117,5 +117,12 @@ for code in ["busy", "rate_limited", "model_unavailable", "unknown_request"] {
     rejections[code] = value
 }
 result["admission_errors"] = .object(rejections)
+var clientReplies: [String: ConnectJSON] = [:]
+for name in ["start", "poll", "cancel", "status"] {
+    let request = v[name]
+    clientReplies[name] = try InferenceWire.clientReply(request.canonical,
+        local: request["target_device_id"].text(), peer: request["source_device_id"].text(), now: request["timestamp"].integer!)
+}
+result["client_replies"] = .object(clientReplies)
 try ConnectJSON.object(result).canonical.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
 print("Swift decoded Python C2/C3/C7 and independently encoded C7 requests byte-for-byte.")
