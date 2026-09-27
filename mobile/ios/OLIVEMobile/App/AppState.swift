@@ -109,6 +109,7 @@ final class AppState {
                 guard chatGeneration == token else { return }
                 if !stopping {
                     let failure = error as? ConnectFailure ?? .connectionLost
+                    if failure == .deviceRevoked { session?.recordRevocation(peerID: peerID) }
                     background?.finish(.interrupted, id: jobID, failure: failure)
                     session?.finishBackgroundWork(); chatStatus = "Failed · " + failure.localizedDescription
                 }

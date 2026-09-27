@@ -10,10 +10,11 @@ enum ConnectFailure: String, Error, LocalizedError, Sendable, Codable {
     case syncConflict, syncRevisionStale, syncPermissionDenied
     case fileTooLarge, fileHashMismatch, fileTransferInterrupted, fileTransferCancelled, fileSaveRequired
     case workspaceUnavailable, studioRevisionStale, studioOperationBusy
-    case remotePermissionDenied
+    case deviceRevoked, remotePermissionDenied
     case backgroundTaskUnavailable, backgroundTaskExpired, backgroundTaskCancelled, localStorageUnavailable
     var errorDescription: String? {
         switch self {
+        case .deviceRevoked: "This computer revoked this iPhone. Unpair and pair again to request new trust."
         case .remotePermissionDenied: "Enable this capability for this iPhone on your computer. Workspace permissions are managed per share."
         case .syncConflict: "These records have conflicting changes. Review before saving."
         case .syncRevisionStale: "This record changed. Reload before saving."

@@ -56,7 +56,11 @@ final class StudioModel {
     }
     private func exchange(_ operation: String, arguments: ConnectJSON = .object([:])) async throws -> ConnectJSON {
         let (request, channel) = try await request(operation, arguments: arguments)
-        return try await StudioWire.exchange(request, channel: channel)
+        do { return try await StudioWire.exchange(request, channel: channel) }
+        catch {
+            if error as? ConnectFailure == .deviceRevoked, let peer = request["target_device_id"].string { session?.recordRevocation(peerID: peer) }
+            throw error
+        }
     }
     func refresh() async {
         guard !busy, !running else { return }; busy = true; defer { busy = false }
@@ -117,7 +121,7 @@ final class StudioModel {
                     self.notice = "Interrupted · original session ended"
                     self.session?.finishBackgroundWork()
                 }
-            var result = try await StudioWire.exchange(req, channel: transport)
+            var result = try await StudioWire.exchange(req, channel: transport, cancelled: { [weak self] in await self?.cancelRequested ?? true })
             let deadline = ContinuousClock.now.advanced(by: .seconds(600))
             while ["starting", "running", "cancelling"].contains(result["state"].string ?? "") {
                 notice = result["state"].string ?? "Running"
@@ -135,7 +139,39 @@ final class StudioModel {
                 notice += " · \(tests["passed"]?.integer ?? 0) passed, \(tests["failed"]?.integer ?? 0) failed, \(tests["skipped"]?.integer ?? 0) skipped"
             }
             background?.finish(result["state"] == .string("completed") ? .completed : result["state"] == .string("cancelled") ? .cancelled : .failed, id: id)
-        } catch { notice = error.localizedDescription; if let id = jobRequest?["request_id"].string { background?.finish(.interrupted, id: id) } }
+        } catch {
+            if error as? ConnectFailure == .deviceRevoked, let peer = jobRequest?["target_device_id"].string { session?.recordRevocation(peerID: peer) }
+            notice = cancelRequested ? "Cancellation requested · session ended; result unconfirmed" : error.localizedDescription
+            if cancelRequested { await channel?.close() }
+            if let id = jobRequest?["request_id"].string { background?.finish(.interrupted, id: id, failure: error as? ConnectFailure ?? .connectionLost) }
+        }
     }
-    func cancel() { cancelRequested = true; notice = "Cancelling on computer…" }
+    func cancel() {
+        guard running, !cancelRequested else { return }
+        cancelRequested = true; notice = "Cancelling on computer…"
+        guard let request = jobRequest, let channel else { return }
+        Task {
+            // Exact job ID; a pending Ask must not cause a later start retry.
+            do {
+                let cancel = try StudioWire.request(source: request["source_device_id"].uuid(), target: request["target_device_id"].uuid(),
+                    operation: "run_cancel", workspace: request["workspace_id"].uuid(), revision: request["share_revision"].number(1...Int64.max),
+                    arguments: .object(["job_id": request["request_id"]]))
+                _ = try await StudioWire.exchange(cancel, channel: channel)
+            } catch {
+                if self.jobRequest?["request_id"] == request["request_id"] { await channel.close() }
+            }
+        }
+    }
+    #if DEBUG
+    /// Offline rendering fixture, available only inside the isolated UI-test app.
+    func prepareOfflineUIFixture() {
+        guard session == nil else { return }
+        workspace = .object(["display_name": .string("Synthetic UI workspace"), "workspace_id": .string("aaaaaaaa-1111-4111-8111-111111111111"), "share_revision": .int(1),
+            "permissions": .object(Dictionary(uniqueKeysWithValues: ["view", "edit", "build", "test", "run", "debug"].map { ("studio." + $0, ConnectJSON.string("deny")) }))])
+        filePath = "fixture.swift"; loading = true; original = "let value = 1"; text = "let value = 2"; remoteText = "let value = 3"; loading = false
+        notice = "Revision conflict · synthetic draft retained"
+        output = "Synthetic test result: 1 passed"
+    }
+    #endif
+
 }

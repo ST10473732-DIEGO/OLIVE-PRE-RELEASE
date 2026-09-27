@@ -24,6 +24,8 @@ final class ConnectSession: ChatRemoteSession {
     private(set) var connected = false
     private(set) var companionCapability: ConnectJSON?
     private var capabilityProbe = true
+    private var revokedPeers = Set<String>()
+    private var selectedRevoked: Bool { selectedID.map { revokedPeers.contains($0) } ?? false }
     private(set) var capability: ConnectJSON?
     private(set) var fingerprint: String?
     private(set) var resettingIdentity = false
@@ -71,7 +73,7 @@ final class ConnectSession: ChatRemoteSession {
     }
     func select(_ id: String) { capabilityProbe = true; selectedID = id; disconnect(); if foreground { connect() } }
     func activate() {
-        foreground = true; lifecycle = connected ? .foregroundConnected : selected == nil ? .unpaired : .foregroundConnecting; discovery.start()
+        foreground = true; lifecycle = selectedRevoked ? .revoked : connected ? .foregroundConnected : selected == nil ? .unpaired : .foregroundConnecting; discovery.start()
         let identityToken = identityGeneration
         Task {
             let value = try? await identities.load(allowCreation: repository.isPristine).publicIdentity.fingerprint
@@ -82,7 +84,7 @@ final class ConnectSession: ChatRemoteSession {
     func suspend(continuing: Bool = false) {
         foreground = false; pairing.cancel(); discovery.stop()
         if continuing && connected { lifecycle = .backgroundActiveTask; status = "Background · active work" }
-        else { disconnect(); lifecycle = selected == nil ? .unpaired : .backgroundSuspendedExpected; status = "Background · suspended" }
+        else { disconnect(); lifecycle = selectedRevoked ? .revoked : selected == nil ? .unpaired : .backgroundSuspendedExpected; status = selectedRevoked ? "Revoked" : "Background · suspended" }
     }
     func disconnect() {
         onDisconnect?()
@@ -90,11 +92,17 @@ final class ConnectSession: ChatRemoteSession {
         discoveryRetry?.cancel(); discoveryRetry = nil
         if let transport { Task { await transport.close() } }
         transport = nil; inference = nil; capability = nil; companionCapability = nil; connected = false
-        status = selected == nil ? "Not connected" : "Offline"
-        lifecycle = selected == nil ? .unpaired : .pairedOffline
+        status = selectedRevoked ? "Revoked" : selected == nil ? "Not connected" : "Offline"
+        lifecycle = selectedRevoked ? .revoked : selected == nil ? .unpaired : .pairedOffline
+    }
+    func recordRevocation(peerID: String) {
+        // Only an authenticated explicit protocol error calls this. EOF, Wi-Fi
+        // loss and expired work never imply revoked trust.
+        revokedPeers.insert(peerID)
+        if selectedID == peerID { disconnect(); diagnostic = "device_revoked" }
     }
     func connect() {
-        guard foreground, reconnect == nil, !connected, let peer = selected else { return }
+        guard !selectedRevoked, foreground, reconnect == nil, !connected, let peer = selected else { return }
         nextDiscoveryRetry = .now.advanced(by: .seconds(60))
         let token = UUID(); generation = token
         reconnect = Task {
@@ -125,6 +133,7 @@ final class ConnectSession: ChatRemoteSession {
                             catch {
                                 // Older desktop rejects the optional operation. Retain
                                 // exact pinned reconnect, then use its existing C7 status.
+                                if error as? ConnectFailure == .deviceRevoked { throw error }
                                 capabilityProbe = false
                                 throw error
                             }
@@ -145,6 +154,7 @@ final class ConnectSession: ChatRemoteSession {
                     } catch {
                         await channel.close()
                         guard generation == token else { return }
+                        if error as? ConnectFailure == .deviceRevoked { recordRevocation(peerID: peer.id); return }
                         onDisconnect?()
                         connected = false; inference = nil; capability = nil; companionCapability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
                         diagnostic += ":" + (error as? ConnectFailure ?? .connectionLost).rawValue
@@ -161,7 +171,7 @@ final class ConnectSession: ChatRemoteSession {
     func retry() { capabilityProbe = true; disconnect(); connect() }
     func unpair(_ id: String) throws {
         if selectedID == id { disconnect() }
-        try repository.unpair(id); peers = repository.peers
+        try repository.unpair(id); revokedPeers.remove(id); peers = repository.peers
         if selectedID == id { selectedID = peers.first?.id }
         if foreground { connect() }
     }

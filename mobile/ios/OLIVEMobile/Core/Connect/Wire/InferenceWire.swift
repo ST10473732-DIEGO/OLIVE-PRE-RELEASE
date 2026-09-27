@@ -78,7 +78,8 @@ struct InferenceWire {
         case "cancelled": .requestCancelled
         case "generation_timeout", "expired_request": .requestTimeout
         case "device_unavailable": .peerOffline
-        case "device_revoked", "connection_lost", "request_indeterminate": .connectionLost
+        case "device_revoked": .deviceRevoked
+        case "connection_lost", "request_indeterminate": .connectionLost
         default: .responseMalformed
         }
     }

@@ -105,6 +105,7 @@ enum StudioWire {
     }
     static func failure(_ code: String) -> ConnectFailure {
         switch code {
+        case "device_revoked": .deviceRevoked
         case "permission_denied": .remotePermissionDenied
         case "revision_conflict", "configuration_changed": .studioRevisionStale
         case "busy": .studioOperationBusy
