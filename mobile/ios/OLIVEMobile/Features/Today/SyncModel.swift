@@ -18,6 +18,12 @@ final class SyncModel {
         conflicts = store.snapshot.conflicts
         if !store.available { notice = ConnectFailure.localStorageUnavailable.localizedDescription }
     }
+    func recordState(_ record: SignedSyncRecord) -> String? {
+        guard let peer = session?.selectedID, let domain = SyncWire.domains[record.kind] else { return nil }
+        let key = peer + ":" + domain
+        if conflicts.contains(where: { $0.recordID == record.id && $0.peer == peer }) || (store.snapshot.remoteConflicts?[key] ?? []).contains(where: { $0.recordID == record.id }) { return "Conflict · review required" }
+        return store.snapshot.acknowledged[key]?.contains(record.revision) == true ? nil : "Pending sync"
+    }
     func selected(_ id: String) -> Bool { guard let peer = session?.selectedID else { return false }; return store.snapshot.selection[peer + ":" + id] == true }
     func select(_ id: String, _ flag: Bool) {
         guard let peer = session?.selectedID, !busy else { return }
@@ -75,6 +81,7 @@ final class SyncModel {
                 for record in verified {
                     if try MobileSyncStore.apply(record, peer: peer.id, in: &next) == "conflict" { conflict = true }
                 }
+                MobileSyncStore.recordOutcomes(outcomes, batch: batch, incoming: verified, key: key, in: &next)
                 next.cursors[key] = nextCursor
                 next.acknowledged[key, default: []].formUnion(batch.map(\.revision))
                 try store.commit(next); reload(); domainStatus[domain] = "Sync permitted · last exchange verified"
@@ -85,6 +92,13 @@ final class SyncModel {
             }
             notice = "Batch limit reached · Sync again to continue"
         } catch { notice = error.localizedDescription }
+    }
+    func recoverLocalSync() {
+        guard !busy else { return }
+        do {
+            try store.recover(); reload()
+            notice = "Previous sync data preserved on this iPhone. Tap Sync for each domain to retrieve the computer’s records. Nothing was sent."
+        } catch { notice = "Recovery unavailable. The original data remains preserved." }
     }
     func cancel() { cancelled = true; notice = "Stopping after the current batch; committed records remain." }
     @discardableResult
@@ -115,12 +129,25 @@ final class SyncModel {
             try store.commit(next); reload(); notice = "Resolution saved · Sync to share it"
         } catch { notice = error.localizedDescription }
     }
+    func deleteConversation(_ reviewed: SignedSyncRecord) async {
+        do {
+            guard !busy, online, let session else { throw ConnectFailure.peerOffline }
+            let (_, identity, peer) = try await session.context()
+            var next = store.snapshot
+            try MobileSyncStore.tombstoneConversation(reviewed, identity: identity, in: &next)
+            next.selection[peer.id + ":" + reviewed.id] = true
+            try store.commit(next); reload(); notice = "Conversation deleted locally · Sync Chat to share tombstones."
+        } catch { notice = error.localizedDescription }
+    }
     func selectMobileChat(_ turns: [MobileChatTurn]) async {
         do {
             guard !busy, let session else { throw ConnectFailure.peerOffline }
             let (_, identity, peer) = try await session.context()
             var next = store.snapshot
-            let conversationID = next.mobileConversation[peer.id] ?? UUID().uuidString.lowercased()
+            let pendingTurns = turns.filter { $0.peerID == peer.id && !next.importedTurns.contains($0.id) }
+            guard !pendingTurns.isEmpty else { notice = "No new completed iPhone turns to select."; return }
+            let previous = next.mobileConversation[peer.id]
+            let conversationID = previous.flatMap { next.records[$0]?.deleted == false ? $0 : nil } ?? UUID().uuidString.lowercased()
             if next.records[conversationID] == nil {
                 let conversation = try SyncWire.author(kind: "conversation", id: conversationID,
                     payload: .object(["title": .string("iPhone Chat"), "project_id": .null, "created_at": .string(SyncWire.now())]), identity: identity)
@@ -129,7 +156,7 @@ final class SyncModel {
             guard next.records[conversationID]?.deleted == false else { throw ConnectFailure.syncConflict }
             next.selection[peer.id + ":" + conversationID] = true
             var after = next.records.values.filter { $0.kind == "message" && next.messageParents[$0.id] == conversationID }.max { (next.sequence[$0.id] ?? 0) < (next.sequence[$1.id] ?? 0) }?.id
-            for turn in turns where turn.peerID == peer.id && !next.importedTurns.contains(turn.id) {
+            for turn in pendingTurns {
                 for (id, role, content) in [(turn.userID, "user", turn.user), (turn.assistantID, "assistant", turn.answer)] {
                     let record = try SyncWire.author(kind: "message", id: id, payload: .object(["conversation_id": .string(conversationID),
                         "after": after.map(ConnectJSON.string) ?? .null, "role": .string(role), "content": .string(content),

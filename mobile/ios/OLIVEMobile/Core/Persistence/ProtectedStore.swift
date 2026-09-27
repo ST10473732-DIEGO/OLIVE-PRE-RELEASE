@@ -13,6 +13,27 @@ struct ProtectedStore<Value: Codable> {
         guard envelope.version == 1 else { throw ConnectFailure.localStorageUnavailable }
         return envelope.value
     }
+    /// Explicit recovery only. Preserve the exact unreadable bytes before a fresh
+    /// atomic store is published. Refuse rather than evict prior recovery copies.
+    func archiveAndReplace(with value: Value) throws {
+        let manager = FileManager.default
+        let folder = url.deletingLastPathComponent().appendingPathComponent("Recovery", isDirectory: true)
+        try manager.createDirectory(at: folder, withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+        var protectedFolder = folder; var resources = URLResourceValues(); resources.isExcludedFromBackup = true
+        try protectedFolder.setResourceValues(resources)
+        let copies = try manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+        guard copies.count < 4 else { throw ConnectFailure.localStorageUnavailable }
+        if manager.fileExists(atPath: url.path) {
+            let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true,
+                  let size = values.fileSize, size <= maximumBytes else { throw ConnectFailure.localStorageUnavailable }
+            // Same-volume hard link preserves bytes without doubling a large store;
+            // save() atomically replaces only the active directory entry.
+            try manager.linkItem(at: url, to: folder.appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent))
+        }
+        try save(value)
+    }
     func save(_ value: Value) throws {
         let data = try JSONEncoder().encode(Envelope(version: 1, value: value))
         guard data.count <= maximumBytes else { throw ConnectFailure.localStorageUnavailable }

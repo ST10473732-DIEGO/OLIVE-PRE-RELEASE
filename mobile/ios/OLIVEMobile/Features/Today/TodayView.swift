@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TodayView: View {
     @Environment(AppState.self) private var state
+    @State private var recovering = false
     var body: some View {
         let model = state.sync
         List {
@@ -9,7 +10,12 @@ struct TodayView: View {
                 Text(model.online ? "Connected · changes sync when you request them" : "Offline · saved records are read-only")
                 Text(model.notice).accessibilityIdentifier("today.status")
                 if model.busy { Button("Cancel sync") { model.cancel() } }
+                if !model.store.available {
+                    Button("Recover local sync storage") { recovering = true }
+                        .accessibilityIdentifier("today.recover")
+                }
             }
+            NavigationLink("Agenda") { TodayAgendaView() }
             ForEach(["tasks", "calendar", "reminders"], id: \.self) { domain in
                 Section(domain.capitalized) {
                     Button("Sync \(domain)") { Task { await model.sync(domain) } }.disabled(!model.online || model.busy)
@@ -20,6 +26,7 @@ struct TodayView: View {
                         } label: {
                             VStack(alignment: .leading) {
                                 Text(record.payload["title"].string ?? reminderTitle(record)).font(.headline)
+                                if let status = model.recordState(record) { Text(status).font(.caption).foregroundStyle(OliveTheme.attention) }
                                 Text(record.kind == "task" ? record.payload["status"].string ?? "" : record.kind == "event" ? record.payload["start"].string ?? "" : record.kind == "reminder" ? record.payload["at"].string ?? "Linked schedule" : "Calendar")
                                     .font(.caption).foregroundStyle(OliveTheme.secondary)
                             }
@@ -42,6 +49,11 @@ struct TodayView: View {
                 }
             }
         }.navigationTitle("Today")
+            .confirmationDialog("Preserve and rebuild local sync storage?", isPresented: $recovering, titleVisibility: .visible) {
+                Button("Preserve data and rebuild") { model.recoverLocalSync() }
+            } message: {
+                Text("The unreadable file stays in protected recovery storage. This starts an empty sync store; use explicit Sync to retrieve desktop records. Unsynced edits remain only in the preserved file and are not automatically replayed. Drafts and pairing stay intact.")
+            }
     }
     private func reminderTitle(_ record: SignedSyncRecord) -> String {
         state.sync.records.first { $0.id == record.payload["target_id"].string }?.payload["title"].string.map { "Reminder · " + $0 } ?? "Reminder"
@@ -136,6 +148,12 @@ struct TodayEditor: View {
                 } catch { notice = "Saved draft unavailable; existing data preserved." }
                 loaded = true
             }
+            .onChange(of: state.sync.records.first(where: { $0.id == current?.id })?.revision) { _, _ in
+                guard let updated = state.sync.records.first(where: { $0.id == current?.id }), updated.revision != current?.revision else { return }
+                if fields == current?.payload.object {
+                    current = updated; fields = updated.payload.object ?? [:]; notice = updated.deleted ? "Deleted record" : "Updated from sync"
+                } else { notice = "This record changed. Your draft is preserved; saving will refuse a stale revision." }
+            }
             .onChange(of: fields) { _, _ in persistDraft() }
             .onDisappear { persistDraft() }
             .confirmationDialog("Delete this record? A tombstone will sync when requested.", isPresented: $deleting) {
@@ -196,5 +214,77 @@ private struct SyncConflictView: View {
                 reviewed = SyncConflict(id: conflict.id, peer: conflict.peer, recordID: conflict.recordID,
                     localRevision: local?.revision, incoming: conflict.incoming, reason: conflict.reason)
             }
+    }
+}
+
+
+private struct TodayAgendaItem: Identifiable, Sendable {
+    let id: String
+    let record: SignedSyncRecord
+    let title: String
+    let detail: String
+    let time: Date
+}
+private struct TodayAgendaView: View {
+    @Environment(AppState.self) private var state
+    @State private var day = Date()
+    @State private var items: [TodayAgendaItem] = []
+    @State private var notice = ""
+    var body: some View {
+        List {
+            DatePicker("Day", selection: $day, displayedComponents: .date)
+            Text("Saved OLIVE records · Sync in Today to refresh").font(.footnote)
+            ForEach(items) { item in
+                NavigationLink { TodayEditor(kind: item.record.kind, old: item.record) } label: {
+                    VStack(alignment: .leading) {
+                        Text(item.title).font(.headline)
+                        Text(item.detail).font(.caption)
+                    }
+                }
+            }
+            if !notice.isEmpty { Text(notice) }
+        }.navigationTitle("Agenda")
+            .task(id: day) { await refresh() }
+    }
+    private func refresh() async {
+        let records = state.sync.records, start = Calendar.current.startOfDay(for: day)
+        guard let end = Calendar.current.date(byAdding: .day, value: 1, to: start) else { return }
+        notice = "Loading saved records…"
+        let work = Task.detached { () throws -> [TodayAgendaItem] in
+            var result: [TodayAgendaItem] = []
+            let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+            for record in records where !record.deleted {
+                try Task.checkCancellation()
+                let p = record.payload
+                if record.kind == "event" {
+                    for occurrence in try SyncCalendar.occurrences(p, after: start, before: end) {
+                        let (time, _, _, allDay) = try SyncCalendar.bounds(occurrence)
+                        result.append(TodayAgendaItem(id: record.id + ":" + (occurrence["occurrence_id"].string ?? ""), record: record,
+                            title: occurrence["title"].string ?? "Event", detail: allDay ? "All day" : time.formatted(date: .omitted, time: .shortened), time: time))
+                    }
+                } else if record.kind == "task", p["status"] != .string("completed"), let due = p["due"].string, !due.isEmpty {
+                    let dateOnly = p["due_kind"] == .string("date")
+                    let raw = try SyncDate.parse(due, zoned: !dateOnly, dateOnly: dateOnly)
+                    let time = dateOnly ? SyncCalendar.local(raw, zone: TimeZone(identifier: p["timezone"].string ?? "UTC")!) ?? raw : raw
+                    if time < end {
+                        result.append(TodayAgendaItem(id: record.id, record: record, title: p["title"].string ?? "Task",
+                            detail: time < start ? "Overdue" : dateOnly ? "Due today" : "Due " + time.formatted(date: .omitted, time: .shortened), time: time))
+                    }
+                } else if record.kind == "reminder", let target = byID[p["target_id"].string ?? ""], !target.deleted, target.payload["status"] != .string("completed") {
+                    for time in try SyncCalendar.reminderTimes(p, target: target.payload, after: start, before: end) {
+                        result.append(TodayAgendaItem(id: record.id + ":" + String(time.timeIntervalSince1970), record: record, title: "Reminder · " + (target.payload["title"].string ?? "OLIVE"),
+                            detail: time.formatted(date: .omitted, time: .shortened), time: time))
+                    }
+                }
+                guard result.count <= 1000 else { throw ConnectFailure.resourceBusy }
+            }
+            return result.sorted { $0.time == $1.time ? $0.id < $1.id : $0.time < $1.time }
+        }
+        do {
+            let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
+            guard !Task.isCancelled else { return }; items = result; notice = result.isEmpty ? "No due items for this day." : ""
+        } catch {
+            guard !Task.isCancelled else { return }; items = []; notice = "This agenda could not be expanded safely. Your saved records remain available in Today."
+        }
     }
 }

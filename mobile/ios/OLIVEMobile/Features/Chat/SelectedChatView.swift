@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SelectedChatView: View {
     @Environment(AppState.self) private var state
+    @State private var deleting: SignedSyncRecord?
     var body: some View {
         List {
             Section {
@@ -15,9 +16,19 @@ struct SelectedChatView: View {
                 Section(conversation.payload["title"].string ?? "Conversation") {
                     Toggle("Selected for this computer", isOn: Binding(get: { state.sync.selected(conversation.id) }, set: { state.sync.select(conversation.id, $0) }))
                     NavigationLink("Read conversation") { SyncedConversationView(conversation: conversation) }
+                    Button("Delete shared conversation", role: .destructive) { deleting = conversation }
+                        .disabled(!state.sync.online || state.sync.busy || state.active)
                 }
             }
         }.navigationTitle("Selected Chat")
+            .confirmationDialog("Delete this shared conversation?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+                Button("Delete conversation", role: .destructive) {
+                    if let reviewed = deleting { Task { await state.sync.deleteConversation(reviewed) } }
+                    deleting = nil
+                }
+            } message: {
+                Text("This creates tombstones for the conversation and its messages. Tap Sync Chat to share the deletion. Completed Remote AI history on this iPhone is stored separately.")
+            }
     }
 }
 private struct SyncedConversationView: View {

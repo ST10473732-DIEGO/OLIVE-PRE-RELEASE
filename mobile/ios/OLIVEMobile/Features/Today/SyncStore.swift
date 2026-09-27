@@ -8,7 +8,13 @@ struct SyncConflict: Codable, Identifiable {
     let incoming: SignedSyncRecord
     let reason: String
 }
+struct RemoteSyncConflict: Codable {
+    let recordID: String
+    let vector: [String: Int64]
+}
 struct SyncSnapshot: Codable {
+    // Additive v1 metadata: a remote conflict receipt is not successful convergence.
+    var remoteConflicts: [String: [RemoteSyncConflict]]? = nil
     var records: [String: SignedSyncRecord] = [:]
     var receipts: [String: String] = [:]
     var conflicts: [SyncConflict] = []
@@ -39,11 +45,44 @@ final class MobileSyncStore {
         guard value.records.count <= 10000, value.receipts.count <= 100000, value.conflicts.count <= 128,
               value.records.values.reduce(0, { $0 + $1.bytes.count }) <= 64 * 1024 * 1024,
               value.selection.count <= 16000, value.cursors.count <= 128, value.importedTurns.count <= 100000,
+              (value.remoteConflicts ?? [:]).values.reduce(0, { $0 + $1.count }) <= 128,
               value.acknowledged.values.reduce(0, { $0 + $1.count }) <= 100000 else { throw ConnectFailure.localStorageUnavailable }
     }
     func commit(_ value: SyncSnapshot) throws {
         guard available else { throw ConnectFailure.localStorageUnavailable }
         try bounds(value); try store.save(value); snapshot = value
+    }
+    func recover() throws {
+        guard !available else { return }
+        try store.archiveAndReplace(with: SyncSnapshot())
+        snapshot = SyncSnapshot(); available = true
+    }
+    static func tombstoneConversation(_ reviewed: SignedSyncRecord, identity: ConnectIdentity, in next: inout SyncSnapshot) throws {
+        guard reviewed.kind == "conversation", !reviewed.deleted, next.records[reviewed.id]?.revision == reviewed.revision else { throw ConnectFailure.syncRevisionStale }
+        for message in next.records.values.filter({ $0.kind == "message" && !$0.deleted && next.messageParents[$0.id] == reviewed.id }).sorted(by: { $0.id < $1.id }) {
+            let tombstone = try SyncWire.author(kind: "message", id: message.id, payload: .object([:]), deleted: true, parents: [message], identity: identity)
+            try put(tombstone, in: &next)
+        }
+        let tombstone = try SyncWire.author(kind: "conversation", id: reviewed.id, payload: .object([:]), deleted: true, parents: [reviewed], identity: identity)
+        guard dependency(tombstone, in: next) else { throw ConnectFailure.syncConflict }
+        try put(tombstone, in: &next)
+    }
+    static func recordOutcomes(_ outcomes: [ConnectJSON], batch: [SignedSyncRecord], incoming: [SignedSyncRecord], key: String, in value: inout SyncSnapshot) {
+        var conflicts = value.remoteConflicts?[key] ?? []
+        for (record, outcome) in zip(batch, outcomes) {
+            if outcome == .string("conflict") {
+                conflicts.removeAll { $0.recordID == record.id }
+                conflicts.append(RemoteSyncConflict(recordID: record.id, vector: record.vector))
+            } else if ["applied", "duplicate", "tombstone"].contains(outcome.string ?? "") {
+                conflicts.removeAll { $0.recordID == record.id && record.vector != $0.vector && SyncWire.dominates(record.vector, $0.vector) }
+            }
+        }
+        for record in incoming {
+            conflicts.removeAll { $0.recordID == record.id && record.vector != $0.vector && SyncWire.dominates(record.vector, $0.vector) }
+        }
+        if value.remoteConflicts == nil { value.remoteConflicts = [:] }
+        if conflicts.isEmpty { value.remoteConflicts?.removeValue(forKey: key) }
+        else { value.remoteConflicts?[key] = conflicts }
     }
     static func receipt(_ record: SignedSyncRecord, in value: inout SyncSnapshot) throws {
         let digest = record.wire.digest
@@ -52,6 +91,7 @@ final class MobileSyncStore {
     }
     static func hasConflict(domain: String, peer: String, in value: SyncSnapshot) -> Bool {
         value.conflicts.contains { $0.peer == peer && SyncWire.domains[$0.incoming.kind] == domain }
+            || !(value.remoteConflicts?[peer + ":" + domain] ?? []).isEmpty
     }
     static func put(_ record: SignedSyncRecord, in value: inout SyncSnapshot) throws {
         try receipt(record, in: &value)

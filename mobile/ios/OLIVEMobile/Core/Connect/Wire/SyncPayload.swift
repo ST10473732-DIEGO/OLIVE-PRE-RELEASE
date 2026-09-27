@@ -57,35 +57,8 @@ enum SyncPayload {
             }
             guard end > start, end.timeIntervalSince(start) < 367 * 86400 else { throw ConnectFailure.responseMalformed }
             try text("recurrence", 500)
-            if v["recurrence"] != .string("") {
-                var fields: [String: String] = [:]
-                for field in v["recurrence"].string!.split(separator: ";") {
-                    let pair = field.split(separator: "=", maxSplits: 1)
-                    guard pair.count == 2, fields[String(pair[0])] == nil, ["FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY", "BYMONTH", "COUNT", "UNTIL", "WKST"].contains(String(pair[0])) else { throw ConnectFailure.responseMalformed }
-                    fields[String(pair[0])] = String(pair[1])
-                }
-                guard ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].contains(fields["FREQ"] ?? ""), fields["COUNT"] == nil || fields["UNTIL"] == nil else { throw ConnectFailure.responseMalformed }
-                for (key, max) in [("INTERVAL", 366), ("COUNT", 10000)] {
-                    if let raw = fields[key] { guard let n = Int(raw), (1...max).contains(n) else { throw ConnectFailure.responseMalformed } }
-                }
-                for (key, min, max) in [("BYMONTHDAY", -31, 31), ("BYMONTH", 1, 12)] {
-                    if let raw = fields[key] { for part in raw.split(separator: ",", omittingEmptySubsequences: false) { guard let n = Int(part), n != 0, (min...max).contains(n) else { throw ConnectFailure.responseMalformed } } }
-                }
-                if let raw = fields["BYDAY"] { for part in raw.split(separator: ",", omittingEmptySubsequences: false) {
-                    guard String(part).range(of: #"^([+-]?[1-9][0-9]?)?(MO|TU|WE|TH|FR|SA|SU)$"#, options: .regularExpression) != nil else { throw ConnectFailure.responseMalformed }
-                } }
-                if let raw = fields["WKST"], !["MO", "TU", "WE", "TH", "FR", "SA", "SU"].contains(raw) { throw ConnectFailure.responseMalformed }
-                if let raw = fields["UNTIL"], raw.range(of: #"^\d{8}(T\d{6}Z?)?$"#, options: .regularExpression) == nil { throw ConnectFailure.responseMalformed }
-            }
-            guard let exceptions = v["exceptions"].object, exceptions.count <= 500 else { throw ConnectFailure.responseMalformed }
-            for (date, patch) in exceptions {
-                try SyncWire.instant(.string(date))
-                guard let fields = patch.object, Set(fields.keys).isSubset(of: ["start", "end", "title", "location", "description", "cancelled"]), (fields["start"] == nil) == (fields["end"] == nil) else { throw ConnectFailure.responseMalformed }
-                for (key, value) in fields {
-                    if key == "cancelled" { guard value.boolean != nil else { throw ConnectFailure.responseMalformed } }
-                    else { _ = try StudioWire.bounded(value, key == "description" ? 32000 : 1200) }
-                }
-            }
+            try SyncCalendar.validateExceptions(v)
+
         default: throw ConnectFailure.responseMalformed
         }
     }
