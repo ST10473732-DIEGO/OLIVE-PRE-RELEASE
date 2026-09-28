@@ -16,13 +16,42 @@ if [[ -z "${DOTNET_ROOT:-}" && -x "$root/.toolchains/dotnet/dotnet" ]]; then
   export DOTNET_ROOT="$root/.toolchains/dotnet"
   export PATH="$DOTNET_ROOT:$PATH"
 fi
-if [[ -x "$root/.toolchains/ollama/bin/ollama" ]]; then
-  export PATH="$root/.toolchains/ollama/bin:$PATH"
+# Prefer the persistent OLIVE-managed Ollama runtime.
+# Fall back to a repository-local runtime for development/legacy clones.
+olive_ollama_dir=""
+if [[ -x "$HOME/.local/share/olive/runtime/ollama/bin/ollama" ]]; then
+  olive_ollama_dir="$HOME/.local/share/olive/runtime/ollama/bin"
+elif [[ -x "$root/.toolchains/ollama/bin/ollama" ]]; then
+  olive_ollama_dir="$root/.toolchains/ollama/bin"
 fi
-# A provisioned optional runtime starts only when Media tools request it.
-if [[ -f "$root/.toolchains/ComfyUI/main.py" && -x "$root/.toolchains/comfy-venv/bin/python" ]]; then
-  export OLIVE_COMFY_ROOT="${OLIVE_COMFY_ROOT:-$root/.toolchains/ComfyUI}"
-  export OLIVE_COMFY_PYTHON="${OLIVE_COMFY_PYTHON:-$root/.toolchains/comfy-venv/bin/python}"
+
+if [[ -n "$olive_ollama_dir" ]]; then
+  export PATH="$olive_ollama_dir:$PATH"
+fi
+
+# Reuse the user's existing Ollama model library.
+if [[ -d "$HOME/.ollama/models" ]]; then
+  export OLLAMA_MODELS="${OLLAMA_MODELS:-$HOME/.ollama/models}"
+fi
+# A provisioned optional Media runtime starts only when Media tools request it.
+# Prefer the persistent OLIVE-managed runtime so Git clones/branches do not
+# own heavyweight runtime dependencies. Fall back to repository-local tools.
+olive_comfy_root=""
+olive_comfy_python=""
+
+if [[ -f "$HOME/.local/share/olive/runtime/comfy/ComfyUI/main.py" \
+   && -x "$HOME/.local/share/olive/runtime/comfy/comfy-venv/bin/python" ]]; then
+  olive_comfy_root="$HOME/.local/share/olive/runtime/comfy/ComfyUI"
+  olive_comfy_python="$HOME/.local/share/olive/runtime/comfy/comfy-venv/bin/python"
+elif [[ -f "$root/.toolchains/ComfyUI/main.py" \
+     && -x "$root/.toolchains/comfy-venv/bin/python" ]]; then
+  olive_comfy_root="$root/.toolchains/ComfyUI"
+  olive_comfy_python="$root/.toolchains/comfy-venv/bin/python"
+fi
+
+if [[ -n "$olive_comfy_root" && -n "$olive_comfy_python" ]]; then
+  export OLIVE_COMFY_ROOT="${OLIVE_COMFY_ROOT:-$olive_comfy_root}"
+  export OLIVE_COMFY_PYTHON="${OLIVE_COMFY_PYTHON:-$olive_comfy_python}"
 fi
 for tool in python3 node npm; do
   command -v "$tool" >/dev/null || { printf 'Missing dependency: %s. Install it before launching OLIVE.\n' "$tool" >&2; exit 1; }
@@ -43,6 +72,11 @@ mapfile -t olive_tools < <(.venv/bin/python -c 'import os; from olive.studio_too
 export PATH="${olive_tools[0]}"
 if [[ -n "${olive_tools[1]}" ]]; then export DOTNET_ROOT="${olive_tools[1]}"; fi
 if [[ -n "${olive_tools[2]}" ]]; then export JAVA_HOME="${olive_tools[2]}"; fi
+# developer_environment may rebuild PATH, so ensure the managed Ollama
+# runtime remains discoverable by the backend.
+if [[ -n "${olive_ollama_dir:-}" ]]; then
+  export PATH="$olive_ollama_dir:$PATH"
+fi
 # The shared resolver preserves configured/legacy profiles and rejects conflicts.
 export OLIVE_DATA_DIR
 OLIVE_DATA_DIR="$(.venv/bin/python -c 'from olive.identity import resolve_profile; print(resolve_profile())')"
