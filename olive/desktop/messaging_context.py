@@ -42,6 +42,14 @@ class MessagingAdapter:
     switcher_label_right: bool = False
     # Fixed-width panels left of the composer (logical px), excluded from its area.
     composer_left_logical: int = 0
+    # Declared compatibility boundary of the layout above. When the declared
+    # areas no longer read as expected the task fails as LAYOUT_INCOMPATIBLE
+    # instead of clicking guessed positions.
+    layout_version: str = ''
+    # Quick-switcher filter prefix for servers (Discord documents '*').
+    server_prefix: str = ''
+    # Scrollable columns, logical px from the window's left edge: name -> (left, right or None).
+    scroll_areas: dict = field(default_factory=dict)
 
 
 REGION_PROMPTS = {
@@ -61,7 +69,10 @@ ADAPTERS = (
                      regions={'composer': (0.0, 0.91, 1.0, 1.0), 'server': (0.0, 0.0, 0.34, 0.1),
                               'header': (0.12, 0.0, 0.85, 0.1), 'switcher': (0.25, 0.2, 0.75, 0.5)},
                      account_first_line=True, switcher_enter_opens=True, switcher_label_right=True,
-                     composer_left_logical=320),  # Server rail + channel list / user panel.
+                     composer_left_logical=320,  # Server rail + channel list / user panel.
+                     layout_version='discord-desktop-2026-09', server_prefix='*',
+                     scroll_areas={'server list': (0, 72), 'channel list': (72, 312), 'messages': (312, None),
+                                   'page': (312, None), '': (312, None)}),
     MessagingAdapter('visual-messenger-fixture', ('visual messenger', 'olive-visual-messenger-fixture'),
                      submit_provenance='Owned fixture: Enter sends; verified by its owned sent log',
                      prompts=REGION_PROMPTS),
@@ -433,4 +444,27 @@ def echo_rows(words, content, account=''):
         if not prefix or name and (name in ''.join(prefix) or
                                    any(len(t) >= 4 and (name.startswith(t) or t in name) for t in prefix)):
             found.append(row)
+    return found
+
+
+def server_rows(entries, server):
+    """Switcher rows naming exactly one server: the name may follow one short icon
+    token (a server icon's initials read by OCR); anything else on the row makes it
+    another kind of result (a channel with a server label, a person)."""
+    wanted = bare(server).split()
+    tokens = [{'text': part, 'confidence': entry['confidence'], 'box': entry['box']}
+              for entry in entries for part in str(entry['text']).split()]
+    found = []
+    for row in rows(tokens, minimum=0):
+        words = [w for w in row['lines'] if bare(w['text'])]
+        for skip in (0, 1):
+            if skip and (not words or len(re.findall(r'[^\W_]', words[0]['text'])) > 3):
+                break
+            name = words[skip:skip + len(wanted)]
+            rest = words[skip + len(wanted):]
+            if ([bare(w['text']) for w in name] == wanted and all(w['confidence'] >= MIN_CONFIDENCE for w in name)
+                    and not [w for w in rest if w['confidence'] >= MIN_CONFIDENCE and
+                             len(re.findall(r'[^\W_]', w['text'])) >= 2]):
+                found.append(dict(row, server='confirmed'))
+                break
     return found

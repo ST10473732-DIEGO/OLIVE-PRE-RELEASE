@@ -15,7 +15,8 @@ import time
 
 from ..messaging_context import (AMBIGUOUS, MISMATCH, NOT_VISIBLE, VERIFIED, Layer, MessagingContext, adapter_for, bare,
                                  composer_state, observed_account, resolve_destination, resolve_exact,
-                                 echo_rows, exact_segment, rows, segments, switcher_candidates, typed_exactly)
+                                 echo_rows, exact_segment, rows, segments, server_rows, switcher_candidates,
+                                 typed_exactly)
 from ..visual_ocr import band, normalize, ocr_lines, ocr_rows, ocr_words, unchanged_outside
 
 SETTLE_READS, SETTLE_SECONDS = 3, .3
@@ -50,6 +51,15 @@ class VisualMessaging:
                                         submit=adapter.submit)
         self.history = runtime.desktop.record.history
         self.started = time.monotonic()
+
+    @property
+    def server_only(self):
+        """Navigation to a server alone ("Go to the RaceDay server") selects the server row."""
+        return self.scope.effect == 'go' and not self.scope.destination and bool(self.scope.server)
+
+    @property
+    def target(self):
+        return self.scope.server if self.server_only else self.scope.destination
 
     def record(self, entry):
         self.history.append({**entry, 'at': round(time.monotonic() - self.started, 2)})
@@ -248,7 +258,7 @@ class VisualMessaging:
         With select=False it only proves the destination name is unique in this
         client (the current view alone is not evidence: names repeat across servers).
         """
-        self.progress('Finding ' + self.scope.destination + '…')
+        self.progress('Finding ' + self.target + '…')
         frame = await self.frame()
         await self.runtime.native.call('visual_key', {'revision': frame['revision'], 'value': self.adapter.switcher_key})
         # Clients animate the switcher open; re-read (read-only, bounded) until it settles.
@@ -297,7 +307,7 @@ class VisualMessaging:
                 # Declared layout: results fill the dialog below the search box.
                 point = ((results[0] + results[2]) / 2, results[1] + frame['height'] * .2)
             else:
-                point, lines = await self.region(frame, 'result', label=self.scope.destination.lstrip('#@'))
+                point, lines = await self.region(frame, 'result', label=self.target.lstrip('#@'))
             if point is None:
                 continue
             # Uniqueness is judged from a wide band around the proposal, so a second
@@ -308,7 +318,7 @@ class VisualMessaging:
                 # it is the most precise anchor for the dialog bounds when readable.
                 query = [w for w in await asyncio.to_thread(ocr_words, frame, (0, search_box[1], frame['width'],
                                                                                  search_box[3]))
-                         if typed_query(w['text'], self.scope.destination) and w['confidence'] >= 60]
+                         if typed_query(w['text'], self.target) and w['confidence'] >= 60]
                 if len(query) == 1:
                     left = max(0, query[0]['box'][0] - 16)
                     results = self.results = (left, results[1], frame['width'] - left)
@@ -321,13 +331,13 @@ class VisualMessaging:
                 # re-read, so it is still counted.
                 await asyncio.sleep(SETTLE_SECONDS)
                 again = await self.frame()
-                named = len(switcher_candidates(wide, self.scope.destination))
+                named = len(switcher_candidates(wide, self.target))
                 area = results_band(again, point, *results)
                 if await asyncio.to_thread(unchanged_outside, frame, again, (0, 0, 0, 0), area):
                     coarse = wide
                 else:
                     coarse = await asyncio.to_thread(ocr_words, again, area)
-                if len(switcher_candidates(coarse, self.scope.destination)) > named:
+                if len(switcher_candidates(coarse, self.target)) > named:
                     frame = again
                     wide = await asyncio.to_thread(ocr_rows, frame, results_band(frame, point, *results), 4, 12,
                                                    self.detail_rows(), 11, 3)
@@ -338,14 +348,16 @@ class VisualMessaging:
             raise ValueError('TARGET_NOT_VISIBLE: no matching destination was proposed; nothing was selected')
         if len(candidates) != 1:
             await self.escape()
-            where = self.scope.destination + (' in ' + self.scope.server if self.scope.server else '')
-            hint = (' Add the username, for example "to ' + self.scope.destination + ' (username)".'
-                    if self.scope.destination.startswith('@') and not getattr(self.scope, 'handle', '') else
+            where = self.target + (' in ' + self.scope.server if self.scope.server and not self.server_only else '')
+            hint = (' Add the username, for example "to ' + self.target + ' (username)".'
+                    if self.target.startswith('@') and not getattr(self.scope, 'handle', '') else
                     ' Tell me which one.')
+            if self.server_only and not candidates:
+                hint = (' Name a channel too, for example "Go to #general in ' + self.target + '".')
             raise ValueError('TARGET_AMBIGUOUS: several destinations are named ' + where + '.' + hint +
                              ' Nothing was selected or sent.' if candidates else
                              'TARGET_NOT_VISIBLE: no exact destination row for ' + where +
-                             ' was found; nothing was selected or sent.')
+                             ' was found; nothing was selected or sent.' + (hint if self.server_only else ''))
         if not select:
             await self.escape()
             self.record({'operation': 'visual_uniqueness', 'status': 'destination name unique in client'})
@@ -374,7 +386,7 @@ class VisualMessaging:
             after = await self.frame()
             # Only inside the dialog: the opened channel list may show the same name.
             still = await asyncio.to_thread(ocr_words, after, (results[0], search_box[1], results[2], search_box[3]))
-            if not any(bare(w['text']) == bare(self.scope.destination) for w in still):
+            if not any(bare(w['text']) == bare(self.target) for w in still):
                 break
         else:
             await self.escape()
@@ -391,7 +403,7 @@ class VisualMessaging:
 
     def names_destination(self, words):
         """A coarse result row that may name the destination (then re-read in detail)."""
-        wanted = bare(self.scope.destination)
+        wanted = bare(self.target)
         return any(wanted and wanted in bare(w['text']) for w in words)
 
     async def type_query(self, search_box):
@@ -401,7 +413,9 @@ class VisualMessaging:
         the empty prompt is still shown nothing was entered, so the query is typed
         once more (bounded); anything else in the box stops the task.
         """
-        query = self.scope.destination.lstrip('#@')
+        query = self.target.lstrip('#@')
+        if self.server_only and self.adapter.server_prefix:
+            query = self.adapter.server_prefix + query  # Only servers are listed then.
         area = (self.results[0], search_box[1], self.results[2], search_box[3])
         prompt_word = self.adapter.switcher_prompt.split()[0]
         for attempt in range(2):
@@ -412,13 +426,15 @@ class VisualMessaging:
             while True:
                 frame = await self.frame()  # A frame after the typing (the helper waits for one).
                 words = [w for w in await asyncio.to_thread(ocr_words, frame, area, 3) if w['confidence'] >= 60]
-                if any(typed_query(w['text'], query) for w in words):
+                # A multi-word query ("D SERVER") reads back as separate OCR words: compare
+                # the joined runs of each row too, never a fragment of the query.
+                if any(typed_query(w['text'], query.lstrip('*')) for w in words + segments(words)):
                     self.record({'operation': 'visual_query', 'status': 'query visible', 'attempt': attempt + 1})
                     return
                 # A blinking caret read on its own ('|', 'l') is neither the prompt nor other text.
                 words = [w for w in words if bare(w['text']) and w['text'].strip() not in CARET_GLYPHS]
                 empty = any(prompt_word in normalize(w['text']).split() for w in words)
-                partial = any(bare(query).startswith(bare(w['text'])) for w in words)
+                partial = any(bare(query.lstrip('*')).startswith(bare(w['text'])) for w in words + segments(words))
                 # Other text twice in a row (not a frame caught mid-render) stops the task.
                 strangers = strangers + 1 if words and not empty and not partial else 0
                 if strangers >= 2 or time.monotonic() >= deadline:
@@ -435,12 +451,16 @@ class VisualMessaging:
         display name matches has the text right after the name re-read on its own
         tight line crop (small grey usernames), and must equal the username."""
         handle = getattr(self.scope, 'handle', '')
+        if self.server_only:
+            found = server_rows(words, self.target)
+            self.record({'operation': 'visual_rows', 'server_rows': len(found)})
+            return found
         if not handle:
             return self.row_candidates(words)
-        wanted = bare(self.scope.destination).split()
+        wanted = bare(self.target).split()
         wanted_handle = normalize(handle).lstrip('@').split()
         confirmed = []
-        for row in switcher_candidates(words, self.scope.destination):
+        for row in switcher_candidates(words, self.target):
             names = [w for w in row['lines'] if bare(w['text']) == wanted[-1]]
             if not names:
                 continue
@@ -454,14 +474,14 @@ class VisualMessaging:
                       if w['confidence'] >= 60 and normalize(w['text'])]
             if tokens[:len(wanted_handle)] == wanted_handle:
                 confirmed.append(dict(row, server='not requested'))
-        self.record({'operation': 'visual_rows', 'display_name_rows': len(switcher_candidates(words, self.scope.destination)),
+        self.record({'operation': 'visual_rows', 'display_name_rows': len(switcher_candidates(words, self.target)),
                      'username_confirmed': len(confirmed)})
         return confirmed
 
     def row_candidates(self, words):
         rows_ = self._row_candidates(words)
         # States only (never names): how each exact-name row's server label was judged.
-        named = switcher_candidates(words, self.scope.destination, self.scope.server, self.label_from(),
+        named = switcher_candidates(words, self.target, self.scope.server, self.label_from(),
                                     getattr(self.scope, 'handle', ''))
         self.record({'operation': 'visual_rows', 'exact_name_rows': [r['server'] for r in named],
                      'label_from': self.label_from()})
@@ -479,7 +499,7 @@ class VisualMessaging:
         server must still read exactly in the opened conversation before any text
         is entered. A confidently read different server always disqualifies.
         """
-        return [row for row in switcher_candidates(words, self.scope.destination, self.scope.server, self.label_from(),
+        return [row for row in switcher_candidates(words, self.target, self.scope.server, self.label_from(),
                                                    getattr(self.scope, 'handle', ''))
                 if row['server'] != 'other']
 
@@ -487,9 +507,38 @@ class VisualMessaging:
         frame = await self.frame()
         await self.runtime.native.call('visual_key', {'revision': frame['revision'], 'value': 'Escape'})
 
+    def remember(self):
+        """Only a verified destination becomes conversational context."""
+        runtime = self.runtime
+        if getattr(runtime, 'chat_id', None) and hasattr(runtime, 'contexts'):
+            handle = getattr(self.scope, 'handle', '')
+            destination = '' if self.server_only else self.scope.destination + (f' ({handle})' if handle else '')
+            runtime.contexts.verified_destination(runtime.chat_id, self.scope.server, destination)
+
     async def run(self):
         scope, ctx = self.scope, self.context
         sending = scope.effect == 'send'
+        if self.server_only:
+            await self.navigate()
+            self.progress('Verifying ' + scope.server + '…')
+            for attempt in range(SETTLE_READS):
+                if attempt:
+                    await asyncio.sleep(SETTLE_SECONDS)
+                frame = await self.frame()
+                anchor, lines = await self.region(frame, 'server')
+                ctx.workspace = resolve_exact(lines, scope.server, 'workspace', anchor, self.adapter.header_decorations)
+                if ctx.workspace.state == VERIFIED:
+                    break
+            if ctx.workspace.state != VERIFIED:
+                raise ValueError(('TARGET_AMBIGUOUS' if ctx.workspace.state == AMBIGUOUS else 'DESTINATION_UNVERIFIED') +
+                                 ': the server header did not read exactly ' + scope.server + ' after selection. '
+                                 'Nothing was typed.')
+            self.record({'operation': 'visual_navigate', 'status': 'server verified'})
+            self.remember()
+            d = self.runtime.desktop
+            d.record.status = 'completed'
+            d.record.verification = 'Opened and verified the server ' + scope.server + '. Nothing was typed and nothing was sent.'
+            return d.record.verification
         # Go straight to the named destination (the switcher also proves the name is
         # unique across the client), then verify the opened conversation once.
         await self.navigate()
@@ -503,6 +552,7 @@ class VisualMessaging:
             if scope.server and ctx.workspace.state != VERIFIED:
                 raise ValueError('DESTINATION_UNVERIFIED: ' + self.describe() + '. Nothing was typed.')
             self.record({'operation': 'visual_navigate', 'status': 'destination verified'})
+            self.remember()
             d = self.runtime.desktop
             d.record.status = 'completed'
             d.record.verification = ('Opened and verified ' + scope.destination + (' in ' + scope.server if scope.server else '') +
@@ -611,6 +661,7 @@ class VisualMessaging:
             if cleared and echoed == self.baseline + 1:
                 ctx.delivery = 'SENT_UI'
                 await asyncio.to_thread(ledger.verified, self.grant)
+                self.remember()
                 d = self.runtime.desktop
                 d.record.status = 'completed'
                 d.record.verification = ('The exact message appears once as the latest outgoing row in the verified '

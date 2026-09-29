@@ -77,7 +77,7 @@ def task_view(task):
 def chat_tasks(s, chat_id):
     if chat_id not in s.chats:
         raise ValueError('Unknown conversation')
-    return [task_view(t) for t in s.agent_task_repo.for_chat(chat_id) if t.kind == 'coding']
+    return [task_view(t) for t in s.agent_task_repo.for_chat(chat_id) if t.kind in {'coding', 'desktop'}]
 
 
 def workspace_task(s, workspace_id):
@@ -88,10 +88,19 @@ def workspace_task(s, workspace_id):
 def stop_task(s, task_id):
     runner = s.coding.runner
     task = runner.current
-    if not task or task.id != task_id or task.terminal:
+    if task and task.id == task_id and not task.terminal:
+        if task.chat_id:
+            s.interaction.cancel(task.chat_id)
+        return {'stopped': True}
+    # A desktop task card: Stop reaches the native loop first (no queued input).
+    native = getattr(getattr(s, 'desktop', None), 'linux', None)
+    record = getattr(native, 'task_record', None) if native else None
+    desktop = getattr(record, 'task', None)
+    if desktop is None or desktop.id != task_id or desktop.terminal:
         return {'stopped': False}
-    if task.chat_id:
-        s.interaction.cancel(task.chat_id)
+    native.stop()
+    if desktop.chat_id:
+        s.interaction.cancel(desktop.chat_id)
     return {'stopped': True}
 
 

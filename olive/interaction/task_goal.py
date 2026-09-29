@@ -257,8 +257,9 @@ def requested_effects(request, constraints=(), conditions=()):
             elif re.match(r'(?:the\s+)?(?:page|result|official)', rest):
                 add('visit')
             elif first and not re.match(r'(?:a|an|the|it|this|that)$', first):
-                app = re.match(r'([\w.+-]+(?:\s+[A-Z][\w.+-]*)?)', rest).group(1)
-                add('open', app)
+                named = re.match(r'([\w.+-]+(?:\s+[A-Z][\w.+-]*)?)', rest)
+                if named:  # "open #gen-chat" names a channel, not an application.
+                    add('open', named.group(1))
         elif verb in {'visit', 'go to'}:
             add('visit')
         elif verb.startswith('search') or verb in {'find', 'look up'}:

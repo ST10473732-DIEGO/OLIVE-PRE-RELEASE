@@ -31,6 +31,9 @@ async function ask(page: Page, text: string, timeout = 240000) {
   await page.getByRole("textbox", { name: "Message OLIVE", exact: true }).fill(text);
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.locator(".message-assistant")).toHaveCount(before + 1, { timeout });
+  // A running desktop task shows its card (status, Stop) until the reply lands.
+  await expect(page.locator(".task-card[data-state='running']")).toHaveCount(0, { timeout });
+  await expect(page.locator(".message-assistant").last()).not.toContainText("Working…", { timeout });
   return page.locator(".message-assistant").last().innerText();
 }
 
@@ -64,13 +67,19 @@ test("LIVE desktop: Firefox local page and Discord navigate-only", async () => {
     ({ app, page } = await launch(profile));
     let started = Date.now();
     results.firefox = await ask(page, `Open http://127.0.0.1:${port}/ in Firefox`);
+    // Several Firefox windows and none focused: OLIVE asks instead of guessing.
+    // The answer is an ordinary Chat reply; nothing was typed before it.
+    if (/Which one should I use\?/.test(String(results.firefox))) {
+      results.firefox_question = results.firefox;
+      results.firefox = await ask(page, "1");
+    }
     results.firefox_seconds = (Date.now() - started) / 1000;
-    // Either the page is verified, or OLIVE refused safely (for example several
-    // Firefox windows: it never picks one by guess). Both are recorded; only a
-    // refusal-free, unverified claim would be a failure.
-    expect(String(results.firefox)).toMatch(new RegExp(`${token}|verified|Multiple windows match|Task incomplete`, "i"));
-    results.firefox_verified = !/Multiple windows match|Task incomplete/i.test(String(results.firefox));
+    expect(String(results.firefox)).toMatch(/Page verified|Navigated to 127\.0\.0\.1/);
+    results.firefox_verified = true;
     await page.screenshot({ path: path.join(shots, "F-firefox.png") });
+    // Follow-up without naming Firefox; closes only the fixture tab OLIVE opened.
+    results.firefox_close = await ask(page, "Close this tab");
+    expect(String(results.firefox_close)).toContain(`Closed the tab "OLIVE fixture ${token}"`);
     if (discordTarget) {
       started = Date.now();
       results.discord = await ask(page, `Open Discord and go to ${discordTarget}`, 300000);

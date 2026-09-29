@@ -18,6 +18,11 @@ FAILURE_CATEGORIES = {
     "application not found", "window unavailable", "control changed", "authorization required",
     "task timed out", "no progress", "preview failed", "port unavailable", "command cancelled",
     "external outcome uncertain", "model unavailable", "invalid proposal", "unsaved editor changes",
+    # Desktop navigation (OLIVE_DESKTOP_NAVIGATION.md).
+    "application not installed", "application did not open", "multiple windows match", "window disappeared",
+    "control unavailable", "control ambiguous", "stale observation", "target not visible",
+    "destination unverified", "dialog requires user", "authentication required", "captcha required",
+    "desktop control unavailable", "input refused", "navigation timed out", "desktop outcome uncertain",
 }
 # Bounded history so a long task cannot grow its record without limit.
 MAX_TIMELINE = 60

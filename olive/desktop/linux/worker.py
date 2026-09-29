@@ -16,13 +16,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from olive.desktop.linux.portal import Portal, GLib
 from olive.desktop.linux.accessibility import Accessibility, ObservationAborted
 from olive.desktop.linux.geometry import approved_region
+from olive.desktop.linux.monitors import FrameSpace, Layout, Monitor, WindowCrop, input_point, inside
 from olive.desktop.task_authority import scroll_amount
+from olive.desktop.key_policy import key_codes, canonical
 
 
 
 # Requests that only observe; every other request may change the screen.
 READ_ONLY = frozenset({'diagnostic', 'probe', 'visual_observe', 'capture', 'observe', 'browser_chrome',
-                       'document_locations', 'application_windows'})
+                       'document_locations', 'application_windows', 'monitors'})
+BROWSER_KEYS = {'back': 'Alt+Left', 'forward': 'Alt+Right', 'reload': 'Ctrl+R', 'new_tab': 'Ctrl+T',
+                'close_tab': 'Ctrl+W', 'reopen_tab': 'Ctrl+Shift+T', 'find': 'Ctrl+F', 'next': 'Ctrl+PageDown', 'previous': 'Ctrl+PageUp',
+                'page_up': 'PageUp', 'page_down': 'PageDown', 'escape': 'Escape'}
+# Only chrome fields whose content is navigation text may be replaced (never a draft).
+REPLACEABLE = ('search', 'address', 'find', 'location', 'url', 'filter')
 
 class Worker:
     def __init__(self):
@@ -121,6 +128,37 @@ class Worker:
             self.event('session-locked')
             raise PermissionError('The desktop session is locked')
 
+    def layout(self):
+        """The consented monitors as one layout (portal stream geometry is logical)."""
+        monitors = []
+        for _, meta in self.portal.all_streams or []:
+            position, size, name = meta.get('position'), meta.get('size'), meta.get('mapping_id')
+            if position is not None and size is not None and name:
+                monitors.append(Monitor(str(name), *position, *size))
+        return Layout(tuple(monitors)) if monitors else None
+
+    def bound(self, keys=('id', 'pid', 'bounds', 'output')):
+        """The task's bound window, unchanged and active, or an error (never a sibling window)."""
+        from olive.desktop.linux.kwin import windows
+        if not self.window:
+            raise PermissionError('No window is bound to this task; observe again')
+        found = [w for w in windows(self.portal.bus, self.window['pid'], self.stopped) if w['id'] == self.window['id']]
+        if len(found) != 1:
+            raise PermissionError('WINDOW_DISAPPEARED: the bound window closed; nothing was sent')
+        if not found[0]['active'] or any(found[0][k] != self.window[k] for k in keys):
+            raise PermissionError('Compositor focus or window geometry changed; observe again')
+        return found[0]
+
+    def active_window(self, pid):
+        """The one active window of `pid`; when a window is bound it must be that one."""
+        from olive.desktop.linux.kwin import windows
+        found = [w for w in windows(self.portal.bus, pid, self.stopped) if w['active']]
+        if len(found) != 1 or not found[0]['active']:
+            raise PermissionError('Requested window lost focus')
+        if self.window and self.window.get('pid') == pid and found[0]['id'] != self.window['id']:
+            raise PermissionError('WINDOW_CHANGED: another window of the application is focused; observe again')
+        return found[0]
+
     def dispatch(self, method, args):
         if method == 'diagnostic' and not args:
             return self.portal.diagnostic()
@@ -177,11 +215,19 @@ class Worker:
         if method == 'application_windows' and set(args) == {'desktop_id'}:
             from olive.desktop.linux.kwin import windows
             return windows(self.portal.bus, 0, self.stopped, desktop_id=args['desktop_id'])
-        if method == 'activate' and set(args) == {'pid','purpose'} and type(args['pid']) is int and args['pid'] > 0 and args['purpose'] in {'exact','open','new_document','visual'}:
+        if method == 'monitors' and not args:
+            layout = self.layout()
+            return {'monitors': [dict(name=m.name, geometry=list(m.bounds)) for m in layout.monitors] if layout else [],
+                    'mapped': self.eis.mapping_id if self.eis else ''}
+        if (method == 'activate' and set(args) in ({'pid', 'purpose'}, {'pid', 'purpose', 'window_id'}) and
+                type(args['pid']) is int and args['pid'] > 0 and args['purpose'] in {'exact','open','new_document','visual'}
+                and isinstance(args.get('window_id', ''), str)):
             from olive.desktop.linux.kwin import activate_window
             from olive.desktop.linux.capture import Capture
             visual = args['purpose'] == 'visual'
-            window = activate_window(self.portal.bus, args['pid'], self.stopped, purpose='exact' if visual else args['purpose'])
+            self.window = None  # A new activation rebinds; nothing earlier stays valid.
+            window = activate_window(self.portal.bus, args['pid'], self.stopped,
+                                     purpose='exact' if visual else args['purpose'], window_id=args.get('window_id', ''))
             streams = [s for s in self.portal.all_streams if s[1].get('mapping_id') == window['output']]
             if len(streams) != 1:
                 raise PermissionError('Requested window output is not mapped to a portal stream')
@@ -198,8 +244,10 @@ class Worker:
                 return {'active': True, 'accessible': False, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
             try:
                 self.accessibility.bind_geometry(args['pid'], window['bounds'])
+                # With an exact KWin window binding, sibling windows of the same
+                # process are expected; the compositor already verified which one is active.
                 self.accessibility.activate(args['pid'], approved_region(self.portal.streams[0][1]), self.stopped,
-                                            allow_active_window=args['purpose'] != 'exact')
+                                            allow_active_window=args['purpose'] != 'exact' or bool(args.get('window_id')))
                 return {'active': True, 'accessible': True, 'window_id': window['id'], 'bounds': window['bounds'], 'output': window['output'], 'input_region': list(self.eis.region), 'mapping_id': self.eis.mapping_id}
             except (LookupError, TimeoutError):
                 # An inaccessible Chromium frame is not evidence that KWin lost
@@ -215,17 +263,18 @@ class Worker:
             import base64
             import io
             from PIL import Image
-            found = [w for w in windows(self.portal.bus, args['pid'], self.stopped) if w['active']]
-            if len(found) != 1 or not found[0]['active']:
-                raise PermissionError('Visual target lost focus or became ambiguous')
+            try:
+                found = [self.active_window(args['pid'])]
+            except PermissionError as error:
+                raise PermissionError('Visual target lost focus or became ambiguous' if 'lost focus' in str(error)
+                                      else str(error)) from None
             region = approved_region(self.portal.streams[0][1])
             if not contains(region, found[0]['bounds']):
-                raise PermissionError('Visual target left the mapped display')
+                raise PermissionError('Visual target left the mapped display (WINDOW_OFF_MONITOR: it is not entirely '
+                                      'on the monitor being observed)')
             frame = self.capture.frame(since=self.last_input)
-            x, y, width, height = found[0]['bounds']
-            sx, sy = frame['width']/region[2], frame['height']/region[3]
-            left, top = round((x-region[0])*sx), round((y-region[1])*sy)
-            right, bottom = round((x+width-region[0])*sx), round((y+height-region[1])*sy)
+            crop = FrameSpace(tuple(region), int(frame['width']), int(frame['height'])).crop(found[0]['bounds'])
+            left, top, right, bottom = crop.box
             with Image.open(io.BytesIO(base64.b64decode(frame['png']))) as image:
                 cropped = image.crop((left, top, right, bottom))
                 data = io.BytesIO()
@@ -233,80 +282,150 @@ class Worker:
             self.window = found[0]
             import uuid
             result = {**frame, 'png': base64.b64encode(data.getvalue()).decode(),
-                    'width': right-left, 'height': bottom-top, 'crop_origin': [left, top], 'window': self.window}
+                    'width': right-left, 'height': bottom-top, 'crop_origin': [left, top], 'window': self.window,
+                    'crop': crop.describe(), 'monitor': self.portal.streams[0][1].get('mapping_id', '')}
             result['revision'] = uuid.uuid4().hex
             self.visual_frame = result
             return result
         if method == 'visual_click' and set(args) == {'revision', 'point'}:
-            from olive.desktop.linux.kwin import windows
-            from olive.desktop.linux.geometry import pixel_point
             frame, self.visual_frame = self.visual_frame, None
             if not frame or args['revision'] != frame['revision'] or time.monotonic()-frame['captured_at'] > 10:
                 raise ValueError('Stale visual observation')
-            current = windows(self.portal.bus, self.window['pid'], self.stopped)
-            if len(current) != 1 or not current[0]['active'] or any(current[0][k] != frame['window'][k] for k in ('id', 'bounds', 'output', 'title')):
+            if any(frame['window'][k] != self.window[k] for k in ('id', 'bounds', 'output', 'title')):
                 raise PermissionError('Visual target focus or geometry changed')
-            point = pixel_point(self.window['bounds'], [frame['width'], frame['height']], args['point'])
+            try:
+                self.bound(keys=('id', 'bounds', 'output', 'title'))
+            except PermissionError:
+                raise PermissionError('Visual target focus or geometry changed') from None
+            point = args['point']
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise ValueError('Invalid visual point')
+            # Crop pixels -> global logical through the one coordinate module; the
+            # point must stay inside the bound window and the consented monitor.
+            point = WindowCrop.restore(frame['crop']).to_logical(*point)
+            # The coordinate fallback is bound to this window, frame revision and geometry.
+            from olive.desktop.observation_revision import CoordinateTarget, Observation
+            CoordinateTarget(frame['window']['id'], frame['revision'], tuple(frame['window']['bounds']), point).check(
+                Observation(frame['revision'], self.window['id'], self.window['pid'], '', tuple(self.window['bounds']),
+                            self.window['output'], '', ''))
+            input_point(self.layout(), self.eis.region, point)
             self.eis.click(*point)
             return {'dispatched': True}
         if method in {'visual_text', 'visual_key'} and set(args) == {'revision', 'value'}:
             # Visual-only clients: literal text into the focused field, or one key
             # from a fixed allowlist. Requires the latest unconsumed frame of the
             # same pinned window; the runtime binds values to the task scope.
-            from olive.desktop.linux.kwin import windows
             frame, self.visual_frame = self.visual_frame, None
             if not frame or args['revision'] != frame['revision'] or time.monotonic()-frame['captured_at'] > 10:
                 raise ValueError('Stale visual observation')
-            current = windows(self.portal.bus, self.window['pid'], self.stopped)
-            if len(current) != 1 or not current[0]['active'] or any(current[0][k] != frame['window'][k] for k in ('id', 'bounds', 'output', 'title')):
+            if any(frame['window'][k] != self.window[k] for k in ('id', 'bounds', 'output', 'title')):
                 raise PermissionError('Visual target focus or geometry changed')
+            try:
+                self.bound(keys=('id', 'bounds', 'output', 'title'))
+            except PermissionError:
+                raise PermissionError('Visual target focus or geometry changed') from None
             value = args['value']
             if method == 'visual_text':
                 if not isinstance(value, str) or not 1 <= len(value) <= 4000 or any(ord(c) < 32 for c in value):
                     raise ValueError('Invalid literal text')
                 self.eis.text(value)
-            elif value == 'ctrl+k':
-                self.eis.chord_codes([29, 37])
-            elif value in {'Enter', 'Escape'}:
-                self.eis.key(value)
+            elif value in {'ctrl+k', 'Enter', 'Escape'}:
+                self.eis.chord_codes(key_codes(canonical(value), 'messaging'))
             else:
                 raise ValueError('Unsupported visual key')
             return {'dispatched': True}
-        if method == 'browser_visit' and set(args) == {'pid', 'url'}:
+        if method == 'browser_visit' and set(args) in ({'pid', 'url'}, {'pid', 'url', 'new_tab'}):
             from olive.desktop.browser_url import validated_url
-            if not self.window or self.window['pid'] != args['pid']:
+            if not self.window or self.window['pid'] != args['pid'] or type(args.get('new_tab', True)) is not bool:
                 raise PermissionError('Browser window is not bound')
-            self.browser_search = {'query': validated_url(args['url']), 'stage': 0, 'visit': True}
-            return {'ready': True}
-        if method == 'browser_begin' and set(args) == {'pid', 'query'}:
-            if not self.window or self.window['pid'] != args['pid'] or not isinstance(args['query'], str) or not 1 <= len(args['query']) <= 2000 or any(ord(c) < 32 for c in args['query']):
+            steps = (('new_tab',) if args.get('new_tab', True) else ()) + ('address', 'type_query', 'submit')
+            self.browser_search = {'query': validated_url(args['url']), 'stage': 0, 'visit': True, 'steps': steps}
+            return {'ready': True, 'steps': list(steps)}
+        if method == 'browser_begin' and set(args) in ({'pid', 'query'}, {'pid', 'query', 'new_tab'}):
+            if not self.window or self.window['pid'] != args['pid'] or not isinstance(args['query'], str) or not 1 <= len(args['query']) <= 2000 or any(ord(c) < 32 for c in args['query']) or type(args.get('new_tab', True)) is not bool:
                 raise ValueError('Invalid browser search scope')
-            self.browser_search = {'query': args['query'], 'stage': 0}
-            return {'ready': True}
-        if method == 'browser_navigation' and set(args) == {'operation', 'direction'}:
-            from olive.desktop.linux.kwin import windows
-            current = [w for w in windows(self.portal.bus, self.window['pid'], self.stopped) if w['active']]
-            if len(current) != 1 or any(current[0][k] != self.window[k] for k in ('id', 'bounds', 'output')):
-                raise PermissionError('Browser focus or geometry changed')
+            steps = (('new_tab',) if args.get('new_tab', True) else ()) + ('address', 'type_query', 'submit')
+            self.browser_search = {'query': args['query'], 'stage': 0, 'steps': steps}
+            return {'ready': True, 'steps': list(steps)}
+        if method == 'browser_navigation' and set(args) in ({'operation', 'direction'}, {'operation', 'direction', 'bounds'}):
+            try:
+                self.bound(keys=('id', 'bounds', 'output'))
+            except PermissionError as error:
+                raise PermissionError('Browser focus or geometry changed' if 'geometry' in str(error) else str(error)) from None
             operation, direction = args['operation'], args['direction']
             if operation == 'tab' and direction in {'next', 'previous'}:
-                self.eis.chord_codes([29, 109 if direction == 'next' else 104])
+                self.eis.chord_codes(key_codes(BROWSER_KEYS[direction], 'browser'))
+            elif operation == 'browse' and direction in BROWSER_KEYS:
+                self.eis.chord_codes(key_codes(BROWSER_KEYS[direction], 'browser'))
+            elif operation == 'history' and direction in {'back', 'forward'}:
+                self.eis.chord_codes(key_codes(BROWSER_KEYS[direction], 'file_manager'))
             elif operation == 'scroll' and direction in {'up', 'down'}:
-                x, y, width, height = self.window['bounds']
-                self.eis.move(x+width/2, y+height*.7)
+                # Scroll the verified container (the page document by default),
+                # never another pane: the pointer goes to its centre first.
+                area = args.get('bounds') or [self.window['bounds'][0], self.window['bounds'][1] + self.window['bounds'][3] * .4,
+                                              self.window['bounds'][2], self.window['bounds'][3] * .6]
+                if not inside(self.window['bounds'], area):
+                    raise PermissionError('INPUT_REFUSED: the scroll container is outside the bound window')
+                x, y, width, height = area
+                point = input_point(self.layout(), self.eis.region, (x + width / 2, y + height / 2))
+                self.eis.move(*point)
                 self.eis.scroll(480 if direction == 'down' else -480)
             else:
                 raise ValueError('Unknown browser navigation')
             return {'dispatched': True}
+        if method == 'replace_text' and set(args) == {'revision', 'target', 'bounds', 'value'}:
+            # Navigation text into a focused *chrome* search/address/find field only.
+            self.bound(keys=('id', 'pid', 'bounds', 'output'))
+            node = self.accessibility.check(args['revision'], args['target'], args['bounds'],
+                                            approved_region(self.portal.streams[0][1]), require_focus=True)
+            value = args['value']
+            if not isinstance(value, str) or not 1 <= len(value) <= 2000 or any(ord(c) < 32 for c in value):
+                raise ValueError('Invalid navigation text')
+            if not any(word in (node.get_name() or '').casefold() for word in REPLACEABLE) or \
+                    self.accessibility.in_document(node):
+                raise PermissionError('INPUT_REFUSED: only a browser search, address or find field can be replaced')
+            self.accessibility.revision = ''
+            from gi.repository import Atspi
+            editor, text = node.get_editable_text_iface(), node.get_text_iface()
+            accepted = bool(editor and editor.set_text_contents(value) and text and
+                            Atspi.Text.get_text(text, 0, min(text.get_character_count(), 2001)) == value)
+            if not accepted:
+                # Some chrome inputs (Firefox's find bar) report success without changing.
+                # The verified field still has focus: select its own text and type once.
+                self.eis.chord_codes(key_codes('Ctrl+A', 'field'))
+                self.eis.text(value)
+            return {'dispatched': True, 'method': 'semantic' if accepted else 'keys'}
+        if method == 'show_folder' and set(args) == {'uri'}:
+            from urllib.parse import unquote, urlsplit
+            from gi.repository import Gio
+            uri = args['uri']
+            parsed = urlsplit(uri) if isinstance(uri, str) else None
+            if (not parsed or parsed.scheme != 'file' or parsed.netloc or len(uri) > 2000 or
+                    any(ord(c) < 32 for c in uri) or not os.path.isdir(unquote(parsed.path))):
+                raise ValueError('Invalid folder location')
+            self.portal.bus.call_sync('org.freedesktop.FileManager1', '/org/freedesktop/FileManager1',
+                'org.freedesktop.FileManager1', 'ShowFolders', GLib.Variant('(ass)', ([uri], '')),
+                None, Gio.DBusCallFlags.NONE, 5000, None)
+            return {'dispatched': True}
+        if method == 'close_window' and set(args) == {'window_id'}:
+            from olive.desktop.linux.kwin import close_window
+            if not self.window or self.window['id'] != args['window_id']:
+                raise PermissionError('Only the bound window can be closed')
+            result = close_window(self.portal.bus, self.window['pid'], args['window_id'], self.stopped)
+            if result['closed']:
+                self.window = None
+                self.accessibility.clear()
+            return result
         if method == 'browser_step' and set(args) == {'step'}:
             from olive.desktop.linux.kwin import windows
             search = self.browser_search
-            steps = ('new_tab', 'address', 'type_query', 'submit')
+            steps = search.get('steps', ('new_tab', 'address', 'type_query', 'submit')) if search else ()
             if not search or search['stage'] >= len(steps) or args['step'] != steps[search['stage']]:
                 raise PermissionError('Browser step is stale or outside this task')
-            found = windows(self.portal.bus, self.window['pid'], self.stopped)
-            if len(found) != 1 or not found[0]['active'] or any(found[0][k] != self.window[k] for k in ('id', 'pid', 'bounds', 'output')):
-                raise PermissionError('Browser focus or geometry changed')
+            try:
+                self.bound(keys=('id', 'pid', 'bounds', 'output'))
+            except PermissionError as error:
+                raise PermissionError('Browser focus or geometry changed' if 'geometry' in str(error) else str(error)) from None
             search['stage'] += 1  # Never replay a partially dispatched effect.
             if args['step'] == 'type_query':
                 self.eis.text(('' if search.get('visit') else '? ') + search['query'])
@@ -317,11 +436,7 @@ class Worker:
                 and type(args['pid']) is int and args['pid'] > 0 and
                 (method == 'observe' or 'item' not in args) and
                 isinstance(args.get('item', ''), str) and len(args.get('item', '')) <= 255):
-            from olive.desktop.linux.kwin import windows
-            matches = [w for w in windows(self.portal.bus, args['pid'], self.stopped) if w['active']]
-            if len(matches) != 1 or not matches[0]['active']:
-                raise PermissionError('Requested window lost focus')
-            self.window = matches[0]
+            self.window = self.active_window(args['pid'])
             self.accessibility.bind_geometry(args['pid'], self.window['bounds'])
             region = approved_region(self.portal.streams[0][1])
             if method == 'document_locations':
@@ -404,10 +519,7 @@ class Worker:
         required = {'revision', 'target', 'bounds', 'value'}
         if method not in {'focus', 'click', 'type', 'key', 'invoke', 'scroll'} or set(args) != required:
             raise ValueError('Unknown native action or fields')
-        from olive.desktop.linux.kwin import windows
-        observed = [w for w in windows(self.portal.bus, self.window['pid'], self.stopped) if w['active']] if self.window else []
-        if len(observed) != 1 or not observed[0]['active'] or any(observed[0][k] != self.window[k] for k in ('id', 'pid', 'bounds', 'output')):
-            raise PermissionError('Compositor focus or window geometry changed; observe again')
+        self.bound(keys=('id', 'pid', 'bounds', 'output'))
         node = self.accessibility.check(args['revision'], args['target'], args['bounds'],
                                          approved_region(self.portal.streams[0][1]),
                                          require_focus=method in {'type', 'key'})
@@ -447,9 +559,13 @@ class Worker:
                     x + width <= origin[0] + size[0] and y + height <= origin[1] + size[1]):
                 raise PermissionError('Target is outside the approved display or coordinates are unavailable')
             self.accessibility.hit_test(node, x + width / 2, y + height / 2)
+            input_point(self.layout(), self.eis.region, (x + width / 2, y + height / 2))
             self.eis.click(x + width / 2, y + height / 2)
         elif method == 'key':
-            self.eis.key(args['value'])
+            name = canonical(args['value'])
+            if name is None:
+                raise ValueError('Unsupported key; commands and arbitrary chords are not accepted')
+            self.eis.chord_codes(key_codes(name))
         elif method == 'scroll':
             x, y, width, height = args['bounds']
             self.eis.move(x + width / 2, y + height / 2)

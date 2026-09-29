@@ -54,8 +54,11 @@ class Applications:
                     if not argv:
                         continue
                     executable = Path(shutil.which(argv[0]) or '').resolve()
-                    # No env/shell/interpreter command wrappers or terminal shortcut.
-                    if executable.name in {'env', 'sh', 'bash', 'fish', 'zsh', 'python', 'python3', 'konsole', 'xterm'}:
+                    # No env/shell/interpreter command wrappers or terminal shortcut. The
+                    # terminal application itself may be opened, only without arguments
+                    # (never `konsole -e command`); OLIVE does not type into it.
+                    if executable.name in {'env', 'sh', 'bash', 'fish', 'zsh', 'python', 'python3', 'xterm'} or \
+                            executable.name == 'konsole' and len(argv) != 1:
                         continue
                     executable_stat = executable.stat()
                     if not executable.is_file() or executable_stat.st_uid not in {0, os.getuid()} or executable_stat.st_mode & 0o022:
@@ -71,6 +74,25 @@ class Applications:
                     continue
         self.values = result
         return list(result.values())
+
+    def kind(self, app):
+        """browser | messaging | file_manager | terminal | editor | settings | app, from the reviewed entry."""
+        try:
+            config = configparser.ConfigParser(interpolation=None)
+            config.read(app.entry)
+            categories = set(config['Desktop Entry'].get('Categories', '').split(';'))
+        except (OSError, KeyError, configparser.Error, TypeError):
+            return 'app'
+        from ..messaging_context import adapter_for
+        for category, kind in (('WebBrowser', 'browser'), ('FileManager', 'file_manager'),
+                               ('TerminalEmulator', 'terminal'), ('TextEditor', 'editor')):
+            if category in categories:
+                return kind
+        if 'InstantMessaging' in categories or adapter_for(app.name) is not None:
+            return 'messaging'
+        if 'Settings' in categories:
+            return 'settings'
+        return 'app'
 
     def resolve(self, requested):
         wanted = normalized(requested)
@@ -127,11 +149,13 @@ class Applications:
             raise PermissionError('Application process lifetime or executable changed')
         return process
 
-    def launch(self, app):
+    def launch(self, app, force=False):
+        """Launch from the reviewed entry. `force` launches once even when the app runs
+        (single-instance apps show their existing window); never a retry loop."""
         if self.values.get(app.id) is not app or hashlib.sha256(app.entry.read_bytes()).hexdigest() != app.digest:
             raise PermissionError('Application entry changed; review again')
         existing = self.processes(app)
-        if existing:
+        if existing and not force:
             return existing
         # Preserve normal profile and existing windows. Never terminate a user app.
         environment = dict(os.environ)

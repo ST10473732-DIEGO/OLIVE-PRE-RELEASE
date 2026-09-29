@@ -17,7 +17,29 @@ from ..task_authority import decode_action, validate_effect, is_composer, same_c
 from ..grounded_steps import next_step
 from ..effect_ledger import EffectLedger
 from ..gui_evidence import messaging_destination, delivery, delivery_rows, search_result
+from ..desktop_context import DesktopContexts
+from ..desktop_tasks import DesktopTaskRecord, category_for
+from ..window_targets import (WindowBinding, WindowHint, WindowIdentity, WindowResolutionError, clarification,
+                              display_title, resolve_window)
 from ...agent.model_router import RoutingRequest
+
+# Effects executed by the window-bound navigator (navigator.py).
+REASONS = {'focused': ' (the window you were using)', 'title': ' (window matched by its title)',
+           'choice': ' (the window you chose)', 'bound': '', 'only': ''}
+NAVIGATOR_EFFECTS = frozenset({'open', 'focus', 'visit', 'search', 'browse', 'tab', 'find', 'scroll', 'close_window'})
+LAUNCH_WINDOW_SECONDS = 20   # cold launch until the application shows a window
+
+
+class WindowChoiceNeeded(ValueError):
+    """Several windows remain after deterministic disambiguation: ask, never guess."""
+
+    def __init__(self, application, resolution):
+        super().__init__(clarification(application, resolution))
+        self.resolution = resolution
+
+
+class NoWindow(LookupError):
+    """The application runs but shows no window (for example minimized to the tray)."""
 
 SCHEMA = {'type': 'object', 'additionalProperties': False,
           'required': ['action', 'target', 'value', 'revision', 'expected'],
@@ -45,6 +67,11 @@ class LinuxRuntime:
         self.permission_session = None
         self.reconnect_required = False
         self.probe_lock = asyncio.Lock()
+        self.contexts = DesktopContexts()
+        self.task_record = None
+        self.default_browser = ''
+        self.bound_processes = {}
+        self.last_navigation = {}   # Diagnostics: identities and states only, never screen text.
 
     async def probe(self):
         async with self.probe_lock:
@@ -69,6 +96,69 @@ class LinuxRuntime:
         # Emit directly: Stop is effective even if the history store is locked.
         self.desktop.s.publish('desktop', self.desktop.status())
 
+    def navigation_context(self, chat_id):
+        """The bounded conversational desktop context for a chat (never persisted)."""
+        context = self.contexts.get(chat_id)
+        context.default_browser = self.browser_name()
+        return context
+
+    def browser_name(self):
+        """The user's default web browser's installed name (xdg-mime), else Firefox."""
+        if not self.default_browser:
+            import subprocess
+            name = 'Firefox'
+            try:
+                result = subprocess.run(['xdg-mime', 'query', 'default', 'x-scheme-handler/https'], shell=False,
+                                        capture_output=True, text=True, timeout=2, check=False)
+                entry = result.stdout.strip()
+                if not self.apps.values and hasattr(self.apps, 'discover'):
+                    self.apps.discover()
+                values = getattr(self.apps, 'values', {}) or {}
+                if entry in values:
+                    name = values[entry].name
+            except (OSError, subprocess.SubprocessError, TypeError, AttributeError):
+                pass
+            self.default_browser = name
+        return self.default_browser
+
+    def progress(self, text):
+        """Compact factual status: the task card, the desktop record and Chat."""
+        d = self.desktop
+        if self.task_record:
+            self.task_record.status(text)
+        if d.record:
+            d.record.current_action = text
+            d.publish()  # Also forwards the action to this chat's activity line.
+        elif self.chat_id:
+            d.s.publish('interaction_activity', {'chat_id': self.chat_id, 'message': text})
+
+    def settle_pending(self, pending, how):
+        """The earlier task that asked the question is closed; the new task does the work."""
+        repo = getattr(self.desktop.s, 'agent_task_repo', None)
+        if not pending or not pending.get('task_id') or repo is None:
+            return
+        task = repo.load_all().get(pending['task_id'])
+        if task is None or task.terminal:
+            return
+        task.note({'choice': 'You chose a window; continuing in a new step', 'continue': 'Continuing after your reply',
+                   'correction': 'Corrected by you; continuing in a new step',
+                   'superseded': 'Replaced by your next request'}.get(how, 'Continued'), 'info')
+        task.transition('completed')
+        task.failure_category, task.error = '', None  # The question was answered; nothing failed.
+        repo.save(task)
+        self.desktop.s.publish('agent', {'id': task.id, 'kind': 'desktop', 'state': task.state})
+
+    def owned_page(self, binding):
+        context = self.contexts.values.get(self.chat_id) if self.chat_id else None
+        if context and context.window and binding and context.window.window_id == binding.window_id:
+            return context.page_url
+        return ''
+
+    def remember_page(self, binding, url):
+        context = self.contexts.values.get(self.chat_id) if self.chat_id else None
+        if context and context.window and binding and context.window.window_id == binding.window_id:
+            context.page_url = url
+
     def stop(self):
         self.authority.cancel()
         self.native.request_stop()
@@ -92,7 +182,8 @@ class LinuxRuntime:
                 'screen_capture': 'Combined RemoteDesktop/PipeWire; requires the owner-provisioned named KDE grant',
                 'accessibility': 'App-scoped AT-SPI with compositor geometry checks',
                 'remote_input': 'Local portal EIS adapter only; no network desktop control',
-                'window_enumeration': 'Scoped application PID only; no global KWin window enumeration',
+                'window_enumeration': 'App-scoped KWin windows (desktop ID plus verified process); no global enumeration',
+                'navigation': self.last_navigation,
                 'application_control': 'Local Chat tasks with bounded input leases',
                 'physical_takeover_detection': 'Unavailable: no global physical-input monitor; focus changes stop targeted input',
                 'scope': 'One portal monitor; app-scoped AT-SPI; finite local task',
@@ -110,13 +201,13 @@ class LinuxRuntime:
         if not self.available():
             raise PermissionError(self.probe_error or 'Required portal interfaces are unavailable')
         await self.native.call('reset')
-        d.record.current_action = 'Starting local desktop task'
+        d.record.current_action = 'Preparing desktop control…'
         d.publish()
         self.session = await self.native.call('start', timeout=15)
         self.last_session_evidence = self.session
 
     async def run(self, request, message_id, interpretation=None, continuation_epoch=None,
-                  bound_step=None, results=None):
+                  bound_step=None, results=None, window_hint=None):
         d = self.desktop
         if self.owner or d.busy():
             raise ValueError('A desktop task is already active')
@@ -131,19 +222,49 @@ class LinuxRuntime:
             self.capabilities = None
             self.reconnect_required = False
         d.stop_event.clear()
+        context = parsed = None
+        if self.chat_id and bound_step is None and interpretation is None:
+            from ..navigation_requests import contextual_request
+            context = self.navigation_context(self.chat_id)
+            try:
+                parsed = contextual_request(request, context)
+            except (ValueError, PermissionError):
+                parsed = None  # issue() raises the same clarification below.
         grant = self.authority.issue(request, message_id, d.configuration(), local_user=True,
-                                     interpretation=interpretation, bound_step=bound_step, results=results)
+                                     interpretation=interpretation, bound_step=bound_step, results=results,
+                                     desktop_context=context)
+        hint = window_hint or (parsed.hint if parsed else WindowHint())
+        if parsed is not None and parsed.kind in {'choice', 'continue', 'correction'}:
+            self.settle_pending(self.contexts.resolve_pending(self.chat_id), parsed.kind)
+        elif self.chat_id and context is not None and context.pending_now():
+            # A new request replaces an unanswered question; its card does not wait forever.
+            self.settle_pending(self.contexts.resolve_pending(self.chat_id), 'superseded')
         self.owner = asyncio.current_task()
         self.effect_attempted = False
         d.record = DesktopControlSession('Local user-directed ' + grant.scope.effect, id=grant.id)
         d.record.status = 'running'
+        record = self.task_record = DesktopTaskRecord(d.s, self.chat_id, message_id, request) \
+            if self.chat_id and continuation_epoch is None and bound_step is None else DesktopTaskRecord(d.s, None, None, '')
+        if parsed is not None and parsed.status:
+            d.record.current_action = parsed.status
         effect_attempted = False
         preparation_started = False
+        outcome = None
         try:
             d.publish()  # Required history admission before any launch/input.
             await asyncio.to_thread(self.apps.discover)
-            app = self.apps.resolve(grant.scope.application)
+            try:
+                app = self.apps.resolve(grant.scope.application)
+            except LookupError:
+                raise ValueError('APPLICATION_NOT_INSTALLED: no reviewed installed application named "' +
+                                 grant.scope.application + '" was found; nothing was opened') from None
             d.record.application = app.name
+            kind = self.apps.kind(app) if hasattr(self.apps, 'kind') else ''
+            if context is not None and self.chat_id:
+                context = self.contexts.select(self.chat_id, app.name, getattr(app, 'id', ''), kind)
+                if context.window is not None and not (hint.choice_id or hint.bound_id or hint.exclude_id):
+                    # Same application, same conversation: keep using the bound window.
+                    hint = WindowHint(bound_id=context.window.window_id, bound_pid=context.window.pid, title=hint.title)
             # Reuse central explicit denies, even under a trusted task.
             from ..application_sessions import ApplicationSession
             from ..application_discovery import identity
@@ -155,6 +276,10 @@ class LinuxRuntime:
             if grant.scope.effect in {'edit_save', 'paste_save'}:
                 from .editor_task import note_path
                 note_path(grant.scope.path)
+            if grant.scope.effect == 'folder':
+                preparation_started = True
+                outcome = await self.open_folder(grant, app, record)
+                return outcome
             # Resolve missing/ambiguous apps and deliberate policy denies before
             # involving a human in any compositor dialog. No app is launched yet.
             preparation_started = True
@@ -183,11 +308,18 @@ class LinuxRuntime:
             processes = isolated or await asyncio.to_thread(self.apps.processes, app)
             if not processes:
                 processes = await window_processes()
+            launched = False
             if not processes:
+                if grant.scope.effect in {'focus', 'close_window'}:
+                    raise ValueError('APPLICATION_NOT_RUNNING: ' + app.name + ' is not open; nothing was done. '
+                                     'Say "Open ' + app.name + '" to start it.')
+                self.progress('Opening ' + app.name + '…')
                 processes = await asyncio.to_thread(self.apps.launch, app)
+                launched = True
                 if not processes:
                     processes = await self.apps.wait_for_processes(app, d.stop_event, discover=window_processes)
-            purpose = 'new_document' if grant.scope.effect in {'edit_save','paste_save'} else 'open' if grant.scope.effect == 'open' else 'exact'
+            purpose = ('new_document' if grant.scope.effect in {'edit_save','paste_save'} else 'open' if grant.scope.effect == 'open'
+                       else 'visual' if grant.scope.effect in {'focus', 'close_window'} else 'exact')
             if grant.scope.effect in {'send', 'draft', 'go'}:
                 from ..messaging_context import adapter_for
                 declared = adapter_for(app.name)
@@ -196,7 +328,27 @@ class LinuxRuntime:
                 elif grant.scope.effect == 'go':
                     raise ValueError('UNSUPPORTED: navigating to a conversation is supported for messaging clients with a '
                                      'declared layout (Discord). Nothing was typed.')
-            await self.activate_app(app, processes, purpose=purpose)
+            window, reason = await self.activate_with_launch(app, processes, purpose, hint, grant, launched)
+            if window is not None:
+                # The bound window's process leads; nothing later may use a sibling.
+                processes = sorted(processes, key=lambda item: item[0] != window.pid)
+                if processes and processes[0][0] != window.pid and window.pid in self.bound_processes:
+                    processes = [(window.pid, self.bound_processes[window.pid])] + processes
+                binding = WindowBinding.of(window)
+                if self.chat_id and context is not None:
+                    self.contexts.bind(self.chat_id, binding)
+                record.done(app.name + (' opened' if launched else ' focused') + REASONS.get(reason, ''))
+            self.launched = launched
+            if grant.scope.effect in NAVIGATOR_EFFECTS and window is not None:
+                from .navigator import Navigator
+                navigator = Navigator(self, grant, app, kind, window, processes, record,
+                                      resuming=parsed is not None and parsed.kind == 'continue')
+                navigator.lines.append('✓ ' + app.name + (' opened' if launched else ' focused') + REASONS.get(reason, ''))
+                result = await navigator.run()
+                d.record.status = 'completed'
+                d.record.verification = result
+                outcome = '\n'.join(navigator.lines + ['', result]) if navigator.lines else result
+                return outcome
             if bound_step and bound_step.scope.effect == 'read' and bound_step.source:
                 location = results.source_location(bound_step.source, bound_step.scope.application, results.epoch)
                 if d.record.window.get('window_id') != location.window_id:
@@ -204,11 +356,11 @@ class LinuxRuntime:
             if isolated:
                 await self.native.call('editor_session', {'pid': processes[0][0], 'created': processes[0][1]})
             if grant.scope.effect == 'open' and d.record.window.get('accessible') is False:
-                await self.native.call('visual_observe', {'pid': processes[0][0]}, timeout=5)
+                await self.native.call('visual_observe', {'pid': window.pid if window else processes[0][0]}, timeout=5)
                 self.check_task(grant)
                 d.record.status = 'completed'
                 d.record.verification = 'The requested installed application is active in KWin and a fresh window frame was captured. Its controls are not accessible.'
-                return d.record.verification
+                return self.opened(app, window, d.record.verification)
             if grant.scope.effect in {'read', 'scroll', 'tab'}:
                 for permission in ('desktop.keyboard_input', 'desktop.mouse_input'):
                     d.gateway.require_not_denied(permissions_session, permission)
@@ -243,7 +395,24 @@ class LinuxRuntime:
                 if declared is not None and declared.regions:
                     # A client with a declared layout exposes no usable messaging
                     # semantics (for example Discord); skip the accessibility pass.
-                    return await self.visual_messaging(grant, app, processes)
+                    outcome = await self.visual_messaging(grant, app, processes)
+                    if grant.scope.effect in {'send', 'draft'} and d.record.status == 'completed':
+                        lines = ['✓ ' + app.name + (' opened' if launched else ' focused'), '✓ Destination verified: ' +
+                                 grant.scope.destination + (' in ' + grant.scope.server if grant.scope.server else ''),
+                                 '✓ Message sent once' if grant.scope.effect == 'send' else '✓ Draft typed; not sent']
+                        for line in lines[1:]:
+                            record.done(line[2:])
+                        outcome = '\n'.join(lines + ['', outcome])
+                    if grant.scope.effect == 'go' and d.record.status == 'completed':
+                        lines = ['✓ ' + app.name + (' opened' if launched else ' focused')]
+                        if grant.scope.server:
+                            lines.append('✓ ' + grant.scope.server + ' selected')
+                            record.done(grant.scope.server + ' selected')
+                        if grant.scope.destination:
+                            lines.append('✓ ' + grant.scope.destination + ' opened')
+                            record.done(grant.scope.destination + ' opened')
+                        outcome = '\n'.join(lines + ['', outcome])
+                    return outcome
             try:
                 observation = await self.observe_app(app, processes)
             except (ValueError, LookupError):
@@ -267,7 +436,7 @@ class LinuxRuntime:
             if grant.scope.effect == 'open':
                 d.record.status = 'completed'
                 d.record.verification = 'The requested installed application has a visible accessible window.'
-                return d.record.verification
+                return self.opened(app, window, d.record.verification)
             model = None
             ledger = await asyncio.to_thread(EffectLedger, d.s.data_dir / 'desktop_effects.sqlite')
             states, submitted = {}, False
@@ -377,13 +546,52 @@ class LinuxRuntime:
         except asyncio.CancelledError:
             d.record.status = 'outcome-unknown' if effect_attempted or self.effect_attempted else 'cancelled'
             d.record.verification = 'Stopped. No effect was replayed; inspect any uncertain submission.'
+            record.done('Stopped', 'failed')
+            record.finish('cancelled', 'Stopped by the user; no queued input ran.')
             raise
+        except WindowChoiceNeeded as error:
+            d.record.status = 'needs-human'
+            d.record.verification = str(error)
+            if self.chat_id:
+                self.contexts.ask(self.chat_id, 'window_choice', scope=grant.scope, request=request,
+                                  candidates=list(error.resolution.candidates), task_id=record.id)
+            record.finish('waiting_user', 'Waiting for you to choose a window.', 'multiple windows match', str(error))
+            return str(error).removeprefix('NEEDS_USER_CLARIFICATION: ')
         except Exception as error:
+            from .navigator import NeedsUser
             d.record.status = 'outcome-unknown' if effect_attempted or self.effect_attempted else 'needs-human'
             d.record.verification = str(error)
+            if isinstance(error, NeedsUser):
+                window_ctx = self.contexts.values.get(self.chat_id) if self.chat_id else None
+                if self.chat_id:
+                    self.contexts.ask(self.chat_id, 'user_action', scope=grant.scope, reason=error.reason, task_id=record.id,
+                                      window_id=window_ctx.window.window_id if window_ctx and window_ctx.window else '',
+                                      pid=window_ctx.window.pid if window_ctx and window_ctx.window else 0)
+                record.done('Paused: ' + {'authentication': 'sign-in needed', 'captcha': 'human check needed',
+                                          'dialog': 'dialog needs you'}.get(error.reason, 'needs you'), 'info')
+                record.finish('waiting_user', str(error), detail=str(error))
+            elif 'uncertain' in str(error).casefold() and grant.scope.effect == 'send':
+                record.finish('waiting_user', str(error), 'external outcome uncertain', str(error))
+            else:
+                record.done(str(error).split(':', 1)[-1].strip()[:120] or 'Stopped safely', 'failed')
+                record.finish('failed', str(error), category_for(str(error)), str(error))
             return str(error)
         finally:
             self.authority.finish(grant)
+            self.last_navigation = {**self.last_navigation, 'effect': grant.scope.effect, 'result': d.record.status,
+                                    'category': category_for(d.record.verification or '')}
+            if self.chat_id and self.chat_id in self.contexts.values:
+                ctx = self.contexts.values[self.chat_id]
+                ctx.last_scope, ctx.last_request = grant.scope, request
+                ctx.updated = time.monotonic()
+            if d.record.status == 'completed':
+                for receipt in record.open_receipts():
+                    # Completion is only reported after the effect was verified.
+                    record.settle(receipt, 'completed', 'verified before completion')
+                record.finish('completed', d.record.verification or 'Completed')
+            elif d.record.status == 'running':
+                record.finish('failed', 'Incomplete', detail=d.record.verification or '')
+            self.task_record = None
             if preparation_started:
                 try:
                     await self.native.call('end', timeout=4)
@@ -429,6 +637,12 @@ class LinuxRuntime:
     async def reserve_effect(self, grant):
         ledger = await asyncio.to_thread(EffectLedger, self.desktop.s.data_dir / 'desktop_effects.sqlite')
         await asyncio.to_thread(ledger.reserve, grant)
+        if self.task_record is not None:
+            # The card's receipt: an external effect, never retried when uncertain.
+            window = (self.desktop.record.window or {}) if self.desktop.record else {}
+            self.task_record.reserve('send', 'external', application=grant.scope.application,
+                                     window=str(window.get('window_id', '')), revision='',
+                                     expected='exact message once in ' + grant.scope.destination)
         self.check_task(grant)
         self.effect_attempted = True
         return ledger
@@ -476,26 +690,137 @@ class LinuxRuntime:
         self.last_observation = observation
         return observation
 
-    async def activate_app(self, app, processes, purpose='exact'):
-        import psutil
-        # Multiple browser helper PIDs/windows are not an invitation to choose one.
-        if len(processes) != 1:
-            if purpose != 'open':
-                raise ValueError('NEEDS_USER_CLARIFICATION: application process identity is not unique')
-            from .window_choice import choose_window
-            rows = await self.native.call('application_windows', {'desktop_id': app.id.removesuffix('.desktop')})
-            allowed = {pid for pid, _ in processes}
-            chosen = choose_window([row for row in rows if row['pid'] in allowed], 'open')
-            if not chosen:
-                raise ValueError('No verified application window')
-            processes = [(pid, created) for pid, created in processes if pid == chosen['pid']]
-            if len(processes) != 1:
-                raise ValueError('Application process lifetime is ambiguous')
-        pid, created = processes[0]
-        self.apps.verify_process(app, pid, created)
-        activation = await self.native.call('activate', {'pid': pid, 'purpose': purpose}, timeout=10)
+    async def app_windows(self, app, processes):
+        """The application's top-level windows, each tied to a verified process."""
+        rows = await self.native.call('application_windows', {'desktop_id': app.id.removesuffix('.desktop')})
+        if not isinstance(rows, list):
+            return []
+        pids = {pid for pid, _ in processes}
+        if rows:
+            for pid, created in await asyncio.to_thread(self.apps.bind_window_processes, app, rows):
+                pids.add(pid)
+                self.bound_processes[pid] = created
+        for pid, created in processes:
+            self.bound_processes.setdefault(pid, created)
+        from .navigator import app_windows
+        return app_windows(rows, app, pids)
+
+    async def activate_app(self, app, processes, purpose='exact', hint=None):
+        """Resolve and activate exactly one window; returns (window, reason).
+
+        Deterministic order: the user's choice, the same-task binding, a unique
+        requested title, the only window, the one focused window. Otherwise the
+        user is asked (WindowChoiceNeeded); a window is never picked by guess.
+        """
+        hint = hint or WindowHint()
+        windows = await self.app_windows(app, processes)
+        if not windows:
+            raise NoWindow(app.name + ' shows no window')
+        resolution = resolve_window(windows, hint)
+        if resolution.window is None:
+            if resolution.candidates:
+                raise WindowChoiceNeeded(app.name, resolution)
+            raise NoWindow(app.name + ' shows no usable window')
+        window = resolution.window
+        created = self.bound_processes.get(window.pid)
+        if created is None:
+            raise PermissionError('Application process lifetime is ambiguous')
+        self.apps.verify_process(app, window.pid, created)
+        activation = await self.native.call('activate', {'pid': window.pid, 'purpose': purpose,
+                                                        'window_id': window.window_id}, timeout=10)
         if self.desktop.record:
             self.desktop.record.window = activation
+        from ..messaging_context import adapter_for
+        adapter = adapter_for(app.name)
+        self.last_navigation = {'application': app.id, 'pid': window.pid, 'window_id': window.window_id,
+                                'output': window.output, 'resolution': resolution.reason,
+                                'accessible': (activation or {}).get('accessible') if isinstance(activation, dict) else None,
+                                'adapter': adapter.layout_version or adapter.key if adapter else 'generic'}
+        return window, resolution.reason
+
+    async def activate_with_launch(self, app, processes, purpose, hint, grant, launched):
+        """Activate the resolved window; a running app without a window is launched once."""
+        try:
+            result = await self.activate_app(app, processes, purpose=purpose, hint=hint)
+        except NoWindow:
+            if grant.scope.effect in {'focus', 'close_window'}:
+                raise ValueError('APPLICATION_NOT_RUNNING: ' + app.name + ' has no open window; nothing was done') from None
+            if not launched:
+                # Single-instance apps (for example Discord in the tray) show their
+                # window when launched again; one launch, never a retry loop.
+                self.progress('Opening ' + app.name + '…')
+                await asyncio.to_thread(self.apps.launch, app, True)
+            deadline = time.monotonic() + LAUNCH_WINDOW_SECONDS
+            while True:
+                self.check_task(grant)
+                await asyncio.sleep(.5)
+                processes = await asyncio.to_thread(self.apps.processes, app) or processes
+                try:
+                    result = await self.activate_app(app, processes, purpose=purpose, hint=hint)
+                    break
+                except NoWindow:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('APPLICATION_DID_NOT_OPEN: ' + app.name + ' did not show a window within ' +
+                                           str(LAUNCH_WINDOW_SECONDS) + ' seconds; it was launched once') from None
+        if not isinstance(result, tuple):  # Substituted activation (tests); no window identity to bind.
+            return None, ''
+        return result
+
+    def opened(self, app, window, verification):
+        record = self.task_record
+        if record is not None and window is not None:
+            record.done('Window verified: ' + display_title(window))
+        if window is None:
+            return verification
+        verb = 'opened' if getattr(self, 'launched', False) else 'focused'
+        return '\n'.join(['✓ ' + app.name + ' ' + verb, '', app.name + ' is open and focused ("' +
+                          display_title(window) + '").'])
+
+    async def open_folder(self, grant, app, record):
+        """Show one validated folder through the standard FileManager1 D-Bus API."""
+        from .navigator import FOLDER_SECONDS, folder_title, folder_uri, resolve_folder
+        d = self.desktop
+        folder = await asyncio.to_thread(resolve_folder, grant.scope.path)
+        d.gateway.require_not_denied(self.permission_session, 'filesystem.read', str(folder))
+        await self.prepare()
+        self.check_task(grant)
+        processes = await asyncio.to_thread(self.apps.processes, app)
+        before = {w.window_id for w in await self.app_windows(app, processes)} if processes else set()
+        self.progress('Opening ' + folder_title(folder) + '…')
+        receipt = record.reserve('show_folder', 'desktop_input', application=app.name,
+                                 expected='file manager window titled ' + folder_title(folder))
+        await self.native.call('show_folder', {'uri': folder_uri(folder)})
+        wanted = folder_title(folder)
+        deadline = time.monotonic() + FOLDER_SECONDS
+        while True:
+            self.check_task(grant)
+            await asyncio.sleep(.3)
+            processes = await asyncio.to_thread(self.apps.processes, app)
+            windows = await self.app_windows(app, processes) if processes else []
+            showing = [w for w in windows if display_title(w) == wanted]
+            fresh = [w for w in showing if w.window_id not in before]
+            chosen = fresh if len(fresh) == 1 else [w for w in showing if w.active] if len(showing) > 1 else showing
+            if len(chosen) == 1:
+                break
+            if time.monotonic() >= deadline:
+                record.settle(receipt, 'uncertain', 'no window for the folder')
+                raise TimeoutError('NAVIGATION_TIMED_OUT: ' + app.name + ' did not show ' + wanted + ' within ' +
+                                   str(FOLDER_SECONDS) + ' seconds')
+        window = chosen[0]
+        created = self.bound_processes.get(window.pid)
+        self.apps.verify_process(app, window.pid, created)
+        activation = await self.native.call('activate', {'pid': window.pid, 'purpose': 'open',
+                                                        'window_id': window.window_id}, timeout=10)
+        d.record.window = activation
+        record.settle(receipt, 'completed', 'window titled ' + wanted)
+        if self.chat_id:
+            self.contexts.select(self.chat_id, app.name, app.id, 'file_manager')
+            self.contexts.bind(self.chat_id, WindowBinding.of(window))
+        record.done(app.name + ' focused')
+        record.done('Opened ' + wanted)
+        d.record.status = 'completed'
+        d.record.verification = f'{app.name} shows {wanted} ({folder}).'
+        return '\n'.join(['✓ ' + app.name + ' focused', '✓ Opened ' + wanted, '', d.record.verification])
 
     async def close(self):
         self.stop()

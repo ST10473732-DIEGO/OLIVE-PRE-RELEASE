@@ -186,6 +186,20 @@ class NaturalLanguageOrchestrator:
             not getattr(self.s.chat, 'targets', {}).get(chat_id) and
             self.s.desktop.configuration().get('trusted_tasks'))
         if native_allowed:
+            # Natural desktop navigation and follow-ups ("Go back", "Open general",
+            # "2" after a window question). Deterministic; the bounded context only
+            # names the application/window/server OLIVE already verified.
+            from ..desktop.navigation_requests import CONTINUE, contextual_request
+            navigation_context = await asyncio.to_thread(native.navigation_context, chat_id)
+            interrupted = self._interrupted_desktop_task(chat_id)
+            if interrupted and not navigation_context.pending_now() and CONTINUE.fullmatch(text.strip().rstrip('.!')):
+                return self._decline_desktop_replay(text, chat_id, interrupted)
+            try:
+                navigation = contextual_request(text, navigation_context)
+            except (ValueError, PermissionError) as error:
+                return self.reply(chat_id, text, str(error).removeprefix('NEEDS_USER_CLARIFICATION: '))
+            if navigation is not None:
+                return await self._native_submit(text, chat_id)
             from ..desktop.task_plan import explicit_plan
             plan = explicit_plan(text)
             if plan is not None:
@@ -380,6 +394,9 @@ class NaturalLanguageOrchestrator:
                     resumable = self._resumable_coding_task(chat_id)
                     if resumable:
                         return await self._resume_coding(text, chat_id, resumable)
+                    desktop_task = self._interrupted_desktop_task(chat_id)
+                    if desktop_task:
+                        return self._decline_desktop_replay(text, chat_id, desktop_task)
                 if not self.CONTROL_PHRASE.fullmatch(text.strip()):
                     # With nothing to control, a misread ordinary message ("Reply with
                     # the word: ready") is simply answered. Nothing can be executed here.
@@ -441,6 +458,27 @@ class NaturalLanguageOrchestrator:
         tasks = [t for t in repo.for_chat(chat_id) if t.kind == 'coding']
         latest = tasks[-1] if tasks else None
         return latest if latest and latest.state in {'paused', 'waiting_user'} else None
+
+    def _decline_desktop_replay(self, text, chat_id, desktop_task):
+        """Desktop input is never replayed after a restart: the screen may have changed."""
+        desktop_task.note('Not resumed automatically; waiting for a new request', 'info')
+        desktop_task.transition('cancelled')
+        self.s.agent_task_repo.save(desktop_task)
+        self.s.publish('agent', {'id': desktop_task.id, 'kind': 'desktop'})
+        uncertain = desktop_task.failure_category in {'external outcome uncertain', 'desktop outcome uncertain'}
+        return self.reply(chat_id, text, "The desktop task was interrupted, and the screen may have changed since, "
+                          "so I won't repeat any clicks or typing automatically." +
+                          (" Its last step may or may not have happened; please check the application." if uncertain else "") +
+                          " Tell me what to do next (for example \"Open Firefox and go to github.com\").")
+
+    def _interrupted_desktop_task(self, chat_id):
+        repo = getattr(self.s, 'agent_task_repo', None)
+        if repo is None:
+            return None
+        tasks = [t for t in repo.for_chat(chat_id) if t.kind == 'desktop']
+        latest = tasks[-1] if tasks else None
+        return latest if latest and latest.state in {'paused', 'waiting_user'} and \
+            (latest.resume_state or {}).get('reason') == 'application restart' else None
 
     async def _resume_coding(self, text, chat_id, task):
         """'Continue' in Chat: resume this conversation's paused coding task under the same Stop token."""

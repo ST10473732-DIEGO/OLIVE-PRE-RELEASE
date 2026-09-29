@@ -206,6 +206,7 @@ class Accessibility:
     def _observe(self, pid, app, toolkit, profile, region, chrome_only, item, node_budget, max_depth, deadline,
                  item_views):
         controls, windows, documents = [], [], []
+        secret_fields = 0   # Count only: a password field's name/value/children are never read.
         text_budget = 12000
         queue = [(app, 0, '', '', False, region)]
         page_queue = []  # Showing page content is read before the remaining browser chrome.
@@ -222,6 +223,8 @@ class Accessibility:
                 if states.contains(Atspi.StateType.DEFUNCT):
                     continue
                 if role == Atspi.Role.PASSWORD_TEXT:
+                    if states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE):
+                        secret_fields += 1
                     continue  # Neither name, value nor descendants enter an observation.
                 visible = states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE)
                 key = str(visited)
@@ -276,6 +279,8 @@ class Accessibility:
                         'selected': states.contains(Atspi.StateType.SELECTED),
                         'focused': states.contains(Atspi.StateType.FOCUSED),
                         'editable': states.contains(Atspi.StateType.EDITABLE), 'actions': action_names,
+                        'expanded': states.contains(Atspi.StateType.EXPANDED),
+                        'checked': states.contains(Atspi.StateType.CHECKED),
                         'key_bindings': key_bindings, 'labels': labels})
                     self.targets[key] = node
                 if role in item_views:
@@ -306,6 +311,7 @@ class Accessibility:
                 continue  # Incomplete accessibility is evidence of a gap, never a target.
         return {'pid': pid, 'revision': self.revision, 'windows': windows, 'controls': controls,
                 'documents': documents, 'incomplete': bool(queue or page_queue), 'untrusted_content': True,
+                'secret_fields': secret_fields,
                 'profile': profile, 'pruned_item_views': pruned}
 
     def _query_items(self, view, parent, window, item, clip, controls):
@@ -391,6 +397,20 @@ class Accessibility:
         if not active or (require_focus and not states.contains(Atspi.StateType.FOCUSED)):
             raise PermissionError('Target window/control lost focus; human handoff required')
         return node
+
+    @staticmethod
+    def in_document(node):
+        """Whether a control belongs to web/page content rather than application chrome."""
+        parent = node
+        for _ in range(40):
+            if not parent:
+                return False
+            if parent.get_role() in (Atspi.Role.DOCUMENT_WEB, Atspi.Role.DOCUMENT_FRAME):
+                return True
+            if parent.get_role() in (Atspi.Role.FRAME, Atspi.Role.WINDOW, Atspi.Role.DIALOG):
+                return False
+            parent = parent.get_parent()
+        return True  # Unknown depth: treat as page content (fail closed).
 
     def clear(self):
         self.targets.clear()

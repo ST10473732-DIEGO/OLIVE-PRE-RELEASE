@@ -38,8 +38,11 @@ class AgentTaskRepository:
                 task.pending = None
                 if summary["uncertain"]:
                     task.transition("waiting_user")
-                    task.failure_category = "external outcome uncertain" if any(
-                        r["effect"] == "external" and r["state"] == "uncertain" for r in task.receipts) else "file changed"
+                    external = any(r["effect"] == "external" and r["state"] == "uncertain" for r in task.receipts)
+                    # Desktop input is never replayed: the visible UI may have changed,
+                    # so the task waits for the user and must re-observe first.
+                    task.failure_category = ("external outcome uncertain" if external else
+                                             "desktop outcome uncertain" if task.kind == "desktop" else "file changed")
                     task.error = "Interrupted by an application restart. Some effects could not be verified; check them before continuing."
                 else:
                     task.transition("paused")

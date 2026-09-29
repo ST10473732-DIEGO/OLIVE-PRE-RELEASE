@@ -24,6 +24,11 @@ class TaskScope:
     path: str = ''
     predicate: str = ''  # Literal user domain predicate for a result-derived location.
     handle: str = ''     # A person's username beside a shared display name (for example '4818').
+    mode: str = ''       # Browser placement: 'new_tab' or '' (reuse a tab OLIVE opened in this conversation).
+
+
+# Effects that use no keyboard/pointer input (launch, KWin activation, file-manager D-Bus).
+NO_INPUT_EFFECTS = frozenset({'open', 'focus', 'folder'})
 
 
 def interpreted_scope(request, steps):
@@ -302,19 +307,27 @@ class TaskAuthority:
         self.lock = threading.Lock()
 
     def issue(self, request, message_id, policy, *, local_user=False, interpretation=None,
-              bound_step=None, results=None):
+              bound_step=None, results=None, desktop_context=None):
         if not local_user or not policy.get('enabled') or not policy.get('trusted_tasks'):
             raise PermissionError('Enable trusted local tasks in Settings first')
         if self.stopped.is_set():
             raise InterruptedError('Desktop control stopped')
-        if bound_step is not None:
+        contextual = None
+        if bound_step is None and interpretation is None and desktop_context is not None:
+            # Parsed again here from the literal request; the context only supplies
+            # the previously verified application/server/window, never new text.
+            from .navigation_requests import contextual_request
+            contextual = contextual_request(request, desktop_context)
+        if contextual is not None:
+            scope = contextual.scope
+        elif bound_step is not None:
             from .freeform_plan import BoundStep
             if type(bound_step) is not BoundStep or interpretation is not None:
                 raise PermissionError('Invalid internal task binding')
             scope = bound_step.resolve(request, results, results.epoch if results else None)
         else:
             scope = interpreted_scope(request, interpretation) if interpretation is not None else direct_scope(request)
-        if scope.effect != 'open' and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
+        if scope.effect not in NO_INPUT_EFFECTS and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
             raise PermissionError('Trusted input requires keyboard and mouse Allow; stricter policies are preserved')
         with self.lock:
             grant = TaskGrant(uuid.uuid4().hex, message_id, scope, self.epoch,
@@ -333,7 +346,7 @@ class TaskAuthority:
                 raise PermissionError('Owner Mode was revoked')
             if not policy.get('enabled') or not policy.get('trusted_tasks'):
                 raise PermissionError('Trusted task policy was removed')
-            if grant.scope.effect != 'open' and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
+            if grant.scope.effect not in NO_INPUT_EFFECTS and any(policy.get(key) == 'deny' or (policy.get(key) != 'allow' and not policy.get('owner_mode')) for key in ('keyboard_policy', 'mouse_policy')):
                 raise PermissionError('Input policy was restricted')
 
     def cancel(self):
