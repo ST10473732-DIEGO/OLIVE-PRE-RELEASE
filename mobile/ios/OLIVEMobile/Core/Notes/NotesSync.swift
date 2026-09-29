@@ -34,6 +34,14 @@ final class NotesSync {
 
     func attach(engine: NotesEngineHost) { self.engine = engine }
 
+    /// The paired computer this phone syncs with, known before any connection,
+    /// so edits made offline (or before a relaunch) are counted as pending.
+    func remember(peer: String?) {
+        guard transport == nil, let peer else { return }
+        self.peer = peer
+        refreshState()
+    }
+
     var permitted: Bool { capability?["permission"] == .string("allow") }
 
     /// Called when the Connect channel is ready (and after each capability refresh).

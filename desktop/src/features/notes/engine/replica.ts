@@ -38,6 +38,8 @@ export interface Row {
   note_id: string; created_at: string; created_by: string; title: string; display_title: string; preview: string;
   pinned: boolean; trashed: boolean; trashed_at: string; edited_at: string; local_updated_at: string;
   text_length: number; change_seq: number; last_change_peer: string | null; status: string;
+  /** Committed text not yet in the search index; survives a restart (see tick). */
+  search_pending?: boolean;
 }
 interface Purge { note_id: string; change_seq: number; purged_at: string; purged_by: string }
 interface Peer { device_id: string; acked_seq: number; peer_epoch: string | null; last_sync: string | null; last_error: string | null }
@@ -85,7 +87,10 @@ export class Replica {
       if (!host.commit(JSON.stringify({ epoch }))) throw new NotesError("notes_unavailable");
       this.epoch = epoch;
     }
-    for (const row of this.rows.values()) if (row.status !== "ok") this.corrupt.add(row.note_id);
+    for (const row of this.rows.values()) {
+      if (row.status !== "ok") this.corrupt.add(row.note_id);
+      else if (row.search_pending) this.dirtySearch.add(row.note_id);
+    }
   }
 
   private emit(event: Record<string, unknown>) {
@@ -173,6 +178,7 @@ export class Replica {
     if (options.created && this.rows.size >= LIMITS.max_notes) throw new NotesError("notes_capacity");
     const seq = this.storeSeq + 1;
     const row = this.buildRow(id, doc, seq, options.peer ?? null);
+    if (options.content !== false || this.rows.get(id)?.search_pending) row.search_pending = true;
     const batch: Batch = {
       store_seq: seq, rows: [row],
       updates: payloads.map((payload) => {
@@ -347,7 +353,16 @@ export class Replica {
       const rows = [...this.dirtySearch].flatMap((id) => {
         try { return [{ note_id: id, title: this.rows.get(id)?.display_title || "", body: this.text(id) }]; } catch { return []; }
       });
-      if (this.host.commit(JSON.stringify({ search: rows }))) this.dirtySearch.clear();
+      // The index rows and the cleared flags commit together, so a restart
+      // before this point re-indexes instead of leaving a note unsearchable.
+      const indexed = rows.flatMap(({ note_id }) => {
+        const row = this.rows.get(note_id);
+        return row?.search_pending ? [{ ...row, search_pending: false }] : [];
+      });
+      if (this.host.commit(JSON.stringify({ search: rows, rows: indexed }))) {
+        this.dirtySearch.clear();
+        for (const row of indexed) this.rows.set(row.note_id, row);
+      }
     }
     for (const [id, count] of this.counts) if (count >= COMPACT_UPDATES) this.compact(id);
   }

@@ -14,6 +14,7 @@ import tempfile
 import time
 import unittest
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 from olive.notes import protocol
@@ -27,6 +28,10 @@ NODE = shutil.which('node')
 # On the Mac, check-connect-interop.sh sets this to the Swift interop tool so the
 # same tests drive the real Swift JavaScriptCore host and SQLite store.
 SWIFT_HARNESS = os.environ.get('OLIVE_NOTES_SWIFT_HARNESS')
+
+
+def utf16(text):
+    return len(text.encode('utf-16-le')) // 2
 
 
 class Phone:
@@ -250,6 +255,206 @@ class PhoneEngineInteropTests(unittest.TestCase):
         self.assertEqual(self.phone.text(nid), 'start\nB')
         self.settle()
         self.assertEqual(self.desktop.run(self.desktop.read_text, nid)['text'], 'start\nB')
+
+    # --- helpers for the tests below -------------------------------------------
+    def to_phone(self, operation, arguments):
+        """One olive-notes/1 request from the desktop, straight to the phone."""
+        raw = protocol.encode_request(str(uuid.uuid4()), self.desktop_id, self.phone.id, operation, arguments, int(time.time()))
+        return protocol.decode_response(json.dumps(self.phone.call('handle', self.desktop_id, raw.decode())).encode())
+
+    def desktop_text(self, nid):
+        return self.desktop.run(self.desktop.read_text, nid)['text']
+
+    def phone_database(self):
+        import sqlite3
+        path = Path(self.phone.command('runtime')['database'])
+        return sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
+
+    def test_edit_positions_match_across_scripts_both_ways(self):
+        """UTF-16 (phone/Yjs) vs code points (Python) vs UTF-8 bytes (pycrdt)."""
+        lines = ['ASCII text', 'café ñandú ë', 'e\u0301 combining n\u0303', '👍🏽 skin 👩\u200d👩\u200d👧 family 🇿🇦',
+                 '日本語の中文 한국어', 'مرحبا שלום', '𝕏 astral 𝄞']
+        body = '\n'.join(lines)
+        nid = self.desktop.run(self.desktop.create, 'Scripts', body)['note_id']
+        self.desktop_pushes(hello=True)
+        self.phone.call('open', nid)
+        self.assertEqual(self.phone.text(nid), body)
+        # Phone inserts at every code-point boundary (UTF-16 offsets), last first.
+        expected = body
+        for cut in range(len(body), -1, -3):
+            self.phone.call('edit', nid, utf16(expected[:cut]), 0, '|')
+            expected = expected[:cut] + '|' + expected[cut:]
+        self.phone_pushes()
+        self.assertEqual(self.desktop_text(nid), expected)
+        self.assertEqual(self.phone.text(nid), expected)
+        # Desktop inserts by code point; the phone sees the matching UTF-16 retain.
+        self.phone.command('events')
+        for cut in (1, 13, 40, 77, len(expected) - 2):
+            current = self.desktop_text(nid)
+            self.desktop.run(self.desktop.replace_text, nid, current[:cut] + '#' + current[cut:])
+            self.desktop_pushes()
+            deltas = [e['delta'] for e in self.phone.command('events') if e['type'] == 'delta']
+            self.assertEqual(deltas[-1], [{'retain': utf16(current[:cut])}, {'insert': '#'}])
+            self.assertEqual(self.phone.text(nid), self.desktop_text(nid))
+        # Whole-grapheme deletes from the phone: combining pair, skin tone, ZWJ family, flag.
+        nid = self.desktop.run(self.desktop.create, 'Clusters', body)['note_id']
+        self.desktop_pushes()
+        self.phone.call('open', nid)
+        for cluster in ('e\u0301', '👍🏽', '👩\u200d👩\u200d👧', '🇿🇦'):
+            current = self.phone.text(nid)
+            at = current.index(cluster)
+            self.phone.call('edit', nid, utf16(current[:at]), utf16(cluster), '')
+        self.phone_pushes()
+        final = self.desktop_text(nid)
+        self.assertEqual(final, self.phone.text(nid))
+        for cluster in ('e\u0301', '👍🏽', '👩\u200d👩\u200d👧', '🇿🇦'):
+            self.assertNotIn(cluster, final)
+        # Desktop deletes an astral character; the phone deletes 2 UTF-16 units.
+        self.phone.command('events')
+        at = final.index('𝄞')
+        self.desktop.run(self.desktop.replace_text, nid, final[:at] + final[at + 1:])
+        self.desktop_pushes()
+        delta = [e['delta'] for e in self.phone.command('events') if e['type'] == 'delta'][-1]
+        self.assertEqual(delta, [{'retain': utf16(final[:at])}, {'delete': 2}])
+        self.assertEqual(self.phone.text(nid), self.desktop_text(nid))
+
+    def test_lost_ack_redelivery_never_duplicates_text(self):
+        nid = self.desktop.run(self.desktop.create, 'Shopping', 'Milk')['note_id']
+        self.desktop_pushes(hello=True)
+        # Desktop -> phone: the phone applies, the answer is lost, the desktop resends.
+        self.desktop.run(self.desktop.append_text, nid, 'Bread')
+        def deliver_then_drop(operation, arguments):
+            self.to_phone(operation, arguments)
+            raise NotesSyncError('connection_lost')
+        with self.assertRaises(NotesSyncError):
+            self.engine.pump(self.phone.id, deliver_then_drop)
+        self.assertEqual(self.phone.text(nid), 'Milk\nBread')
+        self.desktop_pushes()
+        self.assertEqual(self.phone.text(nid), 'Milk\nBread')
+        # Phone -> desktop: the desktop applies, the answer never reaches the phone.
+        self.phone.call('edit', nid, 10, 0, '\nEggs')
+        step = self.phone.call('next', self.desktop_id)
+        request = protocol.decode_request(json.dumps(step['request']).encode())
+        self.desktop.run(self.engine.handle, self.phone.id, request)
+        self.phone.call('fail', self.desktop_id, 'connection_lost')
+        self.settle()
+        self.assertEqual(self.desktop_text(nid), 'Milk\nBread\nEggs')
+        self.assertEqual(self.phone.text(nid), 'Milk\nBread\nEggs')
+
+    def test_out_of_order_and_duplicate_updates_on_the_phone(self):
+        for restart in (False, True):
+            with self.subTest(restart=restart):
+                nid = self.desktop.run(self.desktop.create, '', 'Start')['note_id']
+                self.desktop_pushes(hello=True)
+                document = lambda: self.desktop.document(nid)
+                updates, vectors = [], [self.desktop.run(lambda: document().state_vector())]
+                for word in (' one', ' two'):
+                    self.desktop.run(self.desktop.replace_text, nid, self.desktop_text(nid) + word)
+                    updates.append(self.desktop.run(lambda: document().diff(vectors[-1])))
+                    vectors.append(self.desktop.run(lambda: document().state_vector()))
+                epoch = self.desktop.run(self.desktop.epoch)
+                def deliver(update, seq):
+                    entry = {'note_id': nid, 'seq': seq, 'sv': protocol.b64(vectors[-1]), 'purged': False, 'update': protocol.b64(update)}
+                    return self.to_phone('sync', {'epoch': epoch, 'entries': [entry]})['result']['results'][0]['status']
+                # The second edit first: its dependency is missing, so the phone asks for more.
+                self.assertEqual(deliver(updates[1], 900), 'needs')
+                self.assertEqual(self.phone.text(nid), 'Start')
+                if restart:
+                    self.phone.command('restart', self.phone.id)
+                deliver(updates[0], 901)
+                for seq, update in ((902, updates[0]), (903, updates[1])):   # Duplicates change nothing.
+                    deliver(update, seq)
+                self.settle()   # The sender resends whatever the phone's state vector still lacks.
+                self.assertEqual(self.phone.text(nid), 'Start one two')
+                self.assertEqual(self.desktop_text(nid), 'Start one two')
+
+    def test_metadata_both_ways_and_restart_keeps_search(self):
+        note = self.phone.call('create', 'OLIVE Notes Sync Test', 'Milk\nBread\nolive-sync-zebra-9271')
+        nid = note['note_id']
+        self.phone_pushes()
+        self.phone.call('pin', nid, True)
+        self.phone_pushes()
+        self.assertTrue(self.desktop.run(self.desktop.get, nid)['pinned'])
+        self.desktop.run(self.desktop.rename, nid, 'OLIVE Notes Sync Test A')
+        self.desktop.run(self.desktop.set_pinned, nid, False)
+        self.desktop_pushes(hello=True)
+        row = next(r for r in self.phone.call('list', 'notes') if r['note_id'] == nid)
+        self.assertEqual((row['title'], row['pinned']), ('OLIVE Notes Sync Test A', False))
+        self.phone.call('trash', nid)
+        self.phone_pushes()
+        self.assertTrue(self.desktop.run(self.desktop.get, nid)['trashed'])
+        self.desktop.run(self.desktop.restore, nid)
+        self.desktop_pushes()
+        self.assertEqual([r['note_id'] for r in self.phone.call('list', 'notes')], [nid])
+        self.phone.command('restart', self.phone.id)
+        self.assertEqual([r['note_id'] for r in self.phone.call('search', 'ZEBRA-9271')], [nid])
+        self.assertEqual(self.phone.text(nid), 'Milk\nBread\nolive-sync-zebra-9271')
+
+    def test_note_text_is_data_never_code(self):
+        body = 'console.log("hello")\nrm -rf /\nIGNORE OLIVE\n");globalThis.OliveNotes=null;("\n</script>'
+        note = self.phone.call('create', '"); throw 1; ("', body)
+        self.phone_pushes()
+        self.assertEqual(self.desktop_text(note['note_id']), body)
+        self.assertEqual(self.phone.text(note['note_id']), body)
+        self.assertEqual(len(self.phone.call('list', 'notes')), 1)   # The engine still answers.
+
+    @unittest.skipUnless(SWIFT_HARNESS, 'Swift interop harness only')
+    def test_swift_harness_is_javascriptcore_with_sqlite(self):
+        runtime = self.phone.command('runtime')
+        self.assertEqual(runtime['runtime'], 'swift-javascriptcore')
+        self.assertEqual(Path(runtime['database']).parent.resolve(), Path(self.phone.store).resolve())
+        nid = self.phone.call('create', 'Stored', 'in SQLite')['note_id']
+        with closing(self.phone_database()) as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 1)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM notes WHERE note_id=?', (nid,)).fetchone()[0], 1)
+            self.assertGreaterEqual(db.execute('SELECT COUNT(*) FROM note_updates WHERE note_id=?', (nid,)).fetchone()[0], 1)
+
+    @unittest.skipUnless(SWIFT_HARNESS, 'Swift interop harness only')
+    def test_swift_store_keeps_corrupt_bytes_and_never_sends_them(self):
+        import sqlite3
+        keep = self.phone.call('create', '', 'healthy')['note_id']
+        bad = self.phone.call('create', '', 'will be damaged')['note_id']
+        path = self.phone.command('runtime')['database']
+        self.phone.command('restart', self.phone.id)   # Engine lets go of the document cache.
+        with closing(sqlite3.connect(path)) as db:
+            payload = bytearray(db.execute('SELECT payload FROM note_updates WHERE note_id=? ORDER BY seq LIMIT 1', (bad,)).fetchone()[0])
+            payload[len(payload) // 2] ^= 0xFF
+            db.execute('UPDATE note_updates SET payload=? WHERE seq=(SELECT MIN(seq) FROM note_updates WHERE note_id=?)', (bytes(payload), bad))
+            db.commit()
+        self.phone.command('restart', self.phone.id)
+        with self.assertRaises(RuntimeError) as failure:
+            self.phone.text(bad)
+        self.assertIn('note_data_corrupted', str(failure.exception))
+        self.phone_pushes()
+        self.assertEqual(self.desktop_text(keep), 'healthy')
+        with self.assertRaises(Exception):
+            self.desktop.run(self.desktop.read_text, bad)
+        with closing(sqlite3.connect(path)) as db:   # Bytes retained for recovery.
+            self.assertEqual(db.execute('SELECT payload FROM note_updates WHERE note_id=? ORDER BY seq LIMIT 1', (bad,)).fetchone()[0], bytes(payload))
+
+    @unittest.skipUnless(SWIFT_HARNESS, 'Swift interop harness only')
+    def test_swift_store_refuses_a_newer_schema_untouched(self):
+        import hashlib
+        import sqlite3
+        self.phone.call('create', '', 'x')
+        path = self.phone.command('runtime')['database']
+        self.phone.process.stdin.close()   # Stop the Swift process; keep its store.
+        self.phone.process.wait(10)
+        self.phone.process.stdout.close()
+        with closing(sqlite3.connect(path)) as db:
+            db.execute('PRAGMA journal_mode=DELETE')
+            db.execute('PRAGMA user_version=2')
+            db.commit()
+        before = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        self.phone = Phone.__new__(Phone)
+        self.phone.id, self.phone.store, self.phone.counter = str(uuid.uuid4()), str(Path(path).parent), 0
+        self.phone.process = subprocess.Popen([SWIFT_HARNESS, '--notes-harness', str(BUNDLE), self.phone.store], stdin=subprocess.PIPE,
+                                              stdout=subprocess.PIPE, text=True, encoding='utf-8', bufsize=1)
+        with self.assertRaises(RuntimeError) as failure:
+            self.phone.command('boot', self.phone.id)
+        self.assertIn('newer', str(failure.exception))
+        self.assertEqual(hashlib.sha256(Path(path).read_bytes()).hexdigest(), before)
+        self.assertEqual(sorted(p.name for p in Path(path).parent.iterdir()), ['notes-v1.sqlite3'])
 
     def test_phone_search_and_rejects_bad_requests(self):
         note = self.desktop.run(self.desktop.create, '', 'olive-sync-zebra-9271')

@@ -9,6 +9,18 @@ protocol ChatRemoteSession: AnyObject {
     var inference: RemoteInferenceClient? { get }
 }
 
+/// Whether to keep sending the optional OLIVE Notes probe. An older desktop
+/// closes the channel on it every time; a Wi-Fi hiccup can too, once. Only two
+/// consecutive failures mean "this computer's OLIVE doesn't sync Notes" for the
+/// rest of this launch, so an older desktop sees at most two reconnects.
+struct NotesProbePolicy: Equatable {
+    static let attempts = 2
+    private(set) var enabled = true
+    private var failures = 0
+    mutating func succeeded() { failures = 0 }
+    mutating func failed() { failures += 1; if failures >= Self.attempts { enabled = false } }
+}
+
 @MainActor @Observable
 final class ConnectSession: ChatRemoteSession {
     var onChannelReady: (@MainActor (ConnectTransport, ConnectIdentity, TrustedConnectPeer) async -> Void)?
@@ -27,7 +39,7 @@ final class ConnectSession: ChatRemoteSession {
     private(set) var notesCapability: ConnectJSON?
     var onNotesCapability: (@MainActor (ConnectJSON?) -> Void)?
     private var capabilityProbe = true
-    private var notesProbe = true
+    private var notesProbe = NotesProbePolicy()
     private var revokedPeers = Set<String>()
     private var selectedRevoked: Bool { selectedID.map { revokedPeers.contains($0) } ?? false }
     private(set) var capability: ConnectJSON?
@@ -79,7 +91,7 @@ final class ConnectSession: ChatRemoteSession {
         if selectedID == nil { selectedID = peers.first?.id }
         if foreground { connect() }
     }
-    func select(_ id: String) { capabilityProbe = true; notesProbe = true; selectedID = id; disconnect(); if foreground { connect() } }
+    func select(_ id: String) { capabilityProbe = true; notesProbe = NotesProbePolicy(); selectedID = id; disconnect(); if foreground { connect() } }
     func activate() {
         foreground = true; lifecycle = selectedRevoked ? .revoked : connected ? .foregroundConnected : selected == nil ? .unpaired : .foregroundConnecting; discovery.start()
         let identityToken = identityGeneration
@@ -146,13 +158,14 @@ final class ConnectSession: ChatRemoteSession {
                                 throw error
                             }
                         }
-                        if notesProbe {
-                            do { notesCapability = try await client.notesStatus() }
+                        if notesProbe.enabled {
+                            do { notesCapability = try await client.notesStatus(); notesProbe.succeeded() }
                             catch {
-                                // Older desktop: it cannot parse Notes frames. Reconnect
-                                // without probing; Notes stays local on this phone.
+                                // An older desktop cannot parse Notes frames and drops the
+                                // channel. Reconnect; after repeated failures stop probing
+                                // (see NotesProbePolicy) and Notes stays local on this phone.
                                 if error as? ConnectFailure == .deviceRevoked { throw error }
-                                notesProbe = false
+                                notesProbe.failed()
                                 throw error
                             }
                         }
@@ -168,7 +181,7 @@ final class ConnectSession: ChatRemoteSession {
                             guard generation == token else { return }
                             capability = fresh
                             if capabilityProbe { companionCapability = try await client.companionStatus() }
-                            if notesProbe {
+                            if notesProbe.enabled {
                                 let notes = try await client.notesStatus()
                                 if notes != notesCapability { notesCapability = notes; onNotesCapability?(notes) }
                             }
@@ -190,7 +203,7 @@ final class ConnectSession: ChatRemoteSession {
             }
         }
     }
-    func retry() { capabilityProbe = true; notesProbe = true; disconnect(); connect() }
+    func retry() { capabilityProbe = true; notesProbe = NotesProbePolicy(); disconnect(); connect() }
     func unpair(_ id: String) throws {
         if selectedID == id { disconnect() }
         try repository.unpair(id); revokedPeers.remove(id); peers = repository.peers

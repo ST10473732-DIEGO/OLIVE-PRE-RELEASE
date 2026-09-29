@@ -7,6 +7,8 @@ struct NoteEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let noteID: String
     @State private var title = ""
+    /// The stored title the field last showed (see NotesText.titleChange).
+    @State private var baseline = ""
     @State private var loaded: String?
     @State private var confirmDelete = false
     @State private var confirmPurge = false
@@ -28,7 +30,8 @@ struct NoteEditorView: View {
                 .submitLabel(.done)
                 .disabled(row?.trashed == true)
                 .onSubmit { commitTitle() }
-                .onChange(of: titleFocused) { _, focused in if !focused { commitTitle() } }
+                .onChange(of: titleFocused) { _, focused in if !focused { commitTitle(); followStoredTitle() } }
+                .onChange(of: row?.title) { _, _ in if !titleFocused { followStoredTitle() } }
                 .padding(.horizontal, OliveTheme.Space.medium).padding(.top, 12)
                 .accessibilityLabel("Note title")
             if let loaded {
@@ -69,13 +72,22 @@ struct NoteEditorView: View {
         .onAppear {
             loaded = model.open(noteID)
             title = row?.title ?? ""
+            baseline = title
         }
         .onDisappear { commitTitle(); model.close(noteID) }
     }
 
     private func commitTitle() {
-        guard let row, !row.trashed, title.trimmingCharacters(in: .whitespaces) != row.title else { return }
-        model.rename(noteID, title)
+        guard let row, !row.trashed, let change = NotesText.titleChange(field: title, baseline: baseline) else { return }
+        model.rename(noteID, change)
+        baseline = change
+    }
+
+    /// Show a rename that synced in, unless the user has an unsaved title edit.
+    private func followStoredTitle() {
+        guard let stored = row?.title, stored != baseline, NotesText.titleChange(field: title, baseline: baseline) == nil else { return }
+        title = stored
+        baseline = stored
     }
 }
 

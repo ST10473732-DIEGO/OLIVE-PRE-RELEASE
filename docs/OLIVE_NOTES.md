@@ -6,11 +6,11 @@ with paired OLIVE devices over OLIVE Connect when you allow it. There is no
 Save button, no account, no cloud service and no AI model involved in editing
 or syncing.
 
-Status of verification is listed at the end. In short: the desktop app, the
-sync protocol, real Connect TLS transport and the phone's sync engine (the
-exact JavaScript bundle the phone runs) are tested here. The Swift phone code
-has **not** been compiled or run on an iPhone yet (no Swift toolchain on the
-development machine); see "Known limitations".
+Status of verification is listed at the end (§27, §28). In short: the desktop
+app, the sync protocol and real Connect TLS transport are tested on Linux. The
+Swift phone code is compiled and tested with Xcode, and live sync was verified
+between the real Linux (CachyOS) OLIVE desktop and a physical iPhone over the
+local network. The iOS Simulator was not used.
 
 ## 1. Product behaviour
 
@@ -152,7 +152,9 @@ edits arrive as UTF-16 deltas applied to the text storage with the selection
 transformed. Marked (IME) text is not interrupted: queued remote deltas are
 merged when composition ends, and the composed change is mapped through them.
 UIKit's own undo registration is disabled; the note's undo uses the engine's
-local-only undo.
+local-only undo. The title field shows renames that sync in while the note is
+open and writes a title only when the user edited it, so leaving the editor
+never reverts another device's rename.
 
 ## 8. Sync protocol (`olive-notes/1`)
 
@@ -274,7 +276,9 @@ Local only. Desktop: SQLite FTS5 over title and body (diacritics folded), plus
 substring matching for other scripts and partial words. The index is updated
 about 0.8 s after changes and before every search, not on every keystroke.
 Phone: substring search over a local index table, refreshed by `tick()`
-(about 1 s after edits, and when the app goes to the background). Queries never
+(about 1 s after edits, and when the app goes to the background). A note whose
+text is not yet indexed is marked in its stored row, so an index update lost to
+a crash or forced termination is redone on the next start. Queries never
 leave the device.
 
 ## 19. Connect integration
@@ -291,10 +295,16 @@ socket, listener, relay or cloud path. `olive/connect/notes.py`:
   retried because they are already durable.
 
 Compatibility: an older OLIVE drops a connection on an unknown frame type. So
-the phone first sends an optional read-only Remote AI probe (`notes`). An
-older desktop rejects it and the phone reconnects without Notes. A desktop
-never sends Notes frames to a phone that has not sent one first; desktops that
-dial a desktop speak first.
+the phone first sends an optional read-only probe (`notes`) on the Remote AI
+channel. It needs only the paired, authenticated channel, not Remote AI
+permission, and reports `sync.notes` Allow/Off. An older desktop drops the
+channel on it; after two consecutive probe failures the phone stops probing
+until OLIVE is relaunched (or the computer is re-selected) and Notes stays
+local, so an older desktop sees at most two reconnects. A single failure, such
+as Wi-Fi returning mid-probe, does not turn Notes off. A desktop never sends
+Notes frames to a phone that has not sent one first; desktops that dial a
+desktop speak first. The phone learns that Notes sync was switched to Allow or
+Off within about 15 seconds (the existing Connect status interval).
 
 ## 20. Authentication
 
@@ -372,21 +382,27 @@ clipboards often hold passwords, tokens and codes.
 
 ## 25. Phone background behaviour
 
-While OLIVE is in the foreground and connected, edits sync in well under a
-second. When iOS suspends the app, the Connect socket is closed (existing
-C9.3 behaviour). Edits stay in the phone's durable change feed and sync when
-the app returns and reconnects. There is no background polling and no claim of
-real-time background sync.
+While OLIVE Mobile is in the foreground and connected, synchronization is
+near-real-time (verified with a physical iPhone and the Linux desktop: desktop
+typing appeared on the phone keystroke by keystroke). When iOS suspends OLIVE,
+the Connect socket is closed (existing C9.3 behaviour). Edits stay in the
+phone's durable change feed and synchronize when the app resumes and
+reconnects (verified: 4 minutes in the background across a desktop restart,
+then catch-up on resume). There is no background polling and no claim of
+real-time background sync. Offline edits are shown as pending ("Offline — N
+change(s) will sync later"), also after a relaunch before Connect is back.
 
 ## 26. Known limitations
 
-- **Phone: NOT VERIFIED on a device.** The Swift code (`Core/Notes/*`,
-  `Features/Notes/*`, transport and session changes, `NotesTests.swift`) has not
-  been compiled here. On the Mac, run the Xcode build and unit tests, then
-  `mobile/ios/scripts/check-connect-interop.sh`, which drives the real Swift
-  JavaScriptCore host and SQLite store with the same interop tests
-  (`OLIVE_NOTES_SWIFT_HARNESS`). Physical-phone live sync has not been tested.
-- Search on the phone folds case only for ASCII.
+- **iOS Simulator: NOT VERIFIED** (no simulator runtime was installed; all iOS
+  runtime testing used a physical iPhone).
+- Sync is local-network only (OLIVE Connect over Bonjour/LAN); there is no
+  Internet-wide or relay sync.
+- Search on the phone folds case only for ASCII ("Café" finds "café"; "CAFÉ"
+  does not).
+- An update that arrives before the one it depends on is kept in memory only;
+  the phone answers `needs`, so after a restart the sender resends it (tested).
+  The desktop stores such updates durably.
 - Desktop history is local; the phone has no history view in v1.
 - Chat "attach a note" picker: deferred (see §23).
 - Rich text, images, folders/tags, sharing with other people, cursor presence
@@ -407,7 +423,54 @@ real-time background sync.
 | Chat grammar, CRDT append, duplicate titles, summary provenance, no web queries, no memory extraction, confirmations, permission Off | `tests/test_notes_chat.py` |
 | Renderer binding: two views, caret on a 10,000-character note, local-only undo, IME composition, batching and retry, oversized paste, replace-all | `desktop/tests/notes.test.ts` |
 | Real Electron app, isolated profile: create, type, undo, rename, navigate, live Chat append with caret kept, search, pin, delete/restore, history, restart | `desktop/tests/e2e/notes.spec.ts` |
+| The real Swift JavaScriptCore host and SQLite store (`check-connect-interop.sh`, `OLIVE_NOTES_SWIFT_HARNESS`) running all of the above phone-engine tests, plus: proof of the Swift runtime and its SQLite file, UTF-16/code-point positions for accents, combining marks, skin-tone/ZWJ emoji, flags, CJK, Arabic/Hebrew and astral characters both ways, lost ACK, out-of-order and duplicate updates across a restart, metadata both ways, search after restart, note text as data, corrupt bytes kept and never sent, newer schema left untouched | `tests/test_notes_phone_engine.py` |
+| Swift unit tests on a physical iPhone: engine, restart, undo, UITextView bridge (remote edits in place with caret/selection kept, IME composition, local-only undo), oversized paste, purge after restart, ASCII search folding, Data Protection and backup exclusion, probe and permission gating, pending count offline, 100 KB / 1 MB notes | `mobile/ios/OLIVEMobileTests/NotesTests.swift` |
+| iPhone UI (opt-in `OLIVE_NOTES_UI_ACCEPTANCE=1`, isolated profile): create, type, undo/redo, pin, rename, search, delete/restore, relaunch | `NotesUIAcceptanceTests` in `mobile/ios/OLIVEMobileUITests/ShellUITests.swift` |
+| Live Linux desktop ↔ iPhone (opt-in `OLIVE_NOTES_LIVE_ACCEPTANCE=1` driving the phone; desktop by hand) | `NotesLiveAcceptanceTests`, see §28 |
 
 Measured on the development machine: simulated in-process sync median about
 3 ms from edit to durable remote apply; real Connect TLS loopback median about
 55 ms (including the 40 ms batching). These are diagnostics, not guarantees.
+
+On a physical iPhone (engine to engine on the phone, no network): a
+105 KB note opened in about 36 ms and took about 6 ms per keystroke; a 1.05 MB
+note opened in about 260 ms, about 50 ms per keystroke, and synced in chunks in
+about 1.2 s.
+
+## 28. Physical iPhone and Linux desktop acceptance
+
+Verified with Xcode 27.0, Swift 6.4, a physical iPhone and the real
+OLIVE desktop on CachyOS Linux over the same Wi-Fi (OLIVE Connect, existing
+pairing). Phone actions were driven by `NotesLiveAcceptanceTests`; desktop
+actions were performed by hand. Results:
+
+- Notes sync Off: a phone note and a later phone edit did not reach the
+  desktop; after Allow both arrived (the phone showed "Synced" within about 30
+  seconds, bounded by the 15-second status interval).
+- Desktop → phone: typing, multi-line paste and line deletion appeared in the
+  open phone note without reopening it, keystroke by keystroke.
+- Phone → desktop: typed lines and a deleted word appeared in the open desktop
+  note live.
+- Caret: remote inserts above the caret kept it on the same text on both sides.
+- Undo: phone Undo removed only the phone's text; desktop Ctrl+Z only desktop
+  text.
+- Pin/unpin and rename both ways; a desktop rename while the note was open on
+  the phone was not reverted.
+- Search found a note online and offline on the phone.
+- Offline on both sides (desktop network off), then reconnect: "Coffee" and
+  "Chicken" both kept; same-position inserts kept both words in the same order;
+  text inserted inside a range deleted on the other device was kept (Yjs
+  semantics); both devices ended with identical text.
+- Delete on the phone → desktop Recently Deleted → Restore on the desktop →
+  restored on the phone (same note ID).
+- A note permanently deleted on the desktop while the phone held a stale,
+  edited copy was not resurrected on either device.
+- Phone edit while the desktop was unreachable, forced termination, relaunch,
+  reconnect: the edit reached the desktop exactly once.
+- Desktop restart while the phone was in the background for 4 minutes: the
+  note survived and the phone caught up on resume.
+- A 102 KB note pasted on the desktop arrived complete on the phone; a phone
+  edit at its end synced back.
+- Desktop logs contained none of the synthetic note text.
+- Device revocation was not repeated on the physical pairing (covered by the
+  automated Connect tests).

@@ -395,3 +395,231 @@ final class RealLANAcceptanceTests: XCTestCase {
         let image = XCTAttachment(screenshot: app.screenshot()); image.lifetime = .keepAlways; add(image)
     }
 }
+
+/// OLIVE Notes on the phone, driven through the real UI. Synthetic notes only.
+/// Shared by the isolated flow and the explicit live Linux-desktop acceptance.
+@MainActor
+private struct NotesUI {
+    let app: XCUIApplication
+    var editor: XCUIElement { app.textViews["Note text"] }
+    var title: XCUIElement { app.textFields["Note title"] }
+    var text: String { editor.value as? String ?? "" }
+
+    func log(_ line: String) { print("NOTES-UI \(Date().timeIntervalSince1970) \(line)") }
+    func openNotes() {
+        app.tabBars.buttons["Notes"].tap()
+        if editor.exists { app.navigationBars.buttons.element(boundBy: 0).tap() }   // Resumed inside a note.
+        XCTAssertTrue(app.navigationBars["OLIVE Notes"].waitForExistence(timeout: 10) || app.navigationBars["Recently Deleted"].exists)
+        if app.navigationBars["Recently Deleted"].exists { app.buttons["Show notes"].tap() }
+    }
+    /// A list row by exact title (its combined label is "[Pinned, ]Title, preview, time").
+    func row(_ name: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", name + ",", "Pinned, " + name + ",")).firstMatch
+    }
+    func backToList() {
+        if editor.exists { app.navigationBars.buttons.element(boundBy: 0).tap() }
+        XCTAssertTrue(app.navigationBars["OLIVE Notes"].waitForExistence(timeout: 10) || app.navigationBars["Recently Deleted"].exists)
+    }
+    func create(_ name: String, _ body: String) {
+        app.buttons.matching(identifier: "New note").firstMatch.tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        editor.tap(); editor.typeText(body)
+        rename(name)
+    }
+    func open(_ name: String, timeout: TimeInterval = 30) {
+        let target = row(name)
+        XCTAssertTrue(target.waitForExistence(timeout: timeout), "Note \(name) did not appear")
+        target.tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+    }
+    func rename(_ name: String) {
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()   // Caret after the last character.
+        // The placeholder is the displayed title, so value alone cannot tell an
+        // empty field from a titled one: delete generously (no-op when empty).
+        let current = title.value as? String ?? ""
+        title.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count + 2))
+        title.typeText(name + "\n")
+    }
+    /// Caret at the end (or start) of a short note: tap the empty area below (or the first line).
+    func caret(atEnd: Bool) {
+        if app.keyboards.count == 0 { editor.tap() }
+        editor.coordinate(withNormalizedOffset: atEnd ? CGVector(dx: 0.95, dy: 0.97) : CGVector(dx: 0.0, dy: 0.0)).withOffset(atEnd ? .zero : CGVector(dx: 2, dy: 4)).tap()
+    }
+    func expect(_ fragment: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var last = ""
+        while Date() < deadline {
+            let now = text
+            if now != last { log("text=\(now.debugDescription)"); last = now }
+            if now.contains(fragment) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
+    func menu(_ item: String) {
+        app.buttons["Note actions"].tap()
+        app.buttons[item].tap()
+    }
+    func syncStatus() -> String {
+        let line = app.descendants(matching: .any)["notes.sync"]
+        return line.waitForExistence(timeout: 10) ? line.label : "(no status)"
+    }
+    func search(_ query: String) -> Bool {
+        let field = app.searchFields["Search notes"]
+        if !field.exists { app.swipeDown() }
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap(); field.typeText(query)
+        return app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "OLIVE Notes")).firstMatch.waitForExistence(timeout: 5)
+    }
+    /// Clears the query (newer iOS search bars have no Cancel button).
+    func cancelSearch() {
+        let field = app.searchFields["Search notes"]
+        if let value = field.value as? String, !value.isEmpty, value != field.placeholderValue {
+            field.tap(); field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
+        }
+        for name in ["Cancel", "Close"] where app.buttons[name].exists { app.buttons[name].tap(); break }
+        XCTAssertFalse(app.staticTexts["Results"].exists)
+    }
+}
+
+/// Isolated UI profile (`--ui-test-session`): no pairing, no Connect, no real notes.
+@MainActor
+final class NotesUIAcceptanceTests: XCTestCase {
+    func testNotesLocalFlowSurvivesRelaunch() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_NOTES_UI_ACCEPTANCE"] == "1", "Explicit OLIVE Notes UI acceptance only")
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-session", "notes-" + UUID().uuidString.lowercased()]
+        app.launch()
+        let ui = NotesUI(app: app)
+        ui.openNotes()
+        XCTAssertTrue(app.staticTexts["No notes yet"].exists)
+        XCTAssertEqual(ui.syncStatus(), "Saved on this phone")   // Not paired: local only, no error.
+        ui.create("OLIVE Notes Sync Test", "Milk\nBread")
+        XCTAssertEqual(ui.text, "Milk\nBread")
+        ui.caret(atEnd: true); ui.editor.typeText("\nEggs 🥚 café")
+        XCTAssertEqual(ui.text, "Milk\nBread\nEggs 🥚 café")
+        ui.menu("Undo my last edit")
+        XCTAssertTrue(ui.expect("Bread", timeout: 5)); XCTAssertEqual(ui.text, "Milk\nBread")
+        ui.menu("Redo")
+        XCTAssertTrue(ui.expect("café", timeout: 5))
+        ui.backToList()
+        ui.create("OLIVE Notes Delete Test", "disposable")
+        ui.backToList()
+        // Pin from the editor, list shows the Pinned section; unpin again.
+        ui.open("OLIVE Notes Sync Test"); app.buttons["Pin note"].tap(); ui.backToList()
+        XCTAssertTrue(app.staticTexts["Pinned"].waitForExistence(timeout: 5))
+        ui.open("OLIVE Notes Sync Test"); app.buttons["Unpin note"].tap(); ui.backToList()
+        XCTAssertFalse(app.staticTexts["Pinned"].waitForExistence(timeout: 2))
+        // Rename keeps identity; the list shows the new title.
+        ui.open("OLIVE Notes Sync Test"); ui.rename("OLIVE Notes Sync Test A"); ui.backToList()
+        XCTAssertTrue(ui.row("OLIVE Notes Sync Test A").waitForExistence(timeout: 5))
+        // Local search, no network.
+        XCTAssertTrue(ui.search("café")); ui.cancelSearch()
+        // Delete -> Recently Deleted -> Restore.
+        ui.open("OLIVE Notes Delete Test"); ui.menu("Delete"); app.buttons["Delete"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["OLIVE Notes"].waitForExistence(timeout: 5))
+        XCTAssertFalse(ui.row("OLIVE Notes Delete Test").waitForExistence(timeout: 2))
+        app.buttons["Show recently deleted notes"].tap()
+        ui.open("OLIVE Notes Delete Test", timeout: 5); app.buttons["Restore"].tap(); ui.backToList()
+        app.buttons["Show notes"].tap()
+        XCTAssertTrue(ui.row("OLIVE Notes Delete Test").waitForExistence(timeout: 5))
+        // Full relaunch: notes, text and search index persist.
+        app.terminate(); app.launch()
+        ui.openNotes()
+        XCTAssertTrue(ui.search("Eggs")); ui.cancelSearch()
+        ui.open("OLIVE Notes Sync Test A")
+        XCTAssertEqual(ui.text, "Milk\nBread\nEggs 🥚 café")
+    }
+}
+
+/// Real paired session with the real computer (explicit only). Steps come from
+/// OLIVE_NOTES_LIVE_STEPS, separated by "|", for example
+/// "open:OLIVE Notes Sync Test|expect:Desktop line 1|end|type:\nPhone line 1".
+/// It never pairs, unpairs or changes permissions and only opens the named notes.
+@MainActor
+final class NotesLiveAcceptanceTests: XCTestCase {
+    func testLiveSteps() throws {
+        let steps = ProcessInfo.processInfo.environment["OLIVE_NOTES_LIVE_STEPS"] ?? ""
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_NOTES_LIVE_ACCEPTANCE"] == "1" && !steps.isEmpty,
+                          "Explicit real iPhone <-> computer OLIVE Notes acceptance only")
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Physical iPhone required")
+        #endif
+        let wait = TimeInterval(ProcessInfo.processInfo.environment["OLIVE_NOTES_LIVE_TIMEOUT"] ?? "") ?? 180
+        let app = XCUIApplication()
+        let ui = NotesUI(app: app)
+        app.activate()   // Keep the running app and its open editor; launch only if needed.
+        for step in steps.components(separatedBy: "|") {
+            let parts = step.split(separator: ":", maxSplits: 1).map(String.init)
+            let value = (parts.count > 1 ? parts[1] : "").replacingOccurrences(of: "\\n", with: "\n")
+            ui.log("step \(parts[0])")
+            switch parts[0] {
+            case "notes": ui.openNotes()
+            case "status": ui.openNotes(); ui.log("status=\(ui.syncStatus())")
+            case "waitstatus":
+                ui.openNotes()
+                let line = app.descendants(matching: .any)["notes.sync"]
+                let ok = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", value), object: line)], timeout: wait) == .completed
+                ui.log("status=\(ui.syncStatus())"); XCTAssertTrue(ok, "Status never showed \(value)")
+            case "open": if !(ui.editor.exists && app.textFields["Note title"].exists) { ui.openNotes(); ui.open(value, timeout: wait) }
+            case "create": ui.openNotes(); ui.create(value, "")
+            case "expect": XCTAssertTrue(ui.expect(value, timeout: wait), "Phone never showed \(value.debugDescription)")
+            case "absent":
+                let deadline = Date().addingTimeInterval(wait)
+                while Date() < deadline && ui.text.contains(value) { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+                XCTAssertFalse(ui.text.contains(value)); ui.log("text=\(ui.text.debugDescription)")
+            case "end": ui.caret(atEnd: true)
+            case "start": ui.caret(atEnd: false)
+            case "type": ui.editor.typeText(value); ui.log("typed=\(value.debugDescription)")
+            case "delete": ui.editor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: Int(value) ?? 1))
+            case "text": ui.log("text=\(ui.text.debugDescription)")
+            case "length": let now = ui.text; ui.log("utf16=\((now as NSString).length) utf8=\(now.utf8.count) lines=\(now.split(separator: "\n", omittingEmptySubsequences: false).count)")
+            case "title": ui.log("title=\((ui.title.value as? String ?? "").debugDescription)")
+            case "waittitle":
+                let shown = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: ui.title)], timeout: wait) == .completed
+                ui.log("title=\((ui.title.value as? String ?? "").debugDescription)"); XCTAssertTrue(shown, "Title never showed \(value)")
+            case "rename": ui.rename(value)
+            case "pin": app.buttons["Pin note"].tap()
+            case "unpin": app.buttons["Unpin note"].tap()
+            case "pinned": XCTAssertTrue(app.buttons[value == "yes" ? "Unpin note" : "Pin note"].waitForExistence(timeout: wait))
+            case "undo": ui.menu("Undo my last edit")
+            case "redo": ui.menu("Redo")
+            case "trash": ui.menu("Delete"); app.buttons["Delete"].firstMatch.tap()
+            case "back": ui.backToList()
+            case "listed": ui.openNotes(); XCTAssertTrue(ui.row(value).waitForExistence(timeout: wait), "\(value) not listed")
+            case "unlisted":
+                ui.openNotes()
+                let gone = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: ui.row(value))], timeout: wait) == .completed
+                XCTAssertTrue(gone, "\(value) still listed")
+            case "trashed":
+                ui.openNotes(); app.buttons["Show recently deleted notes"].tap()
+                XCTAssertTrue(ui.row(value).waitForExistence(timeout: wait), "\(value) not in Recently Deleted"); app.buttons["Show notes"].tap()
+            case "nottrashed":
+                ui.openNotes(); app.buttons["Show recently deleted notes"].tap()
+                let gone = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: ui.row(value))], timeout: wait) == .completed
+                app.buttons["Show notes"].tap(); XCTAssertTrue(gone, "\(value) still in Recently Deleted")
+            case "search": ui.openNotes(); XCTAssertTrue(ui.search(value), "Search found nothing for \(value)"); ui.cancelSearch()
+            case "relaunch": app.terminate(); app.launchArguments = []; app.launch()
+            case "relaunchtext":
+                // This launch only: a Dynamic Type size (no system setting changes).
+                app.terminate(); app.launchArguments = ["-UIPreferredContentSizeCategoryName", value]; app.launch()
+            case "background": XCUIDevice.shared.press(.home); RunLoop.current.run(until: Date().addingTimeInterval(Double(value) ?? 5)); app.activate()
+            case "sleep": RunLoop.current.run(until: Date().addingTimeInterval(Double(value) ?? 1))
+            case "shot":
+                // OLIVE only: the step list runs inside the foreground app.
+                XCTAssertEqual(app.state, .runningForeground)
+                let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "notes-" + value; shot.lifetime = .keepAlways; add(shot)
+            case "cancelsearch": ui.cancelSearch()
+            case "deleted": ui.openNotes(); app.buttons["Show recently deleted notes"].tap()
+            case "rotate": XCUIDevice.shared.orientation = value == "landscape" ? .landscapeLeft : .portrait
+            case "query":
+                ui.openNotes()
+                let field = app.searchFields["Search notes"]
+                if !field.exists { app.swipeDown() }
+                field.tap(); field.typeText(value)
+            default: XCTFail("Unknown step \(step)")
+            }
+        }
+    }
+}

@@ -14,8 +14,10 @@ paired computer over Connect frames 13/14 (`olive-notes/1`). Its engine is
 `OLIVEMobile/Resources/NotesEngine.js`, generated from
 `desktop/src/features/notes/engine/` by `node desktop/scripts/build-notes-engine.mjs`
 (do not edit the bundle by hand), run in JavaScriptCore with a SQLite store.
-See `docs/OLIVE_NOTES.md`. The Notes Swift code was written on Linux and still
-needs its first Xcode build, unit tests and interop run here.
+See `docs/OLIVE_NOTES.md` (§28 records the physical iPhone ↔ Linux desktop
+acceptance). Opt-in Notes UI tests: `TEST_RUNNER_OLIVE_NOTES_UI_ACCEPTANCE=1`
+(isolated profile) and `TEST_RUNNER_OLIVE_NOTES_LIVE_ACCEPTANCE=1` with
+`TEST_RUNNER_OLIVE_NOTES_LIVE_STEPS` (real pairing, synthetic notes only).
 
 Open `OLIVEMobile.xcodeproj`; select the shared **OLIVEMobile** scheme.
 The app supports iPhone on **iOS 17+**, in portrait and landscape.

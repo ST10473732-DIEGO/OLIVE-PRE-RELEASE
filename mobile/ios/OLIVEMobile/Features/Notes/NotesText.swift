@@ -44,6 +44,14 @@ enum NotesText {
         return result
     }
 
+    /// The rename a title field asks for, or nil. `baseline` is the stored title
+    /// the field last showed; a field the user did not edit never writes, so a
+    /// rename that synced in while the editor was open is not reverted.
+    static func titleChange(field: String, baseline: String) -> String? {
+        let title = field.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title == baseline ? nil : title
+    }
+
     static func normalize(_ text: String) -> String {
         text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n").replacingOccurrences(of: "\0", with: "")
     }

@@ -204,6 +204,7 @@ final class AppState {
             guard let self else { return }
             let id = await self.session?.localDeviceID() ?? Self.notesLocalID()
             if self.notes.engine == nil { self.notes.start(deviceID: id) }
+            self.notes.sync.remember(peer: self.session?.selectedID)
         }
     }
     /// Before this phone has a Connect identity, Notes still works locally.

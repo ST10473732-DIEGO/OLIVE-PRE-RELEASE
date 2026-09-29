@@ -66,6 +66,10 @@ if CommandLine.arguments[1] == "--notes-harness" {
             case "call":
                 guard let host else { throw NotesEngineHost.Failure.unavailable("not_booted") }
                 reply["result"] = .string(try host.raw(try arguments[0].text(), arguments: arguments.dropFirst().map(plain)))
+            case "runtime":
+                // Proof for the Python tests that this is the Swift host, not the Node stand-in.
+                guard let host else { throw NotesEngineHost.Failure.unavailable("not_booted") }
+                reply["result"] = .object(["runtime": .string("swift-javascriptcore"), "database": .string(host.database.url.path)])
             case "failCommits": host?.database.failCommits = Int(arguments.first?.integer ?? 0); reply["result"] = .bool(true)
             case "events": reply["result"] = .array(events); events = []
             default: throw NotesEngineHost.Failure.unavailable("unknown_command")
