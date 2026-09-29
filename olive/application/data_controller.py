@@ -32,7 +32,8 @@ class DataController:
 
     def home(self):
         """Bounded real recents for presentation; never resume actions or invent activity."""
-        chats = [c for c in sorted(self.s.chats.values(), key=lambda c: c.updated_at, reverse=True)
+        from .chat_controller import recent_first
+        chats = [c for c in recent_first(self.s.chats.values())
                  if c.messages or getattr(c, "draft", "")]
         recent = [{"key": c.id, "title": c.title, "subtitle": "Conversation", "feature": "chat",
                    "kind": "chat", "glyph": "chat"} for c in chats[:4]]

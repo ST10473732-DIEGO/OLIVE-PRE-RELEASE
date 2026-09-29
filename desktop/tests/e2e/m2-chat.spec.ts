@@ -113,7 +113,7 @@ test("Chat options branches search attachments export and deletion use real loca
       });
     }, attachment);
     await page
-      .getByRole("button", { name: "Attach files", exact: true })
+      .getByRole("button", { name: "Attach files to this message", exact: true })
       .click();
     await expect(
       page.getByRole("button", {

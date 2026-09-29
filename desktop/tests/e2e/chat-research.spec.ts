@@ -37,7 +37,7 @@ test("LIVE Chat PDF research, follow-up, explicit web comparison and NVIDIA", as
     await openSpace(page, "Chat");
     await expect(mainNav(page).getByRole("button", {name:"Research", exact:true})).toHaveCount(0);
     await expect(page.getByRole("combobox", {name:"Research mode"})).toHaveCount(0);
-    await expect(page.getByRole("combobox", {name:"OLIVE preset"}).locator("option")).toHaveCount(7);
+    await expect(page.getByRole("combobox", {name:"OLIVE preset"}).locator("option")).toHaveCount(9);
     await app.evaluate(({dialog}, file) => {dialog.showOpenDialog = async () => ({canceled:false,filePaths:[file]});}, pdf);
     await page.getByRole("button", {name:"Attach files to this message",exact:true}).click();
     await expect(page.getByRole("button", {name:"Remove attachment Synthetic report.pdf",exact:true})).toBeVisible({timeout:30000});

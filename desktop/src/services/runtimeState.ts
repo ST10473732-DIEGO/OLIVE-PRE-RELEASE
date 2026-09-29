@@ -1,3 +1,4 @@
+import { MEDIA_PRESETS } from "../../electron/presets";
 import type { Snapshot } from "./api";
 
 export type RuntimeTone = "idle" | "working" | "attention" | "error";
@@ -105,7 +106,7 @@ export function modelStatus(snapshot: Snapshot | null, runOnName = ""): StatusSu
       tone: model.detail === "checking AI" ? "neutral" : "warning",
       full: model.full,
     };
-  if (preset && preset.status !== "Ready" && preset.id !== "reimagine")
+  if (preset && (preset.available === false || (!MEDIA_PRESETS.includes(preset.id) && preset.status !== "Ready")))
     return { label: `${short} needs setup`, tone: "warning", full: `${preset.name}: ${preset.status}. Open Settings › Models.` };
   return { label: short ? `${short} ready` : "AI ready", tone: "ok", full: preset ? `${preset.name} is available on this device.` : model.full };
 }

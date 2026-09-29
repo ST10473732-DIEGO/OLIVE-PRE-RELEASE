@@ -27,7 +27,8 @@ describe("Remote AI presentation and narrow bridge", () => {
     expect(targetState({ ...target, permission: "ask" }, "fast")).toBe("Online · Ask");
     expect(targetState({ ...target, busy: true }, "fast")).toBe("Busy");
     expect(targetState(target, "deep")).toBe("Model unavailable");
-    expect(targetState(target, "reimagine")).toBe("Model unavailable");
+    // Media generation modes are This device only, never offered remotely.
+    for (const media of ["reimagine", "audio", "video"]) expect(targetState(target, media)).toBe("This device only");
     expect(targetState({ ...target, presets: { ...target.presets, max: false } }, "max")).toBe("Model unavailable");
   });
   it("supports Off Ask Allow without tool or provider controls", () => {

@@ -127,6 +127,10 @@ class NaturalLanguageOrchestrator:
             raise ValueError("Unknown research mode")
         chat_id = chat_id or self.s.current_chat_id
         context = self.context(chat_id)
+        if getattr(self.s.chats[chat_id], "preset", "") in {"reimagine", "audio", "video"}:
+            # Generation modes: Send goes straight to the local media pipeline.
+            # No interpreter, research routing or tool planning sees the request.
+            return await self.s.chat.send(chat_id, text)
         if getattr(self.s.chats[chat_id], "preset", "") == "now":
             from .request_consent import requested_capability
             with requested_capability("now.answer"):

@@ -23,6 +23,9 @@ class Message:
     grounding: dict[str, Any] | None = None
     completion_state: str = "complete"
     provider: dict[str, Any] = field(default_factory=dict)
+    # Generated media (REIMAGINE/AUDIO/VIDEO). Metadata only; files stay in the
+    # media store and are resolved by id, never by a stored path.
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -39,7 +42,19 @@ class Message:
             grounding=data.get("grounding"),
             completion_state=data.get("completion_state") if data.get("completion_state") in {"complete", "incomplete", "unverified"} else "complete",
             provider=data.get("provider", {}) if isinstance(data.get("provider", {}), dict) else {},
+            artifacts=[a for a in map(clean_artifact, data.get("artifacts") or []) if a],
         )
+
+
+ARTIFACT_KEYS = {"id", "kind", "filename", "mime_type", "created_at", "mode", "generator", "parameters", "source_ids",
+                 "completion_state", "size_bytes", "sha256", "width", "height", "duration_seconds", "has_audio"}
+
+
+def clean_artifact(value: Any) -> dict[str, Any] | None:
+    """Keep only the documented chat-artifact fields; drop anything path-like."""
+    if not isinstance(value, dict) or not isinstance(value.get("id"), str) or value.get("kind") not in {"image", "audio", "video"}:
+        return None
+    return {k: v for k, v in value.items() if k in ARTIFACT_KEYS}
 
 
 @dataclass
@@ -167,6 +182,6 @@ class Chat:
             updated_at=data.get("updated_at", now_iso()),
             project_id=data.get("project_id"),
             draft=data.get("draft", "") if isinstance(data.get("draft", ""), str) else "",
-            preset=data.get("preset", "") if data.get("preset", "") in {"", "fast", "normal", "max", "uncensored", "now", "deep", "reimagine"} else "",
+            preset=data.get("preset", "") if data.get("preset", "") in {"", "fast", "normal", "max", "uncensored", "now", "deep", "reimagine", "audio", "video"} else "",
             research_session_ids=[v for v in data.get("research_session_ids", []) if isinstance(v, str)],
         )

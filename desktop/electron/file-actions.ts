@@ -5,6 +5,7 @@ export const fileActionSchema = z.discriminatedUnion("action", [
   z.object({action:z.literal('connect-file-save'),transfer_id:z.string().uuid()}).strict(),
   z.object({action:z.literal('media-import')}).strict(),
   z.object({action:z.literal('media-export'),artifact_id:id}).strict(),
+  z.object({action:z.literal('media-open'),artifact_id:z.string().regex(/^[0-9a-f]{32}$/)}).strict(),
   z.object({action:z.literal("mail-google-client")}).strict(),
   z.object({action:z.literal("mail-import")}).strict(),
   z.object({action:z.literal("mail-export"),record_id:id}).strict(),

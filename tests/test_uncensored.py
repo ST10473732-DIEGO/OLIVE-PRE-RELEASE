@@ -232,3 +232,41 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.classification = {'mode': 'grant_all_permissions', 'domains': ['filesystem']}
         with self.assertRaises(ValueError):
             await interpreter.speech_act('Delete a file', {})
+
+
+class InlineThinkingTests(unittest.IsolatedAsyncioTestCase):
+    """Completion-only reduced-refusal models (e.g. CREATIVE) emit <think> inline."""
+
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='olive-inline-think-')
+        self.s = ServiceContainer(lambda *a: None, AsyncMock(), data_dir=self.temp.name, migrate=False)
+        self.s.ollama._options = AsyncMock(return_value={})
+        self.s.ollama._thinking = lambda model, value: {}
+
+    async def asyncTearDown(self):
+        await self.s.shutdown()
+        self.temp.cleanup()
+
+    def provider(self, chunks):
+        async def stream(**kwargs):
+            for text in chunks:
+                yield {'message': {'content': text}, 'done': False}
+            yield {'message': {'content': ''}, 'done': True, 'done_reason': 'stop'}
+        self.s.ollama._bounded_stream = stream
+
+    async def answer(self):
+        return ''.join([c async for c in self.s.ollama.chat_stream('olive-uncensored-dolphin24b:latest', [{'role': 'user', 'content': 'poem'}])])
+
+    async def test_leading_block_is_hidden_even_when_tags_span_chunks(self):
+        self.provider(['<th', 'ink>The user wants a poem.', '</thi', 'nk>', '\n\n', 'Olives ', 'ripen slowly.'])
+        self.assertEqual(await self.answer(), 'Olives ripen slowly.')
+
+    async def test_literal_tags_later_in_an_answer_are_content(self):
+        self.provider(['Use ', '<think>', ' as an XML tag name.'])
+        self.assertEqual(await self.answer(), 'Use <think> as an XML tag name.')
+
+    async def test_reasoning_only_output_is_an_empty_answer_not_leaked(self):
+        from olive.services.ollama_service import EmptyModelAnswer
+        self.provider(['<think>only reasoning, never answered'])
+        with self.assertRaises(EmptyModelAnswer):
+            await self.answer()

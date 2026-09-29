@@ -21,6 +21,7 @@ import { Backend } from "./backend";
 import { backendPython, iconName } from "../platform";
 import { validateCall } from "../contracts";
 import { fileAction } from "./file-actions";
+import { mediaId, mediaResponse } from "./media-protocol";
 import { nativeNotifications } from './notifications';
 import { writeClipboardText } from '../clipboard';
 
@@ -58,6 +59,8 @@ else {
       const url = new URL(request.url);
       if (url.host !== "app" || request.method !== "GET")
         return new Response("", { status: 403 });
+      const artifact = mediaId(url.pathname);
+      if (artifact) return mediaResponse(request, artifact, backend);
       let relative: string;
       try {
         relative =
@@ -88,7 +91,7 @@ else {
             "Content-Type":
               types[path.extname(file)] || "application/octet-stream",
             "Content-Security-Policy":
-              "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'none'; frame-src 'self'; base-uri 'none'; form-action 'none'",
+              "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self'; worker-src 'self'; connect-src 'none'; frame-src 'self'; base-uri 'none'; form-action 'none'",
           },
         });
       } catch {

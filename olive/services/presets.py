@@ -20,8 +20,13 @@ PRESETS = {
              "params": {"temperature": .2, "max_tokens": 8192, "rag_top_k": 8},
              "description": "Native document text, bounded retrieval and citations. Image reading depends on available vision/OCR."},
     "reimagine": {"name": "OLIVE REIMAGINE", "model": "", "pipeline": "media", "role": "media",
-                  "params": {}, "description": "Local image generation and editing. Needs a configured media engine."},
+                  "params": {}, "description": "Generate and edit images locally, directly in Chat."},
+    "audio": {"name": "OLIVE AUDIO", "model": "", "pipeline": "media", "role": "media",
+              "params": {}, "description": "Generate local speech and audio directly in Chat."},
+    "video": {"name": "OLIVE VIDEO", "model": "", "pipeline": "media", "role": "media",
+              "params": {}, "description": "Generate local video directly in Chat."},
 }
+MEDIA_PRESETS = ("reimagine", "audio", "video")
 
 # Rollback: the MAX mapping before the 2026-09-25 promotion (see
 # docs/OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md). Restoring it is a one-line revert.
@@ -37,6 +42,15 @@ class PresetCatalog:
             raise ValueError("Unknown OLIVE preset")
 
         result = deepcopy(PRESETS[key])
+
+        if key in MEDIA_PRESETS:
+            chat_media = getattr(self.s, "chat_media", None)
+            state = chat_media.status(key) if chat_media else {
+                "available": False, "status": "Needs setup", "runtime": "Local media engine", "capabilities": []}
+            result.update(id=key, digest="", thinking=None, status=state["status"], available=state["available"],
+                          runtime=state["runtime"], capabilities=state["capabilities"],
+                          resource_policy="One heavy local engine on the GPU at a time; This device only; no hosted fallback")
+            return result
 
         if key == "uncensored":
             available = self.s.uncensored_router.available_models()
@@ -61,7 +75,7 @@ class PresetCatalog:
 
         result.update(
             id=key,
-            runtime="Ollama" if key != "reimagine" else "Not configured",
+            runtime="Ollama",
             thinking=False if key in {"fast", "max", "uncensored"} else "low" if key in {"normal", "deep"} else None,
             digest=getattr(info, "digest", ""),
             capabilities=list(model.capabilities) if model else [],
@@ -72,16 +86,6 @@ class PresetCatalog:
 
         if key == "now":
             result.update(self.s.now.status())
-
-        if key == "reimagine":
-            media = getattr(self.s, "media", None)
-            generation = media.status()["image_generation"] if media else "Needs setup"
-            result.update(
-                runtime="Pillow; optional local ComfyUI",
-                capabilities=["image-resize", "image-crop"],
-                status="Image edits ready; generation " + generation.lower(),
-                description="Open Media tools for local raster editing or a configured generation workflow.",
-            )
 
         return result
 
@@ -98,15 +102,16 @@ class PresetCatalog:
         return selected
 
     def require(self, chat):
-        if chat.preset=='reimagine':
-            raise ValueError('Open REIMAGINE Media tools to create an image artifact. Text inference cannot generate an image; a local generation engine may need setup.')
+        if chat.preset in MEDIA_PRESETS:
+            # Media presets never fall back to text inference; ChatMediaService handles them.
+            raise ValueError("OLIVE media presets generate media and do not use text inference.")
         if not chat.preset:
             return  # Legacy explicit provider selection is preserved in place.
         if chat.preset == "now":
             self.s.now.require()
         selected = self.get(chat.preset)
         if not selected["available"]:
-            raise ValueError("OLIVE REIMAGINE needs a configured local media engine; no image was generated." if chat.preset == "reimagine" else "This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.")
+            raise ValueError("This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.")
         if chat.preset != "uncensored":
             chat.model = selected["model"]
         from .model_policy import REQUEST_ROLE

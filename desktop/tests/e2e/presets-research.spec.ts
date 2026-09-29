@@ -20,7 +20,7 @@ test("LIVE LOCAL seven presets, simplified navigation and public research in Cha
     await openSpace(page, "Chat");
     const picker = page.getByRole("combobox", {name: "OLIVE preset"});
     await expect(picker).toHaveValue("normal");
-    await expect(picker.locator("option")).toHaveCount(7);
+    await expect(picker.locator("option")).toHaveCount(9);
     await picker.selectOption("fast");
     await page.getByRole("textbox", {name: "Message OLIVE"}).fill("Write a Python function that validates an email address.");
     await page.getByRole("button", {name: "Send message", exact: true}).click();
@@ -30,7 +30,8 @@ test("LIVE LOCAL seven presets, simplified navigation and public research in Cha
     expect(s.workspaces).toHaveLength(0); expect(s.runs).toHaveLength(0);
     await picker.selectOption("reimagine");
     await expect(picker).toHaveValue("reimagine");
-    await expect(picker.locator("option:checked")).toContainText("generation needs setup");
+    // Media modes show engine readiness truthfully: setup text only when unavailable.
+    await expect(picker.locator("option:checked")).toHaveText(/^OLIVE REIMAGINE( · Needs setup.*)?$/);
     await picker.selectOption("normal");
     await expect(page.getByRole("combobox", {name: "Research mode"})).toHaveCount(0);
     await page.getByRole("textbox", {name: "Message OLIVE"}).fill("Research using https://docs.python.org/3/library/math.html, what does math.sqrt(9) return? Cite the documentation.");

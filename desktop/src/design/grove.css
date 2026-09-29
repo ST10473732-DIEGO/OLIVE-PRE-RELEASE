@@ -1083,3 +1083,25 @@ input[type="radio"] {
 .conversation-danger button { align-self: flex-start; }
 .conversation-danger button.danger-action { color: var(--status-error); background: none; border-color: var(--border-default); }
 .conversation-danger button.danger-action:hover:not(:disabled) { background: var(--status-error-soft); border-color: var(--status-error); }
+
+/* ---------- Chat: calm layout, one motion at a time ---------- */
+/* History renders at rest; only a turn that arrives while the chat is open
+   rises in (set by Chat.tsx), so switching chats never replays every message. */
+.ws .message { animation: none; }
+.ws .message.message-new { animation: grove-rise 240ms var(--spring) both; }
+/* Hover actions float in the gap below a turn instead of reserving an empty row. */
+.ws .messages { gap: 30px; padding-top: 24px; padding-bottom: 20px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
+.ws .message-actions { position: absolute; top: 100%; margin-top: 3px; height: 24px; }
+.ws .message-user .message-actions { right: 0; }
+.ws .message-assistant .message-actions { left: -4px; }
+.ws .message-body { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.ws .message-body pre, .ws .message-body code { overflow-wrap: normal; }
+/* Notices sit clear of the conversation instead of butting against it. */
+.ws .chat-notice { margin: 10px auto 0; }
+/* Composer bottom row: tools on the left, send on the right, nothing between. */
+.ws .chat-composer .composer-spacer { flex: 1; min-width: 8px; }
+.ws .chat-tool select { field-sizing: content; max-width: 220px; }
+.ws .chat-head .chat-tools { gap: 4px; }
+.ws .chat-head .chat-tools .icon-button { width: 30px; height: 30px; }

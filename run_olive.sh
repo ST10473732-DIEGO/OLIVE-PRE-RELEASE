@@ -53,6 +53,26 @@ if [[ -n "$olive_comfy_root" && -n "$olive_comfy_python" ]]; then
   export OLIVE_COMFY_ROOT="${OLIVE_COMFY_ROOT:-$olive_comfy_root}"
   export OLIVE_COMFY_PYTHON="${OLIVE_COMFY_PYTHON:-$olive_comfy_python}"
 fi
+# Persistent image model store (FLUX.2 files live outside the runtime's models
+# folder). The owned image runtime reads it through an extra model-paths map.
+if [[ -d "$HOME/.local/share/olive/models/comfy" ]]; then
+  export OLIVE_MEDIA_MODELS="${OLIVE_MEDIA_MODELS:-$HOME/.local/share/olive/models/comfy}"
+fi
+# Chat VIDEO uses its own isolated ComfyUI runtime on 127.0.0.1:8190; the
+# image runtime above is never repurposed for video.
+if [[ -f "$HOME/.local/share/olive/runtime/video-comfy/ComfyUI/main.py" \
+   && -x "$HOME/.local/share/olive/runtime/video-comfy/comfy-venv/bin/python" ]]; then
+  export OLIVE_VIDEO_COMFY_ROOT="${OLIVE_VIDEO_COMFY_ROOT:-$HOME/.local/share/olive/runtime/video-comfy/ComfyUI}"
+  export OLIVE_VIDEO_COMFY_PYTHON="${OLIVE_VIDEO_COMFY_PYTHON:-$HOME/.local/share/olive/runtime/video-comfy/comfy-venv/bin/python}"
+fi
+# Chat AUDIO talks to a separately installed VoiceStudio service (not bundled).
+# An already-running service is reused only if it listens on loopback alone;
+# otherwise OLIVE starts its own on 127.0.0.1:3900, offline, when AUDIO needs it.
+if [[ -f "$HOME/.local/share/olive/runtime/voicestudio/backend/main.py" \
+   && -x "$HOME/.local/share/olive/runtime/voicestudio/.venv/bin/python" ]]; then
+  export OLIVE_VOICESTUDIO_URL="${OLIVE_VOICESTUDIO_URL:-http://127.0.0.1:3900}"
+  export OLIVE_VOICESTUDIO_ROOT="${OLIVE_VOICESTUDIO_ROOT:-$HOME/.local/share/olive/runtime/voicestudio}"
+fi
 for tool in python3 node npm; do
   command -v "$tool" >/dev/null || { printf 'Missing dependency: %s. Install it before launching OLIVE.\n' "$tool" >&2; exit 1; }
 done

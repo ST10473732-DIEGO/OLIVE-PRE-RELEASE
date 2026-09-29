@@ -292,12 +292,15 @@ class OllamaService:
                 stream = self._bounded_stream(model=model, messages=messages,
                     options=resolved_options, tools=tools or [], keep_alive=keep_alive,
                     **self._thinking(model, think))
+                inline = InlineThinking()
                 try:
                     async for part in stream:
                         completed = completed or _field(part, "done", False) is True
                         finish_reason = _field(part, "done_reason", "") or finish_reason
                         thinking_characters += len(_field(_field(part, "message", {}), "thinking", "") or "")
-                        content = _field(_field(part, "message", {}), "content", "") or ""
+                        content = inline.feed(_field(_field(part, "message", {}), "content", "") or "")
+                        if completed:
+                            content += inline.flush()
                         if content:
                             answer_digest.update(content.encode('utf-8'))
                             answer_characters += len(content)
@@ -305,6 +308,7 @@ class OllamaService:
                             if content.strip():
                                 first = first or time.perf_counter()
                             yield content
+                    thinking_characters += inline.hidden
                     if finish_reason == "length":
                         raise GenerationOutputLimit(visible=has_content)
                     if not has_content:
@@ -381,7 +385,7 @@ class OllamaService:
                     thinking_characters = len(_field(message, "thinking", "") or "")
                 _validate_answer(response, message)
                 success = True
-                return {"content": _field(message, "content", "") or "",
+                return {"content": strip_inline_thinking(_field(message, "content", "") or ""),
                         "thinking_characters": thinking_characters,
                         "done_reason": _field(response, "done_reason", ""),
                         "first_token_ms": (first - started) * 1000 if first else None,
@@ -412,6 +416,61 @@ class OllamaService:
             out.extend(await self.embed(model, texts[start : start + batch_size]))
             await asyncio.sleep(0)
         return out
+
+
+class InlineThinking:
+    """Hide one leading <think>...</think> block from visible answer text.
+
+    Models without Ollama's thinking capability (e.g. some reduced-refusal
+    fine-tunes) emit their reasoning inline. Only a block at the very start of
+    the answer is hidden; later literal "<think>" text is ordinary content.
+    """
+    OPEN, CLOSE = "<think>", "</think>"
+
+    def __init__(self):
+        self.state, self.buffer, self.hidden = "start", "", 0
+
+    def feed(self, text):
+        if self.state == "visible":
+            return text
+        self.buffer += text
+        if self.state == "start":
+            lead = self.buffer.lstrip()
+            if self.OPEN.startswith(lead):  # Undecided until the tag completes.
+                return ""
+            if not lead.startswith(self.OPEN):
+                self.state, out, self.buffer = "visible", self.buffer, ""
+                return out
+            self.state, self.buffer = "thinking", lead[len(self.OPEN):]
+        if self.state == "thinking":
+            end = self.buffer.find(self.CLOSE)
+            if end < 0:
+                keep = len(self.CLOSE) - 1  # A closing tag may span chunks.
+                if len(self.buffer) > keep:
+                    self.hidden += len(self.buffer) - keep
+                    self.buffer = self.buffer[-keep:]
+                return ""
+            self.hidden += end
+            self.buffer, self.state = self.buffer[end + len(self.CLOSE):], "after"
+        rest = self.buffer.lstrip()  # "after": skip whitespace before the answer.
+        if not rest:
+            self.buffer = ""
+            return ""
+        self.state, self.buffer = "visible", ""
+        return rest
+
+    def flush(self):
+        # A lone "<" or "<th" at the start was never a think tag.
+        out = self.buffer if self.state == "start" else ""
+        if self.state == "thinking":
+            self.hidden += len(self.buffer)
+        self.buffer = ""
+        return out
+
+
+def strip_inline_thinking(text):
+    filter = InlineThinking()
+    return filter.feed(text or "") + filter.flush()
 
 
 def _field(value, name, default=None):

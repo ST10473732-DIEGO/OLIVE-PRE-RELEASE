@@ -23,6 +23,11 @@ METHODS = {
     'media.cancel': ({'job_id':str}, {}),
     'media.preview': ({'artifact_id':str}, {}),
     'media.export': ({'artifact_id':str,'path':str}, {}),
+    'media.artifact_file': ({'artifact_id':str}, {}),  # Electron main only (inline playback/open).
+    'media.reuse': ({'chat_id':str,'artifact_id':str}, {}),
+    'media.engines': ({}, {}),
+    'media.voices': ({}, {}),
+    'media.select_voice': ({'voice':str}, {}),
     'connections.discord_status': ({}, {}),
     'connections.discord_destinations': ({}, {'guild_id':str}),
     'connections.discord_select': ({'guild_id':str,'channel_id':str}, {}),

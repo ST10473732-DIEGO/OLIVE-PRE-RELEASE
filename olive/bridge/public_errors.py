@@ -17,7 +17,6 @@ _MESSAGES = {
  'Native application control for Linux is not available in this build yet.': 'Native application control for Linux is not available in this build yet.',
  'File changed since it was read': 'That file changed since OLIVE last read it. Reload it before applying the edit.',
  'Google authorization did not complete. Check desktop-client setup and permissions; credentials were not exposed.': 'Google authorization did not complete. Check the Google desktop-client setup checklist and permissions, then retry.',
- 'OLIVE REIMAGINE needs a configured local media engine; no image was generated.': 'OLIVE REIMAGINE needs a configured local media engine; no image was generated.',
  "This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.": "This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.",
  'Task cancelled by user': 'The action was cancelled before execution.',
  'The terminal is not running': 'This terminal has exited. Start the program again before typing.',
@@ -48,12 +47,22 @@ for _message in (
  'Remote AI supports OLIVE FAST, NORMAL and MAX. DEEP and REIMAGINE are unavailable remotely.',
  'Action results cannot be regenerated as Remote AI answers.',
  'Finish the current request before changing its target',
+ 'OLIVE media presets generate media and do not use text inference.',
+ 'Wait for attached documents to finish indexing, or remove failed attachments',
+ 'Remove an attached image before adding another reference',
+ 'Cannot verify media GPU release. Reconnect the configured engine, or disconnect it in Media tools while it is running and idle, before retrying Chat.',
 ):
  _MESSAGES[_message] = _message
 
 def public_error(error):
  from ..services.now_weather import NowError
  if isinstance(error, NowError):return {"code":"Now_" + error.code,"message":str(error)}
+ from ..services.media_errors import MediaError
+ if isinstance(error, MediaError):
+  if error.detail:
+   import logging
+   logging.getLogger('olive.media').info('Media request failed (%s): %s', error.code, error.detail)
+  return {"code":"Media_" + error.code,"message":str(error)}
  import ollama
  if isinstance(error,ollama.ResponseError):
   status = error.status_code if type(error.status_code) is int and 100 <= error.status_code <= 599 else None

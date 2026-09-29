@@ -10,9 +10,15 @@ from olive.services.media_comfy import endpoint
 from unittest.mock import AsyncMock, patch
 
 class MediaTests(unittest.IsolatedAsyncioTestCase):
+    def engine_running(self):
+        # A configured engine that is listening and answering; release is what varies.
+        return (patch('olive.services.media_engines.port_bound',return_value=True),
+                patch('olive.services.local_comfy_runtime.LocalComfyRuntime.ready',new_callable=AsyncMock,return_value=True),
+                patch('olive.services.media_comfy.ComfyWorkflows.release_idle',new_callable=AsyncMock))
     async def test_disconnect_requires_verified_release_and_retains_config_on_failure(self):
         self.s.media.config.write({'endpoint':'http://127.0.0.1:8188'})
-        with patch('olive.services.media_service.ComfyImages.release_idle',new_callable=AsyncMock) as release:
+        bound,ready,release_patch=self.engine_running()
+        with bound,ready,release_patch as release:
             release.side_effect=RuntimeError('engine offline')
             with self.assertRaisesRegex(RuntimeError,'Cannot verify media GPU release'):
                 await self.s.media.disconnect()
@@ -23,7 +29,8 @@ class MediaTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result['image_generation'],'Needs setup')
     async def test_chat_blocks_until_configured_media_releases_gpu(self):
         self.s.media.config.write({'endpoint':'http://127.0.0.1:8188'})
-        with patch('olive.services.media_service.ComfyImages.release_idle',new_callable=AsyncMock) as release:
+        bound,ready,release_patch=self.engine_running()
+        with bound,ready,release_patch as release:
             release.side_effect=RuntimeError('still running')
             with self.assertRaisesRegex(RuntimeError,'Cannot verify media GPU release'):
                 async with self.s.ollama.residency.lease('fixture-model'):
@@ -33,6 +40,22 @@ class MediaTests(unittest.IsolatedAsyncioTestCase):
             release.side_effect=None
             async with self.s.ollama.residency.lease('fixture-model'):
                 self.assertEqual(self.s.ollama.residency.current,'fixture-model')
+    async def test_bound_but_silent_engine_is_not_proof_of_release(self):
+        self.s.media.config.write({'endpoint':'http://127.0.0.1:8188'})
+        with patch('olive.services.media_engines.port_bound',return_value=True), \
+             patch('olive.services.local_comfy_runtime.LocalComfyRuntime.ready',new_callable=AsyncMock,return_value=False):
+            with self.assertRaisesRegex(RuntimeError,'Cannot verify media GPU release'):
+                async with self.s.ollama.residency.lease('fixture-model'):
+                    self.fail('unreachable engine')
+    async def test_unconfigured_engines_are_never_probed_or_started(self):
+        # Nothing discovered or configured: a server on these ports is an unrelated app.
+        with patch('olive.services.media_engines.port_bound') as bound, \
+             patch('olive.services.local_comfy_runtime.LocalComfyRuntime.start_for',new_callable=AsyncMock) as start:
+            async with self.s.ollama.residency.lease('fixture-model'):
+                pass
+            await self.s.chat_media.refresh()
+        bound.assert_not_called();start.assert_not_awaited()
+        self.assertEqual(self.s.chat_media.diagnostics()['video']['state'],'not installed')
     async def asyncSetUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         async def deny(request):return ConfirmationResponse(False)

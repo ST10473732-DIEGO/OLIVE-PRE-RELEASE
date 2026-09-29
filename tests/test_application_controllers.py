@@ -37,6 +37,40 @@ class ApplicationControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.s.studio.s, self.s.agent.s)
         self.assertTrue(self.s.rag_store.path.is_relative_to(self.root))
 
+    async def test_send_waits_for_in_flight_indexing_but_not_for_a_failed_job(self):
+        import asyncio
+        from olive.models import DocumentRef
+        chat = self.s.chats[self.chat_id]
+        ref = DocumentRef(id="doc-1", name="report.pdf", indexed=False, temporary=True)
+        chat.documents.append(ref)
+        job = self.s.indexing_jobs.enqueue(chat.id, ref.id, ref.name, "index", "v1")
+        self.s.indexing_jobs.transition(job.id, "running", progress=10)
+        async def finish():
+            await asyncio.sleep(.3)
+            ref.indexed = True
+            self.s.indexing_jobs.transition(job.id, "completed", progress=100)
+        asyncio.get_running_loop().create_task(finish())
+        await self.s.chat._await_indexing(chat, timeout=5)
+        self.assertTrue(ref.indexed)
+        failed = DocumentRef(id="doc-2", name="broken.pdf", indexed=False, temporary=True)
+        chat.documents.append(failed)
+        other = self.s.indexing_jobs.enqueue(chat.id, failed.id, failed.name, "index", "v1")
+        self.s.indexing_jobs.transition(other.id, "failed", error="unreadable")
+        started = asyncio.get_running_loop().time()
+        await self.s.chat._await_indexing(chat, timeout=5)
+        self.assertLess(asyncio.get_running_loop().time() - started, 1)
+
+    def test_new_chat_is_first_even_after_leaving_chat_saves_its_draft(self):
+        from olive.bridge.chat_routes import search
+        older = self.chat_id
+        self.s.chats[older].add_message("user", "hello")
+        created = self.s.chat.new()["id"]
+        # Navigating away flushes the previous chat's unsent text in the same second.
+        self.s.chat.save_draft(older, "half-typed thought")
+        self.assertEqual(self.s.chat.list()[0]["id"], created)
+        self.assertEqual(search(self.s, "")[0]["id"], created)
+        self.assertEqual(self.s.chats[older].draft, "half-typed thought")
+
     async def test_wait_withdraws_pending_send_confirmation_and_keeps_draft(self):
         from unittest.mock import AsyncMock
         context = self.s.interaction.context(self.chat_id)

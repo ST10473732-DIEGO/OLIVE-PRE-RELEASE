@@ -20,22 +20,33 @@ class PublicPresetTests(unittest.IsolatedAsyncioTestCase):
         await self.s.shutdown()
         self.temp.cleanup()
 
-    def test_seven_names_preserve_provider_and_new_chat_normal(self):
+    def test_nine_names_preserve_provider_and_new_chat_normal(self):
         rows = self.s.presets.list()
-        self.assertEqual([p['name'] for p in rows], ['OLIVE FAST', 'OLIVE NORMAL', 'OLIVE MAX', 'OLIVE UNCENSORED', 'OLIVE NOW', 'OLIVE DEEP', 'OLIVE REIMAGINE'])
+        self.assertEqual([p['name'] for p in rows], ['OLIVE FAST', 'OLIVE NORMAL', 'OLIVE MAX', 'OLIVE UNCENSORED', 'OLIVE NOW',
+                                                     'OLIVE DEEP', 'OLIVE REIMAGINE', 'OLIVE AUDIO', 'OLIVE VIDEO'])
         chat = self.s.chat.new()
         self.assertEqual((chat['preset'], chat['model']), ('normal', 'gpt-oss:20b'))
-        self.assertEqual(rows[-1]['status'], 'Image edits ready; generation needs setup')
-        self.assertEqual(rows[-1]['capabilities'], ['image-resize','image-crop'])
+        media = {p['id']: p for p in rows[-3:]}
+        for key in ('reimagine', 'audio', 'video'):
+            # No engine is discovered in an isolated profile: honest setup, no capability claims.
+            self.assertFalse(media[key]['available'])
+            self.assertTrue(media[key]['status'].startswith('Needs setup'), media[key]['status'])
+            self.assertEqual(media[key]['capabilities'], [])
+            self.assertEqual(media[key]['model'], '')
 
     async def test_unconfigured_media_cannot_fall_back_to_chat(self):
         chat_id = self.s.current_chat_id
-        self.s.chat.update(chat_id, preset='reimagine')
-        with self.assertRaisesRegex(ValueError, 'Media tools'):
-            await self.s.chat.send(chat_id, 'Generate an image')
+        from unittest.mock import AsyncMock
+        self.s.ollama.chat_stream = AsyncMock(side_effect=AssertionError('text inference must not run'))
+        for preset, message in [('reimagine', 'REIMAGINE needs setup'), ('video', 'VIDEO needs setup'), ('audio', 'AUDIO needs setup')]:
+            self.s.chat.update(chat_id, preset=preset)
+            with self.assertRaisesRegex(ValueError, message):
+                await self.s.chat.send(chat_id, 'Say: generate something')
+            self.assertEqual(self.s.chats[chat_id].messages[-1].content, 'Say: generate something')
+            self.assertFalse(self.s.chat.generations)
         self.assertFalse(self.s.run_service.sessions)
         self.assertFalse(self.s.agent_task_repo.load_all())
-        self.assertEqual(self.s.chats[chat_id].messages[-1].content, 'Generate an image')
+        self.assertFalse(any(m.role == 'assistant' for m in self.s.chats[chat_id].messages))
 
     def test_legacy_provider_and_incomplete_state_roundtrip(self):
         chat = Chat.from_dict({'id': 'legacy', 'model': 'custom-local:latest', 'messages': [{'role': 'assistant', 'content': 'partial', 'completion_state': 'incomplete'}]})

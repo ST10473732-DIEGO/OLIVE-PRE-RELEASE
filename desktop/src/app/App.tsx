@@ -666,7 +666,6 @@ export default function App() {
               )}
               {route === "chat" && snapshot && chat && (
                 <Chat
-                  key={chat.id}
                   snapshot={snapshot}
                   chat={chat}
                   setChat={setChat}

@@ -19,7 +19,7 @@ test('LIVE LOCAL DEEP reads a real scanned PDF page and retains native page meta
     await openSpace(page,'Chat');
     const preset=page.getByRole('combobox',{name:'OLIVE preset'});await expect(preset).toBeEnabled({timeout:30000});await preset.selectOption('deep');
     await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},pdf);
-    await page.getByRole('button',{name:'Attach files',exact:true}).click();
+    await page.getByRole('button',{name:'Attach files to this message',exact:true}).click();
     await expect(page.getByRole('button',{name:'Remove attachment mixed.pdf'})).toBeVisible();
     const attached=await page.evaluate(async()=>{
       const value=await window.olive.call('runtime.snapshot',{}) as {chat:{id:string}};
@@ -40,7 +40,10 @@ test('LIVE LOCAL DEEP reads a real scanned PDF page and retains native page meta
     // Normal temporary attachments leave Chat after one response; evidence stays
     // with the answer. Do not turn this fixture into a permanent user import.
     expect(snapshot.workspaces).toHaveLength(0);expect(snapshot.runs).toHaveLength(0);
-    expect(JSON.stringify(snapshot.chat.messages)).toContain('vision_interpretation:qwen3-vl:8b');
+    // A host whose OCR already read the scanned page answers from that OCR
+    // excerpt; only an unreadable page needs the vision interpretation.
+    if(attached.documents[0].unreadable_pages.length)expect(JSON.stringify(snapshot.chat.messages)).toContain('vision_interpretation:qwen3-vl:8b');
+    else expect(JSON.stringify(snapshot.chat.messages)).toMatch(/"page_number":2,[^}]*"origin_type":"ocr"/);
     await writeFile(path.join(evidence,'result.json'),JSON.stringify(snapshot.chat,null,2));
     await page.screenshot({path:path.join(evidence,'answer.png')});
   } finally {await app.close();}

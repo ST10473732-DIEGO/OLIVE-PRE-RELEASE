@@ -22,10 +22,10 @@ def metadata(s, chat_id, title, notes, project_id):
 
 
 def search(s, query):
-    from ..application.chat_controller import last_line
+    from ..application.chat_controller import last_line, recent_first
     query = query.strip().casefold()
     records = []
-    for chat in sorted(s.chats.values(), key=lambda c: c.updated_at, reverse=True):
+    for chat in recent_first(s.chats.values()):
         match = next((m.content for m in chat.messages if query and query in m.content.casefold()), '')
         if not query or query in chat.title.casefold() or match:
             position = match.casefold().find(query) if match else 0

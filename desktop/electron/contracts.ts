@@ -1,5 +1,7 @@
 import { connectSchemas } from "./connect-contracts";
 import { z } from "zod";
+import { PRESET_IDS } from "./presets";
+export type { PresetId } from "./presets";
 import { m2Schemas } from "./m2-contracts";
 import { m3Schemas } from "./m3-contracts";
 import { m4Schemas } from "./m4-contracts";
@@ -17,6 +19,7 @@ const buffer = z
   .max(400000)
   .refine((v) => !v.includes("\0"));
 const chat = { chat_id: short };
+
 const workspace = { workspace_id: short };
 const file = { ...workspace, path: short };
 const empty = z.object({}).strict();
@@ -33,6 +36,11 @@ export const schemas = {
   'media.start': z.object({request:z.object({operation:z.enum(['resize','crop','generate','image-to-image']),source_id:short.optional(),width:z.number().int(),height:z.number().int(),left:z.number().int().optional(),top:z.number().int().optional(),prompt:text.optional(),checkpoint:short.optional(),seed:z.number().int().optional(),steps:z.number().int().optional(),cfg:z.number().optional()}).strict()}).strict(),
   'media.cancel': z.object({job_id:short}).strict(),
   'media.preview': z.object({artifact_id:short}).strict(),
+  // Chat media. Artifact files are resolved only in the main process.
+  'media.reuse': z.object({chat_id:short,artifact_id:z.string().regex(/^[0-9a-f]{32}$/)}).strict(),
+  'media.engines': empty,
+  'media.voices': empty,
+  'media.select_voice': z.object({voice:short.min(1).max(80)}).strict(),
   "connections.discord_status": empty,
   'connections.discord_destinations': z.object({guild_id:z.string().regex(/^[0-9]{1,22}$/).optional()}).strict(),
   'connections.discord_select': z.object({guild_id:z.string().regex(/^[0-9]{1,22}$/),channel_id:z.string().regex(/^[0-9]{1,22}$/)}).strict(),
@@ -54,7 +62,7 @@ export const schemas = {
   "chat.draft": z.object({ ...chat, text }).strict(),
   "chat.rename": z.object({ ...chat, title: short }).strict(),
   "chat.model": z.object({ ...chat, model: short }).strict(),
-  "chat.preset": z.object({ ...chat, preset: z.enum(["fast", "normal", "max", "uncensored", "now", "deep", "reimagine"]) }).strict(),
+  "chat.preset": z.object({ ...chat, preset: z.enum(PRESET_IDS) }).strict(),
   "chat.run_on": z.object({ ...chat, device_id: z.union([z.string().uuid(), z.literal("")]) }).strict(),
   "chat.regenerate": z.object(chat).strict(),
   "chat.branch": z

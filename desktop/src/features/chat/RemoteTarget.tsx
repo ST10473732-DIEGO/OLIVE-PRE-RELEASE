@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { MonitorSmartphone } from "lucide-react";
 import { call, type Chat } from "../../services/api";
+import { MEDIA_PRESETS } from "../../../electron/presets";
+import { MEDIA_LABELS } from "./MediaNotice";
 
 export interface ModelTarget {
   device_id: string;
@@ -13,6 +15,7 @@ export interface ModelTarget {
 
 export function targetState(target: ModelTarget, preset: string): string {
   if (preset === "now") return "NOW unavailable remotely";
+  if (MEDIA_PRESETS.includes(preset)) return "This device only";
   if (target.state === "revoked") return "Revoked";
   if (target.state !== "online") return "Offline";
   if (target.permission === "deny") return "Remote AI Off";
@@ -75,6 +78,7 @@ export function messageAttribution(provider?: Chat["remote_provider"] & { model?
   if (provider.runtime === "OLIVE Connect")
     return `Answered by ${provider.device_name || "a paired device"}${preset ? ` · ${preset}` : ""}`;
   if (provider.preset === "now") return `NOW · ${provider.tier === "DEEP LIVE" ? "DEEP LIVE" : "LIVE"} · This device`;
+  if (provider.runtime === "OLIVE Media" && MEDIA_LABELS[provider.preset || ""]) return `${MEDIA_LABELS[provider.preset || ""]} · This device`;
   if (provider.preset === "uncensored") {
     const tier = ["FAST", "BALANCED", "DEEP", "CREATIVE", "MAX"].includes(provider.tier || "") ? provider.tier : "";
     return ["UNCENSORED", tier, "This device"].filter(Boolean).join(" · ");

@@ -1,4 +1,5 @@
 import type { Method, Arguments } from "../../electron/contracts";
+import type { PresetId } from "../../electron/presets";
 export interface WireEvent {
   v: number;
   kind: string;
@@ -7,7 +8,7 @@ export interface WireEvent {
   data: unknown;
 }
 export interface Preset {
-  id: "fast" | "normal" | "max" | "uncensored" | "now" | "deep" | "reimagine";
+  id: PresetId;
   name: string;
   model: string;
   digest: string;
@@ -15,11 +16,34 @@ export interface Preset {
   description: string;
   pipeline: string;
   status: string;
+  /** Runtime readiness; media presets report engine state, not an Ollama model. */
+  available?: boolean;
   capabilities: string[];
   resource_policy: string;
 }
+/** A generated Chat media file. Metadata only: the file is served by id. */
+export interface MediaArtifact {
+  id: string;
+  kind: "image" | "audio" | "video";
+  filename: string;
+  mime_type: string;
+  created_at: string;
+  mode: string;
+  generator?: { provider?: string; family?: string; workflow?: string; engine_version?: string };
+  parameters?: Record<string, unknown>;
+  source_ids?: string[];
+  completion_state?: string;
+  size_bytes?: number;
+  width?: number;
+  height?: number;
+  duration_seconds?: number;
+  has_audio?: boolean;
+  /** False when the file is gone from this device; never faked. */
+  available?: boolean;
+}
 export interface Message {
-  provider?: { runtime?: string; preset?: string; device_id?: string; device_name?: string; request_id?: string; model?: string; tier?: string; route_reason?: string; };
+  provider?: { runtime?: string; preset?: string; device_id?: string; device_name?: string; request_id?: string; model?: string; tier?: string; route_reason?: string; media_kind?: string; family?: string };
+  artifacts?: MediaArtifact[];
   completion_state?: "complete" | "incomplete" | "unverified";
   id: string;
   role: string;
@@ -30,6 +54,8 @@ export interface Chat {
   run_on?: string;
   remote_provider?: Message["provider"];
   preset?: string;
+  /** Honest stage text while a media request runs; no percentages. */
+  media_progress?: string;
   research_session_ids?: string[];
   id: string;
   title: string;

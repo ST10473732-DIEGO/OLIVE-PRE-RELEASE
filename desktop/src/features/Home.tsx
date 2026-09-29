@@ -22,6 +22,7 @@ import {
   Square,
 } from "lucide-react";
 import { call, type Approval, type Chat as ChatRecord, type Snapshot } from "../services/api";
+import { MEDIA_PRESETS, type PresetId } from "../../electron/presets";
 import { useResource } from "../services/useResource";
 import type { ConnectSnapshotLike, RuntimeState } from "../services/runtimeState";
 import type { CalendarEvent, PersonalTask, Profile } from "./personal/types";
@@ -155,7 +156,7 @@ export function HomePage({
                       onChange={(e) =>
                         void call<ChatRecord>("chat.preset", {
                           chat_id: chat.id,
-                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "now" | "deep" | "reimagine",
+                          preset: e.target.value as PresetId,
                         })
                           .then(setChat)
                           .catch(report)
@@ -165,7 +166,7 @@ export function HomePage({
                       {snapshot.presets.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
-                          {p.status !== "Ready" && p.id !== "reimagine" ? ` · ${p.status}` : ""}
+                          {p.available === false || (!MEDIA_PRESETS.includes(p.id) && p.status !== "Ready") ? ` · ${p.status}` : ""}
                         </option>
                       ))}
                     </select>
@@ -176,7 +177,7 @@ export function HomePage({
                     ? `${runtimeState.detail} — replies need a local model`
                     : chat?.run_on
                       ? "Runs on the paired device chosen in Chat"
-                      : "This device · Enter to send"}
+                      : ""}
                 </span>
                 <button
                   className="send"

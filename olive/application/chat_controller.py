@@ -19,6 +19,15 @@ def last_line(chat, limit=90):
     return ""
 
 
+def recent_first(chats):
+    """Newest activity first. Timestamps have one-second resolution, so ties
+    fall back to creation time and then to insertion order (a chat created
+    later is newer), keeping a just-created chat at the top of the list."""
+    indexed = list(enumerate(chats))
+    indexed.sort(key=lambda pair: (pair[1].updated_at, pair[1].created_at, pair[0]), reverse=True)
+    return [chat for _, chat in indexed]
+
+
 class ChatController:
     def __init__(self, services):
         self.s = services
@@ -28,12 +37,13 @@ class ChatController:
         self.suggestions = {}
         self.targets = {}  # Explicit session-local selection; restart defaults local.
         self.remote_providers = {}
+        self.media_cancels = {}
 
     def list(self):
         return [
             {"id": c.id, "title": c.title, "model": c.model, "project_id": c.project_id,
              "updated_at": c.updated_at, "last": last_line(c)}
-            for c in sorted(self.s.chats.values(), key=lambda c: c.updated_at, reverse=True)
+            for c in recent_first(self.s.chats.values())
         ]
 
     def get(self, chat_id=None):
@@ -44,6 +54,14 @@ class ChatController:
         value["partial"] = self.partials.get(chat.id, "")
         value['run_on'] = self.targets.get(chat.id, '')
         value['remote_provider'] = self.remote_providers.get(chat.id)
+        chat_media = getattr(self.s, "chat_media", None)
+        value["media_progress"] = chat_media.progress.get(chat.id, "") if chat_media else ""
+        artifacts = [a for m in value["messages"] for a in m.get("artifacts", [])]
+        if artifacts:
+            media = getattr(self.s, "media", None)
+            present = media.available_ids({a["id"] for a in artifacts}) if media else set()
+            for artifact in artifacts:
+                artifact["available"] = artifact["id"] in present
         value["images"] = [{"name": name} for name, _ in self.images.get(chat.id, [])]
         interaction = getattr(self.s, "interaction", None)
         context = interaction.contexts.get(chat.id) if interaction else None
@@ -85,8 +103,11 @@ class ChatController:
         if not isinstance(text, str) or len(text) > 32000:
             raise ValueError("Draft text must be at most 32,000 characters")
         chat = self.s.chats[chat_id]
+        if chat.draft == text:
+            return {"chat_id": chat_id, "saved": True}
+        # Unsent text is not conversation activity: it must not move this chat
+        # above a newer one in the history list.
         chat.draft = text
-        chat.touch()
         self.s.save_chats()
         return {"chat_id": chat_id, "saved": True}
 
@@ -156,6 +177,9 @@ class ChatController:
         return self.get()
 
     def stop(self, chat_id):
+        cancel = self.media_cancels.get(chat_id)
+        if cancel:
+            cancel.set()
         task = self.generations.get(chat_id)
         if task:
             task.cancel()
@@ -164,7 +188,7 @@ class ChatController:
         """Preload the conversation's local model while the person is still typing."""
         chat = self.s.chats.get(chat_id)
         if (not chat or not chat.model or chat_id in self.generations or self.targets.get(chat_id)
-                or chat.preset in ("reimagine", "uncensored", "now")):
+                or chat.preset in ("reimagine", "audio", "video", "uncensored", "now")):
             return {"warmed": False}
         return {"warmed": await self.s.ollama.warm(chat.model)}
 
@@ -176,6 +200,9 @@ class ChatController:
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
+        from ..services.chat_media_service import MEDIA_PRESETS
+        if chat.preset in MEDIA_PRESETS:
+            return await self._send_media(chat_id, text, regenerate, observed_text, existing_user_message_id)
         remote = self.targets.get(chat_id)
         uncensored_choice = None
         routing_text = text
@@ -210,7 +237,9 @@ class ChatController:
                 raise ValueError(
                     "Remote AI supports OLIVE FAST, NORMAL and MAX. "
                     "UNCENSORED, DEEP and REIMAGINE are unavailable remotely."
-                )
+                )  # Media presets never reach here; they have their own local-only branch.
+            if not remote and any(not ref.indexed for ref in chat.documents):
+                await self._await_indexing(chat)
             if not remote and any(not ref.indexed for ref in chat.documents):
                 raise ValueError("Wait for attached documents to finish indexing, or remove failed attachments")
             if not remote:
@@ -366,6 +395,80 @@ class ChatController:
                 else:
                     self.suggestions[suggestion.id] = suggestion
                     self.s.publish("memory_suggestion", asdict(suggestion))
+        return self.get(chat_id)
+
+    async def _await_indexing(self, chat, timeout=120):
+        """A message sent right after attaching waits for that attachment's
+        in-flight indexing job instead of failing; a failed job still refuses."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            pending = {ref.id for ref in chat.documents if not ref.indexed}
+            if not pending:
+                return
+            states = {job.document_id: job.state for job in self.s.indexing_jobs.list_all() if job.chat_id == chat.id}
+            if not any(states.get(document) in {"queued", "running"} for document in pending):
+                return
+            await asyncio.sleep(.25)
+
+    async def _send_media(self, chat_id, text, regenerate, observed_text, existing_user_message_id):
+        """Dispatch straight to the media pipeline; no text model answers first."""
+        from ..services.media_errors import MediaError
+        from ..services.chat_media_service import LABELS, MEDIA_PRESETS
+        chat = self.s.chats[chat_id]
+        kind = MEDIA_PRESETS[chat.preset]
+        text = (text or "").strip()
+        try:
+            if self.targets.get(chat_id):
+                raise MediaError("remote_unavailable")  # Never silently runs on this device instead.
+            if regenerate:
+                raise MediaError("regenerate_unsupported")
+            if observed_text:
+                raise MediaError("attachment_unsupported_mode")
+            if existing_user_message_id and (not chat.messages or chat.messages[-1].id != existing_user_message_id):
+                raise ValueError('The original user message changed before answer generation')
+            request = self.s.chat_media.plan(chat, text, self.images.get(chat_id, []))
+        except ValueError:
+            if not regenerate and not existing_user_message_id and text:
+                chat.add_message("user", text)
+                self.s.save_chats()
+                self.s.publish("chat", self.get(chat_id))
+            raise
+        if chat_id in self.generations:
+            raise ValueError("This conversation is already generating")
+        if not chat.messages:
+            chat.title = chat_title(text)
+        if not existing_user_message_id:
+            chat.add_message("user", text)
+        self.generations[chat_id] = asyncio.current_task()
+        self.s.save_chats()
+        self.s.publish("chat", self.get(chat_id))
+        provider = {"runtime": "OLIVE Media", "preset": chat.preset, "media_kind": kind, "tier": LABELS[kind]}
+        cancel = asyncio.Event()
+        self.media_cancels[chat_id] = cancel
+        try:
+            record, artifact = await self.s.chat_media.generate(chat_id, request, cancel)
+            if cancel.is_set():
+                raise asyncio.CancelledError()  # Stop wins over a late result.
+            noun = {"image": "Image", "audio": "Speech", "video": "Video"}[kind]
+            content = noun + (" edited from your attachment." if artifact.get("source_ids") else " generated on this device.")
+            message = chat.add_message("assistant", content)
+            message.artifacts = [artifact]
+            message.provider = {**provider, "family": artifact["generator"].get("family", "")}
+            message.completion_state = "complete"
+            from ..interaction.trace import event as trace_event
+            trace_event('media_persisted', message_id=message.id, kind=kind, artifact=artifact["id"],
+                        workflow=artifact["generator"].get("workflow", ""), preset=chat.preset)
+        except asyncio.CancelledError:
+            message = chat.add_message("assistant", MediaError.MESSAGES["cancelled"])
+            message.provider = provider
+            message.completion_state = "incomplete"
+            self.s.publish("notification", {"kind": "info", "message": "Generation stopped"})
+        finally:
+            self.images.pop(chat_id, None)
+            self.media_cancels.pop(chat_id, None)
+            self.generations.pop(chat_id, None)
+            self.s.save_chats()
+            self.s.publish("chat", self.get(chat_id))
         return self.get(chat_id)
 
     def branch(self, chat_id, user_index, direction=1):

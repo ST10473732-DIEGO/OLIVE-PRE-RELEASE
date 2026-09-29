@@ -259,6 +259,8 @@ class ServiceContainer:
         self.studio_tooling = StudioToolingController(self)
         from ..services.media_service import MediaService
         self.media = MediaService(self)
+        from ..services.chat_media_service import ChatMediaService
+        self.chat_media = ChatMediaService(self)
         from .research_controller import ResearchController
 
         self.research = ResearchController(self)
@@ -364,6 +366,11 @@ class ServiceContainer:
         except Exception:
             logger.exception("Ollama initialization failed")
             self.ollama_state = "Ollama unavailable. Start Ollama and refresh Models"
+        try:
+            # Reachability/inventory of already-running media engines; never starts one.
+            await self.chat_media.refresh()
+        except Exception:
+            logger.exception("Media engine status check failed")
         self.publish("models", self.data.models())
         self.publish("status", self.data.status())
         self.publish("desktop", self.desktop.status())

@@ -36,9 +36,12 @@ import { useResource } from "../services/useResource";
 import { Sheet } from "../components/Sheet";
 import { Details } from "../components/WorkspacePage";
 import {NativeProposals} from './personal/Proposals';
-import { ResearchEvidence } from "./chat/ResearchEvidence";
+import { ResearchEvidence, ResearchHistoryButton } from "./chat/ResearchEvidence";
 import { MediaTools } from './chat/MediaTools';
 import { RemoteTarget, RemoteAttribution, messageAttribution } from './chat/RemoteTarget';
+import { MediaArtifacts, MediaProgress } from "./chat/MediaArtifacts";
+import { MediaNotice, mediaPlaceholder, MEDIA_LABELS } from "./chat/MediaNotice";
+import { MEDIA_PRESETS, type PresetId } from "../../electron/presets";
 import { OliveLogo } from "../components/OliveLogo";
 
 const HISTORY_KEY = "olive.chat.history";
@@ -81,10 +84,12 @@ export function Chat({
   cancel: () => void;
   report: (e: unknown) => void;
 }) {
-  const [draft, setDraft] = useState(chat.draft || "");
+  // The draft is held with the conversation it belongs to, so switching chats
+  // (without remounting this view) can never save one chat's text into another.
+  const [draftState, setDraftState] = useState({ chat: chat.id, text: chat.draft || "" });
+  const draft = draftState.chat === chat.id ? draftState.text : chat.draft || "";
   const [mediaOpen,setMediaOpen]=useState(false);
-  const latestDraft = useRef(draft);
-  latestDraft.current = draft;
+  const latestDraft = useRef(draftState);
   const [search, setSearch] = useState("");
   const [historyOpen, setHistoryOpenState] = useState(initialHistory);
   const setHistoryOpen = (open: boolean) => {
@@ -119,6 +124,18 @@ export function Chat({
     return () => clearTimeout(timer);
   }, [search]);
   const end = useRef<HTMLDivElement>(null);
+  // Only turns that arrive while this chat is open animate in. Opening or
+  // switching a chat shows history at rest, and a streamed answer does not
+  // rise in a second time when its final message replaces the live text.
+  const turns = useRef<{ chat: string; known: Set<string>; fresh: Set<string>; streaming: boolean } | null>(null);
+  if (!turns.current || turns.current.chat !== chat.id)
+    turns.current = { chat: chat.id, known: new Set(chat.messages.map((m) => m.id)), fresh: new Set(), streaming: false };
+  for (const m of chat.messages)
+    if (!turns.current.known.has(m.id)) {
+      turns.current.known.add(m.id);
+      if (m.role === "user" || !turns.current.streaming) turns.current.fresh.add(m.id);
+    }
+  turns.current.streaming = Boolean(chat.partial);
   const conversations: { id: string; title: string; excerpt?: string; updated_at?: string; last?: string }[] =
     results.data || snapshot.chats;
   // Grove: the list is grouped by day (Today, Yesterday, weekday, date).
@@ -129,41 +146,39 @@ export function Chat({
     if (last && last.label === label) last.items.push(c);
     else groups.push({ label, items: [c] });
   }
-  useEffect(
-    () => () => {
-      if (deleting.current) return;
-      // Navigation must flush the last edit even before the debounce has fired.
-      void call("chat.draft", {
-        chat_id: chat.id,
-        text: latestDraft.current,
-      }).catch(report);
-    },
-    [],
-  );
   useEffect(() => {
-    setDraft(chat.draft || "");
+    const id = chat.id;
+    // A new conversation starts clean: its own draft, no stale guard or sheets.
+    deleting.current = false;
+    setSource(undefined);
+    setMediaOpen(false);
+    return () => {
+      // Leaving a conversation (or the view) flushes its last edit before the debounce.
+      if (deleting.current || latestDraft.current.chat !== id) return;
+      void call("chat.draft", { chat_id: id, text: latestDraft.current.text }).catch(report);
+    };
   }, [chat.id]);
   useEffect(() => {
     const timer = setTimeout(() => {
       if (deleting.current) return;
-      void call("chat.draft", { chat_id: chat.id, text: draft }).catch(report);
+      void call("chat.draft", { chat_id: draftState.chat, text: draftState.text }).catch(report);
     }, 350);
     return () => clearTimeout(timer);
-  }, [draft, chat.id]);
+  }, [draftState]);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
-  }, [chat.partial, chat.messages.length]);
+  }, [chat.id, chat.partial, chat.messages.length, chat.media_progress]);
   const send = () => {
     if (!draft.trim() || busy || switching.current) return;
     const text = draft;
-    setDraft("");
-    latestDraft.current = "";
+    setDraftState({ chat: chat.id, text: "" });
+    latestDraft.current = { chat: chat.id, text: "" };
     setChat({ ...chat, draft: "" });
     void submit(text);
   };
   const updateDraft = (text: string) => {
-    setDraft(text);
-    latestDraft.current = text;
+    setDraftState({ chat: chat.id, text });
+    latestDraft.current = { chat: chat.id, text };
     setChat({ ...chat, draft: text });
   };
   const changeConversation = async (method: "chat.new" | "chat.select", args: Record<string, unknown>, closeAfter: boolean) => {
@@ -198,8 +213,10 @@ export function Chat({
   const preset = snapshot.presets?.find((p) => p.id === chat.preset);
   const attachedCount = (chat.documents?.length || 0) + (chat.images?.length || 0);
   // Matches the runtime rule: images go only to DEEP or a vision-capable model.
+  const mediaMode = MEDIA_PRESETS.includes(chat.preset || "");
+  // REIMAGINE takes attached images as edit references, not as vision input.
   const visionBlocked =
-    (chat.images?.length || 0) > 0 && chat.preset !== "deep" && Boolean(preset) && !preset?.capabilities?.includes("vision");
+    (chat.images?.length || 0) > 0 && chat.preset !== "deep" && !mediaMode && Boolean(preset) && !preset?.capabilities?.includes("vision");
   return (
     <div className="chat-layout ws" data-history={historyOpen}>
       {historyOpen && (
@@ -339,30 +356,13 @@ export function Chat({
                   ? `${chat.messages.length} message${chat.messages.length === 1 ? "" : "s"}`
                   : "New conversation"}
                 {attachedCount ? ` · ${attachedCount} attached` : ""}
-                {preset ? ` · ${preset.name}` : ""}
               </span>
             </div>
           </div>
           <div className="row chat-tools">
-            <button
-              className="quiet"
-              disabled={busy}
-              title="Attach local files to this conversation"
-              aria-label="Attach files"
-              onClick={() =>
-                void window.olive
-                  .fileAction({ action: "attach", chat_id: chat.id })
-                  .then(() => call<ChatRecord>("chat.get", { chat_id: chat.id }))
-                  .then(setChat)
-                  .catch(report)
-              }
-            >
-              <Paperclip size={15} aria-hidden="true" />
-              <span className="label">Attach files</span>
-            </button>
-            <button className="quiet" aria-label="Conversation options" title="Conversation options" onClick={() => setOptions(true)}>
-              <SlidersHorizontal size={15} aria-hidden="true" />
-              <span className="label">Conversation options</span>
+            <ResearchHistoryButton chatId={chat.id} sessionIds={chat.research_session_ids || []} report={report} />
+            <button className="icon-button" aria-label="Conversation options" title="Conversation options" onClick={() => setOptions(true)}>
+              <SlidersHorizontal size={16} aria-hidden="true" />
             </button>
             <details>
               <summary aria-label="More attachment options" title="More">
@@ -397,12 +397,8 @@ export function Chat({
             <span className="grow">Remote AI shares up to 24 visible messages with the selected paired device. Text only; no attachments, tools or private context. Failures require an explicit retry or a change to This device.</span>
           </div>
         )}
-        {chat.preset === "reimagine" && (
-          <div className="notice chat-notice" role="note">
-            <Info size={14} aria-hidden="true" />
-            <span className="grow">REIMAGINE uses media tools. Raster edits are local; generation needs a configured engine.</span>
-            <button className="compact" onClick={() => setMediaOpen(true)}>Open media tools</button>
-          </div>
+        {mediaMode && preset && (
+          <MediaNotice chat={chat} preset={preset} busy={busy} openTools={() => setMediaOpen(true)} report={report} />
         )}
         {visionBlocked && preset && (
           <div className="notice chat-notice" data-tone="warning" role="status">
@@ -465,7 +461,7 @@ export function Chat({
             </div>
           )}
           {chat.messages.map((m, index) => (
-            <article className={`message message-${m.role}`} key={m.id}>
+            <article className={`message message-${m.role}${turns.current?.fresh.has(m.id) ? " message-new" : ""}`} key={m.id}>
               {m.role === "user" ? (
                 <div className="message-label sr-only">You</div>
               ) : (
@@ -477,6 +473,7 @@ export function Chat({
               )}
               <div className="message-body">
                 <Markdown text={m.content} />
+                {!!m.artifacts?.length && <MediaArtifacts chat={chat} artifacts={m.artifacts} busy={busy} changed={setChat} report={report} />}
                 {m.completion_state === "incomplete" && <p className="message-partial" role="status"><span className="ws-pill" data-tone="warning">Stopped · partial answer kept</span> Incomplete response — generation stopped or failed. The partial text is retained; nothing was retried.</p>}
                 {m.completion_state === "unverified" && <p className="small">Saved alternate response — completion status was not recorded.</p>}
               </div>
@@ -484,7 +481,7 @@ export function Chat({
               <div className="message-actions">
                 <CopyButton text={m.content} label="Copy message" iconOnly />
                 {m.role === "assistant" &&
-                  index === chat.messages.length - 1 && (
+                  index === chat.messages.length - 1 && m.provider?.runtime !== "OLIVE Media" && (
                     <button
                       className="icon-button"
                       aria-label="Regenerate response"
@@ -548,7 +545,7 @@ export function Chat({
             </article>
           ))}
           {chat.partial && (
-            <article className="message message-assistant">
+            <article className="message message-assistant message-new">
               <div className="message-label message-attribution message-writing">
                 <OliveLogo className="olive-mark" />
                 <span>OLIVE · writing</span>
@@ -559,12 +556,24 @@ export function Chat({
               </div>
             </article>
           )}
+          {chat.generating && chat.media_progress && (
+            <article className="message message-assistant message-new">
+              <div className="message-label message-attribution message-writing">
+                <OliveLogo className="olive-mark" />
+                <b>OLIVE</b>
+                <span className="attribution-meta">{MEDIA_LABELS[chat.preset || ""] || ""} · This device</span>
+              </div>
+              <div className="message-body">
+                <MediaProgress label={preset?.name || "OLIVE"} stage={chat.media_progress} />
+              </div>
+            </article>
+          )}
           {chat.generating && <RemoteAttribution provider={chat.remote_provider} complete={false}/>}
           <div ref={end} />
         </div>
         <div className="chat-composer">
           <NativeProposals chat={chat} onChanged={setChat}/>
-          <ResearchEvidence chatId={chat.id} sessionIds={chat.research_session_ids || []} report={report}/>
+          <ResearchEvidence sessionIds={chat.research_session_ids || []} />
           {attachedCount > 0 && (
             <div className="chips chat-attachments" aria-label="Attachments">
               {chat.documents?.map((d) => (
@@ -616,7 +625,7 @@ export function Chat({
             <GrowingComposer
               ref={composer}
               aria-label="Message OLIVE"
-              placeholder="Ask, research a topic, or explore an attached document…"
+              placeholder={mediaPlaceholder(chat.preset) || "Ask, research a topic, or explore an attached document…"}
               value={draft}
               onChange={(e) => {
                 updateDraft(e.target.value);
@@ -657,7 +666,7 @@ export function Chat({
                       onChange={(e) =>
                         void call<ChatRecord>("chat.preset", {
                           chat_id: chat.id,
-                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "now" | "deep" | "reimagine",
+                          preset: e.target.value as PresetId,
                         })
                           .then(setChat)
                           .catch(report)
@@ -666,7 +675,7 @@ export function Chat({
                       {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
                       {snapshot.presets?.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.name}{chat.run_on ? (["uncensored", "now", "deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
+                          {m.name}{chat.run_on ? (["uncensored", "now", "deep", ...MEDIA_PRESETS].includes(m.id) ? " · Unavailable remotely" : "") : m.available === false || (!MEDIA_PRESETS.includes(m.id) && m.status !== "Ready") ? ` · ${m.status}` : ""}
                         </option>
                       ))}
                     </select>
@@ -675,13 +684,7 @@ export function Chat({
                 <span className="chat-tool-divider" aria-hidden="true" />
                 <RemoteTarget chat={chat} busy={busy} changed={setChat} report={report}/>
               </div>
-              <span className="composer-hint">
-                {busy
-                  ? chat.remote_provider ? `Thinking on ${chat.remote_provider.device_name}…` : "OLIVE is working…"
-                  : chat.run_on
-                    ? "UNCENSORED, DEEP and REIMAGINE are unavailable on paired devices"
-                    : "Enter to send · Shift+Enter for a new line"}
-              </span>
+              <span className="composer-spacer" />
               <button
                 className="send"
                 aria-label={busy ? "Stop response" : "Send message"}

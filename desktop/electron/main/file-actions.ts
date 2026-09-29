@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog } from "electron";
+import { BrowserWindow, dialog, shell } from "electron";
 import { writeFile } from "node:fs/promises";
 import { fileActionSchema } from "../file-actions";
 import type { Backend } from "./backend";
@@ -25,9 +25,19 @@ export async function fileAction(
     return backend.request('media.import',{path:chosen.filePaths[0]});
   }
   if(value.action==='media-export') {
-    const chosen=await dialog.showSaveDialog(window,{title:'Export a new media artifact',defaultPath:'OLIVE-image.png'});
+    // Generated Chat media keeps its own file name and type; legacy edits default to PNG.
+    const file=await backend.request('media.artifact_file',{artifact_id:value.artifact_id}).catch(()=>null) as {filename?:string}|null;
+    const chosen=await dialog.showSaveDialog(window,{title:'Export a new media artifact',defaultPath:file?.filename||'OLIVE-image.png'});
     if(chosen.canceled||!chosen.filePath)return null;
     return backend.request('media.export',{artifact_id:value.artifact_id,path:chosen.filePath});
+  }
+  if(value.action==='media-open') {
+    // Opens a verified generated image/audio/video in the system viewer. It is
+    // data only: OLIVE grants it no permission and never executes it.
+    const file=await backend.request('media.artifact_file',{artifact_id:value.artifact_id}) as {path:string};
+    const failure=await shell.openPath(file.path);
+    if(failure)throw new Error('The system could not open this media file.');
+    return {opened:true};
   }
   if(value.action === "mail-google-client") {
     const chosen=await dialog.showOpenDialog(window,{title:"Import registered Google Desktop app client",properties:["openFile"],filters:[{name:"Google desktop client",extensions:["json"]}]});
