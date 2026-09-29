@@ -40,6 +40,8 @@ def code_action_requested(text, context=None):
         return True
     if re.search(r'\b(?:selected|current|existing|my) (?:file|project|workspace|repository)\b', value):
         return True
+    if re.search(r'\b(?:this|my) (?:project|workspace|repository|repo|codebase|api)\b', value):
+        return True
     if re.search(r'\b(?:create|open)\b.*\bproject (?:named|called)\b', value):
         return True
     if re.search(r'(?:^|\bthen\s+|\band\s+|[.;]\s*)(?:run|execute|compile|build|save|apply)\b(?! instructions?\b)', value):

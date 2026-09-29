@@ -277,6 +277,41 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([c[1]['value'] for c in client.calls if c[0] == 'visual_text'], ['general'])
         self.assertFalse(any(client.drafts.values()))
 
+    async def test_navigate_only_verifies_destination_and_never_types_a_message(self):
+        client = Client(current=0)
+        outcome, reserved = await self.run_task('Open Visual Messenger and go to #releases in Osprey Workshop', client)
+        self.assertIn('Nothing was typed and nothing was sent', outcome)
+        self.assertEqual(client.CHANNELS[client.current], ('Osprey Workshop', 'releases'))
+        self.assertEqual([c[1]['value'] for c in client.calls if c[0] == 'visual_text'], ['releases'])
+        self.assertEqual(client.sent, [])
+        self.assertFalse(any(client.drafts.values()))
+        self.assertEqual(reserved, [], 'navigation reserves no send effect')
+
+    async def test_navigate_only_ambiguous_destination_selects_nothing(self):
+        client = Client(current=1)
+        with self.assertRaisesRegex(ValueError, 'TARGET_AMBIGUOUS'):
+            await self.run_task('Go to general in Visual Messenger', client)
+        self.no_message_effect(client)
+
+    async def test_navigate_only_preserves_an_existing_draft(self):
+        client = Client(current=0, draft='unrelated draft')
+        outcome, _ = await self.run_task('Open Visual Messenger and go to #general in Osprey Workshop', client)
+        self.assertIn('Nothing was typed', outcome)
+        self.assertEqual(client.drafts[0], 'unrelated draft')
+        self.assertEqual(client.sent, [])
+
+    def test_navigate_request_cannot_smuggle_a_message(self):
+        for request in ('Open Discord and go to #general and send hi', 'Open Discord and go to #general then type hello',
+                        'Go to #general in X in Discord; send "hi"'):
+            with self.assertRaises(ValueError):
+                direct_scope(request)
+        scope = direct_scope('Open Discord and go to #gen-chat in D SERVER')
+        self.assertEqual((scope.effect, scope.destination, scope.server, scope.content), ('go', '#gen-chat', 'D SERVER', ''))
+        scope = direct_scope('Open Discord and go to the general channel on my RaceDay server')
+        self.assertEqual((scope.effect, scope.destination, scope.server), ('go', '#general', 'RaceDay'))
+        with self.assertRaisesRegex(ValueError, 'Which server'):
+            direct_scope('Open Discord and go to the general channel on my server')
+
     async def test_uncertain_submission_is_never_retried(self):
         client = Client(current=0, echo=False)
         with self.assertRaisesRegex(ValueError, 'uncertain'):

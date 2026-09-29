@@ -21,7 +21,7 @@ FORBIDDEN_FIELDS = {'approved','owner_mode','permission','ignore_user_policy','d
 SCOPED_EFFECTS = {'filesystem.copy','filesystem.move','filesystem.write_text','filesystem.trash','filesystem.delete','code.apply_patch',
                   'studio.run','workspace.run_validation','studio.new_project'}
 READ_TOOLS = {'filesystem.stat', 'filesystem.read_text', 'git.status', 'git.diff', 'git.log', 'git.branch_list'}
-from .owner_scope import CODE_READ, FS_READ, RESEARCH_READ
+from .owner_scope import CODE_READ, CODE_WRITE, FS_READ, RESEARCH_READ
 from .owner_scope import SYSTEM_READ
 NON_RESERVING = READ_TOOLS | FS_READ | CODE_READ | RESEARCH_READ | SYSTEM_READ | {'system.list_running_applications'}
 
@@ -65,6 +65,7 @@ class OwnerPolicy:
     def __init__(self, settings, clock=time.monotonic):
         self.settings,self.clock=settings,clock
         self.epochs={};self.active={};self.used={};self.lock=threading.RLock()
+        self.created={}
         self.workspace_repo=None
 
     def enabled(self):
@@ -72,7 +73,7 @@ class OwnerPolicy:
         return settings.get('owner_mode') is True and identity.get('owner')==owner_identity() and bool(identity.get('id'))
 
     @contextmanager
-    def request(self, text, chat_id, *, local, selected_path='', workspace='', creation_root=''):
+    def request(self, text, chat_id, *, local, selected_path='', workspace='', creation_root='', code_target=False):
         grant=None
         if local and self.enabled():
             from ..interaction.deliverable import instruction_text, direct_deliverable
@@ -143,7 +144,8 @@ class OwnerPolicy:
                     if re.search(r'\b'+word+r'\b', instruction) and re.search(r'\b(?:show|read|check|inspect|list)\b', instruction):
                         capabilities.add(capability)
             from .owner_scope import extend
-            extra, bindings = extend(text, instruction, workspace=workspace, answer_only=answer_only, forbidden=negated)
+            extra, bindings = extend(text, instruction, workspace=workspace, answer_only=answer_only, forbidden=negated,
+                                     code_target=code_target)
             capabilities.update(extra)
             if 'rename' in bindings and effect in {'rename', 'answer'}:
                 effect = 'rename'
@@ -158,11 +160,25 @@ class OwnerPolicy:
                 effect = 'create_project'
                 capabilities = {'studio.new_project'}
                 project_spec = (*starter, str(Path(creation_root).resolve()))
+            elif creation_root and not answer_only:
+                from ..interaction.project_request import project_request, resolve_name
+                spec = project_request(text)
+                if spec:
+                    # Explicit build-me-a-project request: create one new folder, then
+                    # edit, validate and (if asked) run only inside that new workspace.
+                    location = str(Path(creation_root).resolve())
+                    effect = 'create_project'
+                    capabilities = {'studio.new_project', 'workspace.run_validation'} | CODE_READ | CODE_WRITE
+                    if spec['run']:
+                        capabilities.add('studio.run')
+                    project_spec = (resolve_name(spec, location), spec['language'], location, spec['template'])
             with self.lock:
                 epoch=self.epochs.get(chat_id,0)
+                # A creation grant covers only the folder it creates, never a previously selected workspace.
+                scoped = '' if effect == 'create_project' else workspace
                 grant=OwnerGrant(uuid.uuid4().hex,chat_id,owner_identity(),self.settings()['owner_installation']['id'],
                     hashlib.sha256(text.encode()).hexdigest(),effect,frozenset(capabilities),paths,
-                    str(Path(workspace).resolve()) if workspace else '',source,destination,self.clock()+600,epoch,project_spec,content_sha256,
+                    str(Path(scoped).resolve()) if scoped else '',source,destination,self.clock()+600,epoch,project_spec,content_sha256,
                     bindings)
                 self.active[grant.id]=grant
             from ..interaction.trace import event
@@ -175,7 +191,33 @@ class OwnerPolicy:
             if grant:
                 with self.lock:
                     self.active.pop(grant.id,None)
+                    self.created.pop(grant.id,None)
                     for key in [k for k in self.used if k[0]==grant.id]:self.used.pop(key,None)
+
+    def _workspace(self, grant):
+        """The grant's selected workspace, or the one this very grant created."""
+        return grant.workspace or self.created.get(grant.id, '')
+
+    def bind_created_workspace(self, root):
+        """After an authorized studio.new_project, scope later effects to that new folder only."""
+        current = _current.get()
+        if not current or current[0] is not self or not current[1]:
+            return False
+        grant = current[1]
+        if grant.effect != 'create_project' or len(grant.project_spec) < 3 or grant.workspace:
+            return False
+        name, _, location = grant.project_spec[:3]
+        target = (Path(location) / name).resolve()
+        try:
+            if Path(root).resolve() != target or not target.is_dir() or target.is_symlink():
+                return False
+        except (OSError, RuntimeError, ValueError):
+            return False
+        with self.lock:
+            if self.active.get(grant.id) is not grant or self.used.get((grant.id, 'studio.new_project'), 0) < 1:
+                return False
+            self.created[grant.id] = str(target)
+        return True
 
     def cancel(self,chat_id):
         with self.lock:
@@ -248,13 +290,13 @@ class OwnerPolicy:
                     owned_target(source) and owned_target(destination))
         workspace_argument = arguments.get('workspace', arguments.get('workspace_id'))
         if tool in scope.CODE_READ | scope.CODE_WRITE | {'studio.build', 'studio.debug'}:
-            if not scope.workspace_matches(workspace_argument, grant.workspace, self.workspace_repo):return False
+            if not scope.workspace_matches(workspace_argument, self._workspace(grant), self.workspace_repo):return False
             path = arguments.get('path', '')
             if not isinstance(path, str) or '..' in Path(path).parts:return False
-            if path and Path(path).is_absolute() and not scope.within(path, {grant.workspace}):return False
+            if path and Path(path).is_absolute() and not scope.within(path, {self._workspace(grant)}):return False
             return True
         if tool in scope.GIT_WRITE:
-            if not scope.workspace_matches(workspace_argument, grant.workspace, self.workspace_repo):return False
+            if not scope.workspace_matches(workspace_argument, self._workspace(grant), self.workspace_repo):return False
             bound = bindings.get('git', {}).get(tool)
             if tool == 'git.commit':
                 message = arguments.get('message')
@@ -274,13 +316,13 @@ class OwnerPolicy:
                     value.strip().casefold().removesuffix('.exe') == name.casefold())
         if tool in {'system.open_path', 'ide.open_file', 'ide.open_workspace'}:
             if tool == 'ide.open_workspace' and scope.workspace_matches(workspace_argument or arguments.get('path'),
-                                                                        grant.workspace, self.workspace_repo):
+                                                                        self._workspace(grant), self.workspace_repo):
                 return True
             path = arguments.get('path')
             roots = set(grant.paths) | set(bindings.get('read_roots', ()))
             return isinstance(path, str) and (scope.within(path, roots) or
-                   bool(grant.workspace) and tool == 'ide.open_file' and scope.workspace_matches(
-                       workspace_argument, grant.workspace, self.workspace_repo))
+                   bool(self._workspace(grant)) and tool == 'ide.open_file' and scope.workspace_matches(
+                       workspace_argument, self._workspace(grant), self.workspace_repo))
         if tool == 'system.list_running_applications':
             return not arguments
         if tool in scope.SYSTEM_READ:
@@ -325,7 +367,7 @@ class OwnerPolicy:
         family = self._family(grant, tool, arguments)
         if family is not None:return family
         if tool in {'git.status', 'git.diff', 'git.log', 'git.branch_list'}:
-            if not grant.workspace or str(Path(arguments.get('workspace','')).resolve()) != grant.workspace:return False
+            if not self._workspace(grant) or str(Path(arguments.get('workspace','')).resolve()) != self._workspace(grant):return False
             allowed = {'workspace'} | ({'staged'} if tool == 'git.diff' else {'limit'} if tool == 'git.log' else set())
             return (set(arguments) <= allowed and
                     ('staged' not in arguments or type(arguments['staged']) is bool) and
@@ -334,17 +376,18 @@ class OwnerPolicy:
             if not isinstance(arguments.get('text'),str) or hashlib.sha256(arguments['text'].encode()).hexdigest() != grant.content_sha256:return False
         if tool == 'studio.new_project':
             if not grant.project_spec:return False
-            name, language, location = grant.project_spec
-            return arguments == {'name':name, 'language':language, 'template':'console', 'location':location} and not (Path(location)/name).exists()
+            name, language, location = grant.project_spec[:3]
+            template = grant.project_spec[3] if len(grant.project_spec) > 3 else 'console'
+            return arguments == {'name':name, 'language':language, 'template':template, 'location':location} and not (Path(location)/name).exists()
         if tool in {'studio.run','workspace.run_validation'}:
-            if not grant.workspace or str(Path(arguments.get('workspace','')).resolve())!=grant.workspace:return False
+            if not self._workspace(grant) or str(Path(arguments.get('workspace','')).resolve())!=self._workspace(grant):return False
             # Validation commands must come from the existing controller's detector;
             # Owner Mode does not authorize arbitrary shell or model command strings.
             allowed = {'workspace','timeout'}
             if tool == 'workspace.run_validation' and 'commands' in arguments:
                 from dataclasses import asdict
                 from ..services.build_test_service import BuildAndTestService
-                expected = [asdict(c) for c in BuildAndTestService().detect(grant.workspace) if c.source == 'known_standard']
+                expected = [asdict(c) for c in BuildAndTestService().detect(self._workspace(grant)) if c.source == 'known_standard']
                 if arguments['commands'] != expected:return False
                 allowed.add('commands')
             return set(arguments)<=allowed
@@ -381,6 +424,7 @@ def owner_request(function):
         workspace=self.s.workspace_repo.load_all().get(context.workspace_id or self.selected_workspace)
         with policy.request(text,chat_id,local=not getattr(self.s.chat,'targets',{}).get(chat_id),
                             selected_path=(None if kwargs.get('workspace_id') else self.selected_file) or context.entities.get('path',''),workspace=workspace.root_path if workspace else '',
-                            creation_root=str(self.s.data_dir)):
+                            creation_root=str(self.s.data_dir),
+                            code_target=bool(getattr(context, 'coding_follow_up', False))):
             return await function(self,text,chat_id,*args,**kwargs)
     return invoke

@@ -143,6 +143,11 @@ class AgentController:
         if not task_id:
             raise ValueError("Select a paused task from history")
         task = self.s.agent_task_repo.load_all()[task_id]
+        if task.kind == "coding":
+            coding = getattr(self.s, "coding", None)
+            if coding is None:
+                raise ValueError("Coding tasks are unavailable")
+            return (await coding.runner.resume(task_id)).to_dict()
         if task.state != "paused":
             raise ValueError("Only paused tasks may be resumed")
         if not task.plan:

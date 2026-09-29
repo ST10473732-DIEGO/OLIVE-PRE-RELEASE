@@ -97,6 +97,18 @@ LOCAL_TEMPLATES = {
             },
         },
     },
+    "web": {
+        "static": {
+            "label": "Static website",
+            "description": "HTML, CSS and JavaScript served by OLIVE's loopback preview.",
+            "files": {
+                "index.html": '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>New site</title>\n  <link rel="stylesheet" href="styles.css">\n</head>\n<body>\n  <main>\n    <h1>New site</h1>\n  </main>\n  <script src="script.js"></script>\n</body>\n</html>\n',
+                "styles.css": "body {\n  font-family: system-ui, sans-serif;\n  margin: 0;\n  padding: 2rem;\n}\n",
+                "script.js": "// Page behaviour goes here.\n",
+                "README.md": "# Static website\n\nOpen it with Run in OLIVE Studio; it is served on 127.0.0.1 only.\n",
+            },
+        },
+    },
     "empty": {
         "empty": {
             "label": "Empty folder",

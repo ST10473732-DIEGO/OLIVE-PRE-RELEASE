@@ -216,6 +216,28 @@ def direct_scope(request):
     if match:
         query, app = match.groups()
         text = 'Open ' + app + ' and search for ' + query
+    # Navigate only: open a named channel/conversation and verify it. Nothing is typed
+    # into the composer and nothing is sent; the destination binds exactly as for send.
+    # "the general channel" is the literal channel name #general (no guessing).
+    navigation = re.sub(r'\b((?:go|navigate|switch) to) (?:the )?#?([\w-]{1,80}) channel\b', r'\1 #\2', text, flags=re.I)
+    match = (re.fullmatch(r'(?:Open|Launch) ([\w .+-]{1,80}?),? and (?:go|navigate|switch) to ([#@]?[\w .()+-]{1,100}?)'
+                          r'(?: (?:in|on) ([\w .\'+-]{1,100}?))?[.]?', navigation, re.I)
+             or re.fullmatch(r'(?:Go|Navigate|Switch) to ([#@]?[\w .()+-]{1,100}?)(?: (?:in|on) ([\w .\'+-]{1,100}?))?'
+                             r' in ([\w .+-]{1,80}?)[.]?', navigation, re.I))
+    if match:
+        groups = match.groups()
+        app, destination, server = (groups if match.re.pattern.startswith('(?:Open') else (groups[2], groups[0], groups[1]))
+        if server and re.match(r'(?:the|my) ', server, re.I):
+            # "on the RaceDay server" / "on my RaceDay server": the article and the
+            # trailing kind word are not part of the name. "my server" names nothing.
+            server = re.sub(r'\s+server$', '', server.split(' ', 1)[1], flags=re.I)
+            if not server or server.casefold() == 'server':
+                raise ValueError('Which server? Name it exactly; nothing was opened or typed.')
+        if any(re.search(r'[,;\n]|\b(?:then|and|but|send|type|write|draft|without|do not|never)\b|don[\'’]t', field or '', re.I)
+               for field in (app, destination, server)):
+            raise ValueError('Clarify the exact destination; navigation never types or sends a message')
+        destination, handle = split_handle(destination.strip())
+        return TaskScope(app.strip(), 'go', '', destination, '', (server or '').strip(), handle=handle)
     match = re.fullmatch(r'(?:Open|Launch) ([\w .+-]{1,80}?)(?: and search for (.+))?', text, re.I | re.S)
     if match:
         app, query = match.groups()

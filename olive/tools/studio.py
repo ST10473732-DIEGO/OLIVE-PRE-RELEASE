@@ -14,7 +14,10 @@ class StudioRunTool:
     def __init__(self,run_service,workspace_repository):self.run_service=run_service;self.workspace_repository=workspace_repository
     async def execute(self,a,context):
         workspace=require_approved_workspace(self.workspace_repository,a["workspace"]);command,kind=self.run_service.detect_command(workspace)
-        policy=ExecutionPolicy(workspace.trust_level,min(600,max(1,float(a.get("timeout",120)))),False,False)
+        from ..services.run_service import WEB_KINDS
+        # A local web preview must outlive a console run's default, but stays bounded.
+        limit,default=(1800,1800) if kind in WEB_KINDS else (600,120)
+        policy=ExecutionPolicy(workspace.trust_level,min(limit,max(1,float(a.get("timeout",default)))),False,False)
         if kind == 'java_console':
             from ..services.build_test_service import BuildAndTestService
             checks = BuildAndTestService().detect(workspace.root_path)

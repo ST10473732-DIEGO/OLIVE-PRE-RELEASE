@@ -3,7 +3,7 @@
 // talks to the runtime; views call these so the rules are testable.
 
 export type StudioView = "explorer" | "search" | "scm" | "debug" | "testing";
-export type PanelTab = "problems" | "output" | "terminal" | "console" | "web" | "references";
+export type PanelTab = "problems" | "output" | "terminal" | "console" | "web" | "references" | "task";
 
 export interface ActivityItem {
   id: StudioView;
@@ -64,7 +64,7 @@ export function activityAvailability(remote: boolean): Record<StudioView, boolea
   };
 }
 /** Bottom panel tabs available for the mode (remote runs have no PTY). */
-export function panelTabs(remote: boolean, extra: { web?: boolean; references?: boolean } = {}): PanelTab[] {
+export function panelTabs(remote: boolean, extra: { web?: boolean; references?: boolean; task?: boolean } = {}): PanelTab[] {
   if (remote) return ["output"];
   return [
     "problems",
@@ -73,6 +73,7 @@ export function panelTabs(remote: boolean, extra: { web?: boolean; references?: 
     "console",
     ...(extra.web ? (["web"] as PanelTab[]) : []),
     ...(extra.references ? (["references"] as PanelTab[]) : []),
+    ...(extra.task ? (["task"] as PanelTab[]) : []),
   ];
 }
 export const PANEL_LABELS: Record<PanelTab, string> = {
@@ -82,6 +83,7 @@ export const PANEL_LABELS: Record<PanelTab, string> = {
   console: "Debug console",
   web: "Preview",
   references: "References",
+  task: "Task",
 };
 
 /** Studio collapse order (Studio V2 §3) for a window width. */

@@ -5,28 +5,70 @@ commands. Existing editor/checkpoint/run services remain authoritative.
 """
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from ..agent.model_router import RoutingRequest
 from ..services.workspace_service import require_approved_workspace
 
 
+FIX_WORDS = re.compile(r"\b(?:fix|repair|debug|error|errors|bug|bugs|failing|fails|broken|problem|issue|crash)\b", re.I)
+
+
 class CodingWorkflow:
     def __init__(self, services):
         self.s = services
+        from ..agent.coding_task import CodingTaskRunner
+        self.runner = CodingTaskRunner(services)
+
+    async def task(self, context, request, intent=None, preview=None):
+        """Run one bounded coding task for the conversation's workspace; returns the evidence report."""
+        if not context.workspace_id:
+            raise ValueError("Which saved project workspace should I use?")
+        intent = intent or ("fix" if FIX_WORDS.search(request) else "modify")
+        if preview is None:
+            preview = intent != "test" and bool(re.search(r"\b(?:show me|preview|refresh|what it looks like)\b", request, re.I))
+            # A follow-up edit to a project whose preview OLIVE is serving keeps it current.
+            preview = preview or any(s.workspace_id == context.workspace_id and s.state == "running"
+                                     and s.application_type in {"static_web", "aspnet_web"}
+                                     for s in self.s.run_service.sessions.values())
+        self.s.publish("studio.selection", {"workspace_id": context.workspace_id, "chat_id": context.chat_id})
+        task = await self.runner.run(request, context.workspace_id, chat_id=context.chat_id,
+                                     message_id=getattr(context, "message_id", None), intent=intent, preview=preview)
+        context.last_outcome = {"intent": "code.test" if intent == "test" else "code.modify",
+                                "passed": task.validation_status == "passed", "workspace_id": context.workspace_id,
+                                "task_id": task.id, "failure_name": "", "failure_output": "",
+                                "validated": task.validation_status in {"passed", "failed"}}
+        if task.validation_status == "failed":
+            failed = [c for c in task.validation.get("commands", []) if c.get("state") == "failed"]
+            context.last_outcome["failure_name"] = str(failed[0]["name"] if failed else "")[:200]
+            context.last_outcome["failure_output"] = (task.validation.get("failure_excerpt") or "\n".join(
+                f"{p.get('file')}:{p.get('line')}: {p.get('message')}" for p in task.validation.get("problems", [])[:20]))[-6000:]
+        return task.completion_summary
 
     async def create(self, name, language, request, context):
         language = {"c#": "csharp", "cs": "csharp", "js": "javascript", "py": "python"}.get(language.lower(), language.lower())
-        if language not in {"python", "csharp", "javascript", "java"}:
-            raise ValueError("Choose Python, C#, JavaScript or Java for this Studio starter.")
+        from ..interaction.project_request import project_request
+        spec = project_request(request)
+        if spec and spec["language"] == language:
+            template = spec["template"]
+        elif language == "web":
+            spec, template = None, "static"
+        else:
+            spec, template = None, "console"
+        if language not in {"python", "csharp", "javascript", "java", "web"}:
+            raise ValueError("Choose Python, C#, JavaScript, Java or a static website for a new Studio project.")
         location = str(Path(self.s.data_dir).resolve())
-        preview = self.s.studio_tooling.new_project_preview(language, "console", name, location)
+        preview = self.s.studio_tooling.new_project_preview(language, template, name, location)
         if preview["exists"]:
             raise ValueError("That project folder already exists. Choose another name or select the existing workspace.")
         created = await self.s.agent.tool("studio.new_project", {
-            "name": name, "language": language, "template": "console", "location": location,
+            "name": name, "language": language, "template": template, "location": location,
         }, f"Create {name} in Studio using {language} at {preview['destination']}")
         result = created["data"]["workspace"]
+        owner = getattr(self.s, "owner_policy", None)
+        if owner is not None:
+            owner.bind_created_workspace(result["root_path"])
         context.workspace_id = result["id"]
         context.project_id = result["project_id"]
         context.entities.pop("path", None)
@@ -39,8 +81,13 @@ class CodingWorkflow:
         from ..authority.owner import starter_request
         if starter_request(request) == (name, language):
             return f"Created {name} in Studio using the {language} console starter. No generated changes or project run were requested."
-        edited = await self.modify(result["id"], request)
-        return f"Created {name} in Studio using {language}. {edited}"
+        steps = created["data"].get("steps", [])
+        task = await self.runner.run(request, result["id"], chat_id=context.chat_id,
+                                     message_id=getattr(context, "message_id", None), intent="create",
+                                     preview=bool(spec and spec["preview"]),
+                                     created={"destination": created["data"].get("destination"),
+                                              "template": template, "steps": len(steps)})
+        return f"Created {name} in Studio.\n\n{task.completion_summary}"
 
     async def modify(self, workspace_id, request):
         workspace = require_approved_workspace(self.s.workspace_repo, workspace_id)

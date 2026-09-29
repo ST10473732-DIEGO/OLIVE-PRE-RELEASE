@@ -17,6 +17,15 @@ SECRET_NAME=re.compile(r"(?i)(key|token|secret|password|credential|cookie|auth)"
 URL_PATTERN=re.compile(r"https?://(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:/\S*)?")
 SAFE_ENV={"PATH","PATHEXT","SYSTEMROOT","WINDIR","TEMP","TMP","COMSPEC","PYTHONIOENCODING","DOTNET_CLI_TELEMETRY_OPTOUT"}
 RUN_STATES={"created","starting","running","completed","failed","stopped","timed_out"}
+WEB_KINDS={"aspnet_web","static_web"}
+
+
+def free_loopback_port() -> int:
+    """A currently free 127.0.0.1 port. A process that loses the race fails visibly; nothing is killed."""
+    import socket
+    with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1",0))
+        return probe.getsockname()[1]
 
 
 @dataclass(frozen=True,slots=True)
@@ -116,8 +125,15 @@ class RunService:
         solutions=sorted(root.glob("*.sln"));projects=sorted(root.glob("*.csproj"))
         if solutions or projects:
             target=(projects or solutions)[0];text=target.read_text(encoding="utf-8",errors="ignore") if target.suffix==".csproj" else ""
-            kind="aspnet_web" if "Microsoft.NET.Sdk.Web" in text else "dotnet_application"
-            return ["dotnet","run","--project",str(target)],kind
+            if "Microsoft.NET.Sdk.Web" in text:
+                # Command-line --urls overrides launch-profile URLs: loopback only, never 0.0.0.0.
+                return ["dotnet","run","--project",str(target),"--","--urls",f"http://127.0.0.1:{free_loopback_port()}"],"aspnet_web"
+            return ["dotnet","run","--project",str(target)],"dotnet_application"
+        if (root/"index.html").is_file():
+            server=Path(__file__).with_name("static_preview_server.py")
+            if not server.is_file():raise ValueError("Static web preview is unavailable in this build")
+            from .build_test_service import BuildAndTestService
+            return [str(BuildAndTestService.python_executable(root)),"-u",str(server),str(root),str(free_loopback_port())],"static_web"
         raise ValueError("No supported runnable entry point was detected")
 
     async def start(self,workspace:Workspace,command:list[str],application_type:str="console",

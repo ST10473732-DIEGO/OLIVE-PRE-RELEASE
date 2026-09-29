@@ -35,10 +35,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { call, type Workspace, type FileBuffer, type Chat, type Snapshot } from "../services/api";
+import { useResource } from "../services/useResource";
 import { StudioAssistant, type AssistantSeed, type StudioSubmit } from "./studio/Assistant";
 import { ActionMenu } from "../components/ActionMenu";
 import { Sheet } from "../components/Sheet";
 import { LocalPreview } from "./studio/LocalPreview";
+import { TaskCard, type TaskView } from "./chat/TaskCard";
 import { WorkspaceTools } from "./studio/WorkspaceTools";
 import { Explorer } from "../components/Explorer";
 import type { OutputChannel } from "../services/studioOutput";
@@ -208,6 +210,7 @@ function LocalStudio({
   workspaceId,
   setWorkspaceId,
   selectRequest,
+  previewRequest,
   newProjectRequest = 0,
   visible = true,
   output,
@@ -238,6 +241,8 @@ function LocalStudio({
   setWorkspaceId: (id: string) => void;
   /** Bumped when something outside Studio asks for a specific workspace. */
   selectRequest?: { id: string; revision: number };
+  /** Bumped when Chat asks to show a task's live loopback preview. */
+  previewRequest?: { session: string; revision: number };
   /** Bumped when something outside Studio asks for the New project wizard. */
   newProjectRequest?: number;
   // Studio stays mounted while the route is visited; it re-measures on return.
@@ -468,7 +473,40 @@ function LocalStudio({
     const result = await call<{ entries: typeof entries }>("studio.tree", { workspace_id: workspaceId });
     setEntries(result.entries);
   }, [workspaceId]);
+
+  // The latest OLIVE coding task for this workspace, shared with Chat.
+  const workspaceTask = useResource(
+    () => (workspaceId ? call<TaskView | null>("agent.workspace_task", { workspace_id: workspaceId }) : Promise.resolve(null)),
+    ["agent"],
+    workspaceId,
+  );
+  const [taskPreview, setTaskPreview] = useState<{ session: string; revision: number }>({ session: "", revision: 0 });
   useEffect(() => {
+    if (previewRequest?.session) setTaskPreview({ session: previewRequest.session, revision: previewRequest.revision });
+  }, [previewRequest?.revision]);
+  useEffect(() => {
+    if (!workspaceId) return;
+    // An OLIVE task edited files: reload clean tabs from disk; dirty tabs are never touched
+    // (the task refuses to edit a file with unsaved editor text).
+    return window.olive.subscribe((event) => {
+      const data = event.data as { workspace_id?: string; paths?: string[] };
+      if (event.topic !== "studio.files_changed" || data.workspace_id !== workspaceId) return;
+      void refreshTree().catch(report);
+      for (const path of data.paths || []) {
+        const file = retained.get(workspaceId + ":" + path);
+        if (!file || file.model.getValue() !== file.saved) continue;
+        void call<FileState>("studio.open", { workspace_id: workspaceId, path })
+          .then((state) => {
+            if (file.model.isDisposed() || file.model.getValue() !== file.saved) return;
+            file.hash = state.loaded_hash;
+            file.saved = state.saved_text;
+            file.model.setValue(state.text);
+            render((n) => n + 1);
+          })
+          .catch(report);
+      }
+    });
+  }, [workspaceId, refreshTree]);  useEffect(() => {
     if (!workspaceId) return;
     let stale = false;
     void call<{ entries: typeof entries }>("studio.tree", { workspace_id: workspaceId })
@@ -1319,6 +1357,7 @@ function LocalStudio({
   const tabs = panelTabs(false, {
     web: Boolean(activeWebRun || Object.values(slice.runs).some((run) => run.local_url)),
     references: Boolean(references),
+    task: Boolean(workspaceTask.data),
   });
   const panelTab: DockTab = dock && tabs.includes(dock) ? dock : "problems";
   const sidebarWidth = sizes.explorer || layout.sidebarDefault;
@@ -1826,6 +1865,15 @@ function LocalStudio({
                 <WebPanel workspaceId={workspaceId} report={report} />
               </div>
             )}
+            {panelTab === "task" && workspaceTask.data && (
+              <div className="dock-host studio-task-panel">
+                <TaskCard
+                  task={workspaceTask.data}
+                  report={report}
+                  openStudio={(_, session) => session && setTaskPreview((current) => ({ session, revision: current.revision + 1 }))}
+                />
+              </div>
+            )}
             {panelTab === "references" && (
               <div className="dock-host">
                 <div className="dock-panel references-panel">
@@ -1853,6 +1901,7 @@ function LocalStudio({
             )}
           </StudioPanel>
         </section>
+        <LocalPreview trigger={false} openRequest={taskPreview} workspaceId={workspaceId} report={report} />
         {assistantOpen && !docked && <div className="studio-sidebar-scrim" aria-hidden="true" onClick={() => setAssistantOpen(false)} />}
         <aside
           className="studio-assistant"

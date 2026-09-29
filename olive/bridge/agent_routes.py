@@ -1,6 +1,8 @@
 """Agent presentation and explicit context selection around the shared language core."""
 from copy import deepcopy
 
+from ..agent.agent_task import ACTIVE_STATES
+
 
 def history(s, query="", offset=0):
     from .history_page import summary_page
@@ -55,8 +57,52 @@ async def launch(s, chat_id, text, workspace_id='', project_id='', path=None, se
     return await interaction.submit(text, chat_id)
 
 
+SUMMARY_KEYS = ('id', 'user_request', 'state', 'kind', 'chat_id', 'message_id', 'workspace_id', 'status_text',
+                'timeline', 'changes', 'validation', 'preview', 'failure_category', 'error', 'completion_summary',
+                'created_at', 'updated_at', 'plan', 'current_step', 'constraints', 'replans', 'validation_status', 'resume_state')
+
+
+def task_view(task):
+    """What the renderer shows. Receipts, tool arguments and raw output stay in the backend."""
+    value = task.to_dict()
+    view = {key: deepcopy(value.get(key)) for key in SUMMARY_KEYS}
+    view['plan'] = [{'step_id': s['step_id'], 'description': s['description'], 'state': s['state'], 'expected': s['expected']}
+                    for s in value.get('plan', [])]
+    if view.get('validation'):
+        view['validation'].pop('failure_excerpt', None)
+    view['active'] = task.state in ACTIVE_STATES
+    return view
+
+
+def chat_tasks(s, chat_id):
+    if chat_id not in s.chats:
+        raise ValueError('Unknown conversation')
+    return [task_view(t) for t in s.agent_task_repo.for_chat(chat_id) if t.kind == 'coding']
+
+
+def workspace_task(s, workspace_id):
+    tasks = [t for t in s.agent_task_repo.load_all().values() if t.kind == 'coding' and t.workspace_id == workspace_id]
+    return task_view(max(tasks, key=lambda t: t.updated_at)) if tasks else None
+
+
+def stop_task(s, task_id):
+    runner = s.coding.runner
+    task = runner.current
+    if not task or task.id != task_id or task.terminal:
+        return {'stopped': False}
+    if task.chat_id:
+        s.interaction.cancel(task.chat_id)
+    return {'stopped': True}
+
+
 def routes(s):
     return {
+        'agent.chat_tasks': lambda chat_id: chat_tasks(s, chat_id),
+        'agent.workspace_task': lambda workspace_id: workspace_task(s, workspace_id),
+        'agent.task_diff': lambda task_id: s.coding.runner.diff(task_id),
+        'agent.stop_task': lambda task_id: stop_task(s, task_id),
+        'agent.stop_preview': lambda task_id: s.coding.runner.stop_preview(task_id),
+        'agent.revert': lambda task_id: s.coding.runner.revert(task_id),
         'agent.history': lambda **args: history(s, **args),
         'agent.get': lambda task_id: get_task(s, task_id),
         'agent.current': lambda: {'task': s.agent.current.to_dict() if s.agent.current else None,

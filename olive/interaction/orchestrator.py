@@ -40,6 +40,40 @@ def bind_search_result(step, executed, context):
     return bound
 
 
+def fold_coding_steps(steps, text):
+    """One coding request is one task: it inspects, edits and validates itself.
+
+    Deterministic: a pathless code.inspect and unconditional code.test steps are
+    subsumed by a code.modify step, and repeated code.modify steps become one
+    carrying the user's literal request (never a model paraphrase).
+    """
+    if not any(step['intent'] == 'code.modify' for step in steps):
+        return steps
+    # "run the tests" is validation (done by the task), not running the program.
+    tests_only = bool(re.search(r'\brun (?:the |all |its |my )?(?:unit )?tests?\b', text, re.I)) and not re.search(
+        r'\b(?:run|start|launch) (?:it|the (?:app|application|program|project|server|site|api))\b', text, re.I)
+    folded, modify = [], None
+    for step in steps:
+        intent = step['intent']
+        if intent == 'code.inspect' and not step['entities'].get('path'):
+            continue
+        if intent == 'code.run' and tests_only:
+            continue
+        if intent == 'code.test' and not step.get('when'):
+            continue
+        if intent == 'code.modify':
+            if modify is not None:
+                continue
+            modify = deepcopy(step)
+            modify['entities']['query'] = text[:4000]
+            folded.append(modify)
+            continue
+        folded.append(step)
+    if folded != steps:
+        trace_event('coding_steps_folded', before=len(steps), after=len(folded))
+    return folded
+
+
 def step_activity(scope):
     """Concise inline progress, never reasoning."""
     app = scope.application or 'the application'
@@ -47,7 +81,8 @@ def step_activity(scope):
             'search': f'Searching in {app}…', 'click': f'Finding {scope.content} in {app}…',
             'edit_save': f'Writing and saving in {app}…', 'paste_save': f'Pasting and saving in {app}…',
             'send': f'Sending in {app}…', 'draft': f'Typing the draft in {app}…', 'summarize': 'Summarizing the verified page…',
-            'copy': f'Copying in {app}…', 'move': f'Moving in {app}…'}.get(scope.effect, 'Working…')
+            'copy': f'Copying in {app}…', 'move': f'Moving in {app}…',
+            'go': f'Opening {scope.destination} in {app}…'}.get(scope.effect, 'Working…')
 
 
 class NaturalLanguageOrchestrator:
@@ -178,6 +213,9 @@ class NaturalLanguageOrchestrator:
                 if selection[1]:
                     context.entities["path"] = selection[1]
                 context.studio_selection = selection
+        correction = self._task_correction(text, chat_id)
+        if correction:
+            return correction
         interpreting = self.interpreting.setdefault(chat_id, set())
         interpreting.add(asyncio.current_task())
         self.s.publish("interaction_activity", {"chat_id": chat_id, "message": "Understanding your request…"})
@@ -215,10 +253,21 @@ class NaturalLanguageOrchestrator:
             else:
                 context.research_depth = None
                 from ..authority.owner import starter_request
+                from .project_request import project_request, resolve_name
                 starter = starter_request(text)
+                project = None if starter else project_request(text)
                 if starter:
                     interpretation = {'confidence':1, 'clarification':'', 'steps':[
                         {'intent':'project.create', 'entities':{'project':starter[0], 'language':starter[1], 'query':text}, 'references':{}}]}
+                elif project and not getattr(self.s.chat, 'targets', {}).get(chat_id):
+                    # Literal, deterministic: the same spec the owner grant was derived from.
+                    interpretation = {'confidence':1, 'clarification':'', 'steps':[
+                        {'intent':'project.create', 'entities':{'project':resolve_name(project, str(self.s.data_dir)),
+                         'language':project['language'], 'query':text}, 'references':{}}]}
+                elif context.coding_follow_up and context.workspace_id:
+                    # A follow-up edit to this conversation's own coding task (bounded, literal).
+                    interpretation = {'confidence':1, 'clarification':'', 'steps':[
+                        {'intent':'code.modify', 'entities':{'query':text}, 'references':{}}]}
                 else:
                     from .ordinary_requests import ordinary_request
                     transfer = ordinary_request(text)
@@ -327,6 +376,15 @@ class NaturalLanguageOrchestrator:
                     context.pending = None
                     context.clarification = None
                     return self.reply(chat_id, text, "The pending draft has been cancelled.")
+                if control == "task.resume":
+                    resumable = self._resumable_coding_task(chat_id)
+                    if resumable:
+                        return await self._resume_coding(text, chat_id, resumable)
+                if not self.CONTROL_PHRASE.fullmatch(text.strip()):
+                    # With nothing to control, a misread ordinary message ("Reply with
+                    # the word: ready") is simply answered. Nothing can be executed here.
+                    context.remember_user(text)
+                    return await self.s.chat.send(chat_id, text)
                 return self.reply(chat_id, text, "There isn't an active task in this conversation.")
             native = getattr(getattr(self.s, 'desktop', None), 'linux', None)
             if native and native.owner is task:
@@ -375,6 +433,56 @@ class NaturalLanguageOrchestrator:
                 return self.reply(chat_id, text, "Which action would you like me to repeat?")
             steps = deepcopy(context.last_steps)
         return await self._execute_steps(text, chat_id, steps, goal=goal)
+
+    def _resumable_coding_task(self, chat_id):
+        repo = getattr(self.s, 'agent_task_repo', None)
+        if repo is None or not hasattr(self.s, 'coding'):
+            return None
+        tasks = [t for t in repo.for_chat(chat_id) if t.kind == 'coding']
+        latest = tasks[-1] if tasks else None
+        return latest if latest and latest.state in {'paused', 'waiting_user'} else None
+
+    async def _resume_coding(self, text, chat_id, task):
+        """'Continue' in Chat: resume this conversation's paused coding task under the same Stop token."""
+        self.active[chat_id] = asyncio.current_task()
+        self.gates[chat_id] = asyncio.Event()
+        self.gates[chat_id].set()
+        chat = self.s.chats[chat_id]
+        chat.add_message('user', text)
+        self.s.save_chats()
+        try:
+            result = await self.s.coding.runner.resume(task.id)
+            answer = result.completion_summary
+        except asyncio.CancelledError:
+            answer = 'Stopped. Completed changes were kept; nothing further ran.'
+        except (ValueError, PermissionError) as error:
+            answer = str(error)
+        finally:
+            self.active.pop(chat_id, None)
+            self.gates.pop(chat_id, None)
+        return self.reply(chat_id, text, answer, append_user=False)
+
+    CONTROL_PHRASE = re.compile(r"(?:(?:ok|okay|please|now)[,!.]?\s+)*(?:continue|resume|go on|keep going|carry on|proceed|"
+                                r"stop|cancel|abort|pause|hold on|wait|halt)(?:\s+(?:it|that|this|the task|now|please|working))*[.!]?",
+                                re.I)
+
+    CORRECTION = re.compile(r"^\s*(?:please\s+)?(?:(?:do not|don't|never|avoid)\s+(?:change|changing|edit|editing|modify|modifying|touch|touching|use|using|add|adding|delete|remove)\b"
+                            r"|use\s+.{1,80}\s+instead\b|instead\s+of\b|only\s+(?:change|edit|modify)\b|keep\s+(?:the|my)\b)", re.I)
+
+    def _task_correction(self, text, chat_id):
+        """A constraint for the running coding task in this chat, applied before its next proposal.
+
+        Deterministic: the literal user text becomes a constraint; nothing is inferred
+        by a model and the constraint can only narrow what the task may change.
+        """
+        coding = getattr(getattr(self.s, 'coding', None), 'runner', None)
+        task = coding.current if coding else None
+        if (not task or task.terminal or task.chat_id != chat_id or chat_id not in self.active
+                or not self.CORRECTION.search(text) or len(text) > 500):
+            return None
+        coding.add_constraint(text)
+        return self.reply(chat_id, text, "Noted. I'll apply this before the next change: \"" + text.strip()[:200] + "\". "
+                          "Changes already made are kept; say \"stop\" to end the task instead.")
 
     async def _native_submit(self, text, chat_id, interpretation=None, plan=None):
         trace_event("desktop_attempt")
@@ -547,10 +655,14 @@ class NaturalLanguageOrchestrator:
         from .goal_program import gate as branch_gate, skip, step_effect, MUTATION_GOALS, INTERNAL_SURFACES
         from .task_goal import COMPLETED, FAILED
         context = self.context(chat_id)
+        steps = fold_coding_steps(steps, text)
         compound = bool(goal and (len(goal.requested_effects) >= 2 or goal.constraints or goal.conditions))
         if goal and len(goal.requested_effects) >= 2:
             # A multi-effect request must not silently lose a requested change.
-            missing = [m for m in goal.completeness([(step_effect(s), '') for s in steps]) if m.effect in MUTATION_GOALS]
+            # A coding task step runs the workspace's detected build/tests itself, so it
+            # covers a requested test effect; its real result is recorded below.
+            planned = [(step_effect(s), '') for s in steps] + [('test', '') for s in steps if s['intent'] == 'code.modify']
+            missing = [m for m in goal.completeness(planned) if m.effect in MUTATION_GOALS]
             if missing:
                 return self.reply(chat_id, text, 'PLAN_INCOMPLETE: I could not map every requested change to a '
                                   'supported step (' + ', '.join(m.effect.replace('_', ' ') for m in missing) +
@@ -560,7 +672,7 @@ class NaturalLanguageOrchestrator:
         gate.set()
         context.remember_user(text)
         chat = self.s.chats[chat_id]
-        chat.add_message("user", text)
+        context.message_id = chat.add_message("user", text).id
         self.s.save_chats()
         messages = []
         executed_steps = []
@@ -587,6 +699,12 @@ class NaturalLanguageOrchestrator:
                 context.accept(resolved)
                 if goal:
                     goal.mark(step_effect(step), COMPLETED)
+                    outcome = context.last_outcome or {}
+                    if resolved['intent'] == 'code.modify' and outcome.get('intent') == 'code.modify' and outcome.get('validated'):
+                        goal.mark('test', COMPLETED if outcome.get('passed') else FAILED,
+                                  '' if outcome.get('passed') else 'checks failed after the change')
+                        # "Find the problem" is the task's own diagnosis from the observed checks.
+                        goal.mark('search', COMPLETED)
             context.last_steps = deepcopy(executed_steps)
             context.clarification = None
         except asyncio.CancelledError:

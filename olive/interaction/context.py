@@ -39,6 +39,8 @@ class InteractionContext:
     last_interpretation: dict = field(default_factory=dict)
     resolved_steps: list = field(default_factory=list)
     last_outcome: dict | None = None  # Verified typed outcome of the previous step in this task only.
+    message_id: str | None = None  # The user turn the current request belongs to (task cards anchor to it).
+    coding_follow_up: bool = False  # This request continues the conversation's own recent coding task.
 
     def snapshot(self):
         return deepcopy({"entities": self.entities, "recent_user_turns": self.recent[-6:],

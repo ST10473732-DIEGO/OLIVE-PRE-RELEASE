@@ -116,6 +116,7 @@ export default function App() {
   const [projectCreate, setProjectCreate] = useState(0);
   // Studio requests: select a workspace, or open the New project wizard.
   const [studioRequest, setStudioRequest] = useState({ id: "", revision: 0 });
+  const [previewRequest, setPreviewRequest] = useState({ session: "", revision: 0 });
   const [newProjectRequest, setNewProjectRequest] = useState(0);
   const [diagnosticsRequest, setDiagnosticsRequest] = useState(0);
   const [browserSettingsRequest, setBrowserSettingsRequest] = useState(0);
@@ -673,6 +674,12 @@ export default function App() {
                   submit={(text, mode) => submit(text, undefined, mode)}
                   cancel={cancel}
                   report={report}
+                  openStudio={(id, session) => {
+                    setWorkspace(id);
+                    setStudioRequest((current) => ({ id, revision: current.revision + 1 }));
+                    if (session) setPreviewRequest((current) => ({ session, revision: current.revision + 1 }));
+                    navigate("studio");
+                  }}
                 />
               )}
               {route === "devices" && <Devices />}
@@ -797,6 +804,7 @@ export default function App() {
                       workspaceId={workspace}
                       setWorkspaceId={setWorkspace}
                       selectRequest={studioRequest}
+                      previewRequest={previewRequest}
                       newProjectRequest={newProjectRequest}
                       visible={route === "studio"}
                       output={output}

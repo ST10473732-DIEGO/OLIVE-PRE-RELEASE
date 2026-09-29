@@ -272,8 +272,18 @@ class CapabilityRouter:
             if not context.workspace_id:
                 raise ValueError("Which saved project workspace should I use?")
             if intent == "code.run":
+                from ..services.run_service import RunService, WEB_KINDS
+                workspace = self.s.workspace_repo.load_all()[context.workspace_id]
+                try:
+                    _, kind = RunService.detect_command(workspace)
+                except ValueError:
+                    kind = ""
+                if kind in WEB_KINDS:
+                    return await self.s.coding.task(context, e.get("query") or "Run the project and show the preview", intent="run", preview=True)
                 await self.s.studio.run(context.workspace_id)
                 return "The project run has started; its output is in Studio."
+            if intent == "code.test" and getattr(self.s, "coding", None) is not None and hasattr(self.s.coding, "runner"):
+                return await self.s.coding.task(context, e.get("query") or "Run the project's tests", intent="test")
             if intent == "code.test":
                 record = await self.s.studio.validate(context.workspace_id)
                 results = record.get("results", []) if isinstance(record, dict) else []
@@ -328,7 +338,7 @@ class CapabilityRouter:
             request = self.required(e, "query")
             if context.editor_context:
                 request += '\n<untrusted_editor_context>\n' + json.dumps(context.editor_context) + '\n</untrusted_editor_context>'
-            return await self.s.coding.modify(context.workspace_id, request)
+            return await self.s.coding.task(context, request)
         if intent in {"research.start", "research.follow_up"}:
             question = self.required(e, "query")
             if intent == "research.follow_up":

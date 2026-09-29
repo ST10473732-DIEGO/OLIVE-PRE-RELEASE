@@ -186,7 +186,7 @@ class VisualMessaging:
             # earlier Draft request) is recognised; any other draft is preserved.
             words = lines if self.area(frame, 'composer') else await asyncio.to_thread(
                 ocr_words, frame, self.composer_area(frame, point))
-            same = exact_segment(words, self.scope.content)
+            same = exact_segment(words, self.scope.content) if self.scope.content else None
             if same:
                 composer = ('draft', '', self.scope.content, same)
                 break
@@ -495,6 +495,19 @@ class VisualMessaging:
         await self.navigate()
         self.progress('Checking the conversation…')
         frame, point = await self.resolve()
+        if scope.effect == 'go':
+            # Navigation only: verify where we are; never touch the composer.
+            if ctx.destination.state != VERIFIED:
+                raise ValueError(('TARGET_AMBIGUOUS' if ctx.destination.state == AMBIGUOUS else 'DESTINATION_UNVERIFIED') +
+                                 ': ' + self.describe() + '. Nothing was typed.')
+            if scope.server and ctx.workspace.state != VERIFIED:
+                raise ValueError('DESTINATION_UNVERIFIED: ' + self.describe() + '. Nothing was typed.')
+            self.record({'operation': 'visual_navigate', 'status': 'destination verified'})
+            d = self.runtime.desktop
+            d.record.status = 'completed'
+            d.record.verification = ('Opened and verified ' + scope.destination + (' in ' + scope.server if scope.server else '') +
+                                     '. Nothing was typed and nothing was sent.')
+            return d.record.verification
         prepared = bool(ctx.draft) and normalize(ctx.draft) == normalize(scope.content)
         if ctx.draft and not prepared and ctx.destination.state == VERIFIED:
             raise ValueError('COMPOSER_UNVERIFIED: the composer already contains a draft; it was preserved '

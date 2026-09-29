@@ -480,6 +480,11 @@ p[role="status"]:not(:empty) {
 .workspace-menu-items details > form {
   padding: 6px 8px 8px;
 }
+.local-preview-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
 .local-preview-host {
   height: 48vh;
   min-height: 160px;

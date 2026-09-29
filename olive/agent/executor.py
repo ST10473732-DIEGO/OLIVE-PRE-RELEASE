@@ -31,8 +31,14 @@ class ToolExecutor:
             evaluations.append(self.permissions.evaluate("filesystem.write", action.arguments.get("path")))
         if action.tool_name == "terminal.run":
             from ..tools.terminal import TerminalRunTool
-            if TerminalRunTool.requires_admin(str(action.arguments.get("command", ""))):
-                evaluations.append(self.permissions.evaluate("terminal.admin", target))
+            from .command_policy import extra_permissions
+            command = str(action.arguments.get("command", ""))
+            extra = set(extra_permissions(command))
+            if TerminalRunTool.requires_admin(command):
+                extra.add("terminal.admin")
+            # Classification only adds checks: sudo/system packages/installs are never
+            # silently covered by an ordinary terminal permission.
+            evaluations.extend(self.permissions.evaluate(permission, target) for permission in sorted(extra))
         denied = next((item for item in evaluations if item.decision == PermissionDecision.DENY), None)
         if denied:
             result = ToolResult.failure(f"Permission denied: {denied.permission}", "PermissionDenied")

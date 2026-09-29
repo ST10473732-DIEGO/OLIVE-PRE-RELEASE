@@ -1,7 +1,7 @@
 import { SourceChips, SourceEvidence } from "./chat/SourceChips";
 import { GrowingComposer } from "../components/GrowingComposer";
 import { useWarmModel } from "../services/warm";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Fragment } from "react";
 import {
   ArrowUp,
   Square,
@@ -40,6 +40,7 @@ import { ResearchEvidence, ResearchHistoryButton } from "./chat/ResearchEvidence
 import { MediaTools } from './chat/MediaTools';
 import { RemoteTarget, RemoteAttribution, messageAttribution } from './chat/RemoteTarget';
 import { MediaArtifacts, MediaProgress } from "./chat/MediaArtifacts";
+import { TaskCard, useChatTasks } from "./chat/TaskCard";
 import { MediaNotice, mediaPlaceholder, MEDIA_LABELS } from "./chat/MediaNotice";
 import { MEDIA_PRESETS, type PresetId } from "../../electron/presets";
 import { OliveLogo } from "../components/OliveLogo";
@@ -75,6 +76,7 @@ export function Chat({
   submit,
   cancel,
   report,
+  openStudio,
 }: {
   snapshot: Snapshot;
   chat: ChatRecord;
@@ -83,7 +85,10 @@ export function Chat({
   submit: (text: string, mode?: "Quick" | "Deep") => Promise<void>;
   cancel: () => void;
   report: (e: unknown) => void;
+  /** Show a task's workspace (and optionally its live preview) in Studio. */
+  openStudio?: (workspaceId: string, previewSession?: string) => void;
 }) {
+  const tasksByMessage = useChatTasks(chat.id);
   // The draft is held with the conversation it belongs to, so switching chats
   // (without remounting this view) can never save one chat's text into another.
   const [draftState, setDraftState] = useState({ chat: chat.id, text: chat.draft || "" });
@@ -461,7 +466,8 @@ export function Chat({
             </div>
           )}
           {chat.messages.map((m, index) => (
-            <article className={`message message-${m.role}${turns.current?.fresh.has(m.id) ? " message-new" : ""}`} key={m.id}>
+            <Fragment key={m.id}>
+            <article className={`message message-${m.role}${turns.current?.fresh.has(m.id) ? " message-new" : ""}`}>
               {m.role === "user" ? (
                 <div className="message-label sr-only">You</div>
               ) : (
@@ -543,6 +549,12 @@ export function Chat({
                   )}
               </div>
             </article>
+            {tasksByMessage[m.id]?.map((task) => (
+              <div className="message message-assistant message-task" key={task.id}>
+                <TaskCard task={task} openStudio={openStudio} report={report} compact />
+              </div>
+            ))}
+            </Fragment>
           ))}
           {chat.partial && (
             <article className="message message-assistant message-new">

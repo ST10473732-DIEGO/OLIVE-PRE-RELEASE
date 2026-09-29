@@ -24,7 +24,12 @@ PERSONAL_WRITE = {'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.reope
 RESEARCH_READ = {'research.run', 'web.search', 'web.read', 'web.open', 'web.links', 'web.page_info', 'web.follow',
                  'web.scope'}
 # Bounded mutation budgets per grant; every other mutation is reserved once.
-BUDGETS = {'code.replace_exact': 32, 'code.replace_range': 32, 'code.create_file': 16, 'studio.save': 16}
+BUDGETS = {'code.replace_exact': 32, 'code.replace_range': 32, 'code.create_file': 16, 'studio.save': 16,
+           # A coding task observes before and after each bounded repair round
+           # (baseline + up to three reruns); detected commands only.
+           'workspace.run_validation': 4,
+           # Start once, and restart once after a follow-up edit to a running web project.
+           'studio.run': 2}
 
 
 def literal_quotes(text):
@@ -36,7 +41,7 @@ def _paths(text):
     return re.findall(r'(?<![\w/])(?:~/|/)[^\s\'";,]+', text)
 
 
-def extend(text, instruction, *, workspace='', answer_only=False, forbidden=frozenset()):
+def extend(text, instruction, *, workspace='', answer_only=False, forbidden=frozenset(), code_target=False):
     """Return (capabilities, bindings) for ordinary explicit owner families."""
     capabilities, bindings = set(), {}
     if answer_only:
@@ -62,13 +67,19 @@ def extend(text, instruction, *, workspace='', answer_only=False, forbidden=froz
     # Workspace code: requires a selected approved workspace and an explicit
     # software target/execution request. Answer-only code never reaches here.
     from ..interaction.deliverable import code_action_requested
-    if workspace and code_action_requested(text):
+    # code_target: a bounded follow-up to this conversation's own coding task
+    # (see interaction.workspace_reference.coding_follow_up), never a model guess.
+    if workspace and (code_action_requested(text) or code_target):
         if re.search(r'\b(?:inspect|read|explain|review|search|find|look|open|show|fix|edit|change|modify|refactor|'
                      r'update|add|implement|rename|create|write|debug|build|test|run)\b', positive):
             capabilities.update(CODE_READ)
         if re.search(r'\b(?:fix|edit|change|modify|refactor|update|add|implement|rename|create|write)\b', positive) \
                 and not forbidden & {'edit', 'fix', 'create', 'change', 'modify', 'save'}:
             capabilities.update(CODE_WRITE)
+            # A code change is verified by the workspace's own detected build/test
+            # commands (never model command strings), unless the user declined it.
+            if not forbidden & {'run', 'test', 'build', 'validate'}:
+                capabilities.add('workspace.run_validation')
         if re.search(r'\bbuild\b', positive) and 'build' not in forbidden:
             capabilities.add('studio.build')
         if re.search(r'\bdebug\b', positive):

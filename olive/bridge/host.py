@@ -110,6 +110,11 @@ class Host:
 
     def emergency_stop(self):
         if self.services:
+            # A running coding task stops with its conversation's request (cancellation token).
+            runner = getattr(getattr(self.services, 'coding', None), 'runner', None)
+            task = runner.current if runner else None
+            if task is not None and not task.terminal and task.chat_id:
+                self.services.interaction.cancel(task.chat_id)
             self.services.desktop.stop_event.set()
             native = getattr(self.services.desktop, 'linux', None)
             if native:
