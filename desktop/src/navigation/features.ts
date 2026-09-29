@@ -17,7 +17,6 @@ import {
   Globe,
   Plug,
   Settings,
-  Telescope,
   Workflow,
 } from "lucide-react";
 
@@ -60,7 +59,7 @@ export const features: Feature[] = [
     category: "Work",
     availability: "ready",
     primary: true,
-    aliases: ["conversation", "ask", "talk", "prompt"],
+    aliases: ["conversation", "ask", "talk", "prompt", "research", "sources", "investigate"],
   },
   {id:'browser', label:'OLIVE GO', description:'Browse the web in your own browser.', icon:Globe, category:'Work', availability:'ready', primary:true, aliases:['browser','web','Google','tabs','favourites','bookmarks','downloads','history']},
   {
@@ -82,17 +81,6 @@ export const features: Feature[] = [
     availability: "ready",
     primary: true,
     aliases: ["task", "objective", "automate", "plan"],
-  },
-  {
-    id: "research",
-    label: "Research",
-    within: "chat",
-    description: "Investigate and keep the evidence.",
-    icon: Telescope,
-    category: "Work",
-    availability: "ready",
-    primary: true,
-    aliases: ["investigate", "sources", "web", "report"],
   },
   {
     id: "desktop",
@@ -261,3 +249,6 @@ export const footSpaces: Space[] = [
 export function spaceOf(route: string): Space {
   return [...spaces, ...footSpaces].find((s) => s.routes.includes(route) || s.also?.includes(route)) || spaces[0];
 }
+
+/** Old navigation targets remain safe without a standalone Research page. */
+export const chatCompatibleRoute = (id: string) => id === "research" || id === "desktop" ? "chat" : id;

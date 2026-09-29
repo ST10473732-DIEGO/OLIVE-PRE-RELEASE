@@ -7,7 +7,7 @@ from ..agent.tool_result import ToolResult
 
 SPECS = {
     "remove": ({"source_id"}, {"source_id"}, ("knowledge.write",), True),
-    "search": ({"query", "limit", "freshness"}, {"query"}, ("network.search",), False),
+    "search": ({"query", "limit", "freshness", "category"}, {"query"}, ("network.search",), False),
     "open": ({"url"}, {"url"}, ("network.read",), False),
     "read": ({"url"}, {"url"}, ("network.read",), False),
     "links": ({"url"}, {"url"}, ("network.read",), False),
@@ -73,10 +73,12 @@ class WebTool:
             if (
                 type(limit) is not int
                 or not 1 <= limit <= 20
-                or freshness not in {"any", "current", "recent"}
+                or freshness not in {"any", "current", "recent", "today"}
+                or arguments.get("category", "general") not in {"general", "news"}
             ):
                 raise ValueError("Invalid search limits")
-            values = await controller.search_provider.search(arguments["query"], limit, freshness)
+            options = {"category": arguments["category"]} if "category" in arguments else {}
+            values = await controller.search_provider.search(arguments["query"], limit, freshness, **options)
             value = {"results": [asdict(result) for result in values], "trust_label": "untrusted_search"}
         elif action in {"open", "read", "links", "page_info", "follow"}:
             method = (

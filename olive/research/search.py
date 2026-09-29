@@ -25,8 +25,8 @@ def normalize_results(values, provider, limit):
                 str(value.get("snippet") or value.get("body") or value.get("content") or "")[:2000],
                 provider,
                 len(results) + 1,
-                value.get("publishedDate") or value.get("publication_date"),
-                urlsplit(url).hostname,
+                value.get("publishedDate") or value.get("publication_date") or value.get("date"),
+                str(value.get("source") or urlsplit(url).hostname),
             )
         )
         if len(results) >= limit:
@@ -39,7 +39,7 @@ class DDGSSearchProvider:
 
     name = "ddgs"
 
-    async def search(self, query, limit=8, freshness="any"):
+    async def search(self, query, limit=8, freshness="any", category="general"):
         if not isinstance(query, str) or not query.strip() or len(query) > 1000:
             raise ValueError("Search query must contain 1-1000 characters")
         limit = min(20, max(1, int(limit)))
@@ -47,11 +47,13 @@ class DDGSSearchProvider:
         def search():
             from ddgs import DDGS
 
-            return DDGS(timeout=12, verify=True).text(
+            client = DDGS(timeout=12, verify=True)
+            method = client.news if category == "news" else client.text
+            return method(
                 query,
                 max_results=limit,
-                backend="bing",
-                timelimit="w" if freshness == "current" else "m" if freshness == "recent" else None,
+                backend="auto" if category == "news" else "bing",
+                timelimit="d" if freshness == "today" else "w" if freshness == "current" else "m" if freshness == "recent" else None,
             )
 
         values = await asyncio.wait_for(asyncio.to_thread(search), 16)
@@ -64,12 +66,12 @@ class SearXNGSearchProvider:
     def __init__(self, endpoint):
         self.endpoint = normalize_url(endpoint).rstrip("/")
 
-    async def search(self, query, limit=8, freshness="any"):
+    async def search(self, query, limit=8, freshness="any", category="general"):
         if not isinstance(query, str) or not query.strip() or len(query) > 1000:
             raise ValueError("Invalid search query")
-        parameters = {"q": query, "format": "json", "categories": "general"}
+        parameters = {"q": query, "format": "json", "categories": category}
         if freshness != "any":
-            parameters["time_range"] = "week" if freshness == "current" else "month"
+            parameters["time_range"] = "day" if freshness == "today" else "week" if freshness == "current" else "month"
         _, kind, body = await fetch(
             self.endpoint + "/search?" + urlencode(parameters), accept="application/json"
         )

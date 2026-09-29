@@ -7,7 +7,7 @@ export interface WireEvent {
   data: unknown;
 }
 export interface Preset {
-  id: "fast" | "normal" | "max" | "deep" | "reimagine";
+  id: "fast" | "normal" | "max" | "uncensored" | "now" | "deep" | "reimagine";
   name: string;
   model: string;
   digest: string;
@@ -24,7 +24,7 @@ export interface Message {
   id: string;
   role: string;
   content: string;
-  sources: { label?: string; name?: string }[];
+  sources: { label?: string; name?: string; title?: string; url?: string; source?: string; published_at?: string | null; retrieved_at?: string; provider?: string; evidence?: string; kind?: string }[];
 }
 export interface Chat {
   run_on?: string;

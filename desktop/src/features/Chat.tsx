@@ -1,3 +1,4 @@
+import { SourceChips, SourceEvidence } from "./chat/SourceChips";
 import { GrowingComposer } from "../components/GrowingComposer";
 import { useWarmModel } from "../services/warm";
 import { useEffect, useRef, useState } from "react";
@@ -82,7 +83,6 @@ export function Chat({
 }) {
   const [draft, setDraft] = useState(chat.draft || "");
   const [mediaOpen,setMediaOpen]=useState(false);
-  const [researchMode, setResearchMode] = useState<"" | "Quick" | "Deep">("");
   const latestDraft = useRef(draft);
   latestDraft.current = draft;
   const [search, setSearch] = useState("");
@@ -159,7 +159,7 @@ export function Chat({
     setDraft("");
     latestDraft.current = "";
     setChat({ ...chat, draft: "" });
-    void submit(text, researchMode || undefined);
+    void submit(text);
   };
   const updateDraft = (text: string) => {
     setDraft(text);
@@ -480,19 +480,7 @@ export function Chat({
                 {m.completion_state === "incomplete" && <p className="message-partial" role="status"><span className="ws-pill" data-tone="warning">Stopped · partial answer kept</span> Incomplete response — generation stopped or failed. The partial text is retained; nothing was retried.</p>}
                 {m.completion_state === "unverified" && <p className="small">Saved alternate response — completion status was not recorded.</p>}
               </div>
-              {m.sources?.length > 0 && (
-                <div className="chips">
-                  {m.sources.map((s, i) => (
-                    <button
-                      className="chip"
-                      key={i}
-                      onClick={() => setSource(s)}
-                    >
-                      {s.label || s.name || `Source ${i + 1}`}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <SourceChips sources={m.sources || []} inspect={setSource} />
               <div className="message-actions">
                 <CopyButton text={m.content} label="Copy message" iconOnly />
                 {m.role === "assistant" &&
@@ -628,7 +616,7 @@ export function Chat({
             <GrowingComposer
               ref={composer}
               aria-label="Message OLIVE"
-              placeholder={researchMode === "Deep" ? "What should OLIVE research?" : researchMode === "Quick" ? "Ask, and OLIVE will search the web…" : "Ask, explore, or get something done…"}
+              placeholder="Ask, research a topic, or explore an attached document…"
               value={draft}
               onChange={(e) => {
                 updateDraft(e.target.value);
@@ -660,12 +648,6 @@ export function Chat({
                 </button>
                 <div className="chat-tool-group" role="group" aria-label="Model and mode">
                   <label className="chat-tool">
-                    <Globe size={14} aria-hidden="true" />
-                    <select aria-label="Research mode" value={researchMode} disabled={busy} onChange={e => setResearchMode(e.target.value as "" | "Quick" | "Deep")}>
-                      <option value="">Chat</option><option value="Quick">Search web</option><option value="Deep">Research thoroughly</option>
-                    </select>
-                  </label>
-                  <label className="chat-tool">
                     <Sparkles size={14} aria-hidden="true" />
                     <select
                       aria-label="OLIVE preset"
@@ -675,7 +657,7 @@ export function Chat({
                       onChange={(e) =>
                         void call<ChatRecord>("chat.preset", {
                           chat_id: chat.id,
-                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "deep" | "reimagine",
+                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "now" | "deep" | "reimagine",
                         })
                           .then(setChat)
                           .catch(report)
@@ -684,7 +666,7 @@ export function Chat({
                       {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
                       {snapshot.presets?.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.name}{chat.run_on ? (["uncensored", "deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
+                          {m.name}{chat.run_on ? (["uncensored", "now", "deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
                         </option>
                       ))}
                     </select>
@@ -773,6 +755,7 @@ export function Chat({
         title="Message source"
         description="Provenance recorded for this response."
       >
+        <SourceEvidence source={source} />
         <Details value={source} title="Source evidence" />
       </Sheet>
     </div>

@@ -102,6 +102,8 @@ INVENTORY.update(_rows('research', R, 'explicit search/research request; public 
 INVENTORY.update(_rows('research', A, 'explicit learn/download request; literal URL',
                        'web.learn', 'web.learn_urls', 'web.refresh', 'web.download', 'web.save_download',
                        'web.import_download', 'web.remove'))
+# Weather is broker-authorized by an explicit NOW request, never a generic Owner grant.
+INVENTORY.update(_rows('research', N, 'explicit NOW request consent; network.read Deny remains authoritative', 'web.weather'))
 # Personal records.
 _personal_read = ('calendar.calendars', 'calendar.free_busy', 'calendar.get', 'calendar.range', 'calendar.search',
                   'tasks.get', 'tasks.search', 'reminders.get', 'reminders.history', 'reminders.search',

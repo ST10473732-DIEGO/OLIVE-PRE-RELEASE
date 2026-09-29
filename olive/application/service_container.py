@@ -262,6 +262,12 @@ class ServiceContainer:
         from .research_controller import ResearchController
 
         self.research = ResearchController(self)
+        from ..services.now_service import NowService
+        from ..services.now_weather import WeatherTool
+        self.now = NowService(self)
+        from ..services.chat_research_service import ChatResearchService
+        self.chat_research = ChatResearchService(self)
+        self.tool_registry.register(WeatherTool())
         from ..interaction.orchestrator import NaturalLanguageOrchestrator
         self.interaction = NaturalLanguageOrchestrator(self)
         self.closing = False

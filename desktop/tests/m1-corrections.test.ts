@@ -72,7 +72,7 @@ describe("M1 review corrections", () => {
   it("drives navigation, the launcher and search from one feature registry", () => {
     // Every shipped capability the brief names must be reachable by label.
     for (const id of [
-      "home", "chat", "studio", "research", "agent", "desktop", "projects",
+      "home", "chat", "studio", "agent", "desktop", "projects",
       "knowledge", "memory", "calendar", "tasks", "reminders",
       "mail", "settings", "connections", "diagnostics",
     ])

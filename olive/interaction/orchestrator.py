@@ -1,6 +1,7 @@
 """One user-authored front door; context is scoped to conversations, not observations."""
 
 import asyncio
+import re
 from copy import deepcopy
 from .context import InteractionContext
 from ..models import chat_title
@@ -126,6 +127,17 @@ class NaturalLanguageOrchestrator:
             raise ValueError("Unknown research mode")
         chat_id = chat_id or self.s.current_chat_id
         context = self.context(chat_id)
+        if getattr(self.s.chats[chat_id], "preset", "") == "now":
+            from .request_consent import requested_capability
+            with requested_capability("now.answer"):
+                return await self.s.chat.send(chat_id, text)
+        if hasattr(self.s, "chat_research"):
+            from ..services.chat_research_service import research_intent
+            kind = research_intent(self.s.chats[chat_id], text, research_mode)
+            if kind:
+                from .request_consent import requested_capability
+                with requested_capability("now.answer"):
+                    return await self.s.chat.send(chat_id, text, research_kind=kind)
         from .task_goal import derive_goal
         goal = derive_goal(text)  # Typed constraints/conditions from literal user bytes only.
         # Only literal local user input reaches native task authority. Remote targets
@@ -243,6 +255,13 @@ class NaturalLanguageOrchestrator:
         if native_allowed and steps and all(step['intent'] in {
                 'application.launch', 'application.activate', 'application.search', 'application.control'} for step in steps):
             return await self._native_submit(text, chat_id, steps)
+        if (hasattr(self.s, "chat_research") and len(steps) == 1 and steps[0]["intent"] in {"research.start", "research.follow_up"}
+                and not re.search(r"\b(create|export|save|write)\b.*\breport\b", text, re.I)):
+            from ..services.chat_research_service import research_intent
+            from .request_consent import requested_capability
+            kind = research_intent(self.s.chats[chat_id], text, "Quick")
+            with requested_capability("now.answer"):
+                return await self.s.chat.send(chat_id, text, research_kind=kind)
         if len(steps) == 1 and steps[0]["intent"] in {"conversation.answer", "knowledge.query"}:
             document = {}
             if chat_id in self.active:

@@ -155,7 +155,7 @@ export function HomePage({
                       onChange={(e) =>
                         void call<ChatRecord>("chat.preset", {
                           chat_id: chat.id,
-                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "deep" | "reimagine",
+                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "now" | "deep" | "reimagine",
                         })
                           .then(setChat)
                           .catch(report)

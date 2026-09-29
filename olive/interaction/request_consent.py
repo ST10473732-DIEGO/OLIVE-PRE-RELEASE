@@ -12,6 +12,7 @@ _user = ContextVar('olive_actual_user_request', default=False)
 _intent = ContextVar('olive_requested_capability', default='')
 
 READ_TOOLS = {
+    "now.answer": {"web.search", "web.open", "web.weather"},
     'filesystem.search': {'filesystem.search', 'filesystem.stat', 'knowledge.find_files'},
     'knowledge.query': {'filesystem.read_text', 'filesystem.stat'},
     'code.inspect': {'filesystem.read_text', 'filesystem.stat', 'studio.open', 'studio.tree'},

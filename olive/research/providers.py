@@ -5,7 +5,7 @@ from .models import PageObservation, SearchResult
 class SearchProvider(Protocol):
     name: str
 
-    async def search(self, query: str, limit: int = 8, freshness: str = "any") -> list[SearchResult]: ...
+    async def search(self, query: str, limit: int = 8, freshness: str = "any", category: str = "general") -> list[SearchResult]: ...
 
 
 class BrowserProvider(Protocol):

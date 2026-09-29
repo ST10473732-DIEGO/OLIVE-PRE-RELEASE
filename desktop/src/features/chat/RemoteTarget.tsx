@@ -12,6 +12,7 @@ export interface ModelTarget {
 }
 
 export function targetState(target: ModelTarget, preset: string): string {
+  if (preset === "now") return "NOW unavailable remotely";
   if (target.state === "revoked") return "Revoked";
   if (target.state !== "online") return "Offline";
   if (target.permission === "deny") return "Remote AI Off";
@@ -73,6 +74,7 @@ export function messageAttribution(provider?: Chat["remote_provider"] & { model?
   const preset = provider.preset ? `OLIVE ${provider.preset.toUpperCase()}` : "";
   if (provider.runtime === "OLIVE Connect")
     return `Answered by ${provider.device_name || "a paired device"}${preset ? ` · ${preset}` : ""}`;
+  if (provider.preset === "now") return `NOW · ${provider.tier === "DEEP LIVE" ? "DEEP LIVE" : "LIVE"} · This device`;
   if (provider.preset === "uncensored") {
     const tier = ["FAST", "BALANCED", "DEEP", "CREATIVE", "MAX"].includes(provider.tier || "") ? provider.tier : "";
     return ["UNCENSORED", tier, "This device"].filter(Boolean).join(" · ");

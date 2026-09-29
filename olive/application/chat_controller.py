@@ -164,7 +164,7 @@ class ChatController:
         """Preload the conversation's local model while the person is still typing."""
         chat = self.s.chats.get(chat_id)
         if (not chat or not chat.model or chat_id in self.generations or self.targets.get(chat_id)
-                or chat.preset in ("reimagine", "uncensored")):
+                or chat.preset in ("reimagine", "uncensored", "now")):
             return {"warmed": False}
         return {"warmed": await self.s.ollama.warm(chat.model)}
 
@@ -172,16 +172,19 @@ class ChatController:
         for task in list(self.generations.values()):
             task.cancel()
 
-    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None):
+    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None, research_kind=""):
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
         remote = self.targets.get(chat_id)
         uncensored_choice = None
-
         routing_text = text
         if regenerate and len(chat.messages) >= 2:
             routing_text = chat.messages[-2].content
+        if not research_kind and chat.preset != "now" and hasattr(self.s, "chat_research"):
+            from ..services.chat_research_service import research_intent
+            previous_kind = chat.messages[-1].provider.get("research_kind", "") if regenerate and chat.messages else ""
+            research_kind = previous_kind or research_intent(chat, routing_text)
 
         if observed_text and remote:
             raise PermissionError('Local screen evidence cannot be sent to Remote AI')
@@ -190,6 +193,17 @@ class ChatController:
             raise ValueError('The original user message changed before answer generation')
         images = [data for _, data in self.images.get(chat_id, [])]
         try:
+            if research_kind and remote:
+                raise ValueError("Chat research is available on This device only.")
+            if research_kind:
+                self.s.now.require_local()
+            if chat.preset == "now":
+                from ..services.now_weather import NowError
+                if remote:
+                    raise NowError("remote_unavailable")
+                if images or chat.documents or selected_document_id or observed_text:
+                    raise NowError("private_context")
+                self.s.now.require()
             if remote and (images or chat.documents or selected_document_id):
                 raise ValueError('Remote AI is text only. Remove attachments before sending; their bytes are not shared.')
             if remote and chat.preset not in ('fast', 'normal', 'max'):
@@ -264,6 +278,10 @@ class ChatController:
                 self.s.publish('interaction_activity', {'chat_id': chat_id,
                     'message': 'Thinking on ' + provider['device_name'] + '…'})
                 self.s.publish('chat', self.get(chat_id))
+            elif research_kind:
+                stream, prepared = await self.s.chat_research.stream(chat, text, research_kind)
+            elif chat.preset == "now":
+                stream, prepared = await self.s.now.stream(chat, text)
             else:
                 stream, prepared = await self.s.chat_service.stream_reply(chat, text, image_base64=images, **selection)
             last_emit = 0.0
@@ -291,13 +309,13 @@ class ChatController:
                 message = chat.add_message(
                     "assistant",
                     final,
-                    sources=[r.source_dict() for r in prepared.rag_results] if prepared else [],
+                    sources=(prepared.sources if hasattr(prepared, "sources") else [r.source_dict() for r in prepared.rag_results]) if prepared else [],
                     memory_ids=[m.id for m in prepared.memories] if prepared else [],
-                    grounding=self.s.grounding.analyze(final, prepared.rag_results).to_dict() if prepared else None,
+                    grounding=self.s.grounding.analyze(final, prepared.rag_results).to_dict() if prepared and not hasattr(prepared, "sources") else None,
                 )
                 message.completion_state = "complete" if completed else "incomplete"
                 info = next((m for m in self.s.model_infos if m.name == chat.model), None)
-                message.provider = provider or {
+                message.provider = (prepared.provider if prepared and hasattr(prepared, "sources") else provider) or {
                     "runtime": "Ollama",
                     "model": chat.model,
                     "digest": getattr(info, "digest", ""),
@@ -323,8 +341,10 @@ class ChatController:
             elif previous:
                 chat.messages.append(previous)
             self.images.pop(chat_id, None)
+            researched_documents = {source.get("document_id") for message in chat.messages
+                                    for source in message.sources if source.get("kind") == "document_excerpt"}
             for ref in list(chat.documents):
-                if ref.temporary:
+                if ref.temporary and not research_kind and ref.id not in researched_documents:
                     self.s.rag.delete_document(ref.id)
                     chat.documents.remove(ref)
             self.generations.pop(chat_id, None)
@@ -332,7 +352,7 @@ class ChatController:
             self.remote_providers.pop(chat_id, None)
             self.s.save_chats()
             self.s.publish("chat", self.get(chat_id))
-        if not remote and not regenerate and self.s.settings.get("automatic_memory_suggestions", True):
+        if not research_kind and chat.preset != "now" and not remote and not regenerate and self.s.settings.get("automatic_memory_suggestions", True):
             proposals = self.s.memory_suggestions.suggest(
                 text, chat.id, user_index, chat.messages[user_index].id
             )
@@ -375,6 +395,10 @@ class ChatController:
                 request = next((m.content for m in reversed(chat.messages) if m.role == "user"), "")
                 chat.model = self.s.uncensored_router.select(request).model
             self.s.presets.require(chat)
+        if chat.preset == "now":
+            self.s.now.require()
+            from ..services.now_service import PRIMARY
+            chat.model = PRIMARY
         summary = await self.s.chat_service.summarize(chat)
         chat.summary = summary
         chat.summary_message_count = len(chat.messages)

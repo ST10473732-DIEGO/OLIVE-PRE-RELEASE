@@ -167,6 +167,6 @@ class Chat:
             updated_at=data.get("updated_at", now_iso()),
             project_id=data.get("project_id"),
             draft=data.get("draft", "") if isinstance(data.get("draft", ""), str) else "",
-            preset=data.get("preset", "") if data.get("preset", "") in {"", "fast", "normal", "max", "uncensored", "deep", "reimagine"} else "",
+            preset=data.get("preset", "") if data.get("preset", "") in {"", "fast", "normal", "max", "uncensored", "now", "deep", "reimagine"} else "",
             research_session_ids=[v for v in data.get("research_session_ids", []) if isinstance(v, str)],
         )

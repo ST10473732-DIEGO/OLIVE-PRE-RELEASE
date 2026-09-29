@@ -13,6 +13,9 @@ PRESETS = {
     "uncensored": {"name": "OLIVE UNCENSORED", "model": "", "pipeline": "chat", "role": "general",
                    "params": {"temperature": .35, "max_tokens": 8192},
                    "description": "Automatic local routing across installed reduced-refusal models based on the request."},
+    "now": {"name": "OLIVE NOW", "model": "qwen3.5:9b", "pipeline": "live", "role": "general",
+            "params": {"temperature": .2, "max_tokens": 4096},
+            "description": "Live public information synthesized locally with source provenance."},
     "deep": {"name": "OLIVE DEEP", "model": "gpt-oss:20b", "pipeline": "documents", "role": "reasoning",
              "params": {"temperature": .2, "max_tokens": 8192, "rag_top_k": 8},
              "description": "Native document text, bounded retrieval and citations. Image reading depends on available vision/OCR."},
@@ -67,6 +70,9 @@ class PresetCatalog:
             resource_policy="One managed local model at a time; no hosted fallback",
         )
 
+        if key == "now":
+            result.update(self.s.now.status())
+
         if key == "reimagine":
             media = getattr(self.s, "media", None)
             generation = media.status()["image_generation"] if media else "Needs setup"
@@ -96,6 +102,8 @@ class PresetCatalog:
             raise ValueError('Open REIMAGINE Media tools to create an image artifact. Text inference cannot generate an image; a local generation engine may need setup.')
         if not chat.preset:
             return  # Legacy explicit provider selection is preserved in place.
+        if chat.preset == "now":
+            self.s.now.require()
         selected = self.get(chat.preset)
         if not selected["available"]:
             raise ValueError("OLIVE REIMAGINE needs a configured local media engine; no image was generated." if chat.preset == "reimagine" else "This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.")

@@ -1,3 +1,4 @@
+import { chatCompatibleRoute } from "../navigation/features";
 import type { RecordTarget } from "../services/handoff";
 import { HomePage } from "../features/Home";
 import { Welcome } from "../features/Welcome";
@@ -57,7 +58,7 @@ const MemoryPage = lazy(() => import("../features/Memory"));
 const ProjectsPage = lazy(() => import("../features/Projects"));
 const KnowledgePage = lazy(() => import("../features/Knowledge"));
 const AgentPage = lazy(() => import("../features/Agent"));
-const ResearchPage = lazy(() => import("../features/research/Research"));
+
 const CalendarPage = lazy(() => import("../features/personal/Calendar"));
 const TasksPage = lazy(() => import("../features/personal/Tasks"));
 const RemindersPage = lazy(() => import("../features/personal/Reminders"));
@@ -81,7 +82,10 @@ export default function App() {
       )
       .catch(() => setError("The interface size could not be updated."));
   }, [interfaceScale]);
-  const [route, setRoute] = useState<Route>("home");
+  const [routeState, setRoute] = useState<Route>("home");
+  // Also normalize at render time: legacy state cannot produce a blank route,
+  // even if a future state initializer bypasses navigate(). No persisted migration.
+  const route = chatCompatibleRoute(routeState);
   // A visited route stays mounted (hidden) so drafts, terminals and debugger
   // views survive navigating away and back.
   const [visited, setVisited] = useState<string[]>(["home"]);
@@ -398,7 +402,7 @@ export default function App() {
     setNavOverlay(false);
   }, []);
   const navigate = (id: string) => {
-    if (id === "desktop") id = "chat";
+    id = chatCompatibleRoute(id);
     setPalette(false);
     setNavOverlay(false);
     if (id === "connections") {
@@ -692,19 +696,6 @@ export default function App() {
                       report={report}
                     />
                   </Suspense></SpaceSlot.Provider>
-                </div>
-              )}
-              {mounted("research") && chat && (
-                <div className="route-host" hidden={route !== "research"}>
-                  <Suspense
-                    fallback={<div className="loading">Opening Research…</div>}
-                  >
-                    <ResearchPage
-                      target={handoffs.research}
-                      chatId={chat.id}
-                      report={report}
-                    />
-                  </Suspense>
                 </div>
               )}
               {mounted("memory") && (

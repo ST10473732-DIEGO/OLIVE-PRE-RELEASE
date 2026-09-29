@@ -37,6 +37,7 @@ _MESSAGES = {
 from ..connect.inference_client import MESSAGES as _REMOTE_AI_MESSAGES
 _MESSAGES.update({message: message for message in _REMOTE_AI_MESSAGES.values()})
 for _message in (
+ 'Chat research is available on This device only.',
  'Insufficient context for the original request, constraints and evidence. Narrow the selected context or start a new conversation; nothing was silently truncated.',
  'Insufficient context to summarize history safely. Start a new conversation with the required constraints.',
  'OLIVE UNCENSORED has no installed local model available.',
@@ -51,6 +52,8 @@ for _message in (
  _MESSAGES[_message] = _message
 
 def public_error(error):
+ from ..services.now_weather import NowError
+ if isinstance(error, NowError):return {"code":"Now_" + error.code,"message":str(error)}
  import ollama
  if isinstance(error,ollama.ResponseError):
   status = error.status_code if type(error.status_code) is int and 100 <= error.status_code <= 599 else None
