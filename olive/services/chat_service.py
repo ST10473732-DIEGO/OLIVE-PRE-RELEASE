@@ -54,4 +54,6 @@ class ChatService:
             {"role": "system", "content": "You create compact, faithful conversation memory summaries."},
             {"role": "user", "content": prompt},
         ]
-        return (await self.ollama.chat_once(chat.model, messages, options={"temperature": 0.2, "num_predict": 1400})).strip()
+        return (await self.ollama.chat_once(chat.model, messages,
+            options={"temperature": 0.2, "num_predict": 1400},
+            **({"think": False} if chat.preset == "uncensored" else {}))).strip()

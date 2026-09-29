@@ -164,7 +164,7 @@ class ChatController:
         """Preload the conversation's local model while the person is still typing."""
         chat = self.s.chats.get(chat_id)
         if (not chat or not chat.model or chat_id in self.generations or self.targets.get(chat_id)
-                or chat.preset == "reimagine"):
+                or chat.preset in ("reimagine", "uncensored")):
             return {"warmed": False}
         return {"warmed": await self.s.ollama.warm(chat.model)}
 
@@ -172,11 +172,17 @@ class ChatController:
         for task in list(self.generations.values()):
             task.cancel()
 
-    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None):
+    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None):
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
         remote = self.targets.get(chat_id)
+        uncensored_choice = None
+
+        routing_text = text
+        if regenerate and len(chat.messages) >= 2:
+            routing_text = chat.messages[-2].content
+
         if observed_text and remote:
             raise PermissionError('Local screen evidence cannot be sent to Remote AI')
         if existing_user_message_id and (regenerate or not chat.messages or chat.messages[-1].id != existing_user_message_id or
@@ -187,10 +193,25 @@ class ChatController:
             if remote and (images or chat.documents or selected_document_id):
                 raise ValueError('Remote AI is text only. Remove attachments before sending; their bytes are not shared.')
             if remote and chat.preset not in ('fast', 'normal', 'max'):
-                raise ValueError('Remote AI supports OLIVE FAST, NORMAL and MAX. DEEP and REIMAGINE are unavailable remotely.')
+                raise ValueError(
+                    "Remote AI supports OLIVE FAST, NORMAL and MAX. "
+                    "UNCENSORED, DEEP and REIMAGINE are unavailable remotely."
+                )
             if not remote and any(not ref.indexed for ref in chat.documents):
                 raise ValueError("Wait for attached documents to finish indexing, or remove failed attachments")
             if not remote:
+                if chat.preset == "uncensored":
+                    self.s.uncensored_router.require_local(self.s.ollama)
+                    choice = uncensored_selection or self.s.uncensored_router.select(routing_text)
+                    uncensored_choice = choice
+                    chat.model = choice.model
+                    self.s.publish(
+                        "interaction_activity",
+                        {
+                            "chat_id": chat_id,
+                            "message": f"UNCENSORED · {choice.tier} · This device",
+                        },
+                    )
                 self.s.presets.require(chat)
             if not remote and not chat.model:
                 raise ValueError("Select an installed Ollama chat model first")
@@ -276,12 +297,24 @@ class ChatController:
                 )
                 message.completion_state = "complete" if completed else "incomplete"
                 info = next((m for m in self.s.model_infos if m.name == chat.model), None)
-                message.provider = provider or {"runtime": "Ollama", "model": chat.model,
-                                    "digest": getattr(info, "digest", ""), "preset": chat.preset}
+                message.provider = provider or {
+                    "runtime": "Ollama",
+                    "model": chat.model,
+                    "digest": getattr(info, "digest", ""),
+                    "preset": chat.preset,
+                    **(
+                        {
+                            "tier": uncensored_choice.tier,
+                            "route_reason": uncensored_choice.reason,
+                        }
+                        if uncensored_choice
+                        else {}
+                    ),
+                }
                 from ..interaction.trace import event as trace_event, digest
                 trace_event('answer_persisted', message_id=message.id, characters=len(final), sha256=digest(final),
                             completion_state=message.completion_state, model=message.provider.get('model',''),
-                            preset=message.provider.get('preset',''))
+                            preset=message.provider.get('preset',''), tier=message.provider.get('tier',''))
                 branches = chat.response_branches.setdefault(str(user_index), [])
                 for value in ([previous.content] if previous else []) + [final]:
                     if value not in branches:
@@ -336,6 +369,12 @@ class ChatController:
 
     async def summarize(self, chat_id):
         chat = self.s.chats[chat_id]
+        if chat.preset == "uncensored" and chat.messages:
+            self.s.uncensored_router.require_local(self.s.ollama)
+            if chat.model not in self.s.uncensored_router.available_models():
+                request = next((m.content for m in reversed(chat.messages) if m.role == "user"), "")
+                chat.model = self.s.uncensored_router.select(request).model
+            self.s.presets.require(chat)
         summary = await self.s.chat_service.summarize(chat)
         chat.summary = summary
         chat.summary_message_count = len(chat.messages)

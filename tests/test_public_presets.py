@@ -20,9 +20,9 @@ class PublicPresetTests(unittest.IsolatedAsyncioTestCase):
         await self.s.shutdown()
         self.temp.cleanup()
 
-    def test_five_names_preserve_provider_and_new_chat_normal(self):
+    def test_six_names_preserve_provider_and_new_chat_normal(self):
         rows = self.s.presets.list()
-        self.assertEqual([p['name'] for p in rows], ['OLIVE FAST', 'OLIVE NORMAL', 'OLIVE MAX', 'OLIVE DEEP', 'OLIVE REIMAGINE'])
+        self.assertEqual([p['name'] for p in rows], ['OLIVE FAST', 'OLIVE NORMAL', 'OLIVE MAX', 'OLIVE UNCENSORED', 'OLIVE DEEP', 'OLIVE REIMAGINE'])
         chat = self.s.chat.new()
         self.assertEqual((chat['preset'], chat['model']), ('normal', 'gpt-oss:20b'))
         self.assertEqual(rows[-1]['status'], 'Image edits ready; generation needs setup')

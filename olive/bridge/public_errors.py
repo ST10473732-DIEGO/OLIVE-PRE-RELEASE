@@ -37,6 +37,11 @@ _MESSAGES = {
 from ..connect.inference_client import MESSAGES as _REMOTE_AI_MESSAGES
 _MESSAGES.update({message: message for message in _REMOTE_AI_MESSAGES.values()})
 for _message in (
+ 'Insufficient context for the original request, constraints and evidence. Narrow the selected context or start a new conversation; nothing was silently truncated.',
+ 'Insufficient context to summarize history safely. Start a new conversation with the required constraints.',
+ 'OLIVE UNCENSORED has no installed local model available.',
+ 'OLIVE UNCENSORED requires an Ollama server on this device.',
+ 'Remote AI supports OLIVE FAST, NORMAL and MAX. UNCENSORED, DEEP and REIMAGINE are unavailable remotely.',
  'Remote inference failed. No local fallback was used.',
  'Remote AI is text only. Remove attachments before sending; their bytes are not shared.',
  'Remote AI supports OLIVE FAST, NORMAL and MAX. DEEP and REIMAGINE are unavailable remotely.',

@@ -73,5 +73,9 @@ export function messageAttribution(provider?: Chat["remote_provider"] & { model?
   const preset = provider.preset ? `OLIVE ${provider.preset.toUpperCase()}` : "";
   if (provider.runtime === "OLIVE Connect")
     return `Answered by ${provider.device_name || "a paired device"}${preset ? ` · ${preset}` : ""}`;
+  if (provider.preset === "uncensored") {
+    const tier = ["FAST", "BALANCED", "DEEP", "CREATIVE", "MAX"].includes(provider.tier || "") ? provider.tier : "";
+    return ["UNCENSORED", tier, "This device"].filter(Boolean).join(" · ");
+  }
   return [preset || provider.model || "", "This device"].filter(Boolean).join(" · ");
 }

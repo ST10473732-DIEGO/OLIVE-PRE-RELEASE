@@ -39,12 +39,13 @@ class ContextService:
         existing_summary: str = "",
         context_window: int = 32768,
         response_reserve: int = 4096,
+        fixed_token_overhead: int = 0,
         summarizer: SummaryFunction | None = None,
     ) -> ContextPlan:
         window = max(1024, int(context_window))
         reserve = min(max(256, int(response_reserve)), max(256, window // 2))
         input_budget = window - reserve
-        fixed_tokens = sum(estimate_tokens(part) for part in fixed_context)
+        fixed_tokens = sum(estimate_tokens(part) for part in fixed_context) + max(0, fixed_token_overhead)
         summary = existing_summary.strip()
         summary_tokens = estimate_tokens(summary)
         messages = list(history)

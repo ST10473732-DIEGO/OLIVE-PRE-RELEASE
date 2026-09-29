@@ -165,7 +165,20 @@ class NaturalLanguageOrchestrator:
         interpreting = self.interpreting.setdefault(chat_id, set())
         interpreting.add(asyncio.current_task())
         self.s.publish("interaction_activity", {"chat_id": chat_id, "message": "Understanding your request…"})
+        uncensored_choice = None
+        interpreter = self.interpreter
         try:
+            chat = self.s.chats[chat_id]
+            if getattr(chat, 'preset', '') == "uncensored":
+                if getattr(self.s.chat, 'targets', {}).get(chat_id):
+                    raise ValueError("Remote AI supports OLIVE FAST, NORMAL and MAX. UNCENSORED, DEEP and REIMAGINE are unavailable remotely.")
+                self.s.uncensored_router.require_local(self.s.ollama)
+                uncensored_choice = self.s.uncensored_router.select(text)
+                interpreter = SemanticInterpreter(
+                    self.s.uncensored_router.interpreter_provider(self.s.ollama, uncensored_choice),
+                    self.s.uncensored_router.for_request(uncensored_choice))
+                trace_event('uncensored_route', model=uncensored_choice.model,
+                            tier=uncensored_choice.tier, reason=uncensored_choice.reason)
             snapshot = context.snapshot()
             snapshot['native_tasks'] = native_allowed
             snapshot['attached_documents'] = [{'attachment_id':ref.id,'name':ref.name,'kind':ref.kind}
@@ -196,7 +209,7 @@ class NaturalLanguageOrchestrator:
                     if transfer is None:
                         from .goal_program import conditional_test_program
                         transfer = conditional_test_program(text, goal)
-                    interpretation = transfer or await self.interpreter.interpret(text, snapshot)
+                    interpretation = transfer or await interpreter.interpret(text, snapshot)
             context.last_interpretation = deepcopy({k:v for k,v in interpretation.items() if k != 'native_plan'})
             if chat_id not in self.active:
                 context.resolved_steps = []
@@ -207,6 +220,9 @@ class NaturalLanguageOrchestrator:
         except asyncio.CancelledError:
             return self.reply(chat_id, text, "Stopped before starting an action.")
         finally:
+            if interpreter is not self.interpreter:
+                self.interpreter.metrics.extend(interpreter.metrics)
+                self.interpreter.metrics[:] = self.interpreter.metrics[-50:]
             interpreting.discard(asyncio.current_task())
             if not interpreting:
                 self.interpreting.pop(chat_id, None)
@@ -261,6 +277,8 @@ class NaturalLanguageOrchestrator:
                     self.gates.pop(chat_id, None)
             context.remember_user(text)
             selection = {"selected_document_id": document["document_id"]} if document.get("document_id") else {}
+            if uncensored_choice:
+                selection["uncensored_selection"] = uncensored_choice
             return await self.s.chat.send(chat_id, text, **selection)
         control = steps[0]["intent"] if len(steps) == 1 else ""
         if context.entities.get('draft_id') and control in {'task.correct','task.cancel'} and not context.pending and not context.personal_pending:

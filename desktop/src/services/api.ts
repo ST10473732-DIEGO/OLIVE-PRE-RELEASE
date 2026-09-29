@@ -19,7 +19,7 @@ export interface Preset {
   resource_policy: string;
 }
 export interface Message {
-  provider?: { runtime?: string; preset?: string; device_id?: string; device_name?: string; request_id?: string };
+  provider?: { runtime?: string; preset?: string; device_id?: string; device_name?: string; request_id?: string; model?: string; tier?: string; route_reason?: string; };
   completion_state?: "complete" | "incomplete" | "unverified";
   id: string;
   role: string;

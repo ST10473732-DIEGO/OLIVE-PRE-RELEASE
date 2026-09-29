@@ -207,6 +207,8 @@ class ServiceContainer:
         self.mail = MailController(self)
         self.model_router = ModelRouter(self.model_registry, lambda: self.settings.get("model_policy", {}),
                                         self.model_benchmarks, self.model_residency)
+        from ..services.uncensored_router import UncensoredRouter
+        self.uncensored_router = UncensoredRouter(self.model_registry)
         from .model_controller import ModelController
         self.models = ModelController(self)
         from .desktop_controller import DesktopController

@@ -675,7 +675,7 @@ export function Chat({
                       onChange={(e) =>
                         void call<ChatRecord>("chat.preset", {
                           chat_id: chat.id,
-                          preset: e.target.value as "fast" | "normal" | "max" | "deep" | "reimagine",
+                          preset: e.target.value as "fast" | "normal" | "max" | "uncensored" | "deep" | "reimagine",
                         })
                           .then(setChat)
                           .catch(report)
@@ -684,7 +684,7 @@ export function Chat({
                       {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
                       {snapshot.presets?.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.name}{chat.run_on ? (["deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
+                          {m.name}{chat.run_on ? (["uncensored", "deep", "reimagine"].includes(m.id) ? " · Unavailable remotely" : "") : m.status !== "Ready" ? ` · ${m.status}` : ""}
                         </option>
                       ))}
                     </select>
@@ -697,7 +697,7 @@ export function Chat({
                 {busy
                   ? chat.remote_provider ? `Thinking on ${chat.remote_provider.device_name}…` : "OLIVE is working…"
                   : chat.run_on
-                    ? "DEEP and REIMAGINE are unavailable on paired devices"
+                    ? "UNCENSORED, DEEP and REIMAGINE are unavailable on paired devices"
                     : "Enter to send · Shift+Enter for a new line"}
               </span>
               <button
