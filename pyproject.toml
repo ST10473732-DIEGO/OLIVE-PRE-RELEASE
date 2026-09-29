@@ -13,6 +13,7 @@ dependencies = [
   "winrt-Windows.Foundation.Collections>=3.2.1,<4; sys_platform == 'win32'",
   "Pillow>=11.2,<13",
   "Send2Trash==2.1.0",
+  "pycrdt==0.14.6",
   "pywinauto>=0.6.9,<0.7; sys_platform == 'win32'",
   "comtypes>=1.4.16,<2; sys_platform == 'win32'",
   "pywin32>=311; sys_platform == 'win32'",
@@ -41,4 +42,4 @@ olive = "olive.ui_qt.application:main"
 include = ["olive*", "dmdo"]
 
 [tool.setuptools.package-data]
-olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json"]
+olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json"]

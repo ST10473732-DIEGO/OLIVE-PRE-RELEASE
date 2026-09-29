@@ -111,7 +111,7 @@ class InferenceRequest:
                 if set(a) != {'after'}:
                     raise ConnectError('invalid_request')
                 integer(a['after'], 0, MAX_OUTPUT)
-            elif v['operation'] not in ('cancel', 'status', 'capabilities') or a:
+            elif v['operation'] not in ('cancel', 'status', 'capabilities', 'notes') or a:
                 raise ConnectError('invalid_request')
             return cls(**v)
         except ConnectError:
@@ -161,6 +161,11 @@ def response(raw):
                     or type(r['supported']) is not dict or set(r['supported']) != names | {'studio'}
                     or any(type(v) is not bool for v in r['supported'].values())
                     or r['studio_scope'] != 'workspace'):
+                raise ValueError()
+        elif set(r) == {'notes_protocol', 'permission'}:
+            # Optional OLIVE Notes probe: which Notes protocol this desktop speaks
+            # and this device's current Notes sync permission. Grants nothing.
+            if r['notes_protocol'] not in ('olive-notes/1',) or r['permission'] not in ('deny', 'allow'):
                 raise ValueError()
         elif set(r) == {'state', 'events', 'error'}:
             if r['state'] not in STATES or r['error'] is not None and r['error'] not in ERRORS:

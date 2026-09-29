@@ -14,6 +14,7 @@ import {
   Mail,
   MessageSquare,
   Monitor,
+  NotebookPen,
   Globe,
   Plug,
   Settings,
@@ -61,6 +62,7 @@ export const features: Feature[] = [
     primary: true,
     aliases: ["conversation", "ask", "talk", "prompt", "research", "sources", "investigate"],
   },
+  {id:"notes", label:"OLIVE Notes", description:"Plain-text notes that sync with your phone.", icon:NotebookPen, category:"Work", availability:"ready", primary:true, aliases:["notes","note","notepad","memo","jot","scratchpad","shopping list"]},
   {id:'browser', label:'OLIVE GO', description:'Browse the web in your own browser.', icon:Globe, category:'Work', availability:'ready', primary:true, aliases:['browser','web','Google','tabs','favourites','bookmarks','downloads','history']},
   {
     id: "studio",
@@ -235,6 +237,7 @@ export interface Space {
 export const spaces: Space[] = [
   { id: "home", label: "Home", icon: Home, routes: ["home"] },
   { id: "chat", label: "Chat", icon: MessageSquare, routes: ["chat"], also: ["research", "desktop"] },
+  { id: "notes", label: "OLIVE Notes", icon: NotebookPen, routes: ["notes"] },
   { id: "plan", label: "Plan", icon: CalendarDays, routes: ["calendar", "tasks", "reminders"] },
   { id: "mail", label: "Mail", icon: Mail, routes: ["mail"] },
   { id: "library", label: "Library", icon: BookOpen, routes: ["knowledge", "memory", "projects"] },

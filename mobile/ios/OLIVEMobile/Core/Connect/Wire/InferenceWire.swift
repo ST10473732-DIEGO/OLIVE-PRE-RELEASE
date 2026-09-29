@@ -48,9 +48,9 @@ struct InferenceWire {
                         arguments: ConnectJSON = .object([:]), now: Int64 = Int64(Date().timeIntervalSince1970), id: String = UUID().uuidString.lowercased()) throws -> ConnectJSON {
         _ = try ConnectJSON.string(source).uuid(); _ = try ConnectJSON.string(target).uuid()
         _ = try ConnectJSON.string(id).uuid(); if let job { _ = try ConnectJSON.string(job).uuid() }
-        guard ["start", "poll", "cancel", "status", "capabilities"].contains(operation) else { throw ConnectFailure.responseMalformed }
+        guard ["start", "poll", "cancel", "status", "capabilities", "notes"].contains(operation) else { throw ConnectFailure.responseMalformed }
         if operation == "poll" { try arguments.fields(["after"]); _ = try arguments["after"].number(0...64000) }
-        if operation == "status" || operation == "capabilities" || operation == "cancel" { try arguments.fields([]) }
+        if ["status", "capabilities", "cancel", "notes"].contains(operation) { try arguments.fields([]) }
         return .object(["protocol_version": .string("olive-inference/1"), "request_id": .string(operation == "start" ? job ?? id : id),
             "source_device_id": .string(source), "target_device_id": .string(target), "job_id": .string(job ?? id),
             "operation": .string(operation), "arguments": arguments, "timestamp": .int(now), "expires_at": .int(now + 120)])
@@ -85,6 +85,10 @@ struct InferenceWire {
             try r["presets"].fields(["fast", "normal", "max"])
             guard ["deny", "ask", "allow"].contains(try r["permission"].text()), r["busy"].boolean != nil,
                   r["presets"].object!.values.allSatisfy({ $0.boolean != nil }) else { throw ConnectFailure.responseMalformed }
+        } else if r.object?["notes_protocol"] != nil {
+            // Optional OLIVE Notes probe (desktop speaks olive-notes/1; Allow or Off for this phone).
+            try r.fields(["notes_protocol", "permission"])
+            guard r["notes_protocol"] == .string("olive-notes/1"), ["deny", "allow"].contains(r["permission"].string ?? "") else { throw ConnectFailure.responseMalformed }
         } else if r.object?["connect_version"] != nil {
             try r.fields(["connect_version", "permissions", "supported", "studio_scope"])
             let names: Set<String> = ["sync.tasks", "sync.calendar", "sync.reminders", "sync.chat", "files.receive", "files.send"]

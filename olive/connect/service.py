@@ -28,6 +28,7 @@ class DesktopDeviceService:
         self.sync = None
         self.inference = None
         self.studio = None
+        self.notes = None
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -52,6 +53,12 @@ class DesktopDeviceService:
         from ..sync.service import RecordSyncService
         self.sync = RecordSyncService(self, personal)
         return self.sync
+
+    def attach_notes(self, notes_service):
+        """Notes stays a local app; this only adds the Connect sync adapter."""
+        from .notes import RemoteNotesService
+        self.notes = RemoteNotesService(self, notes_service)
+        return self.notes
 
     def attach_inference(self, runtime, loop):
         from .inference import RemoteInferenceService
@@ -131,6 +138,9 @@ class DesktopDeviceService:
             values = [v for v in values if v['capability'] not in CAPABILITIES]
             values += [dict(capability=c, supported=(c != 'sync.chat' or self.sync.store.chat is not None),
                             policy_disabled=existing.get(c, {}).get('policy_disabled', False)) for c in sorted(CAPABILITIES)]
+        if self.notes is not None:
+            values = [v for v in values if v['capability'] != 'sync.notes'] + [
+                dict(capability='sync.notes', supported=True, policy_disabled=policies.get('sync.notes', False))]
         if self.inference is not None:
             values = [v for v in values if v['capability'] != 'models.remote'] + [
                 dict(capability='models.remote', supported=True, policy_disabled=policies.get('models.remote', False))]
@@ -172,6 +182,8 @@ class DesktopDeviceService:
             self.inference.invalidate(device_id)
         if self.approvals is not None:
             self.approvals.invalidate(device_id)
+        if self.notes is not None and capability == 'sync.notes':
+            self.notes.permission_changed(device_id)
 
     def permission(self, device_id, capability, *, scope=None):
         if capability not in CAPABILITIES:
@@ -201,6 +213,8 @@ class DesktopDeviceService:
             self.approvals.invalidate(device_id)
         if self.network is not None:
             self.network.disconnect(device_id, revoked=True)
+        if self.notes is not None:
+            self.notes.permission_changed(device_id)  # Stops Notes delivery; local notes stay.
         return record
 
     def remove(self, device_id):
@@ -427,6 +441,8 @@ class DesktopDeviceService:
 
     def close(self):
         with self._network_lock:
+            if self.notes is not None:
+                self.notes.close()
             self.disable_network()
             if self.approvals is not None:
                 self.approvals.close()

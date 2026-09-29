@@ -18,9 +18,15 @@ MAX_SYNC_BYTES = 256_000
 FILE_REQUEST, FILE_RESPONSE = 7, 8
 INFERENCE_REQUEST, INFERENCE_RESPONSE = 9, 10
 STUDIO_REQUEST, STUDIO_RESPONSE = 11, 12
+NOTES_REQUEST, NOTES_RESPONSE = 13, 14  # olive-notes/1; bound shared with olive/notes/protocol_v1.json
+KINDS = (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE,
+         INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE, NOTES_REQUEST, NOTES_RESPONSE)
 
 
 def limit(kind):
+    if kind in (NOTES_REQUEST, NOTES_RESPONSE):
+        from ..notes.limits import LIMITS
+        return LIMITS['max_frame_bytes']
     if kind in (STUDIO_REQUEST, STUDIO_RESPONSE):
         from .studio_protocol import MAX_FRAME
         return MAX_FRAME
@@ -30,7 +36,7 @@ def limit(kind):
 
 
 def frame(kind, payload=b''):
-    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE, INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE) or type(payload) is not bytes:
+    if kind not in KINDS or type(payload) is not bytes:
         raise ConnectError('invalid_frame')
     if len(payload) > limit(kind) or (kind in (CLOSE, HELLO) and payload):
         raise ConnectError('invalid_frame_size')
@@ -43,7 +49,7 @@ def header(raw):
         raise ConnectError('frame_too_large')
     if version != VERSION:
         raise ConnectError('unsupported_protocol')
-    if kind not in (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE, INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE) or (kind in (CLOSE, HELLO) and size):
+    if kind not in KINDS or (kind in (CLOSE, HELLO) and size):
         raise ConnectError('invalid_frame')
     return size, kind
 

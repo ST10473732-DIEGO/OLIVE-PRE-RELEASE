@@ -14,6 +14,13 @@ def approval_presentation(value, services=None):
             content='Read-only Connect operation from ' + arguments['source_name'],
             scope='This exact authenticated request only.',
             consequence='Saved permission remains Ask. No content or inference access.')
+    if value['tool_name'] in ('notes.purge', 'notes.delete'):
+        permanent = value['tool_name'] == 'notes.purge'
+        return dict(action=value['summary'], targets=[str(arguments.get('title', ''))[:200]],
+            content='OLIVE Notes · ' + ('permanent deletion' if permanent else 'move to Recently Deleted'),
+            scope='This one note, identified by its note ID.',
+            consequence=('Removes the note here and, when they sync, on your paired devices. It cannot be restored.'
+                         if permanent else 'The note can be restored from Recently Deleted.'))
     if value['tool_name'].startswith('mail.'):
         from ..mail.presentation import approval
         return approval(value['tool_name'],arguments,services)

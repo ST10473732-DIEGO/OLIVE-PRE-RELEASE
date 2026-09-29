@@ -30,6 +30,12 @@ actor RemoteInferenceClient {
         do { return try await exchange(InferenceWire.request(source: source, target: target, operation: "capabilities")) }
         catch { throw publicError(error) }
     }
+    /// Optional OLIVE Notes probe. An older desktop rejects the operation and
+    /// closes the channel; the session then reconnects without probing again.
+    func notesStatus() async throws -> ConnectJSON {
+        do { return try await exchange(InferenceWire.request(source: source, target: target, operation: "notes")) }
+        catch { throw publicError(error) }
+    }
     func status() async throws -> ConnectJSON {
         do {
             let r = try await exchange(InferenceWire.request(source: source, target: target, operation: "status"))

@@ -14,6 +14,8 @@ export const fileActionSchema = z.discriminatedUnion("action", [
   z.object({action:z.literal("personal-import"),kind:z.enum(["contact","event"]),format:z.enum(["csv","vcf","ics"]),calendar_id:id.optional()}).strict(),
   z.object({action:z.literal("personal-export"),kind:z.enum(["contact","event"]),format:z.enum(["csv","vcf","ics"])}).strict(),
   z.object({action:z.literal("profile-avatar")}).strict(),
+  z.object({action:z.literal("notes-export"),note_id:z.string().uuid(),format:z.enum(["txt","md"]),name:z.string().max(120).optional()}).strict(),
+  z.object({action:z.literal("notes-import")}).strict(),
   z.object({action:z.literal("desktop-launch"),kind:z.enum(["executable","python"])}).strict(),
   z
     .object({

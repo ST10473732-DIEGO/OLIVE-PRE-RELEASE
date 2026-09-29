@@ -199,6 +199,33 @@ class ServiceContainer:
             self.tool_registry, self.permissions, self.confirmations, self.agent_audit
         )
         self.agent_executor.owner_policy = self.owner_policy
+        from ..notes.service import NotesService
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
+        self.notes = NotesService(data / "notes.sqlite3", device_id=self.connect.local_id,
+                                  publish=self._publish_from_thread, device_names=self._device_names)
+        remote_notes = self.connect.attach_notes(self.notes)
+        import threading as _threading
+        trailing = {'timer': None}
+        status_lock = _threading.Lock()
+        def notes_status_changed():
+            # Coalesced (leading+trailing within 250 ms): the renderer re-reads
+            # notes.status. The event itself carries no content.
+            with status_lock:
+                if trailing['timer'] is not None:
+                    return
+                def fire():
+                    with status_lock:
+                        trailing['timer'] = None
+                    self._publish_from_thread('notes.sync', {})
+                trailing['timer'] = _threading.Timer(0.25, fire)
+                trailing['timer'].daemon = True
+                trailing['timer'].start()
+        remote_notes.on_status = notes_status_changed
+        from ..notes.chat import register_tools as register_notes_tools
+        register_notes_tools(self)
         from ..personal.controller import PersonalController
         self.personal = PersonalController(self)
         self.connect.attach_sync(self.personal.records)
@@ -293,6 +320,20 @@ class ServiceContainer:
 
     def publish(self, topic, value):
         self.emit(topic, deepcopy(value))
+
+    def _publish_from_thread(self, topic, value):
+        """Notes and Connect threads hand events to the runtime loop."""
+        loop = self._loop
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(self.publish, topic, value)
+        elif loop is None:
+            self.publish(topic, value)
+
+    def _device_names(self):
+        try:
+            return {d['device_id']: d['display_name'] for d in self.connect.listed_devices()}
+        except Exception:
+            return {}
 
     def sync_personal_changed(self):
         self.personal.scheduler.changed()
@@ -404,4 +445,6 @@ class ServiceContainer:
                 self.save_chats()
         finally:
             await asyncio.to_thread(self.connect.close)
+            # Local persistence first: flush index/history/events; never wait for peers.
+            await asyncio.to_thread(self.notes.close)
             await self.local_ollama_runtime.close()

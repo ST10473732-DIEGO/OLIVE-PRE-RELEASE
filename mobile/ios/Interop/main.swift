@@ -35,6 +35,47 @@ if CommandLine.arguments[1] == "--pair-fixture" {
     exit(0)
 }
 
+if CommandLine.arguments[1] == "--notes-harness" {
+    // OLIVE Notes: the real Swift JavaScriptCore host and SQLite store, driven by
+    // tests/test_notes_phone_engine.py (JSON lines, same commands as the Node harness).
+    let script = try String(contentsOfFile: CommandLine.arguments[2], encoding: .utf8)
+    let directory = URL(fileURLWithPath: CommandLine.arguments[3], isDirectory: true)
+    var host: NotesEngineHost?
+    var events: [ConnectJSON] = []
+    func boot(_ deviceID: String) throws {
+        host = nil
+        let started = try NotesEngineHost(database: try NotesDatabase(directory: directory), deviceID: deviceID, script: script)
+        started.onEvent = { events.append($0) }
+        host = started
+    }
+    func plain(_ value: ConnectJSON) -> Any {
+        switch value {
+        case .string(let text): return text
+        case .int(let number): return Int(number)
+        case .bool(let flag): return flag
+        default: return NSNull()
+        }
+    }
+    while let line = readLine() {
+        let message = try ConnectJSON.decode(Data(line.utf8), limit: 16_000_000)
+        let arguments = message["args"].array ?? []
+        var reply: [String: ConnectJSON] = ["id": message["id"]]
+        do {
+            switch message["cmd"].string {
+            case "boot", "restart": try boot(try arguments[0].text()); reply["result"] = .bool(true)
+            case "call":
+                guard let host else { throw NotesEngineHost.Failure.unavailable("not_booted") }
+                reply["result"] = .string(try host.raw(try arguments[0].text(), arguments: arguments.dropFirst().map(plain)))
+            case "failCommits": host?.database.failCommits = Int(arguments.first?.integer ?? 0); reply["result"] = .bool(true)
+            case "events": reply["result"] = .array(events); events = []
+            default: throw NotesEngineHost.Failure.unavailable("unknown_command")
+            }
+        } catch { reply["error"] = .string(String(describing: error)) }
+        print(String(decoding: ConnectJSON.object(reply).canonical, as: UTF8.self)); fflush(stdout)
+    }
+    exit(0)
+}
+
 if CommandLine.arguments[1] == "--calendar-fixture" {
     let fixture = try ConnectJSON.decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2])), limit: 256000)
     for (index, row) in fixture["valid"].array!.enumerated() {

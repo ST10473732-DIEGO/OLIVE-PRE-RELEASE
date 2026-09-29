@@ -38,6 +38,9 @@ class PermissionService:
     DEFAULTS.update({f'{domain}.{action}': 'allow' if action=='read' else 'ask'
                      for domain in ('profile','contacts','calendar','tasks','reminders','personal')
                      for action in ('read','write','delete','merge','import','export')})
+    # OLIVE Notes: literal Chat requests may read and edit (reversible, with history);
+    # moving to Recently Deleted asks; permanent deletion always confirms.
+    DEFAULTS.update({'notes.read': 'allow', 'notes.write': 'allow', 'notes.delete': 'ask'})
     DEFAULTS.update({f'mail.{action}':'allow' if action=='read' else 'ask'
                      for action in ('read','draft','modify','import','export','send','connect','connections','credentials','remote_modify')})
 

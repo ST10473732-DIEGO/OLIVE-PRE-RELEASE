@@ -9,6 +9,14 @@ stores and Apple continued-processing support for user-started work on iOS 26+.
 Real C9.3 acceptance remains partial; see the evidence report before sign-off.
 No Python runtime or cloud service is embedded.
 
+**OLIVE Notes** (tab *Notes*) is a local-first notepad that syncs with the
+paired computer over Connect frames 13/14 (`olive-notes/1`). Its engine is
+`OLIVEMobile/Resources/NotesEngine.js`, generated from
+`desktop/src/features/notes/engine/` by `node desktop/scripts/build-notes-engine.mjs`
+(do not edit the bundle by hand), run in JavaScriptCore with a SQLite store.
+See `docs/OLIVE_NOTES.md`. The Notes Swift code was written on Linux and still
+needs its first Xcode build, unit tests and interop run here.
+
 Open `OLIVEMobile.xcodeproj`; select the shared **OLIVEMobile** scheme.
 The app supports iPhone on **iOS 17+**, in portrait and landscape.
 All three targets use Swift 6. The product name on the phone is **OLIVE**.

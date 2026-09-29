@@ -12,6 +12,8 @@ final class AppState {
     @ObservationIgnored lazy var sync = SyncModel(session: session, store: MobileSyncStore(directory: companionDirectory))
     @ObservationIgnored lazy var files = FilesModel(session: session, background: background, directory: companionDirectory.appendingPathComponent("Files"))
     @ObservationIgnored lazy var studio = StudioModel(session: session, background: background, directory: companionDirectory)
+    /// OLIVE Notes: local-first; syncs over this session only when allowed on both sides.
+    @ObservationIgnored lazy var notes = NotesModel(directory: companionDirectory)
     let companionDirectory: URL
     let background: BackgroundWorkCoordinator?
     let chatStore: MobileChatStore?
@@ -186,12 +188,35 @@ final class AppState {
         background?.onIdle = { [weak self] in self?.session?.finishBackgroundWork() }
         session?.onChannelReady = { [weak self] channel, identity, peer in
             await self?.files.bind(channel: channel, local: identity.publicIdentity.deviceID, peer: peer.id)
+            guard let self else { return }
+            // Notes must speak as this phone's authenticated Connect identity.
+            self.notes.start(deviceID: identity.publicIdentity.deviceID)
+            await self.notes.sync.bind(channel: channel, peer: peer.id, capability: self.session?.notesCapability)
         }
-        session?.onDisconnect = { [weak self] in self?.files.invalidate() }
+        session?.onDisconnect = { [weak self] in self?.files.invalidate(); self?.notes.sync.invalidate() }
+        session?.onNotesCapability = { [weak self] value in self?.notes.sync.capabilityChanged(value) }
+        startNotes()
         session?.activate()
+    }
+    private func startNotes() {
+        guard notes.engine == nil else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let id = await self.session?.localDeviceID() ?? Self.notesLocalID()
+            if self.notes.engine == nil { self.notes.start(deviceID: id) }
+        }
+    }
+    /// Before this phone has a Connect identity, Notes still works locally.
+    private static func notesLocalID() -> String {
+        let key = "olive.notes.localDevice"
+        if let id = UserDefaults.standard.string(forKey: key), UUID(uuidString: id) != nil { return id }
+        let id = UUID().uuidString.lowercased()
+        UserDefaults.standard.set(id, forKey: key)
+        return id
     }
     func suspend() {
         saveDraft()
+        notes.flush() // Local persistence first; sync resumes on the next connection.
         if background?.active != nil, background?.continuationGranted == true { session?.suspend(continuing: true); return }
         guard active || background?.active != nil else { session?.suspend(); return }
         session?.suspend(continuing: true) // Short cleanup retains only the existing active session.

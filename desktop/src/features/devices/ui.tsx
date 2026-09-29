@@ -14,24 +14,28 @@ export function Segmented({
   value,
   disabled,
   onChange,
+  options = DECISIONS,
 }: {
   label: string;
   value: Decision;
   disabled?: boolean;
   onChange: (value: Decision) => Promise<unknown>;
+  /** Live Notes sync offers only Off · Allow (it cannot pause per keystroke). */
+  options?: Decision[];
 }) {
   const [pending, setPending] = useState<Decision | null>(null);
-  const shown = pending ?? value;
+  const shown = pending ?? (options.includes(value) ? value : options[0]);
   return (
     <div
       className="devices-seg"
       role="group"
       aria-label={label}
       data-value={shown}
-      style={{ "--i": DECISIONS.indexOf(shown) } as CSSProperties}
+      data-count={options.length}
+      style={{ "--i": options.indexOf(shown), "--n": options.length } as CSSProperties}
     >
       <span className="devices-seg-thumb" aria-hidden="true" />
-      {DECISIONS.map((v) => (
+      {options.map((v) => (
         <button
           key={v}
           type="button"

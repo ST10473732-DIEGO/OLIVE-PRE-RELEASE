@@ -104,6 +104,9 @@ class NaturalLanguageOrchestrator:
             services.tool_registry.register(ProjectDocumentTool(services))
             from .indexed_files import IndexedFileSearchTool
             services.tool_registry.register(IndexedFileSearchTool(services))
+        if hasattr(services, "notes"):
+            from ..notes.chat import NotesChat
+            self.notes_chat = NotesChat(services, self)
 
     def select_workspace(self, workspace_id):
         if workspace_id is not None and workspace_id not in self.s.workspace_repo.load_all():
@@ -166,6 +169,14 @@ class NaturalLanguageOrchestrator:
             # Generation modes: Send goes straight to the local media pipeline.
             # No interpreter, research routing or tool planning sees the request.
             return await self.s.chat.send(chat_id, text)
+        notes_chat = getattr(self, "notes_chat", None)
+        if notes_chat is not None and not research_mode:
+            # Literal OLIVE Notes requests are local and run before research or
+            # desktop routing: "Open OLIVE Notes" never becomes an app launch,
+            # and "search my notes" never becomes a web query.
+            handled = await notes_chat.handle(chat_id, text)
+            if handled is not None:
+                return handled
         if getattr(self.s.chats[chat_id], "preset", "") == "now":
             from .request_consent import requested_capability
             with requested_capability("now.answer"):

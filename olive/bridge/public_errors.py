@@ -75,6 +75,8 @@ def public_error(error):
  if isinstance(error,EmptyModelAnswer):return {'code':'EmptyModelAnswer','message':'The selected model returned no visible answer. No alternative model or canned answer was substituted.'}
  from ..platform_support import PlatformUnavailable
  if isinstance(error,PlatformUnavailable):return {'code':'PlatformUnavailable','message':str(error)}
+ from ..notes.service import NotesError
+ if isinstance(error,NotesError):return {'code':'NotesError','message':str(error)[:300]}
  from ..personal.errors import PersonalOperationError
  from ..studio_tooling.errors import StudioToolingError
  if isinstance(error,PersonalOperationError):return {'code':'PersonalOperationError','message':str(error)}

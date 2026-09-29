@@ -63,6 +63,7 @@ const CalendarPage = lazy(() => import("../features/personal/Calendar"));
 const TasksPage = lazy(() => import("../features/personal/Tasks"));
 const RemindersPage = lazy(() => import("../features/personal/Reminders"));
 const MailPage = lazy(() => import("../features/mail/Mail"));
+const NotesPage = lazy(() => import("../features/notes/Notes"));
 import "../features/personal/personal.css";
 import Today from "../features/personal/Today";
 type Route = string;
@@ -298,6 +299,13 @@ export default function App() {
           event.data as Approval,
         ]);
         setState("Approval required");
+      }
+      if (event.topic === "notes.navigate") {
+        // Chat asked to show OLIVE Notes (optionally one note). Navigation only.
+        const id = typeof data.note_id === "string" ? data.note_id : "";
+        setHandoffs((current) => ({ ...current, notes: { id, revision: (current.notes?.revision || 0) + 1 } }));
+        setRoute("notes");
+        setVisited((current) => (current.includes("notes") ? current : [...current, "notes"]));
       }
       if (event.topic === "approval.closed")
         setApprovals((a) => a.filter((x) => x.id !== data.id));
@@ -713,6 +721,7 @@ export default function App() {
                   </Suspense></SpaceSlot.Provider>
                 </div>
               )}
+              {mounted("notes") && <div className="route-host" hidden={route!=="notes"}><Suspense fallback={<p>Opening OLIVE Notes…</p>}><NotesPage report={report} target={handoffs.notes} visible={route==="notes"}/></Suspense></div>}
               {mounted("mail") && <div className="route-host" hidden={route!=="mail"}><Suspense fallback={<p>Opening Mail…</p>}><MailPage target={handoffs.mail}/></Suspense></div>}
               {mounted("calendar") && <div className="route-host" hidden={route!=="calendar"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "calendar" }}><Suspense fallback={<p>Opening Calendar…</p>}><CalendarPage target={handoffs.calendar} createRequest={nativeCreate.calendar}/></Suspense></SpaceSlot.Provider></div>}
               {mounted("tasks") && <div className="route-host" hidden={route!=="tasks"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "tasks" }}><Suspense fallback={<p>Opening Tasks…</p>}><TasksPage target={handoffs.tasks} createRequest={nativeCreate.tasks}/></Suspense></SpaceSlot.Provider></div>}

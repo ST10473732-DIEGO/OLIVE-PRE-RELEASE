@@ -1085,3 +1085,5 @@
   animation: none !important;
   transition: none !important;
 }
+.devices-notes-sync { display: block; font-size: 11.5px; color: var(--text-muted); font-weight: 400; }
+.devices-seg[data-count="2"] { width: 128px; }

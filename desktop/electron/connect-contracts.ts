@@ -60,6 +60,7 @@ export const connectSchemas = {
         "sync.calendar",
         "sync.reminders",
         "sync.chat",
+        "sync.notes",
       ]),
       decision: z.enum(["allow", "ask", "deny"]),
     })

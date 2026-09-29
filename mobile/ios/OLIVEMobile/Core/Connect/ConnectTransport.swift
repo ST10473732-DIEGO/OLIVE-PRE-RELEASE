@@ -9,6 +9,9 @@ actor ConnectTransport: InferenceTransport {
     private var sender: Task<Void, Error>?
     private var inbound: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?
     private var inboundDelivered: (@Sendable (ConnectFrame) async -> Void)?
+    /// OLIVE Notes: desktop-initiated olive-notes/1 requests (frame 13 -> 14).
+    private var notesInbound: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?
+    func setNotesInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?) { notesInbound = handler }
     func setInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?, delivered: (@Sendable (ConnectFrame) async -> Void)? = nil) {
         inbound = handler; inboundDelivered = delivered
     }
@@ -103,7 +106,7 @@ actor ConnectTransport: InferenceTransport {
             if !decoded.isEmpty {
                 if plaintext.isEmpty { frameDeadline = .now.advanced(by: .seconds(3)) }
                 plaintext.append(decoded)
-                guard plaintext.count <= 416390 else { throw ConnectFailure.responseMalformed }
+                guard plaintext.count <= 528390 else { throw ConnectFailure.responseMalformed } // 512,000-byte Notes frame + one TLS record
                 continue
             }
             try await flush()
@@ -129,6 +132,14 @@ actor ConnectTransport: InferenceTransport {
                     #endif
                     continue
                 }
+                if frame.kind == 13 {
+                    // A desktop only sends Notes frames after this phone spoke olive-notes/1.
+                    guard let notesInbound else { throw ConnectFailure.capabilityUnavailable }
+                    let reply = try await notesInbound(frame)
+                    guard reply.kind == 14 else { throw ConnectFailure.responseMalformed }
+                    try await write(reply.encode())
+                    continue
+                }
                 if [5, 7].contains(frame.kind), let inbound {
                     let reply = try await inbound(frame)
                     guard reply.kind == frame.kind + 1 else { throw ConnectFailure.responseMalformed }
@@ -136,7 +147,7 @@ actor ConnectTransport: InferenceTransport {
                     await inboundDelivered?(reply)
                     continue
                 }
-                guard [2, 6, 8, 10, 12].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
+                guard [2, 6, 8, 10, 12, 14].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
                 let v = try ConnectJSON.decode(frame.payload, limit: ConnectFrame.limit(frame.kind), allowDecimals: frame.kind == 12)
                 #if DEBUG
                 acceptanceTrace("decoded-\(frame.kind)", persist: false)
@@ -166,7 +177,7 @@ actor ConnectTransport: InferenceTransport {
     }
     func exchangeFrame(kind: UInt8, id: String, payload: Data) async throws -> Data {
         guard ready, !closed else { throw ConnectFailure.peerOffline }
-        guard [1, 5, 7, 9, 11].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
+        guard [1, 5, 7, 9, 11, 13].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
         _ = try ConnectJSON.string(id).uuid()
         let encoded = try ConnectFrame(kind: kind, payload: payload).encode()
         guard pending.count < 8, pending[id] == nil else { throw ConnectFailure.resourceBusy }
@@ -196,7 +207,7 @@ actor ConnectTransport: InferenceTransport {
         #if DEBUG
         if !closed { acceptanceTrace("close") }
         #endif
-        closed = true; ready = false; authenticatedIDs = nil; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; reader?.cancel(); reader = nil
+        closed = true; ready = false; authenticatedIDs = nil; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; notesInbound = nil; reader?.cancel(); reader = nil
         let waiting = pending; pending.removeAll()
         for (_, _, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
         await socket.close(); tls = nil; plaintext.removeAll()

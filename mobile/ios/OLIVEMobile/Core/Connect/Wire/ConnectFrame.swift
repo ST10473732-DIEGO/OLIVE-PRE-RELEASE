@@ -10,6 +10,7 @@ struct ConnectFrame: Equatable, Sendable {
         case 9, 10: 72_000
         case 7: 69_636
         case 11, 12: 400_000
+        case 13, 14: 512_000 // olive-notes/1 (OLIVE Notes); bound shared with protocol_v1.json
         default: throw ConnectFailure.capabilityUnavailable
         }
     }

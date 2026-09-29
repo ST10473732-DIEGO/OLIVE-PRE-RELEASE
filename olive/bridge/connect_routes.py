@@ -69,7 +69,7 @@ def validate_arguments(method, args):
     if 'port' in args and not 1 <= args['port'] <= 65535:
         raise ValueError('Invalid Connect port')
     if method == 'connect.permission':
-        if args['capability'] not in (set(SAFE_OPERATIONS) | {'models.remote', 'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.send', 'files.receive'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
+        if args['capability'] not in (set(SAFE_OPERATIONS) | {'models.remote', 'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'sync.notes', 'files.send', 'files.receive'}) or args['decision'] not in {'allow', 'ask', 'deny'}:
             raise ValueError('Unsupported Connect permission')
     if 'conversation_id' in args:
         from ..sync.records import record_id

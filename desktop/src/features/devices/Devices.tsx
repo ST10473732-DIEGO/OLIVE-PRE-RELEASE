@@ -29,7 +29,10 @@ import { Confirm, DeviceIcon, Segmented, ago, dateLabel, deviceKind, fullTime, s
 import "./devices.css";
 
 /** Capabilities this version offers as controls; everything else is listed as unavailable. */
-const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read"];
+const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read", "sync.notes"];
+const NOTES_STATE: Record<string, string> = {
+  synced: "Synced", syncing: "Syncing", offline: "Offline · changes wait on this computer", off: "Off", error: "Sync issue", idle: "Waiting to connect",
+};
 const TABS = ["status", "permissions", "activity"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -796,8 +799,18 @@ export function Devices() {
                                         <h3 className="devices-eyebrow">{group}</h3>
                                         {shown.map(([cap, label]) => (
                                           <div className="devices-row-line devices-permission" key={cap}>
-                                            <span className="devices-row-label">{label}</span>
+                                            <span className="devices-row-label">
+                                              {label}
+                                              {cap === "sync.notes" && remote.notes_sync && remote.notes_sync.state !== "off" && (
+                                                <small className="devices-notes-sync">
+                                                  {NOTES_STATE[remote.notes_sync.state] || sentence(remote.notes_sync.state)}
+                                                  {remote.notes_sync.pending ? ` · ${remote.notes_sync.pending} to send` : ""}
+                                                  {remote.notes_sync.last_sync ? ` · last ${remote.notes_sync.last_sync.slice(11, 16)} UTC` : ""}
+                                                </small>
+                                              )}
+                                            </span>
                                             <Segmented
+                                              options={cap === "sync.notes" ? ["deny", "allow"] : undefined}
                                               label={label}
                                               value={
                                                 remote.permissions?.find(

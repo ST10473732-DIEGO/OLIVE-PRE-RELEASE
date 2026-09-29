@@ -67,6 +67,18 @@ export async function fileAction(
     if(chosen.canceled || !chosen.filePath)return null;
     return backend.request("personal.export",{path:chosen.filePath,kind:value.kind,format:value.format});
   }
+  if(value.action === "notes-export") {
+    // Only the chosen path crosses to the backend; note text never passes through here.
+    const base=Array.from(value.name||"OLIVE note").filter(c=>c.charCodeAt(0)>=32&&!'\\/:*?"<>|'.includes(c)).join("").trim().slice(0,80)||"OLIVE note";
+    const chosen=await dialog.showSaveDialog(window,{title:"Export note",defaultPath:`${base}.${value.format}`,filters:[{name:value.format==="md"?"Markdown":"Plain text",extensions:[value.format]}]});
+    if(chosen.canceled || !chosen.filePath)return null;
+    return backend.request("notes.export",{note_id:value.note_id,path:chosen.filePath,format:value.format});
+  }
+  if(value.action === "notes-import") {
+    const chosen=await dialog.showOpenDialog(window,{title:"Import a text file as a note",properties:["openFile"],filters:[{name:"Text",extensions:["txt","md","markdown","text"]}]});
+    if(chosen.canceled || chosen.filePaths.length!==1)return null;
+    return backend.request("notes.import",{path:chosen.filePaths[0]});
+  }
   if(value.action === "desktop-launch") {
     const chosen = await dialog.showOpenDialog(window, {
       title:"Choose local code to review and launch",

@@ -126,6 +126,11 @@ class Host:
 
     async def handle(self, request):
         validate(request)
+        from ..notes.contracts import UNLEDGERED as notes_unledgered
+        if request['method'] in notes_unledgered:
+            if self.closed:
+                raise RuntimeError('Runtime is shutting down')
+            return await self.execute(request['method'], request['args'])
         # Read-only snapshots (including per-token Chat refreshes) must not fill
         # the non-evicting action replay ledger. Effects retain their identities.
         if (request['method'] in ('runtime.snapshot', 'chat.get', 'chat.search', 'chat.warm',
@@ -184,6 +189,9 @@ class Host:
         from ..mail.contracts import SPEC as mail_spec, MAIN_ONLY as mail_main
         from ..studio_tooling.contracts import SPEC as tooling_spec
         from .connect_routes import SPEC as connect_spec, call as connect_call
+        if method.startswith('notes.'):
+            from .notes_routes import call as notes_call
+            return await notes_call(s, method, args)
         if method in connect_spec:
             return await connect_call(self, method, args)
         if method in tooling_spec:

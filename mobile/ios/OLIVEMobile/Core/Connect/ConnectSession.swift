@@ -23,7 +23,11 @@ final class ConnectSession: ChatRemoteSession {
     private(set) var diagnostic = "idle"
     private(set) var connected = false
     private(set) var companionCapability: ConnectJSON?
+    /// OLIVE Notes probe result: {notes_protocol, permission}. nil = unknown/unsupported.
+    private(set) var notesCapability: ConnectJSON?
+    var onNotesCapability: (@MainActor (ConnectJSON?) -> Void)?
     private var capabilityProbe = true
+    private var notesProbe = true
     private var revokedPeers = Set<String>()
     private var selectedRevoked: Bool { selectedID.map { revokedPeers.contains($0) } ?? false }
     private(set) var capability: ConnectJSON?
@@ -66,12 +70,16 @@ final class ConnectSession: ChatRemoteSession {
         guard connected, self.transport === transport, selectedID == peer.id else { throw ConnectFailure.peerOffline }
         return (transport, identity, peer)
     }
+    /// This phone's Connect device ID when an identity already exists (no creation).
+    func localDeviceID() async -> String? {
+        try? await identities.load(allowCreation: false).publicIdentity.deviceID
+    }
     func refreshPeers() {
         peers = repository.peers
         if selectedID == nil { selectedID = peers.first?.id }
         if foreground { connect() }
     }
-    func select(_ id: String) { capabilityProbe = true; selectedID = id; disconnect(); if foreground { connect() } }
+    func select(_ id: String) { capabilityProbe = true; notesProbe = true; selectedID = id; disconnect(); if foreground { connect() } }
     func activate() {
         foreground = true; lifecycle = selectedRevoked ? .revoked : connected ? .foregroundConnected : selected == nil ? .unpaired : .foregroundConnecting; discovery.start()
         let identityToken = identityGeneration
@@ -91,7 +99,7 @@ final class ConnectSession: ChatRemoteSession {
         generation = UUID(); reconnect?.cancel(); reconnect = nil
         discoveryRetry?.cancel(); discoveryRetry = nil
         if let transport { Task { await transport.close() } }
-        transport = nil; inference = nil; capability = nil; companionCapability = nil; connected = false
+        transport = nil; inference = nil; capability = nil; companionCapability = nil; notesCapability = nil; connected = false
         status = selectedRevoked ? "Revoked" : selected == nil ? "Not connected" : "Offline"
         lifecycle = selectedRevoked ? .revoked : selected == nil ? .unpaired : .pairedOffline
     }
@@ -138,6 +146,16 @@ final class ConnectSession: ChatRemoteSession {
                                 throw error
                             }
                         }
+                        if notesProbe {
+                            do { notesCapability = try await client.notesStatus() }
+                            catch {
+                                // Older desktop: it cannot parse Notes frames. Reconnect
+                                // without probing; Notes stays local on this phone.
+                                if error as? ConnectFailure == .deviceRevoked { throw error }
+                                notesProbe = false
+                                throw error
+                            }
+                        }
                         guard generation == token else { await channel.close(); return }
                         lifecycle = .foregroundConnected
                         inference = client; capability = capabilities; connected = true; status = "Connected"; diagnostic = "authenticated"
@@ -150,13 +168,17 @@ final class ConnectSession: ChatRemoteSession {
                             guard generation == token else { return }
                             capability = fresh
                             if capabilityProbe { companionCapability = try await client.companionStatus() }
+                            if notesProbe {
+                                let notes = try await client.notesStatus()
+                                if notes != notesCapability { notesCapability = notes; onNotesCapability?(notes) }
+                            }
                         }
                     } catch {
                         await channel.close()
                         guard generation == token else { return }
                         if error as? ConnectFailure == .deviceRevoked { recordRevocation(peerID: peer.id); return }
                         onDisconnect?()
-                        connected = false; inference = nil; capability = nil; companionCapability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
+                        connected = false; inference = nil; capability = nil; companionCapability = nil; notesCapability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
                         diagnostic += ":" + (error as? ConnectFailure ?? .connectionLost).rawValue
                         status = (error as? ConnectFailure) == .certificateMismatch ? "Identity rejected" : "Offline"
                     }
@@ -168,7 +190,7 @@ final class ConnectSession: ChatRemoteSession {
             }
         }
     }
-    func retry() { capabilityProbe = true; disconnect(); connect() }
+    func retry() { capabilityProbe = true; notesProbe = true; disconnect(); connect() }
     func unpair(_ id: String) throws {
         if selectedID == id { disconnect() }
         try repository.unpair(id); revokedPeers.remove(id); peers = repository.peers

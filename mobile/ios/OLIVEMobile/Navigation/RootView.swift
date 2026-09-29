@@ -10,6 +10,8 @@ struct RootView: View {
                 .tabItem { Label("Home", systemImage: Destination.home.symbol) }.tag(Destination.home)
             NavigationStack { ChatView() }
                 .tabItem { Label("Chat", systemImage: Destination.chat.symbol) }.tag(Destination.chat)
+            NotesView()
+                .tabItem { Label("Notes", systemImage: Destination.notes.symbol) }.tag(Destination.notes)
             NavigationStack { DevicesView() }
                 .tabItem { Label("Devices", systemImage: Destination.devices.symbol) }.tag(Destination.devices)
         }

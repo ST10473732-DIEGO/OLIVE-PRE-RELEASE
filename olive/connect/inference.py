@@ -149,7 +149,7 @@ class RemoteInferenceService:
             req = InferenceRequest.decode(raw)
             while True:
                 with self.lock, self.service.repository.transaction(timeout=.25) as db:
-                    record, decision = self._authority(db, req, channel, permission=req.operation not in ('status', 'capabilities', 'cancel'))
+                    record, decision = self._authority(db, req, channel, permission=req.operation not in ('status', 'capabilities', 'cancel', 'notes'))
                     now = int(self.service.clock())
                     if req.timestamp > now + 5 or req.expires_at <= now:
                         raise ConnectError('expired_request')
@@ -192,6 +192,16 @@ class RemoteInferenceService:
                 else PermissionService.evaluate_device(record['permissions'], name).value for name in names}
             supported['studio'] = self.service.studio is not None
             return dict(connect_version=1, permissions=permissions, supported=supported, studio_scope='workspace')
+        if req.operation == 'notes':
+            # Optional read-only probe so a phone never sends Notes frames to a
+            # desktop that cannot parse them. Trust stays mandatory (C3).
+            if self.service.notes is None:
+                raise ConnectError('capability_unavailable')
+            from ..notes.limits import PROTOCOL as NOTES_PROTOCOL, CAPABILITY as NOTES_CAPABILITY
+            metadata = {c['capability']: c for c in self.service.capabilities_from_db(db)}
+            allowed = (not metadata.get(NOTES_CAPABILITY, {}).get('policy_disabled', False) and
+                PermissionService.evaluate_device(record['permissions'], NOTES_CAPABILITY) == PermissionDecision.ALLOW)
+            return dict(notes_protocol=NOTES_PROTOCOL, permission='allow' if allowed else 'deny')
         if req.operation == 'status':
             return dict(presets=self.runtime.availability(), permission=decision.value,
                         busy=self.active is not None or self.runtime.local_busy())

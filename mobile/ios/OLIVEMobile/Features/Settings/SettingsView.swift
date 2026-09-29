@@ -28,6 +28,13 @@ struct SettingsView: View {
                 Text("Paired devices: \(state.session?.peers.count ?? 0)")
             } header: { Text("OLIVE Connect") }
                 .listRowBackground(OliveTheme.raised)
+            Section {
+                Toggle("Sync notes with your computer", isOn: Binding(get: { state.notes.sync.enabled }, set: { state.notes.sync.enabled = $0 }))
+                    .accessibilityIdentifier("settings.notesSync")
+                Text("Notes are saved on this phone first. When this is on and your computer allows Notes sync for this phone, changes sync over OLIVE Connect while OLIVE is open. Copying text never syncs anything.")
+                    .font(.footnote).foregroundStyle(OliveTheme.secondary)
+            } header: { Text("OLIVE Notes") }
+                .listRowBackground(OliveTheme.raised)
             if let notifications = state.background?.notifications {
                 Section("Notifications") {
                     Toggle("Operation completion", isOn: Binding(get: { notifications.enabled }, set: { value in

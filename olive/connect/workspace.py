@@ -49,6 +49,7 @@ class DevicesWorkspace:
             value['studio_jobs'] = s.studio.snapshot(record['device_id']) if s.studio else []
             value['remote_ai'] = s.inference.snapshot(record['device_id']) if s.inference else None
             value['sync'] = s.sync.status(record['device_id']) if s.sync else None
+            value['notes_sync'] = s.notes.status(record['device_id']) if s.notes else None
             devices.append(value)
         return dict(local=local, devices=devices, capabilities=s.capabilities(),
             interfaces=candidates, interface_error=interface_error, protocol=PROTOCOL,
@@ -79,8 +80,10 @@ class DevicesWorkspace:
 
     def permission(self, device_id, capability, decision):
         metadata = next((c for c in self.service.capabilities() if c['capability'] == capability), None)
-        if not metadata or not metadata['supported'] or metadata['policy_disabled'] or capability not in (set(SAFE_OPERATIONS) | {'models.remote', 'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'files.send', 'files.receive'}):
+        if not metadata or not metadata['supported'] or metadata['policy_disabled'] or capability not in (set(SAFE_OPERATIONS) | {'models.remote', 'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'sync.notes', 'files.send', 'files.receive'}):
             raise ConnectError('capability_unavailable')
+        if capability == 'sync.notes' and decision == 'ask':
+            raise ConnectError('notes_sync_is_allow_or_off')  # Live sync cannot pause for approval per keystroke.
         self.service.set_permission(device_id, capability, decision)
         return self.snapshot()
 

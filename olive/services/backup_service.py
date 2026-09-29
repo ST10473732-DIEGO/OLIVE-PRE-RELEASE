@@ -30,6 +30,7 @@ class BackupService:
         "web_knowledge": "web_knowledge.json", "web_subscriptions": "web_subscriptions.json",
         "personal": "personal.sqlite3",
         "mail": "mail.sqlite3",
+        "notes": "notes.sqlite3",
     }
 
     def __init__(self, data_dir: Path, backups_dir: Path | None = None):
@@ -48,7 +49,7 @@ class BackupService:
             for component in sorted(selected):
                 source = self.data_dir / self.COMPONENTS[component]
                 if not source.is_file(): continue
-                if component in {'rag','personal','mail'}:
+                if component in {'rag','personal','mail','notes'}:
                     # SQLite's backup API includes committed WAL transactions and
                     # yields a consistent snapshot while indexing connections live.
                     with tempfile.TemporaryDirectory(prefix='olive-backup-') as temporary:
@@ -113,6 +114,13 @@ class BackupService:
                     if component=='mail':
                         from ..mail.store import MailStore
                         MailStore(staged).recover(restored=True)
+                    if component=='notes':
+                        # A restored notebook may lack what peers already delivered.
+                        # A new epoch makes every peer reconcile from the start.
+                        import uuid
+                        with closing(sqlite3.connect(staged)) as db:
+                            db.execute("UPDATE meta SET value=? WHERE key='epoch'", (str(uuid.uuid4()),))
+                            db.commit()
                 self._validate_personal_external_links(staging)
                 self._validate_mail_external_links(staging)
                 for component in manifest["included_components"]:
@@ -187,12 +195,16 @@ class BackupService:
         if path.suffix == ".json":
             try: return int(json.loads(path.read_text(encoding="utf-8")).get("schema_version", 1))
             except (OSError, json.JSONDecodeError): return 0
-        if component in {'personal','mail'}:
+        if component in {'personal','mail','notes'}:
             with closing(sqlite3.connect(path)) as db:return db.execute('PRAGMA user_version').fetchone()[0]
         return 2 if component == "rag" else 1
 
     @staticmethod
     def _validate_component(path: Path, component: str) -> None:
+        if component == 'notes':
+            from ..notes.store import NotesStore
+            NotesStore.validate_database(path)
+            return
         if component == 'mail':
             from ..mail.store import MailStore
             MailStore.validate_database(path)

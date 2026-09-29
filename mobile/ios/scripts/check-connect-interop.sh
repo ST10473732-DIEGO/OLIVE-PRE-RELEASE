@@ -16,6 +16,8 @@ xcrun swiftc -swift-version 6 -module-cache-path "$OUT/cache" \
   mobile/ios/OLIVEMobile/Core/Connect/ConnectIdentityStore.swift \
   mobile/ios/OLIVEMobile/Core/Connect/ConnectTLS.swift \
   mobile/ios/OLIVEMobile/Core/Security/SecretStore.swift \
+  mobile/ios/OLIVEMobile/Core/Notes/NotesDatabase.swift \
+  mobile/ios/OLIVEMobile/Core/Notes/NotesEngineHost.swift \
   mobile/ios/Interop/main.swift "$OUT/tls.o" \
   -L"$OPENSSL/lib" -lssl -lcrypto -o "$OUT/interop"
 "$OUT/interop" tests/fixtures/mobile_connect/vectors.json "$OUT/swift.json"
@@ -27,3 +29,7 @@ OLIVE_SWIFT_INTEROP="$OUT/interop" "$PYTHON" -m unittest tests.test_mobile_pairi
 "$PYTHON" scripts/mobile_companion_vectors.py --swift-output "$OUT/companion.json"
 
 "$OUT/interop" --calendar-fixture tests/fixtures/mobile_connect/calendar.json
+
+# OLIVE Notes: the committed phone engine in the real Swift JavaScriptCore host
+# and SQLite store, against the Python desktop engine (olive-notes/1 bytes).
+OLIVE_NOTES_SWIFT_HARNESS="$OUT/interop" "$PYTHON" -m unittest tests.test_notes_phone_engine -v

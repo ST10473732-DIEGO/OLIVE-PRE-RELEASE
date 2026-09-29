@@ -4,7 +4,8 @@ export type SafeCapability =
   | "chat.metadata.read"
   | "files.receive"
   | "models.remote"
-  | "files.send";
+  | "files.send"
+  | "sync.notes";
 export interface NetworkInterface {
   name: string;
   address: string;
@@ -29,6 +30,8 @@ export interface Device {
   remote_ai?: { presets: Record<string, boolean>; jobs: { job_id: string; preset: string; state: string }[] };
   transfers?: Transfer[];
   sync?: DevicesState["sync"];
+  /** OLIVE Notes live sync with this device (null when Notes is unavailable). */
+  notes_sync?: { state: string; pending: number | null; last_sync?: string | null; refused?: number; error?: string } | null;
   device_id: string;
   display_name: string;
   platform: string;
@@ -136,6 +139,7 @@ export const permissionGroups = [
       ["calendar", "Calendar"],
       ["reminders", "Reminders"],
       ["notifications", "Notifications"],
+      ["sync.notes", "Notes sync"],
     ],
   ],
   [

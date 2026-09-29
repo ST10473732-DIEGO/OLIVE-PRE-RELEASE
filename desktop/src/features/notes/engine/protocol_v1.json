@@ -1,0 +1,39 @@
+{
+  "protocol": "olive-notes/1",
+  "capability": "sync.notes",
+  "frames": {"request": 13, "response": 14},
+  "document": {
+    "body": "body",
+    "meta": "meta",
+    "meta_keys": ["schema", "title", "pinned", "trashed", "trashed_at", "created_at", "created_by", "edited_at"],
+    "schema": 1
+  },
+  "limits": {
+    "max_frame_bytes": 512000,
+    "max_request_lifetime_seconds": 120,
+    "future_tolerance_seconds": 5,
+    "max_entries": 64,
+    "max_inline_update_bytes": 200000,
+    "max_request_update_bytes": 400000,
+    "max_chunk_bytes": 200000,
+    "max_transfer_bytes": 8000000,
+    "max_transfers_per_peer": 2,
+    "transfer_idle_seconds": 60,
+    "max_state_vector_bytes": 4096,
+    "max_note_text_bytes": 1500000,
+    "max_document_bytes": 8000000,
+    "max_title_chars": 200,
+    "max_notes": 10000,
+    "max_rounds_per_pump": 16
+  },
+  "operations": {
+    "hello": {"required": ["versions"], "optional": []},
+    "sync": {"required": ["epoch", "entries"], "optional": []},
+    "chunk": {"required": ["epoch", "transfer_id", "note_id", "seq", "sv", "index", "count", "total_bytes", "sha256", "data"], "optional": []}
+  },
+  "entry": {"required": ["note_id", "seq", "sv", "purged"], "optional": ["update"]},
+  "statuses": ["applied", "current", "needs", "purged", "rejected", "partial"],
+  "errors": ["unsupported_protocol", "malformed_message", "source_mismatch", "wrong_target", "expired_request",
+             "device_not_paired", "identity_mismatch", "permission_off", "capability_unavailable", "notes_unavailable",
+             "payload_too_large", "rate_limited", "busy", "invalid_update", "note_too_large", "notes_capacity"]
+}

@@ -115,6 +115,13 @@ _personal_write = ('calendar.create', 'calendar.update', 'calendar.save_calendar
 _personal_delete = ('calendar.delete', 'calendar.delete_calendar', 'calendar.delete_occurrence', 'tasks.delete',
                     'reminders.delete', 'personal.import_commit')
 INVENTORY.update(_rows('personal', R, 'local personal store', *_personal_read))
+# OLIVE Notes: typed CRDT edits of one note resolved by exact title/ID; history keeps prior text.
+INVENTORY.update(_rows('notes', R, 'local notes store; never web search or Memory',
+                       'notes.list', 'notes.read', 'notes.search'))
+INVENTORY.update(_rows('notes', A, 'one resolved note; CRDT edit; restorable from history',
+                       'notes.create', 'notes.append', 'notes.replace', 'notes.rename', 'notes.restore'))
+INVENTORY.update(_rows('notes', H, 'moves to Recently Deleted only; permanent deletion always confirms',
+                       'notes.delete'))
 INVENTORY.update(_rows('personal', A, 'direct explicit create/update/complete of one resolved record',
                        *_personal_write))
 INVENTORY.update(_rows('personal', H, 'permanent record deletion/bulk import keep proposal review', *_personal_delete))

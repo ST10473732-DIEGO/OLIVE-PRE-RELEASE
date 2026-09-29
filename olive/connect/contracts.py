@@ -34,7 +34,7 @@ CAPABILITIES = frozenset({
     'calendar', 'reminders', 'notifications', 'files.receive', 'files.send', 'files.shared',
     'filesystem.full', 'studio.view', 'studio.edit', 'studio.build', 'studio.test', 'studio.debug', 'studio.run', 'models.remote', 'apps.launch',
     'terminal', 'desktop_control', 'software.install',
-    'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat',
+    'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'sync.notes',
 })
 SAFE_OPERATIONS = {'connect.ping': 'ping', 'device.status': 'read', 'chat.metadata.read': 'read'}
 

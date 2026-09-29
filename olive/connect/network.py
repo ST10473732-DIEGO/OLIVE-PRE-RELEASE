@@ -19,7 +19,8 @@ from .discovery import LocalDiscovery, interfaces
 from .network_diagnostics import ChannelDiagnostics
 from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
                            require_current, tls_context, FILE_REQUEST, FILE_RESPONSE,
-                           INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE)
+                           INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE,
+                           NOTES_REQUEST, NOTES_RESPONSE)
 
 CONNECT_TIMEOUT = 3.0
 HANDSHAKE_TIMEOUT = 3.0
@@ -207,6 +208,32 @@ class Channel:
             with self.lock:
                 self.pending.pop(request.request_id, None)
 
+    def notes_request(self, raw):
+        """One olive-notes/1 exchange. A timeout fails this request only."""
+        from ..notes import protocol as notes_protocol
+        request = notes_protocol.decode_request(raw)
+        if request['source_device_id'] != self.owner.service.local_id or request['target_device_id'] != self.peer:
+            raise ConnectError('source_mismatch')
+        self.check()
+        future = Future()
+        future.sync_protocol = notes_protocol.PROTOCOL
+        with self.lock:
+            if len(self.pending) >= MAX_PENDING or request['request_id'] in self.pending:
+                raise ConnectError('backpressure')
+            self.pending[request['request_id']] = future
+            try:
+                self.writes.put_nowait(frame(NOTES_REQUEST, raw))
+            except queue.Full:
+                self.pending.pop(request['request_id'])
+                raise ConnectError('backpressure') from None
+        try:
+            return future.result(timeout=REQUEST_TIMEOUT)
+        except TimeoutError:
+            raise ConnectError('notes_request_timeout') from None
+        finally:
+            with self.lock:
+                self.pending.pop(request['request_id'], None)
+
     def request(self, raw, timeout=REQUEST_TIMEOUT, *, _sync=False, _admission=None):
         if _sync:
             from ..sync.records import SyncRequest
@@ -243,7 +270,8 @@ class Channel:
 
     def process(self, kind, payload):
         self.check()
-        allowed = (self.owner.allow_studio_message(self.peer) if kind in (STUDIO_REQUEST, STUDIO_RESPONSE)
+        allowed = (self.owner.allow_notes_message(self.peer) if kind in (NOTES_REQUEST, NOTES_RESPONSE)
+                   else self.owner.allow_studio_message(self.peer) if kind in (STUDIO_REQUEST, STUDIO_RESPONSE)
                    else self.owner.allow_inference_message(self.peer) if kind in (INFERENCE_REQUEST, INFERENCE_RESPONSE)
                    else self.owner.allow_file_message(self.peer) if kind in (FILE_REQUEST, FILE_RESPONSE)
                    else self.owner.allow_message(self.peer))
@@ -254,7 +282,27 @@ class Channel:
             raise ConnectError('connection_closed')
         if kind == HELLO:
             raise ConnectError('unexpected_hello')
-        if kind == STUDIO_REQUEST:
+        if kind == NOTES_REQUEST:
+            notes = self.owner.service.notes
+            if notes is None:
+                from ..notes import protocol as notes_protocol
+                self.write(frame(NOTES_RESPONSE, notes_protocol.encode_response(None, error='capability_unavailable')))
+            else:
+                notes.receive(payload, self, lambda raw: self.write(frame(NOTES_RESPONSE, raw)))
+        elif kind == NOTES_RESPONSE:
+            from ..notes import protocol as notes_protocol
+            try:
+                response = notes_protocol.decode_response(payload)
+            except notes_protocol.NotesProtocolError:
+                raise ConnectError('invalid_response') from None
+            with self.lock:
+                future = self.pending.get(response['request_id']) if response['request_id'] else None
+                if future is not None:
+                    if future.done() or getattr(future, 'sync_protocol', '') != notes_protocol.PROTOCOL:
+                        raise ConnectError('invalid_response')
+                    future.set_result(response)
+                # A late answer after a local timeout is inert: CRDT resend is idempotent.
+        elif kind == STUDIO_REQUEST:
             studio = self.owner.service.studio
             if studio is None:
                 raise ConnectError('capability_unavailable')
@@ -512,6 +560,7 @@ class LocalNetwork:
         self.file_rates = {}
         self.inference_rates = {}
         self.studio_rates = {}
+        self.notes_rates = {}
         self.targets = {}
         self.attempts = Budget(12, 60)
         self.audit_budget = Budget(30, 60)
@@ -671,6 +720,8 @@ class LocalNetwork:
             self.channels[channel.peer] = channel
             self.states[channel.peer] = dict(state='online', error=None)
         self.audit(channel.peer, 'connection_authenticated')
+        if self.service.notes is not None:
+            self.service.notes.channel_ready(channel.peer)  # Non-blocking: starts a pump thread.
 
     def allow_message(self, peer):
         with self.lock:
@@ -680,6 +731,14 @@ class LocalNetwork:
                     return False
                 self.rates[peer] = Budget(60, 60)
             return self.rates[peer].take()
+
+    def allow_notes_message(self, peer):
+        with self.lock:
+            if peer not in self.notes_rates:
+                if len(self.notes_rates) >= 256:
+                    return False
+                self.notes_rates[peer] = Budget(3000, 60)
+            return self.notes_rates[peer].take()
 
     def allow_file_message(self, peer):
         with self.lock:
@@ -707,6 +766,8 @@ class LocalNetwork:
                     self.states[peer] = dict(state='failed', error=reason)
             if affected:
                 self.service.files.invalidate(peer, 'connection_closed')
+        if affected and self.service.notes is not None:
+            self.service.notes.channel_closed(peer)
         self.audit(peer, 'connection_closed' if channel.peer else 'connection_failed')
 
     def status(self, peer):

@@ -196,7 +196,7 @@ class ChatController:
         for task in list(self.generations.values()):
             task.cancel()
 
-    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None, research_kind=""):
+    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None, research_kind="", note_evidence=None):
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
@@ -208,13 +208,16 @@ class ChatController:
         routing_text = text
         if regenerate and len(chat.messages) >= 2:
             routing_text = chat.messages[-2].content
-        if not research_kind and chat.preset != "now" and hasattr(self.s, "chat_research"):
+        if not research_kind and chat.preset != "now" and hasattr(self.s, "chat_research") and note_evidence is None:
             from ..services.chat_research_service import research_intent
             previous_kind = chat.messages[-1].provider.get("research_kind", "") if regenerate and chat.messages else ""
             research_kind = previous_kind or research_intent(chat, routing_text)
 
         if observed_text and remote:
             raise PermissionError('Local screen evidence cannot be sent to Remote AI')
+        if note_evidence is not None and (remote or research_kind or chat.preset == "now"):
+            # A private note is answered locally only, never with web research.
+            raise ValueError('Note summaries run on This device only, without web research.')
         if existing_user_message_id and (regenerate or not chat.messages or chat.messages[-1].id != existing_user_message_id or
                                         chat.messages[-1].role != 'user' or chat.messages[-1].content != text):
             raise ValueError('The original user message changed before answer generation')
@@ -301,6 +304,7 @@ class ChatController:
         try:
             selection = {"selected_document_id": selected_document_id} if selected_document_id else {}
             if observed_text:selection['observed_text'] = observed_text
+            if note_evidence is not None:selection['note_evidence'] = note_evidence
             if remote:
                 stream, provider = self.s.remote_inference.prepare(remote, chat.preset, chat.messages)
                 self.remote_providers[chat_id] = provider
@@ -342,6 +346,11 @@ class ChatController:
                     memory_ids=[m.id for m in prepared.memories] if prepared else [],
                     grounding=self.s.grounding.analyze(final, prepared.rag_results).to_dict() if prepared and not hasattr(prepared, "sources") else None,
                 )
+                if note_evidence is not None:
+                    # Provenance: which note revision grounded this answer (no note text).
+                    message.sources = list(message.sources) + [{'kind': 'note', 'label': 'Note: ' + str(note_evidence.get('title', ''))[:200],
+                        'title': str(note_evidence.get('title', ''))[:200], 'note_id': note_evidence.get('note_id', ''),
+                        'revision': note_evidence.get('revision', ''), 'sha256': note_evidence.get('sha256', '')}]
                 message.completion_state = "complete" if completed else "incomplete"
                 info = next((m for m in self.s.model_infos if m.name == chat.model), None)
                 message.provider = (prepared.provider if prepared and hasattr(prepared, "sources") else provider) or {

@@ -17,8 +17,11 @@ The exact dependency graph is in package-lock.json. Source packages retain their
 | React Markdown / remark-gfm | MIT | Inert Markdown and tables |
 | Zod | MIT | Main-process contract validation |
 | DOMPurify | Apache-2.0 OR MPL-2.0 | Monaco transitive sanitization |
+| Yjs 13.6.33 / lib0 0.2.119 | MIT | OLIVE Notes CRDT (renderer, and bundled into the phone's `NotesEngine.js`) |
 | Playwright | Apache-2.0 | Isolated Electron tests |
 | Vitest / ESLint / Prettier | MIT | Validation and formatting |
+
+OLIVE Notes also uses **pycrdt 0.14.6** (MIT, Jupyter project; Rust `yrs` inside) in the Python backend, pinned in `requirements.txt`. The phone bundle ships `NotesEngine.LICENSES.txt` with the Yjs and lib0 licence texts.
 
 No proprietary fonts are distributed. The UI uses installed Segoe UI Variable/Segoe UI and system monospace fallbacks. The original olive source remains unchanged; existing derived assets are reused rather than redesigned.
 

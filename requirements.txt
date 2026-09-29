@@ -13,6 +13,8 @@ playwright>=1.55,<2
 ddgs>=9,<10
 Pillow>=11.2,<13
 Send2Trash==2.1.0
+# OLIVE Notes CRDT (Yjs update format; MIT). Pinned: the phone and renderer use yjs 13.6.33.
+pycrdt==0.14.6
 SecretStorage==3.5.0; sys_platform == 'linux'
 -r requirements-personal.txt
 
