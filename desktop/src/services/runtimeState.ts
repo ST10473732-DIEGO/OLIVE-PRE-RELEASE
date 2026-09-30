@@ -1,5 +1,5 @@
 import { MEDIA_PRESETS } from "../../electron/presets";
-import type { Snapshot } from "./api";
+import type { Preset, Snapshot } from "./api";
 
 export type RuntimeTone = "idle" | "working" | "attention" | "error";
 export interface RuntimeState {
@@ -86,6 +86,28 @@ export interface StatusSummary {
   full: string;
 }
 
+/** Backend events after which the renderer re-reads its one canonical
+ *  Snapshot. "models" follows every model-inventory refresh (startup and
+ *  Settings › Models), so preset readiness is never left stale. */
+export const SNAPSHOT_TOPICS: readonly string[] = ["runtime.ready", "runtime.initialized", "chats", "models"];
+
+/** Whether a preset can run on this device, as the backend preset catalogue
+ *  reports it. Ollama presets say exactly "Ready" or "Needs setup"; media
+ *  presets describe their engine, so only `available` decides for them. Every
+ *  surface (title bar, Home, Chat, Settings) uses this one rule. */
+export function presetReady(preset: Pick<Preset, "id" | "status" | "available">): boolean {
+  return preset.available !== false && (MEDIA_PRESETS.includes(preset.id) || preset.status === "Ready");
+}
+
+/** A preset's name in the Chat and Home selectors, with its setup state when
+ *  it cannot run here. Remote conversations only flag presets a paired device
+ *  never serves. */
+export function presetLabel(preset: Pick<Preset, "id" | "name" | "status" | "available">, remote = false): string {
+  if (remote)
+    return ["uncensored", "now", "deep", ...MEDIA_PRESETS].includes(preset.id) ? `${preset.name} · Unavailable remotely` : preset.name;
+  return presetReady(preset) ? preset.name : `${preset.name} · ${preset.status}`;
+}
+
 /** Title-bar model status. It names the current conversation's preset and
  *  says whether it can run here, from the real preset catalogue and the real
  *  Ollama reachability. A conversation set to run on a paired device says so. */
@@ -106,7 +128,7 @@ export function modelStatus(snapshot: Snapshot | null, runOnName = ""): StatusSu
       tone: model.detail === "checking AI" ? "neutral" : "warning",
       full: model.full,
     };
-  if (preset && (preset.available === false || (!MEDIA_PRESETS.includes(preset.id) && preset.status !== "Ready")))
+  if (preset && !presetReady(preset))
     return { label: `${short} needs setup`, tone: "warning", full: `${preset.name}: ${preset.status}. Open Settings › Models.` };
   return { label: short ? `${short} ready` : "AI ready", tone: "ok", full: preset ? `${preset.name} is available on this device.` : model.full };
 }

@@ -22,9 +22,9 @@ import {
   Square,
 } from "lucide-react";
 import { call, type Approval, type Chat as ChatRecord, type Snapshot } from "../services/api";
-import { MEDIA_PRESETS, type PresetId } from "../../electron/presets";
+import type { PresetId } from "../../electron/presets";
 import { useResource } from "../services/useResource";
-import type { ConnectSnapshotLike, RuntimeState } from "../services/runtimeState";
+import { presetLabel, type ConnectSnapshotLike, type RuntimeState } from "../services/runtimeState";
 import type { CalendarEvent, PersonalTask, Profile } from "./personal/types";
 import {
   activityLabel,
@@ -165,8 +165,7 @@ export function HomePage({
                       {!chat.preset && <option value="" disabled>Previous selection</option>}
                       {snapshot.presets.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
-                          {p.available === false || (!MEDIA_PRESETS.includes(p.id) && p.status !== "Ready") ? ` · ${p.status}` : ""}
+                          {presetLabel(p)}
                         </option>
                       ))}
                     </select>

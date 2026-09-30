@@ -51,7 +51,10 @@ class DataController:
         ]
 
     async def refresh_models(self):
-        await self.s.initialize()
+        # The inventory refresh only; re-running startup would re-attach
+        # Connect and restart background schedulers.
+        await self.s.refresh_model_inventory()
+        self.s.publish_model_state()
         return self.models()
 
     async def pull_model(self, name, confirmed=False):

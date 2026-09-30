@@ -3,6 +3,7 @@ import { call, type Preset } from "../../services/api";
 import { useResource } from "../../services/useResource";
 import { Details } from "../../components/WorkspacePage";
 import { Sheet } from "../../components/Sheet";
+import { presetReady } from "../../services/runtimeState";
 interface Policy {
   mode: string;
   overrides: Record<string, string>;
@@ -22,7 +23,7 @@ interface Stack {
   decisions: unknown;
 }
 export function Models({ report }: { report: (e: unknown) => void }) {
-  const resource = useResource(() => call<Stack>("models.status", {}));
+  const resource = useResource(() => call<Stack>("models.status", {}), ["models"]);
   const [draft, setDraft] = useState<Policy>();
   const [selected, setSelected] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
@@ -54,7 +55,8 @@ export function Models({ report }: { report: (e: unknown) => void }) {
           <span role="columnheader">Status</span>
         </div>
         {data.presets.map((p) => {
-          const ready = p.status === "Ready" || p.status.startsWith("Image edits ready");
+          // Media engines stay amber while starting, busy or failed.
+          const ready = presetReady(p) && p.status.startsWith("Ready");
           return (
             <details key={p.id} className="presets-item">
               <summary className="presets-row" role="row">
@@ -62,13 +64,13 @@ export function Models({ report }: { report: (e: unknown) => void }) {
                   {p.name}
                   {p.id === "normal" && <span className="ws-pill" data-tone="accent">Default</span>}
                 </span>
-                <span role="cell" className="mono presets-model">{p.model || "No media engine configured"}</span>
+                <span role="cell" className="mono presets-model">{p.model || (p.available ? p.runtime : "No media engine configured")}</span>
                 <span role="cell" className="presets-purpose">{p.description}</span>
-                <span role="cell">
-                  <span className="ws-pill" data-tone={ready ? "success" : "warning"}>{p.status}</span>
+                <span role="cell" className="presets-status">
+                  <span className="ws-pill" data-tone={ready ? "success" : "warning"} title={p.detail || p.status}>{p.status}</span>
                 </span>
               </summary>
-              <p className="presets-more">{p.runtime} · {p.pipeline} · Digest: {p.digest || "Unavailable"} · {p.resource_policy}</p>
+              <p className="presets-more">{p.detail && <>{p.detail} · </>}{p.runtime} · {p.pipeline} · Digest: {p.digest || "Unavailable"} · {p.resource_policy}</p>
             </details>
           );
         })}

@@ -85,7 +85,17 @@ class PresetCatalog:
         )
 
         if key == "now":
-            result.update(self.s.now.status())
+            # NOW's readiness is NowService's verdict. `status` stays the shared
+            # "Ready"/"Needs setup" vocabulary every Ollama preset uses; NOW's
+            # descriptive wording is carried separately as `detail`.
+            now = self.s.now.status()
+            result.update(
+                available=now["available"],
+                status="Ready" if now["available"] else "Needs setup",
+                detail=now["status"],
+                inference_status=now["inference_status"],
+                retrieval_status=now["retrieval_status"],
+            )
 
         return result
 
