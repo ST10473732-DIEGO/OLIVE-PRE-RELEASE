@@ -9,6 +9,12 @@ struct ChatMessage: Identifiable, Equatable {
     let blocks: [Block]
     var status: String? = nil
     var attribution: Attribution? = nil
+    // Remote Chat v2 presentation: what was attached, the structured evidence and
+    // media results the computer returned, and its compact mode attribution.
+    var attachments: [StoredChatAttachment] = []
+    var sources: [ChatSource] = []
+    var artifacts: [ChatArtifact] = []
+    var modeLabel: String? = nil
     struct Attribution: Equatable { let runtime = "OLIVE Connect"; let deviceID: String; let preset: String; let requestID: String }
     var author: String { role == .user ? "You" : "OLIVE" }
 }

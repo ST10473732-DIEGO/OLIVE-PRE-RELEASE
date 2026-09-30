@@ -6,6 +6,8 @@ struct SettingsView: View {
     private let about = AboutInfo()
     @State private var confirmIdentityReset = false
     @State private var identityResetNotice: String?
+    @State private var mediaBytes: Int64?
+    @State private var confirmClearMedia = false
     var body: some View {
         List {
             Section {
@@ -53,7 +55,7 @@ struct SettingsView: View {
             }
             Section {
                 DisclosureGroup("Advanced connection diagnostics") {
-                    Text("Connect 1 · Pairing TLS13/2 · Inference 1")
+                    Text("Connect 1 · Pairing TLS13/2 · Inference 1" + (state.chatCapabilities != nil ? " · Chat 1" : ""))
                     Text(state.session?.diagnostic ?? "idle").font(.caption.monospaced())
                     Text(state.session?.pairing.diagnostic ?? "idle").font(.caption.monospaced()).textSelection(.enabled)
                     if let id = state.lastRequestID { Text("Request: \(id)").font(.caption.monospaced()).textSelection(.enabled) }
@@ -80,6 +82,16 @@ struct SettingsView: View {
                 }
             }.listRowBackground(OliveTheme.raised)
             Section {
+                LabeledContent("Downloaded Chat media", value: mediaBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…")
+                    .accessibilityIdentifier("settings.chatMedia")
+                Button("Clear downloaded Chat media", role: .destructive) { confirmClearMedia = true }
+                    .disabled((mediaBytes ?? 0) == 0 || state.active)
+                    .accessibilityIdentifier("settings.clearChatMedia")
+                Text("Images, speech and videos from your computer are kept on this iPhone so Chat can show them offline. Clearing removes only these copies; your computer keeps its results, and Chat can download them again when connected. Notes and drawings are not affected.")
+                    .font(.footnote).foregroundStyle(OliveTheme.secondary)
+            } header: { Text("Chat media") }
+                .listRowBackground(OliveTheme.raised)
+            Section {
                 Label("Your draft stays on this iPhone", systemImage: "iphone")
                 Text("OLIVE saves your draft locally. Paired computers provide answers over your local network.")
                     .foregroundStyle(OliveTheme.secondary)
@@ -103,6 +115,12 @@ struct SettingsView: View {
         } message: {
             Text("This replaces your saved device key and discards unfinished pairing confirmations. You must pair again and receive new permissions on each computer. Computer-side trust records are unchanged. Your draft stays on this iPhone.")
         }
+        .task { mediaBytes = await state.mediaStore.totalBytes() }
+        .confirmationDialog("Clear downloaded Chat media?", isPresented: $confirmClearMedia, titleVisibility: .visible) {
+            Button("Clear media", role: .destructive) {
+                Task { await state.clearDownloadedMedia(); mediaBytes = await state.mediaStore.totalBytes() }
+            }
+        } message: { Text("Chat keeps its messages. Media downloads again from your computer when you open those messages while connected.") }
         .toolbar { ToolbarItem(placement: .confirmationAction) {
             Button("Done") { dismiss() }.accessibilityIdentifier("settings.done")
         } }

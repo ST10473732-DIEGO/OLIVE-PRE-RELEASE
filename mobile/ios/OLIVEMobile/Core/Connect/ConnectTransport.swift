@@ -152,6 +152,19 @@ actor ConnectTransport: InferenceTransport {
                     try await write(reply.encode())
                     continue
                 }
+                if frame.kind == 18 {
+                    // olive-chat/1: a JSON header then an optional binary tail. The
+                    // full packet goes to its correlated caller for strict decoding.
+                    let id = try ChatWire.correlation(frame.payload)
+                    if let (kind, _, continuation) = pending.removeValue(forKey: id) {
+                        guard kind == 18 else {
+                            continuation.resume(throwing: ConnectFailure.responseMalformed)
+                            throw ConnectFailure.responseMalformed
+                        }
+                        continuation.resume(returning: frame.payload)
+                    }
+                    continue // A late answer after a local timeout is inert.
+                }
                 if [5, 7].contains(frame.kind), let inbound {
                     let reply = try await inbound(frame)
                     guard reply.kind == frame.kind + 1 else { throw ConnectFailure.responseMalformed }
@@ -191,7 +204,7 @@ actor ConnectTransport: InferenceTransport {
     }
     func exchangeFrame(kind: UInt8, id: String, payload: Data) async throws -> Data {
         guard ready, !closed else { throw ConnectFailure.peerOffline }
-        guard [1, 5, 7, 9, 11, 13, 15].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
+        guard [1, 5, 7, 9, 11, 13, 15, 17].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
         _ = try ConnectJSON.string(id).uuid()
         let encoded = try ConnectFrame(kind: kind, payload: payload).encode()
         guard pending.count < 8, pending[id] == nil else { throw ConnectFailure.resourceBusy }
@@ -208,7 +221,8 @@ actor ConnectTransport: InferenceTransport {
                 }
             }
             Task {
-                try? await Task.sleep(for: .seconds(kind == 15 ? 20 : 7))   // Draw: one bounded batch or asset chunk.
+                // Draw: one bounded batch or asset chunk; Remote Chat: one bounded chunk or status.
+                try? await Task.sleep(for: .seconds(kind == 15 || kind == 17 ? 20 : 7))
                 if let (_, currentTicket, continuation) = pending[id], currentTicket == ticket {
                     pending.removeValue(forKey: id)
                     continuation.resume(throwing: ConnectFailure.requestTimeout)
@@ -236,3 +250,5 @@ actor ConnectTransport: InferenceTransport {
     }
     #endif
 }
+
+extension ConnectTransport: ChatFrameTransport {}

@@ -7,8 +7,10 @@ final class AppState {
     var destination: Destination { didSet { store.saveDestination(destination) } }
     var draft: String { didSet { draftRevision = UUID(); saveDraft() } }
     var isSettingsPresented = false
-    private(set) var persistenceNotice: String?
-    var connection: MobileConnectionState { session?.connected == true ? .connected : session?.selected != nil ? .offline : .notPaired }
+    var persistenceNotice: String?
+    var connection: MobileConnectionState {
+        chatConnection?.connected == true ? .connected : chatConnection?.selectedID != nil ? .offline : .notPaired
+    }
     @ObservationIgnored lazy var sync = SyncModel(session: session, store: MobileSyncStore(directory: companionDirectory))
     @ObservationIgnored lazy var files = FilesModel(session: session, background: background, directory: companionDirectory.appendingPathComponent("Files"))
     @ObservationIgnored lazy var studio = StudioModel(session: session, background: background, directory: companionDirectory)
@@ -23,31 +25,52 @@ final class AppState {
     let background: BackgroundWorkCoordinator?
     let chatStore: MobileChatStore?
     let session: ConnectSession?
-    private let chatConnection: (any ChatRemoteSession)?
-    var preset = "normal"
-    private(set) var chatStatus = ""
-    private(set) var active = false
-    private(set) var stopping = false
-    private var chatTask: Task<Void, Never>?
-    private var chatGeneration = UUID()
-    private var draftRevision = UUID()
-    private var admittedRequest: UUID?
-    private var clearedDraftRevision: UUID?
-    private var currentUserID: UUID?
-    private var currentAnswerID: UUID?
-    private(set) var lastRequestID: String?
-    private(set) var firstResponseSeconds: Double?
-    private(set) var totalResponseSeconds: Double?
+    let chatConnection: (any ChatRemoteSession)?
+    /// The selected Chat mode id (one of ChatMode.all). Remembered per conversation.
+    var preset = "normal" { didSet { if preset != oldValue { rememberMode() } } }
+    var chatStatus = ""
+    var active = false
+    var stopping = false
+    @ObservationIgnored var chatTask: Task<Void, Never>?
+    @ObservationIgnored var chatGeneration = UUID()
+    @ObservationIgnored var draftRevision = UUID()
+    @ObservationIgnored var admittedRequest: UUID?
+    @ObservationIgnored var clearedDraftRevision: UUID?
+    @ObservationIgnored var currentUserID: UUID?
+    @ObservationIgnored var currentAnswerID: UUID?
+    var lastRequestID: String?
+    var firstResponseSeconds: Double?
+    var totalResponseSeconds: Double?
     private(set) var stopSeconds: Double?
-    private var requestStarted = ContinuousClock.now
+    @ObservationIgnored var requestStarted = ContinuousClock.now
     private var verifiedAnswer = ""
-    private var history: [(String, String)] = []
-    private(set) var messages: [ChatMessage] = []
+    @ObservationIgnored var history: [(String, String)] = []
+    var messages: [ChatMessage] = []
+    // Remote Chat v2 (olive-chat/1): attachments, media results and recovery.
+    /// AUDIO voice for the next request only; nil uses the computer's default.
+    var voice: String?
+    var draftAttachments: [StoredChatAttachment] = []
+    var preparing = 0
+    var attachmentNotice: String?
+    @ObservationIgnored var conversationID = UUID().uuidString.lowercased()
+    var mediaProgress: [String: Int64] = [:]
+    var mediaFiles: [String: URL] = [:]
+    var mediaFailures: [String: String] = [:]
+    @ObservationIgnored var remoteJob: String?
+    @ObservationIgnored var streamed: (job: String, text: String) = ("", "")
+    @ObservationIgnored var pending: PendingChatRequest?
+    @ObservationIgnored var downloads: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored var restoringMode = false
+    @ObservationIgnored lazy var attachmentStore = ChatAttachmentStore(directory: companionDirectory.appendingPathComponent("ChatAttachments", isDirectory: true))
+    @ObservationIgnored lazy var mediaStore = ChatMediaStore(directory: companionDirectory.appendingPathComponent("ChatMedia", isDirectory: true))
     let connectClient: any ConnectClient
     let pairingService: any PairingService
     @ObservationIgnored private let store: any ShellStore
     @ObservationIgnored private var canWriteDraft = true
-    var canSend: Bool { !active && background?.active == nil && background?.cancelling != true && chatConnection?.connected == true && chatConnection?.capability?["permission"].string != "deny" && chatConnection?.capability?["presets"][preset].boolean == true && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && draft.utf8.count <= 16000 }
+    var canSend: Bool {
+        !active && background?.active == nil && background?.cancelling != true && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && draft.utf8.count <= 16000 && sendBlocker == nil
+    }
 
     init(store: any ShellStore, connectClient: any ConnectClient = DisconnectedConnectClient(),
          pairingService: any PairingService = UnavailablePairingService(), session: ConnectSession? = nil, chatConnection: (any ChatRemoteSession)? = nil,
@@ -56,7 +79,7 @@ final class AppState {
         self.drawDefaults = drawDefaults
         companionDirectory = store.companionDirectory ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         background = session == nil ? nil : BackgroundWorkCoordinator(directory: companionDirectory)
-        chatStore = session == nil ? nil : MobileChatStore(directory: companionDirectory)
+        chatStore = session == nil && chatConnection == nil ? nil : MobileChatStore(directory: companionDirectory)
         self.chatConnection = chatConnection ?? session
         self.store = store
         self.connectClient = connectClient
@@ -76,7 +99,15 @@ final class AppState {
         catch { persistenceNotice = "Your draft could not be saved. Keep OLIVE open to retain this text." }
     }
     func send() {
-        guard canSend, let client = chatConnection?.inference else { return }
+        guard canSend else { return }
+        // Remote Chat v2 when the computer speaks olive-chat/1; otherwise the
+        // unchanged olive-inference/1 FAST/NORMAL/MAX path for older computers.
+        if chatConnection?.chat != nil, chatConnection?.chatCapabilities != nil { sendRemote(); return }
+        guard ChatMode.legacy.contains(preset), draftAttachments.isEmpty else { return }
+        sendLegacy()
+    }
+    private func sendLegacy() {
+        guard let client = chatConnection?.inference else { return }
         let text = draft, token = UUID(), answerID = UUID()
         let sentDraftRevision = draftRevision
         let peerID = chatConnection?.selectedID ?? "", selectedPreset = preset
@@ -150,10 +181,12 @@ final class AppState {
             var message = ChatMessage(id: answerID, role: .assistant, blocks: ChatMessage.parse(answer))
             message.status = status == "completed" ? "Completed" : "Receiving"
             message.attribution = .init(deviceID: peerID, preset: preset, requestID: job)
+            message.modeLabel = preset.uppercased() + " · This computer"
             if let index = messages.firstIndex(where: { $0.id == answerID }) { messages[index] = message } else { messages.append(message) }
         }
     }
     func stop() {
+        if remoteJob != nil { stopRemote(); return }
         guard active, !stopping, let client = chatConnection?.inference else { return }
         stopping = true; chatStatus = "Stopping on computer…"
         let stopToken = chatGeneration
@@ -177,19 +210,27 @@ final class AppState {
             active = false; stopping = false; chatGeneration = UUID(); chatTask = nil
         }
     }
-    private func markCurrentTurn(_ status: String) {
+    func markCurrentTurn(_ status: String) {
         for i in messages.indices where messages[i].id == currentUserID || messages[i].id == currentAnswerID { messages[i].status = status }
     }
     func restoreCompletedChat() {
         guard !active, let chatStore else { return }
-        let turns = chatStore.turns.filter { $0.peerID == session?.selectedID }.suffix(24)
+        restoreConversation()
+        let turns = chatStore.turns.filter { $0.peerID == (chatConnection?.selectedID ?? session?.selectedID) }.suffix(24)
         history = turns.flatMap { [("user", $0.user), ("assistant", $0.answer)] }
         messages = turns.flatMap { turn -> [ChatMessage] in
             guard let user = UUID(uuidString: turn.userID), let assistant = UUID(uuidString: turn.assistantID) else { return [] }
-            return [ChatMessage(id: user, role: .user, blocks: [.text(turn.user)], status: "Completed"),
-                ChatMessage(id: assistant, role: .assistant, blocks: ChatMessage.parse(turn.answer), status: "Completed",
-                    attribution: .init(deviceID: turn.peerID, preset: turn.preset, requestID: turn.id))]
+            var asked = ChatMessage(id: user, role: .user, blocks: [.text(turn.user)], status: "Completed")
+            asked.attachments = turn.attachments ?? []
+            var answer = ChatMessage(id: assistant, role: .assistant, blocks: ChatMessage.parse(turn.answer), status: "Completed",
+                attribution: .init(deviceID: turn.peerID, preset: turn.preset, requestID: turn.id))
+            answer.sources = turn.sources ?? []
+            answer.artifacts = turn.artifacts ?? []
+            answer.modeLabel = (turn.attribution?.label ?? turn.preset.uppercased()) + " · This computer"
+            return [asked, answer]
         }
+        restorePending()
+        ensureMedia(messages.flatMap(\.artifacts))
     }
     func activate() {
         if messages.isEmpty { restoreCompletedChat() }
@@ -207,6 +248,7 @@ final class AppState {
         }
         session?.onDisconnect = { [weak self] in self?.files.invalidate(); self?.notes.sync.invalidate(); self?.draw.sync.invalidate() }
         session?.onNotesCapability = { [weak self] value in self?.notes.sync.capabilityChanged(value) }
+        session?.onChatReady = { [weak self] in self?.remoteChatReady() }
         startNotes()
         session?.activate()
     }
@@ -237,6 +279,11 @@ final class AppState {
         let drawAssertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE Draw save") {}
         Task { await draw.flush(); if drawAssertion != .invalid { UIApplication.shared.endBackgroundTask(drawAssertion) } }
         if background?.active != nil, background?.continuationGranted == true { session?.suspend(continuing: true); return }
+        if remoteJob != nil, background?.active == nil {
+            // Remote Chat v2 work keeps running on the computer. Stop only local
+            // polling; on return the phone reconnects and asks for its status.
+            pauseRemote(); session?.suspend(); return
+        }
         guard active || background?.active != nil else { session?.suspend(); return }
         session?.suspend(continuing: true) // Short cleanup retains only the existing active session.
         if active {
@@ -269,15 +316,16 @@ final class AppState {
     /// Open-note navigation lands in DrawNote › Notes; Draw links land in Draw.
     func openNotes() { drawNoteSection = .notes; destination = .notes }
     func openDraw() { drawNoteSection = .draw; destination = .notes }
-    var canClearChat: Bool { !active && !messages.isEmpty }
+    var canClearChat: Bool { !active && !messages.isEmpty && pending == nil }
     /// Clears the visible conversation, its model context and this computer's saved iPhone history.
     func clearChat() {
         guard canClearChat else { return }
-        if let chatStore, let peer = session?.selectedID {
+        if let chatStore, let peer = chatConnection?.selectedID ?? session?.selectedID {
             do { try chatStore.removeTurns(peerID: peer) }
             catch { chatStatus = "Chat history could not be cleared. Nothing was removed."; return }
         }
         messages = []; history = []; chatStatus = ""
+        startNewConversation()
     }
     #if DEBUG
     /// Isolated UI-test fixture only: a long synthetic conversation held in memory, never persisted.

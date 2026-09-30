@@ -13,13 +13,26 @@ struct MessageBubble: View {
                 if thinking && isEmpty {
                     OliveActivityDots().padding(.vertical, 6).accessibilityLabel("OLIVE is responding")
                 }
+                if isUser && !message.attachments.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) { ForEach(message.attachments) { AttachmentChip(item: $0) } }
+                    }.frame(maxWidth: 320).accessibilityIdentifier("chat.message.attachments")
+                }
                 ForEach(Array(message.blocks.enumerated()), id: \.offset) { _, block in
                     switch block {
                     case .text(let text): Text(text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     case .code(let language, let content): CodeBlock(language: language, content: content)
                     }
                 }
-                if let status = message.status { Text(status).font(.caption).foregroundStyle(OliveTheme.secondary) }
+                ForEach(message.artifacts) { ArtifactView(artifact: $0) }
+                if !message.sources.isEmpty { SourcesView(sources: message.sources) }
+                if let status = message.status { Text(status).font(.caption).foregroundStyle(OliveTheme.secondary).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(isUser ? "chat.message.status.user" : "chat.message.status") }
+                if !isUser, let label = message.modeLabel {
+                    Text(label).font(.caption2.weight(.medium)).foregroundStyle(OliveTheme.muted)
+                        .accessibilityLabel("Answered by " + label.replacingOccurrences(of: " · ", with: ", "))
+                        .accessibilityIdentifier("chat.message.attribution")
+                }
             }
             .padding(isUser ? 14 : 0)
             .background(isUser ? OliveTheme.raised : .clear, in: RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous))

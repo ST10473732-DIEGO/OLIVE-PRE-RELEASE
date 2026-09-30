@@ -27,7 +27,8 @@ def fit_messages(messages, window, output_reserve):
     safety framing must fit even after all older turns have been omitted.
     """
     budget = window - output_reserve - estimate_tokens(SYSTEM)
-    costs = [estimate_tokens(message['content']) + 8 for message in messages]
+    # Same conservative per-image allowance as desktop Chat context planning.
+    costs = [estimate_tokens(message['content']) + 8 + 2048 * len(message.get('images', ())) for message in messages]
     total = sum(costs)
     start = 0
     while total > budget and start < len(messages) - 1:
@@ -61,18 +62,35 @@ class RemoteInferenceRuntime:
         preset = self.presets.get(arguments['preset'])
         if not self.local() or not preset['available']:
             raise ConnectError('model_unavailable')
-        # Verify current inventory; never pull, fall back or accept a peer's tag.
-        if not await self.ollama.is_model_available(preset['model']):
+        inner = self.stream_model(preset['model'], preset['role'], preset['thinking'],
+                                  preset['params']['temperature'], arguments['messages'], arguments['max_tokens'])
+        try:
+            async for text in inner:
+                yield text
+        finally:
+            # Close in this task: the model-role ContextVar token belongs to this context.
+            await inner.aclose()
+
+    async def stream_model(self, model, role, thinking, temperature, messages, max_tokens):
+        """One tool-free completion on an already-selected local model.
+
+        Callers resolve a public preset (or the UNCENSORED router) to ``model``;
+        a peer never supplies a model tag. Messages are requester-owned turns.
+        """
+        if not self.local():
             raise ConnectError('model_unavailable')
-        token = REQUEST_ROLE.set(preset['role'])
+        # Verify current inventory; never pull, fall back or accept a peer's tag.
+        if not await self.ollama.is_model_available(model):
+            raise ConnectError('model_unavailable')
+        token = REQUEST_ROLE.set(role)
         stream = None
         try:
-            window = await self.ollama.effective_context_length(preset['model'])
-            messages = fit_messages(arguments['messages'], window, arguments['max_tokens'])
-            stream = self.ollama.chat_stream(preset['model'],
+            window = await self.ollama.effective_context_length(model)
+            messages = fit_messages(messages, window, max_tokens)
+            stream = self.ollama.chat_stream(model,
                 [{'role': 'system', 'content': SYSTEM}] + messages,
-                options={'temperature': preset['params']['temperature'], 'num_predict': arguments['max_tokens']},
-                think=preset['thinking'])
+                options={'temperature': temperature, 'num_predict': max_tokens},
+                think=thinking)
             async for text in stream:
                 yield text  # OllamaService exposes content only, never thinking/tool calls.
         except GenerationOutputLimit:

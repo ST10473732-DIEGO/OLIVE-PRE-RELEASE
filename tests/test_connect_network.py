@@ -1038,13 +1038,16 @@ class NetworkTests(unittest.TestCase):
 
 class WireTests(unittest.TestCase):
     def test_header_bounds(self):
-        # C8 assigns 11/12 to Studio, Notes 13/14 and Draw 15/16; 17 remains unknown.
-        for values in ((16385, 1, 1), (0, 2, 1), (0, 1, 17), (1, 1, 3), (512001, 1, 13), (512001, 1, 14),
-                       (512001, 1, 15), (512001, 1, 16)):
+        # C8 assigns 11/12 to Studio, Notes 13/14, Draw 15/16 and Remote Chat v2 17/18; 19 remains unknown.
+        from olive.connect.chat_protocol import MAX_FRAME as CHAT_FRAME
+        for values in ((16385, 1, 1), (0, 2, 1), (0, 1, 19), (1, 1, 3), (512001, 1, 13), (512001, 1, 14),
+                       (512001, 1, 15), (512001, 1, 16), (CHAT_FRAME + 1, 1, 17), (CHAT_FRAME + 1, 1, 18)):
             with self.assertRaises(ConnectError):
                 header(HEADER.pack(*values))
         with self.assertRaises(ConnectError):
             frame(1, bytes(16385))
+        self.assertEqual(header(HEADER.pack(CHAT_FRAME, 1, 17)), (CHAT_FRAME, 17))
+        self.assertEqual(header(HEADER.pack(CHAT_FRAME, 1, 18)), (CHAT_FRAME, 18))
 
     def test_budget_clock(self):
         now = [0]

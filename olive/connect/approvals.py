@@ -51,8 +51,11 @@ class ConnectApprovals:
             if len(self.entries) >= 32:
                 raise ConnectError('approval_capacity_reached')
             deadline = now + min(120, request.expires_at - self.service.clock())
+            chat = getattr(request, 'protocol_version', '') == 'olive-chat/1'
+            summary = ('Remote AI: OLIVE ' + request.arguments['mode'].upper() + ' on this computer (no tools)'
+                       if chat else LABELS[request.capability])
             prompt = ConfirmationRequest(task_id=request.request_id, tool_name='connect.request',
-                summary=LABELS[request.capability], risk_level='medium' if request.capability.startswith(('sync.', 'files.', 'studio.')) else 'low',
+                summary=summary, risk_level='medium' if request.capability.startswith(('sync.', 'files.', 'studio.')) else 'low',
                 targets=[record['display_name']], allow_remember=False,
                 arguments=dict(source_device_id=record['device_id'],
                     public_fingerprint=binding[1], request_id=request.request_id,
@@ -63,11 +66,17 @@ class ConnectApprovals:
                         path=request.arguments.get('path', ''), share_revision=request.share_revision,
                         expected_hash=request.arguments.get('expected_hash', ''))} if request.capability.startswith('studio.') else {}),
                     **({'file': dict(request.arguments)} if request.capability.startswith('files.') else {}),
+                    **({'chat': dict(mode=request.arguments['mode'],
+                        message_count=len(request.arguments['messages']),
+                        input_bytes=sum(len(m['content'].encode('utf-8')) for m in request.arguments['messages']),
+                        attachments=len(request.arguments['attachments']),
+                        attachment_bytes=sum(a['size'] for a in request.arguments['attachments']),
+                        expires_at=request.expires_at)} if chat else {}),
                     **({'inference': dict(preset=request.arguments['preset'],
                         message_count=len(request.arguments['messages']),
                         input_bytes=sum(len(m['content'].encode('utf-8')) for m in request.arguments['messages']),
                         max_tokens=request.arguments['max_tokens'], expires_at=request.expires_at)}
-                       if request.capability == 'models.remote' else {})))
+                       if request.capability == 'models.remote' and not chat else {})))
             entry = dict(binding=binding, deadline=deadline, state='pending', future=None)
             self.entries[key] = entry
             entry['future'] = asyncio.run_coroutine_threadsafe(self._ask(key, entry, prompt), self.loop)

@@ -30,6 +30,8 @@ class DesktopDeviceService:
         self.studio = None
         self.notes = None
         self.draw = None
+        self.chat = None
+        self.profile = profile
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -73,6 +75,14 @@ class DesktopDeviceService:
         if self.network is not None:
             self.inference.activate()
         return self.inference
+
+    def attach_chat(self, runtime, loop):
+        """Remote Chat v2 (olive-chat/1). Reuses the Remote AI permission; content only."""
+        from .chat import RemoteChatService
+        self.chat = RemoteChatService(self, runtime, loop, self.profile / 'connect' / 'chat-staging')
+        if self.network is not None:
+            self.chat.activate()
+        return self.chat
 
     def attach_studio(self, runtime, loop):
         from .studio import RemoteStudioService
@@ -190,6 +200,8 @@ class DesktopDeviceService:
         self.files.invalidate(device_id, 'permission_or_trust_changed')
         if self.inference is not None:
             self.inference.invalidate(device_id)
+        if self.chat is not None and capability == 'models.remote':
+            self.chat.invalidate(device_id)
         if self.approvals is not None:
             self.approvals.invalidate(device_id)
         if self.notes is not None and capability == 'sync.notes':
@@ -221,6 +233,8 @@ class DesktopDeviceService:
         self.files.invalidate(device_id, 'permission_or_trust_changed')
         if self.inference is not None:
             self.inference.invalidate(device_id, 'device_revoked')
+        if self.chat is not None:
+            self.chat.invalidate(device_id, 'device_revoked')
         if self.approvals is not None:
             self.approvals.invalidate(device_id)
         if self.network is not None:
@@ -243,6 +257,8 @@ class DesktopDeviceService:
             db.execute('INSERT OR IGNORE INTO removed_devices VALUES(?,?)', (device_id, int(self.clock())))
             db.execute('DELETE FROM activity WHERE source_device_id=?', (device_id,))
         self.files.clear(device_id)
+        if self.chat is not None:
+            self.chat.forget_peer(device_id)  # Staged inputs and remote document indexes.
         return {'removed': True}
 
     def clear_activity(self, device_id):
@@ -317,7 +333,8 @@ class DesktopDeviceService:
                     raise ConnectError('expired_request')
         except ConnectError as error:
             return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='rejected', error=str(error))
-        spoken = [p for p, attached in (('olive-notes/1', self.notes), ('olive-draw/1', self.draw)) if attached is not None]
+        spoken = [p for p, attached in (('olive-notes/1', self.notes), ('olive-draw/1', self.draw),
+                                         ('olive-chat/1', self.chat)) if attached is not None]
         return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='completed',
                     result={'pong': True, 'protocols': spoken})
 
@@ -462,6 +479,8 @@ class DesktopDeviceService:
                 self.studio.activate()
             if self.inference is not None:
                 self.inference.activate()
+            if self.chat is not None:
+                self.chat.activate()
             return network
 
     def disable_network(self):
@@ -472,6 +491,8 @@ class DesktopDeviceService:
                 self.studio.close()
             if self.inference is not None:
                 self.inference.close()
+            if self.chat is not None:
+                self.chat.close()
             if self.sync is not None:
                 self.sync.close()
             if self.network is not None:

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct ChatView: View {
     @Environment(AppState.self) private var state
@@ -8,6 +9,11 @@ struct ChatView: View {
     /// Whether the end of the conversation is on screen; drives the jump button and auto-follow.
     @State private var atBottom = true
     @State private var confirmingClear = false
+    @State private var choosingMode = false
+    @State private var source: AttachmentSource?
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var pickingPhotos = false
+    @State private var pickingFiles = false
     var body: some View {
         GeometryReader { geometry in ScrollViewReader { proxy in
             ScrollView {
@@ -67,6 +73,25 @@ struct ChatView: View {
                 }
             }
         }
+        .sheet(isPresented: $choosingMode) { ModePickerSheet() }
+        .sheet(item: Binding(get: { source == .notes || source == .drawings ? source : nil }, set: { source = $0 })) { chosen in
+            if chosen == .notes { NotePickerSheet() } else { DrawPickerSheet() }
+        }
+        .fullScreenCover(isPresented: Binding(get: { source == .camera }, set: { if !$0 { source = nil } })) {
+            ChatCameraPicker { picture in
+                source = nil
+                if let picture { state.attachCamera(picture) }
+            }.ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $pickingPhotos, selection: $photoItems,
+                      maxSelectionCount: max(1, ChatWire.maximumAttachments - state.draftAttachments.count), matching: .images)
+        .onChange(of: photoItems) { _, items in
+            guard !items.isEmpty else { return }
+            state.attachPhotos(items); photoItems = []
+        }
+        .fileImporter(isPresented: $pickingFiles, allowedContentTypes: state.importableTypes, allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first { state.attachFile(url) }
+        }
         .confirmationDialog("Clear this chat?", isPresented: $confirmingClear, titleVisibility: .visible) {
             Button("Clear chat", role: .destructive) {
                 withAnimation(reduceMotion ? nil : OliveTheme.Motion.settle) { state.clearChat() }
@@ -83,6 +108,16 @@ struct ChatView: View {
             try? await Task.sleep(for: .milliseconds(450))
             if !atBottom { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo("latest", anchor: .bottom) } }
         }
+    }
+
+    /// Explains a refused Send (offline, unavailable mode, unsupported attachment) before it is tapped.
+    private var composerNotice: String? {
+        if let notice = state.attachmentNotice { return notice }
+        guard !state.active else { return nil }
+        if !state.draftAttachments.isEmpty, let problem = state.attachmentProblem(for: state.selectedMode) { return problem }
+        guard !state.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !state.draftAttachments.isEmpty,
+              let blocker = state.sendBlocker, blocker != "Preparing attachment…" else { return nil }
+        return blocker == "Computer offline" ? "Your OLIVE computer is offline. Your draft stays here." : blocker
     }
 
     private var emptyState: some View {
@@ -109,7 +144,6 @@ struct ChatView: View {
 
     private var composer: some View {
         @Bindable var state = state
-        let presets = state.session.map { session in ["fast", "normal", "max"].filter { session.capability?["presets"][$0].boolean == true } } ?? []
         return VStack(spacing: 8) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
@@ -123,23 +157,33 @@ struct ChatView: View {
                         .accessibilityIdentifier("chat.draftStatus")
                 }.lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 8)
-                if state.session?.selected != nil, !presets.isEmpty {
-                    Menu {
-                        Picker("Model role", selection: $state.preset) {
-                            ForEach(presets, id: \.self) { Text($0.capitalized).tag($0) }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(state.preset.capitalized)
-                            Image(systemName: "chevron.up.chevron.down").font(.caption2)
-                        }
-                        .font(.caption.weight(.semibold)).foregroundStyle(OliveTheme.accent)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(OliveTheme.accent.opacity(0.12), in: Capsule())
-                    }.disabled(state.active).accessibilityLabel("Model role")
+                if state.session?.selected != nil || state.chatConnection != nil {
+                    ModeButton(presented: $choosingMode)
                 }
             }.padding(.horizontal, 6)
-            HStack(alignment: .bottom, spacing: 8) {
+            AttachmentChips()
+            if let notice = composerNotice {
+                Text(notice).font(.caption).foregroundStyle(OliveTheme.attention).frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 8)
+                    .accessibilityIdentifier("chat.composerNotice")
+                    .onTapGesture { state.attachmentNotice = nil }
+            }
+            HStack(alignment: .bottom, spacing: 4) {
+                AttachMenuButton(disabled: state.active || state.chatCapabilities == nil) { chosen in
+                    switch chosen {
+                    case .photos: pickingPhotos = true
+                    case .files: pickingFiles = true
+                    default: source = chosen
+                    }
+                    #if DEBUG
+                    if ChatUIFixture.syntheticPickers, [.photos, .camera, .files].contains(chosen) {
+                        // Test sessions only: synthetic content through the real preparation path.
+                        // OLIVE Notes and OLIVE Draw keep their real (automatable) pickers.
+                        pickingPhotos = false; pickingFiles = false; source = nil
+                        ChatUIFixture.inject(chosen, into: state)
+                    }
+                    #endif
+                }
                 TextField("Message OLIVE", text: $state.draft, axis: .vertical)
                     .lineLimit(1...(typeSize.isAccessibilitySize ? 3 : 6)).font(.body).focused($composerFocused)
                     .padding(.vertical, 10).padding(.leading, 8).accessibilityIdentifier("chat.composer")
@@ -160,7 +204,7 @@ struct ChatView: View {
                     .animation(OliveTheme.Motion.press, value: state.canSend)
                     .animation(OliveTheme.Motion.press, value: state.active)
                     .accessibilityLabel(state.active ? (state.stopping ? "Stopping response" : "Stop response") : "Send message")
-                    .accessibilityHint(state.active ? "Cancels the request on your computer" : "Requires a connected computer with Remote AI available")
+                    .accessibilityHint(state.active ? "Cancels the request on your computer" : state.sendBlocker ?? "Sends to your computer")
                     .accessibilityIdentifier(state.active ? "chat.stop" : "chat.send")
             }.padding(4).padding(.leading, 4)
                 .background(OliveTheme.raised, in: RoundedRectangle(cornerRadius: OliveTheme.Radius.composer, style: .continuous))

@@ -22,12 +22,18 @@ NOTES_REQUEST, NOTES_RESPONSE = 13, 14  # olive-notes/1; bound shared with olive
 # olive-draw/1; bound shared with olive/draw/protocol_v1.json. Sent only to peers
 # that have shown they speak it (see olive/connect/draw.py).
 DRAW_REQUEST, DRAW_RESPONSE = 15, 16
+# olive-chat/1 (Remote Chat v2: every Chat mode, attachments and media artifacts).
+# Phone -> desktop requests only; sent only to desktops that list it in the probe.
+CHAT_REQUEST, CHAT_RESPONSE = 17, 18
 KINDS = (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE,
          INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE, NOTES_REQUEST, NOTES_RESPONSE,
-         DRAW_REQUEST, DRAW_RESPONSE)
+         DRAW_REQUEST, DRAW_RESPONSE, CHAT_REQUEST, CHAT_RESPONSE)
 
 
 def limit(kind):
+    if kind in (CHAT_REQUEST, CHAT_RESPONSE):
+        from .chat_protocol import MAX_FRAME as CHAT_LIMIT
+        return CHAT_LIMIT
     if kind in (DRAW_REQUEST, DRAW_RESPONSE):
         from ..draw.protocol import LIMITS as DRAW_LIMITS
         return DRAW_LIMITS['max_frame_bytes']

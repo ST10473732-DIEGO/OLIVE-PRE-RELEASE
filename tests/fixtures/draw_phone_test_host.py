@@ -1,4 +1,9 @@
-"""TEST HOST ONLY: a real OLIVE desktop Connect service for physical-iPhone Draw acceptance.
+"""TEST HOST ONLY: a real OLIVE desktop Connect service for physical-iPhone Draw and Chat acceptance.
+
+With ``--chat`` it also attaches the production Remote Chat v2 service
+(olive-chat/1: modes, attachments, artifacts, receipts) backed by the TEST-ONLY
+deterministic runtime (tests/fixtures/chat_test_runtime.py). No model runs:
+results from this host are transport/UI verification, never real-model results.
 
 Runs the production Python ``DesktopDeviceService`` (Connect TLS listener,
 Bonjour advertisement, frames 13-16, ``sync.draw`` permission) with a real
@@ -56,9 +61,11 @@ class NoModels:
 
 
 class Host:
-    def __init__(self, profile):
+    def __init__(self, profile, chat=False, video=None):
         import asyncio
         self.profile = Path(profile)
+        self.chat_enabled, self.video = chat, video
+        self.chat_runtime = None
         self.loop = asyncio.new_event_loop()
         threading.Thread(target=self.loop.run_forever, daemon=True, name='test-host-loop').start()
         self.vault = MemoryVault()
@@ -77,6 +84,11 @@ class Host:
         # The phone's Connect session starts with the C7 status request; this host
         # answers it with every preset unavailable (no model is ever run here).
         self.service.attach_inference(NoModels(), self.loop)
+        if self.chat_enabled:
+            from tests.fixtures.chat_test_runtime import ChatTestRuntime
+            if self.chat_runtime is None:
+                self.chat_runtime = ChatTestRuntime(self.profile / 'chat-artifacts', video=self.video, delay=0.05)
+            self.service.attach_chat(self.chat_runtime, self.loop)
         self.network = None
         self.network_on()
 
@@ -95,6 +107,9 @@ class Host:
     def restart(self):
         """Desktop process restart on the same profile and identity."""
         self.network_off()
+        if self.service.chat is not None:
+            import asyncio
+            asyncio.run_coroutine_threadsafe(self.service.chat.shutdown(), self.loop).result(15)
         self.service.close()
         self.notes.close()
         self._start()
@@ -226,6 +241,25 @@ class Host:
         with self.lock:
             if cmd == 'status':
                 return self.status()
+            if cmd == 'chat':
+                # What the "desktop" ran and received: modes, attachment kinds and hashes (no content).
+                runtime = self.chat_runtime
+                return {'runs': [list(r) for r in runtime.runs], 'received': runtime.received,
+                        'live': self.service.chat.snapshot(self.phone()) if self.service.chat else []}
+            if cmd == 'chat_reset':
+                self.chat_runtime.runs.clear(); self.chat_runtime.received.clear()
+                return True
+            if cmd == 'chat_video':
+                self.chat_runtime.video = args['path']
+                return True
+            if cmd == 'chat_files':
+                # Staged attachments for the phone (count and sizes only) and generated artifacts.
+                staging = self.profile / 'connect' / 'chat-staging'
+                staged = [dict(name=p.suffix, size=p.stat().st_size) for p in staging.rglob('*') if p.is_file() and p.suffix != '.json']
+                return {'staged': staged, 'artifacts': len(self.chat_runtime.files)}
+            if cmd == 'chat_unavailable':
+                self.chat_runtime.unavailable = set(args.get('modes', []))
+                return sorted(self.chat_runtime.unavailable)
             if cmd == 'pair':
                 return self.pair()
             if cmd == 'permission':
@@ -296,6 +330,8 @@ def main():
     parser.add_argument('--port', type=int, default=48731)
     parser.add_argument('--profile', help='A NEW, empty directory (a temporary one by default)')
     parser.add_argument('--send', help='Send one JSON command to a running host and print the reply')
+    parser.add_argument('--chat', action='store_true', help='Also serve olive-chat/1 with the deterministic TEST runtime')
+    parser.add_argument('--chat-video', help='A synthetic MP4 the test runtime returns for VIDEO')
     args = parser.parse_args()
     if args.send:
         print(json.dumps(send(args.port, json.loads(args.send)), indent=1))
@@ -303,7 +339,7 @@ def main():
     profile = Path(args.profile) if args.profile else Path(tempfile.mkdtemp(prefix='olive-draw-test-host-'))
     if profile.exists() and any(profile.iterdir()):
         parser.error('Refusing to use a non-empty profile: the test host only runs on a fresh temporary profile.')
-    host = Host(profile)
+    host = Host(profile, chat=args.chat, video=args.chat_video)
     print(json.dumps({'ready': True, 'profile': str(profile), 'local_id': host.service.local_id, **host.network_on()}), flush=True)
     serve(host, args.port)
 

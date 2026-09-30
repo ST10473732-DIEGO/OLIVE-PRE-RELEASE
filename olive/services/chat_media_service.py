@@ -271,11 +271,14 @@ class ChatMediaService:
             await runtime.close()
 
     # ------------------------------------------------------------------ run
-    async def generate(self, chat_id, request, cancel):
+    async def generate(self, chat_id, request, cancel, on_progress=None):
         def progress(text):
+            if on_progress is not None:
+                on_progress(text)  # Remote Chat: factual status for the requesting phone.
             if self.progress.get(chat_id) != text:
                 self.progress[chat_id] = text
-                self.s.publish('chat', self.s.chat.get(chat_id))
+                if chat_id in self.s.chats:  # A remote request has no desktop conversation.
+                    self.s.publish('chat', self.s.chat.get(chat_id))
         kind = request['kind']
         progress({'image': 'Preparing image engine…', 'video': 'Preparing video engine…', 'audio': 'Preparing audio engine…'}[kind])
         residency = self.s.ollama.residency

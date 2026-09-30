@@ -27,7 +27,9 @@ struct OLIVEMobileApp: App {
             let directory = URL.applicationSupportDirectory.appendingPathComponent("C92PairingAcceptance")
             let identities = ConnectIdentityStore(secrets: KeychainSecretStore(service: "olive.c92.pairing-acceptance"))
             let session = ConnectSession(repository: ConnectTrustRepository(directory: directory.appendingPathComponent("Connect")), identities: identities)
-            _state = State(initialValue: AppState(store: LocalShellStore(defaults: UserDefaults(suiteName: "olive.c92.pairing-acceptance")!, directory: directory), session: session))
+            let acceptance = AppState(store: LocalShellStore(defaults: UserDefaults(suiteName: "olive.c92.pairing-acceptance")!, directory: directory), session: session)
+            ChatUIFixture.seedDrawNote(acceptance)
+            _state = State(initialValue: acceptance)
             return
         }
         if args.contains("--c92-cleanup-pairing-check") {
@@ -57,7 +59,9 @@ struct OLIVEMobileApp: App {
                     try ProtectedStore<[MobileFileReceipt]>(url: files.appendingPathComponent("receipts-v1.json"), maximumBytes: 8_000_000).save([receipt])
                 } catch { assertionFailure("Could not prepare isolated file UI fixture") }
             }
-            let isolated = AppState(store: LocalShellStore(defaults: defaults, directory: directory), drawDefaults: defaults)
+            let fixture = ChatUIFixture.enabled ? FixtureChatSession(offline: args.contains("--ui-test-chat-offline"),
+                                                                     legacy: args.contains("--ui-test-chat-legacy")) : nil
+            let isolated = AppState(store: LocalShellStore(defaults: defaults, directory: directory), chatConnection: fixture, drawDefaults: defaults)
             if args.contains("--ui-test-sync-conflict") {
                 do {
                     let phone = try ConnectIdentity.generate(), desktop = try ConnectIdentity.generate()
@@ -72,6 +76,7 @@ struct OLIVEMobileApp: App {
             }
             if args.contains("--ui-test-companion") { isolated.studio.prepareOfflineUIFixture() }
             if args.contains("--ui-test-long-chat") { isolated.prepareLongChatUIFixture() }
+            ChatUIFixture.seedDrawNote(isolated)
             _state = State(initialValue: isolated)
             return
         }

@@ -52,12 +52,13 @@ class ChatResearchService:
     def __init__(self, services):
         self.s = services
 
-    async def document_evidence(self, chat, question):
+    async def document_evidence(self, chat, question, extra_results=()):
         if any(not ref.indexed for ref in chat.documents):
             raise ValueError('Wait for attached documents to finish indexing, or remove failed attachments')
-        hits = await self.s.rag.retrieve(chat.id, question, limit=6)
+        hits = await self.s.rag.retrieve(chat.id, question, limit=6) if chat.documents else []
         attached = {ref.id for ref in chat.documents}
-        hits = [h for h in hits if h.document_id in attached]
+        # Bounded DEEP vision interpretations of attached images come first.
+        hits = list(extra_results) + [h for h in hits if h.document_id in attached]
         overview = bool(re.search(r'\b(research|summari[sz]e|main findings|recommendation|overview|compare|still accurate|still current)\b', question, re.I))
         if overview:
             # Include bounded opening evidence for broad document questions whose
@@ -87,7 +88,7 @@ class ChatResearchService:
         topics = [topic for topic in PUBLIC_TOPICS if re.search(r'\b' + re.escape(topic) + r'\b', question + '\n' + evidence, re.I)]
         return ' '.join(topics[:3])
 
-    async def stream(self, chat, text, mode):
+    async def stream(self, chat, text, mode, extra_results=()):
         self.s.now.require_local()
         sources, failures = [], []
         question = text
@@ -100,7 +101,7 @@ class ChatResearchService:
                 question += '\nPrevious user question (context only): ' + prior[:1000]
         if mode in {'documents', 'combined'}:
             self.s.publish('interaction_activity', {'chat_id': chat.id, 'message': 'Reading attached document evidence…'})
-            sources = await self.document_evidence(chat, question)
+            sources = await self.document_evidence(chat, question, extra_results)
             if not sources:
                 async def missing():
                     yield 'I could not find evidence for that question in the attached document index. The document may not contain the information, or extraction/retrieval may be incomplete. I cannot establish the answer from the document.'

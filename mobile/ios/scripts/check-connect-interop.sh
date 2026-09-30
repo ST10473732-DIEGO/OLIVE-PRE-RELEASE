@@ -13,12 +13,15 @@ xcrun swiftc -swift-version 6 -module-cache-path "$OUT/cache" \
   -import-objc-header mobile/ios/NativeConnect/OliveTLS.h \
   mobile/ios/OLIVEMobile/Core/Connect/Wire/*.swift \
   mobile/ios/OLIVEMobile/Core/Connect/ConnectFailure.swift \
+  mobile/ios/OLIVEMobile/Core/Connect/RemoteChatClient.swift \
+  mobile/ios/OLIVEMobile/Core/Chat/ChatMediaStore.swift \
   mobile/ios/OLIVEMobile/Core/Connect/ConnectIdentityStore.swift \
   mobile/ios/OLIVEMobile/Core/Connect/ConnectTLS.swift \
   mobile/ios/OLIVEMobile/Core/Security/SecretStore.swift \
   mobile/ios/OLIVEMobile/Core/Notes/NotesDatabase.swift \
   mobile/ios/OLIVEMobile/Core/Notes/NotesEngineHost.swift \
   $(ls mobile/ios/OLIVEMobile/Core/Draw/*.swift | grep -v DrawSync.swift) mobile/ios/Interop/DrawHarness.swift \
+  mobile/ios/Interop/ChatHarness.swift \
   mobile/ios/Interop/main.swift "$OUT/tls.o" \
   -L"$OPENSSL/lib" -lssl -lcrypto -o "$OUT/interop"
 "$OUT/interop" tests/fixtures/mobile_connect/vectors.json "$OUT/swift.json"
@@ -39,3 +42,7 @@ OLIVE_NOTES_SWIFT_HARNESS="$OUT/interop" "$PYTHON" -m unittest tests.test_notes_
 # olive-draw/1 codec, image canonicalization, CoreGraphics renderer) against the
 # Python desktop engine over real olive-draw/1 bytes.
 OLIVE_DRAW_SWIFT_HARNESS="$OUT/interop" "$PYTHON" -m unittest tests.test_draw_phone_engine -v
+
+# Remote Chat v2 (olive-chat/1): the phone's RemoteChatClient, ChatWire and
+# ChatMediaStore against the Python RemoteChatService over real packet bytes.
+OLIVE_CHAT_SWIFT_HARNESS="$OUT/interop" "$PYTHON" -m unittest tests.test_mobile_chat_interop -v

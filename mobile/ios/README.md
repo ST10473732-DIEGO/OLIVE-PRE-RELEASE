@@ -9,6 +9,19 @@ stores and Apple continued-processing support for user-started work on iOS 26+.
 Real C9.3 acceptance remains partial; see the evidence report before sign-off.
 No Python runtime or cloud service is embedded.
 
+**OLIVE Chat** offers every desktop mode: FAST, NORMAL, MAX, UNCENSORED, NOW,
+DEEP, REIMAGINE, AUDIO and VIDEO, run by the paired computer (never on the phone,
+never a hosted fallback). Computers that speak `olive-chat/1` (Connect frames
+17/18, negotiated by the `protocols` probe) advertise which modes and attachment
+types they support; older computers keep FAST/NORMAL/MAX over C7. The composer's
+**+** attaches Photo Library, camera, Files, OLIVE Notes snapshots and OLIVE Draw
+PNG snapshots (content-addressed, resumable, verified before use). Results include
+structured sources and verified image/speech/video files with native players.
+See `docs/OLIVE_MOBILE_CHAT.md`. Deterministic Chat UI tests run with an in-process
+fixture computer; opt-in: `TEST_RUNNER_OLIVE_CHAT_TEST_HOST=1` (Mac test host,
+`tests/fixtures/draw_phone_test_host.py --chat`) and
+`TEST_RUNNER_OLIVE_CHAT_REAL_DESKTOP=1` (the real paired computer, synthetic prompts).
+
 **OLIVE Notes** (tab *Notes*) is a local-first notepad that syncs with the
 paired computer over Connect frames 13/14 (`olive-notes/1`). Its engine is
 `OLIVEMobile/Resources/NotesEngine.js`, generated from

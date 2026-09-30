@@ -35,6 +35,15 @@ if CommandLine.arguments[1] == "--pair-fixture" {
     exit(0)
 }
 
+if CommandLine.arguments[1] == "--chat-harness" {
+    // Remote Chat v2: the real Swift client against the Python desktop (tests/test_mobile_chat_interop.py).
+    let done = DispatchSemaphore(value: 0)
+    Task.detached { await runChatHarness(source: CommandLine.arguments[2], target: CommandLine.arguments[3],
+                                directory: URL(fileURLWithPath: CommandLine.arguments[4], isDirectory: true)); done.signal() }
+    done.wait()
+    exit(0)
+}
+
 if CommandLine.arguments[1] == "--draw-harness" {
     // OLIVE Draw: the real Swift engine, store, codec and renderer (tests/test_draw_phone_engine.py).
     runDrawHarness(directory: URL(fileURLWithPath: CommandLine.arguments[2], isDirectory: true))

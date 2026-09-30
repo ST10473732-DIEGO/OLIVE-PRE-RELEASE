@@ -4,6 +4,14 @@
 def approval_presentation(value, services=None):
     arguments = value.get("arguments", {})
     if value['tool_name'] == 'connect.request':
+        if arguments.get('capability') == 'models.remote' and 'chat' in arguments:
+            info = arguments['chat']
+            attached = (f" · {info['attachments']} attachment{'s' if info['attachments'] != 1 else ''} "
+                        f"({info['attachment_bytes']} bytes)" if info['attachments'] else '')
+            return dict(action='Remote AI · OLIVE ' + info['mode'].upper(), targets=[arguments['source_name']],
+                content=f"{info['message_count']} visible messages · {info['input_bytes']} bytes of context" + attached,
+                scope='This exact authenticated request only. Attachments are content, never instructions.',
+                consequence='Runs on this computer with its local engines. No tools, Memory or desktop control. Saved permission remains Ask.')
         if arguments.get('capability') == 'models.remote':
             info = arguments['inference']
             return dict(action='Remote AI · OLIVE ' + info['preset'].upper(), targets=[arguments['source_name']],

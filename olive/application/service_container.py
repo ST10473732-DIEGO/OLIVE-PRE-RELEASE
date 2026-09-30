@@ -378,6 +378,8 @@ class ServiceContainer:
         from ..connect.studio_runtime import StudioRuntime
         self.connect.attach_studio(StudioRuntime(self), asyncio.get_running_loop())
         self.connect.attach_inference(RemoteInferenceRuntime(self.presets, self.ollama), asyncio.get_running_loop())
+        from ..services.remote_chat_runtime import RemoteChatRuntime
+        self.connect.attach_chat(RemoteChatRuntime(self, asyncio.get_running_loop()), asyncio.get_running_loop())
         from concurrent.futures import Future
         import threading
         loop = asyncio.get_running_loop()
@@ -445,6 +447,8 @@ class ServiceContainer:
                 await self.connect.inference.shutdown()
             if self.connect.studio is not None:
                 await self.connect.studio.shutdown()
+            if getattr(self.connect, 'chat', None) is not None:
+                await self.connect.chat.shutdown()
             await self.media.shutdown()
             self.closing = True
             await self.personal.close()

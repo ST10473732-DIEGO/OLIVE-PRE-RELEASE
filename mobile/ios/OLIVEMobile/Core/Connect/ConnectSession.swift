@@ -7,6 +7,19 @@ protocol ChatRemoteSession: AnyObject {
     var capability: ConnectJSON? { get }
     var selectedID: String? { get }
     var inference: RemoteInferenceClient? { get }
+    /// Remote Chat v2 (olive-chat/1), only when the computer advertised it.
+    var chat: RemoteChatClient? { get }
+    var chatCapabilities: ChatCapabilities? { get }
+    /// True once the computer answered the protocol probe (either way).
+    var chatProbed: Bool { get }
+    func refreshChatCapabilities() async
+}
+
+extension ChatRemoteSession {
+    var chat: RemoteChatClient? { nil }
+    var chatCapabilities: ChatCapabilities? { nil }
+    var chatProbed: Bool { true }
+    func refreshChatCapabilities() async {}
 }
 
 /// Whether to keep sending the optional OLIVE Notes probe. An older desktop
@@ -47,6 +60,11 @@ final class ConnectSession: ChatRemoteSession {
     private(set) var resettingIdentity = false
     var canResetIdentity: Bool { repository.isAvailable && peers.isEmpty && !resettingIdentity }
     private(set) var inference: RemoteInferenceClient?
+    /// olive-chat/1 client and the computer's mode matrix (nil on older computers).
+    private(set) var chat: RemoteChatClient?
+    private(set) var chatCapabilities: ChatCapabilities?
+    private(set) var chatProbed = false
+    var onChatReady: (@MainActor () -> Void)?
     private var transport: ConnectTransport?
     private var reconnect: Task<Void, Never>?
     private var generation = UUID()
@@ -112,6 +130,7 @@ final class ConnectSession: ChatRemoteSession {
         discoveryRetry?.cancel(); discoveryRetry = nil
         if let transport { Task { await transport.close() } }
         transport = nil; inference = nil; capability = nil; companionCapability = nil; notesCapability = nil; connected = false
+        chat = nil; chatCapabilities = nil; chatProbed = false
         status = selectedRevoked ? "Revoked" : selected == nil ? "Not connected" : "Offline"
         lifecycle = selectedRevoked ? .revoked : selected == nil ? .unpaired : .pairedOffline
     }
@@ -173,13 +192,17 @@ final class ConnectSession: ChatRemoteSession {
                         lifecycle = .foregroundConnected
                         inference = client; capability = capabilities; connected = true; status = "Connected"; diagnostic = "authenticated"
                         await onChannelReady?(channel, identity, peer)
+                        Task { await self.probeChat(channel: channel, source: identity.publicIdentity.deviceID, target: peer.id, token: token) }
                         attempt = 0 // A later disconnection gets a fresh bounded recovery cycle.
                         // C7 status is the existing public role/policy negotiation and heartbeat.
+                        var beats = 0
                         while generation == token && !Task.isCancelled {
                             try await Task.sleep(for: .seconds(15))
                             let fresh = try await client.status()
                             guard generation == token else { return }
                             capability = fresh
+                            beats += 1
+                            if beats % 4 == 0, chat != nil { await refreshChatCapabilities() }
                             if capabilityProbe { companionCapability = try await client.companionStatus() }
                             if notesProbe.enabled {
                                 let notes = try await client.notesStatus()
@@ -192,6 +215,7 @@ final class ConnectSession: ChatRemoteSession {
                         if error as? ConnectFailure == .deviceRevoked { recordRevocation(peerID: peer.id); return }
                         onDisconnect?()
                         connected = false; inference = nil; capability = nil; companionCapability = nil; notesCapability = nil; lifecycle = foreground ? .reconnecting : .backgroundSuspendedExpected
+                        chat = nil; chatCapabilities = nil; chatProbed = false
                         diagnostic += ":" + (error as? ConnectFailure ?? .connectionLost).rawValue
                         status = (error as? ConnectFailure) == .certificateMismatch ? "Identity rejected" : "Offline"
                     }
@@ -204,6 +228,32 @@ final class ConnectSession: ChatRemoteSession {
         }
     }
     func retry() { capabilityProbe = true; notesProbe = NotesProbePolicy(); disconnect(); connect() }
+
+    /// Remote Chat v2 negotiation. The read-only `protocols` probe decides whether
+    /// frame 17 may ever be sent; an older computer simply keeps FAST/NORMAL/MAX.
+    /// A failed probe never drops the connection or causes a reconnect loop.
+    private func probeChat(channel: ConnectTransport, source: String, target: String, token: UUID) async {
+        do {
+            let speaks = try await RemoteChatClient.probe(transport: channel, source: source, target: target)
+            guard generation == token, connected else { return }
+            guard speaks else { chatProbed = true; return }
+            let client = RemoteChatClient(transport: channel, source: source, target: target)
+            let capabilities = try await client.capabilities()
+            guard generation == token, connected else { return }
+            chat = client; chatCapabilities = capabilities; chatProbed = true
+            onChatReady?()
+        } catch {
+            guard generation == token else { return }
+            if error as? ConnectFailure == .deviceRevoked { recordRevocation(peerID: target); return }
+            chatProbed = true  // Treated as unsupported for this connection; the next one asks again.
+        }
+    }
+
+    func refreshChatCapabilities() async {
+        guard let chat, connected else { return }
+        let token = generation
+        if let fresh = try? await chat.capabilities(), generation == token, connected { chatCapabilities = fresh }
+    }
     func unpair(_ id: String) throws {
         if selectedID == id { disconnect() }
         try repository.unpair(id); revokedPeers.remove(id); peers = repository.peers

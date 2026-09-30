@@ -20,7 +20,8 @@ from .network_diagnostics import ChannelDiagnostics
 from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
                            require_current, tls_context, FILE_REQUEST, FILE_RESPONSE,
                            INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE,
-                           NOTES_REQUEST, NOTES_RESPONSE, DRAW_REQUEST, DRAW_RESPONSE)
+                           NOTES_REQUEST, NOTES_RESPONSE, DRAW_REQUEST, DRAW_RESPONSE,
+                           CHAT_REQUEST, CHAT_RESPONSE)
 
 CONNECT_TIMEOUT = 3.0
 HANDSHAKE_TIMEOUT = 3.0
@@ -296,7 +297,8 @@ class Channel:
 
     def process(self, kind, payload):
         self.check()
-        allowed = (self.owner.allow_notes_message(self.peer) if kind in (NOTES_REQUEST, NOTES_RESPONSE)
+        allowed = (self.owner.allow_chat_message(self.peer) if kind in (CHAT_REQUEST, CHAT_RESPONSE)
+                   else self.owner.allow_notes_message(self.peer) if kind in (NOTES_REQUEST, NOTES_RESPONSE)
                    else self.owner.allow_draw_message(self.peer) if kind in (DRAW_REQUEST, DRAW_RESPONSE)
                    else self.owner.allow_studio_message(self.peer) if kind in (STUDIO_REQUEST, STUDIO_RESPONSE)
                    else self.owner.allow_inference_message(self.peer) if kind in (INFERENCE_REQUEST, INFERENCE_RESPONSE)
@@ -309,6 +311,14 @@ class Channel:
             raise ConnectError('connection_closed')
         if kind == HELLO:
             raise ConnectError('unexpected_hello')
+        if kind == CHAT_REQUEST:
+            chat = getattr(self.owner.service, 'chat', None)
+            if chat is None:
+                raise ConnectError('capability_unavailable')  # Never advertised; a peer that sends it anyway is closed.
+            chat.receive(payload, self, lambda raw: self.write(frame(CHAT_RESPONSE, raw)))
+            return
+        if kind == CHAT_RESPONSE:
+            raise ConnectError('invalid_response')  # This desktop never sends olive-chat/1 requests.
         if kind == NOTES_REQUEST:
             notes = self.owner.service.notes
             if notes is None:
@@ -609,6 +619,7 @@ class LocalNetwork:
         self.studio_rates = {}
         self.notes_rates = {}
         self.draw_rates = {}
+        self.chat_rates = {}
         self.targets = {}
         self.attempts = Budget(12, 60)
         self.audit_budget = Budget(30, 60)
@@ -789,6 +800,16 @@ class LocalNetwork:
                     return False
                 self.notes_rates[peer] = Budget(3000, 60)
             return self.notes_rates[peer].take()
+
+    def allow_chat_message(self, peer):
+        # Attachment and artifact chunks are one bounded frame per request/response,
+        # stop-and-wait, so control frames never queue behind a large transfer.
+        with self.lock:
+            if peer not in self.chat_rates:
+                if len(self.chat_rates) >= 256:
+                    return False
+                self.chat_rates[peer] = Budget(6000, 60)
+            return self.chat_rates[peer].take()
 
     def allow_draw_message(self, peer):
         with self.lock:
