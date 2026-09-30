@@ -24,6 +24,12 @@ enum ChatWire {
         "releasing_gpu", "preparing_image_engine", "generating_image", "preparing_audio_engine", "generating_speech",
         "preparing_video_engine", "generating_video", "saving"]
     static let operations: Set<String> = ["capabilities", "attachment_offer", "attachment_chunk", "start", "poll", "cancel", "artifact_chunk"]
+    /// Additive extensions this build parses. Asked for in `capabilities`; an older
+    /// computer refuses the argument (invalid_request) and is asked again without it.
+    static let extensions = ["mode_options/1"]
+    static func capabilitiesArguments(extended: Bool) -> ConnectJSON {
+        extended ? .object(["accept": .array(extensions.map(ConnectJSON.string))]) : .object([:])
+    }
 
     // MARK: Packets
 
@@ -60,7 +66,8 @@ enum ChatWire {
     /// The exact start arguments. Their fingerprint excludes the job id and time,
     /// so resending the same request after a lost acknowledgement is idempotent.
     static func startArguments(job: String, conversation: String, mode: String, voice: String?,
-                               messages: [(String, String)], attachments: [ChatAttachmentDescriptor]) throws -> ConnectJSON {
+                               messages: [(String, String)], attachments: [ChatAttachmentDescriptor],
+                               options: ConnectJSON? = nil) throws -> ConnectJSON {
         guard modes.contains(mode) else { throw ConnectFailure.capabilityUnavailable }
         _ = try ConnectJSON.string(job).uuid(); _ = try ConnectJSON.string(conversation).uuid()
         guard (1...24).contains(messages.count), messages.last?.0 == "user", attachments.count <= maximumAttachments else { throw ConnectFailure.inputTooLarge }
@@ -74,6 +81,11 @@ enum ChatWire {
         guard total <= 48000 else { throw ConnectFailure.inputTooLarge }
         var arguments: [String: ConnectJSON] = ["job_id": .string(job), "conversation_id": .string(conversation), "mode": .string(mode),
             "voice": voice.map(ConnectJSON.string) ?? .null, "messages": list, "attachments": .array(attachments.map(\.wire))]
+        // Options (VIDEO duration) are part of the request identity: 5 s and 20 s never collide.
+        if let options {
+            guard mode == "video", options.object != nil else { throw ConnectFailure.capabilityUnavailable }
+            arguments["options"] = options
+        }
         arguments["input_fingerprint"] = .string(ConnectJSON.object(arguments.filter { $0.key != "job_id" }).digest)
         return .object(arguments)
     }
@@ -98,7 +110,12 @@ enum ChatWire {
     }
 
     static func capabilities(_ r: ConnectJSON) throws -> ChatCapabilities {
-        try r.fields(["chat_protocol", "permission", "modes", "limits"])
+        try r.fields(["chat_protocol", "permission", "modes", "limits"], optional: ["extensions"])
+        var granted: [String] = []
+        if r["extensions"] != .null {
+            guard let list = r["extensions"].array, list.count <= 8 else { throw ConnectFailure.responseMalformed }
+            granted = try list.map { try StudioWire.bounded($0, 40) }.filter(extensions.contains)
+        }
         guard r["chat_protocol"] == .string(name), ["deny", "ask", "allow"].contains(r["permission"].string ?? ""),
               let modes = r["modes"].array, modes.count <= 32 else { throw ConnectFailure.responseMalformed }
         try r["limits"].fields(["chunk_bytes", "max_attachments", "max_output_bytes"])
@@ -109,7 +126,7 @@ enum ChatWire {
             // A newer computer may offer modes this phone does not know: ignore them.
             if Self.modes.contains(value.id), !parsed.contains(where: { $0.id == value.id }) { parsed.append(value) }
         }
-        return ChatCapabilities(permission: r["permission"].string!, modes: parsed, chunkBytes: Int(chunk))
+        return ChatCapabilities(permission: r["permission"].string!, modes: parsed, chunkBytes: Int(chunk), extensions: granted)
     }
 
     static func attachmentState(_ r: ConnectJSON, id: String) throws -> (present: Bool, received: Int64) {
@@ -119,7 +136,7 @@ enum ChatWire {
     }
 
     static func view(_ r: ConnectJSON, job: String, after: Int) throws -> ChatJobView {
-        try r.fields(["job_id", "state", "phase", "text", "offset", "total", "sources", "artifacts", "attribution", "error"])
+        try r.fields(["job_id", "state", "phase", "text", "offset", "total", "sources", "artifacts", "attribution", "error"], optional: ["progress"])
         guard r["job_id"] == .string(job), states.contains(r["state"].string ?? ""), phases.contains(r["phase"].string ?? "-") else { throw ConnectFailure.responseMalformed }
         let text = try r["text"].text()
         let offset = try r["offset"].number(0...Int64(maximumOutput)), total = try r["total"].number(0...Int64(maximumOutput))
@@ -134,7 +151,8 @@ enum ChatWire {
             error = code
         }
         return ChatJobView(jobID: job, state: r["state"].string!, phase: r["phase"].string!, text: text, offset: Int(offset), total: Int(total),
-                           sources: try sources.map(ChatSource.init), artifacts: try artifacts.map(ChatArtifact.init), attribution: attribution, error: error)
+                           sources: try sources.map(ChatSource.init), artifacts: try artifacts.map(ChatArtifact.init), attribution: attribution, error: error,
+                           progress: try ChatProgress(r["progress"]))
     }
 
     static func artifactChunk(_ response: Response, artifact: ChatArtifact, offset: Int64) throws -> Data {
@@ -183,9 +201,12 @@ struct RemoteModeCapability: Equatable, Sendable, Identifiable {
     let promptRequired: Bool
     let voices: [ChatVoice]
     let limitations: [String]
+    /// VIDEO details (mode_options/1). nil from a computer without the extension.
+    let video: VideoCapability?
 
     init(_ v: ConnectJSON) throws {
-        try v.fields(["id", "available", "reason", "inputs", "outputs", "citations", "stream", "cancel", "prompt_required", "tiers", "voices", "limitations"])
+        try v.fields(["id", "available", "reason", "inputs", "outputs", "citations", "stream", "cancel", "prompt_required", "tiers", "voices", "limitations"],
+                     optional: ["options"])
         try v["inputs"].fields(["image", "document", "note"])
         try v["inputs"]["image"].fields(["max", "max_bytes", "mimes"])
         try v["inputs"]["document"].fields(["max", "max_bytes", "mimes"])
@@ -209,17 +230,24 @@ struct RemoteModeCapability: Equatable, Sendable, Identifiable {
             return ChatVoice(id: try StudioWire.bounded(voice["id"], 80), name: try StudioWire.bounded(voice["name"], 120))
         }
         self.limitations = try limitations.map { try StudioWire.bounded($0, 40) }
+        let options = v["options"]
+        guard options == .null || options.object != nil else { throw ConnectFailure.responseMalformed }
+        if id == "video", let fields = options.object, !fields.isEmpty {
+            video = try VideoCapability(options)
+        } else {
+            video = nil
+        }
     }
 
     init(id: String, available: Bool, reason: String = "", imageMax: Int = 0, documentMax: Int = 0, documentMimes: [String] = [],
          noteMax: Int = 0, outputs: [String] = ["text"], citations: Bool = false, promptRequired: Bool = false,
-         voices: [ChatVoice] = [], limitations: [String] = []) {
+         voices: [ChatVoice] = [], limitations: [String] = [], video: VideoCapability? = nil) {
         self.id = id; self.available = available; self.reason = reason
         self.imageMax = imageMax; imageMaxBytes = 20 * 1024 * 1024
         self.documentMax = documentMax; documentMaxBytes = 32 * 1024 * 1024; self.documentMimes = documentMimes
         self.noteMax = noteMax; noteMaxBytes = 192 * 1024
         self.outputs = outputs; self.citations = citations; stream = outputs == ["text"]; self.promptRequired = promptRequired
-        self.voices = voices; self.limitations = limitations
+        self.voices = voices; self.limitations = limitations; self.video = video
     }
 
     func maximum(_ kind: String) -> Int { kind == "image" ? imageMax : kind == "document" ? documentMax : kind == "note" ? noteMax : 0 }
@@ -230,7 +258,10 @@ struct ChatCapabilities: Equatable, Sendable {
     let permission: String
     let modes: [RemoteModeCapability]
     let chunkBytes: Int
+    var extensions: [String] = []
     func mode(_ id: String) -> RemoteModeCapability? { modes.first { $0.id == id } }
+    /// The computer accepts `start.options` and reports structured progress.
+    var modeOptions: Bool { extensions.contains("mode_options/1") }
 }
 
 struct ChatAttribution: Codable, Equatable, Sendable {
@@ -343,5 +374,6 @@ struct ChatJobView: Sendable {
     let artifacts: [ChatArtifact]
     let attribution: ChatAttribution?
     let error: String?
+    var progress: ChatProgress? = nil
     var terminal: Bool { ChatWire.terminal.contains(state) }
 }

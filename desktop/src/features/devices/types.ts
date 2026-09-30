@@ -60,7 +60,18 @@ export interface Device {
     latency_ms: number | null;
   };
 }
+/** This computer's olive-chat/1 matrix, exactly what a paired phone is offered. */
+export interface RemoteChatSummary {
+  protocol: string;
+  groups: { id: string; modes: { id: string; available: boolean; reason: string; limitations: string[] }[] }[];
+  attachments: string[];
+  video: { image_to_video: boolean; maximum_seconds: number | null; long_form: boolean } | null;
+}
 export interface DevicesState {
+  /** Remote AI capabilities (null when Remote Chat is not attached in this build). */
+  remote_chat?: RemoteChatSummary | null;
+  /** Authoritative remote-control availability from the backend. */
+  mobile_controls?: { unavailable: string[]; provided_by: Record<string, string> };
   sync?: {
     state: string;
     peer: string | null;
@@ -171,3 +182,18 @@ export const permissionGroups = [
     ],
   ],
 ] as const;
+
+/** Future remote controls this computer cannot offer, labelled. The backend's
+ * list is authoritative; Chat is served by Remote AI and is never listed. */
+export function unavailableControls(data: Pick<DevicesState, "mobile_controls" | "capabilities">): string[] {
+  const labels = new Map<string, string>(permissionGroups.flatMap(([, items]) => [...items] as [string, string][]));
+  const provided = data.mobile_controls?.provided_by || { chat: "models.remote" };
+  const names = data.mobile_controls?.unavailable ?? [...labels.keys()].filter((cap) => {
+    const metadata = data.capabilities.find((c) => c.capability === cap);
+    return metadata && !(metadata.supported && !metadata.policy_disabled && OFFERED.includes(cap));
+  });
+  return names.filter((cap) => !(cap in provided) && labels.has(cap)).map((cap) => labels.get(cap) as string);
+}
+
+/** Capabilities this version offers as controls; everything else is listed as unavailable. */
+export const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read", "sync.notes", "sync.draw"];

@@ -344,6 +344,7 @@ class Host:
             'media.artifact_file': s.media.artifact_file, 'media.reuse': s.media.reuse,
             'media.engines': s.chat_media.refresh, 'media.voices': s.chat_media.voices,
             'media.select_voice': s.chat_media.select_voice,
+            'media.video_plan': s.chat_media.video_plan,
             'connections.discord_status': s.discord_transport.status,
             'connections.discord_destinations': s.discord_transport.destinations,
             'connections.discord_select': s.discord_transport.select_destination,

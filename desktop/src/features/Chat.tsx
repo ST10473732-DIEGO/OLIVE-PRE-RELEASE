@@ -42,6 +42,7 @@ import { RemoteTarget, RemoteAttribution, messageAttribution } from './chat/Remo
 import { MediaArtifacts, MediaProgress } from "./chat/MediaArtifacts";
 import { TaskCard, useChatTasks } from "./chat/TaskCard";
 import { MediaNotice, mediaPlaceholder, MEDIA_LABELS } from "./chat/MediaNotice";
+import { VideoDuration } from "./chat/VideoDuration";
 import { MEDIA_PRESETS, type PresetId } from "../../electron/presets";
 import { OliveLogo } from "../components/OliveLogo";
 import { presetLabel } from "../services/runtimeState";
@@ -83,7 +84,7 @@ export function Chat({
   chat: ChatRecord;
   setChat: (c: ChatRecord) => void;
   busy: boolean;
-  submit: (text: string, mode?: "Quick" | "Deep") => Promise<void>;
+  submit: (text: string, mode?: "Quick" | "Deep", extra?: { video_duration_seconds?: number }) => Promise<void>;
   cancel: () => void;
   report: (e: unknown) => void;
   /** Show a task's workspace (and optionally its live preview) in Studio. */
@@ -95,6 +96,9 @@ export function Chat({
   const [draftState, setDraftState] = useState({ chat: chat.id, text: chat.draft || "" });
   const draft = draftState.chat === chat.id ? draftState.text : chat.draft || "";
   const [mediaOpen,setMediaOpen]=useState(false);
+  // VIDEO length per conversation for this session; Auto (null) unless chosen.
+  const [videoDurations, setVideoDurations] = useState<Record<string, number | null>>({});
+  const videoDuration = videoDurations[chat.id] ?? null;
   const latestDraft = useRef(draftState);
   const [search, setSearch] = useState("");
   const [historyOpen, setHistoryOpenState] = useState(initialHistory);
@@ -180,7 +184,7 @@ export function Chat({
     setDraftState({ chat: chat.id, text: "" });
     latestDraft.current = { chat: chat.id, text: "" };
     setChat({ ...chat, draft: "" });
-    void submit(text);
+    void submit(text, undefined, chat.preset === "video" && videoDuration !== null ? { video_duration_seconds: videoDuration } : undefined);
   };
   const updateDraft = (text: string) => {
     setDraftState({ chat: chat.id, text });
@@ -403,9 +407,12 @@ export function Chat({
             <span className="grow">Remote AI shares up to 24 visible messages with the selected paired device. Text only; no attachments, tools or private context. Failures require an explicit retry or a change to This device.</span>
           </div>
         )}
-        {mediaMode && preset && (
+        {mediaMode && preset && (<>
           <MediaNotice chat={chat} preset={preset} busy={busy} openTools={() => setMediaOpen(true)} report={report} />
-        )}
+          {preset.id === "video" && preset.available !== false && !chat.run_on &&
+            <VideoDuration text={draft} images={chat.images?.length || 0} value={videoDuration} busy={busy}
+              onChange={(seconds) => setVideoDurations((all) => ({ ...all, [chat.id]: seconds }))} />}
+        </>)}
         {visionBlocked && preset && (
           <div className="notice chat-notice" data-tone="warning" role="status">
             <AlertTriangle size={14} aria-hidden="true" />
@@ -638,7 +645,7 @@ export function Chat({
             <GrowingComposer
               ref={composer}
               aria-label="Message OLIVE"
-              placeholder={mediaPlaceholder(chat.preset) || "Ask, research a topic, or explore an attached document…"}
+              placeholder={mediaPlaceholder(chat.preset, preset?.capabilities) || "Ask, research a topic, or explore an attached document…"}
               value={draft}
               onChange={(e) => {
                 updateDraft(e.target.value);

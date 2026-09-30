@@ -20,8 +20,8 @@ from threading import Event, RLock
 
 from ..agent.permission_service import PermissionDecision, PermissionService
 from .chat_protocol import (CAPABILITY, CHUNK_BYTES, ERRORS, MAX_OUTPUT, MAX_TEXT_DELTA, PHASES, PROTOCOL,
-                            TERMINAL, ChatRequest, attachment_ref, artifact_item, attribution, response,
-                            source_item, unpack)
+                            TERMINAL, ChatRequest, accepted, attachment_ref, artifact_item, attribution, progress_item,
+                            response, source_item, unpack)
 from .chat_store import AttachmentStaging, ChatStore
 from .contracts import ConnectError, identifier
 
@@ -49,6 +49,7 @@ class Job:
     sources: list = field(default_factory=list)
     artifacts: list = field(default_factory=list)
     attribution: dict = field(default_factory=dict)
+    progress: dict | None = None  # Structured long-video progress (extension-aware phones only).
     future: object = None
     task: object = None
     cancel: object = None  # asyncio.Event on the model loop, created when scheduled.
@@ -71,11 +72,12 @@ class Sink:
     def cancelled(self):
         return self.job.cancel
 
-    def phase(self, code):
+    def phase(self, code, detail=None):
         if code in PHASES:
             with self.owner.lock:
                 if self.job.state not in TERMINAL:
                     self.job.phase = code
+                    self.job.progress = progress_item(detail)
 
     def text(self, delta):
         if type(delta) is not str or not delta:
@@ -226,9 +228,14 @@ class RemoteChatService:
         if op == 'capabilities':
             with self.service.repository.transaction(timeout=.25, read_only=True) as db:
                 _, decision = self._authority(db, req, channel, permission=False)
-            modes = self.runtime.capabilities()
-            return dict(chat_protocol=PROTOCOL, permission=decision.value, modes=modes,
-                        limits=dict(chunk_bytes=CHUNK_BYTES, max_attachments=4, max_output_bytes=MAX_OUTPUT)), b''
+            extensions = accepted(a.get('accept', []))
+            # Earlier phones parse exact key sets: they get the original shape.
+            modes = self.runtime.capabilities(extended=True) if extensions else self.runtime.capabilities()
+            result = dict(chat_protocol=PROTOCOL, permission=decision.value, modes=modes,
+                          limits=dict(chunk_bytes=CHUNK_BYTES, max_attachments=4, max_output_bytes=MAX_OUTPUT))
+            if extensions:
+                result['extensions'] = extensions
+            return result, b''
         if op == 'attachment_offer':
             with self.service.repository.transaction(timeout=.25, read_only=True) as db:
                 self._authority(db, req, channel)
@@ -330,9 +337,14 @@ class RemoteChatService:
         if value is None:
             return dict(job_id=job_id, state='not_received', phase='', text='', offset=after, total=0,
                         sources=[], artifacts=[], attribution={}, error=None)
+        extended = None
         if isinstance(value, Job):
             state, phase, error, full = value.state, value.phase, value.error, value.text
             sources, artifacts, attrib = value.sources, value.artifacts, value.attribution
+            # Only a phone that sent options (so parses the extension) sees progress.
+            if 'options' in value.arguments:
+                extended = value.progress if value.state not in TERMINAL else None
+                extended = {'progress': extended}
         else:
             state, phase, error, full = value['state'], '', value['error'], value['text']
             sources, artifacts, attrib = value['sources'], value['artifacts'], value['attribution']
@@ -343,9 +355,12 @@ class RemoteChatService:
         while cut > after and cut < len(encoded) and (encoded[cut] & 0xC0) == 0x80:
             cut -= 1
         delta = encoded[after:cut].decode('utf-8') if text else ''
-        return dict(job_id=job_id, state=state, phase=phase if state not in TERMINAL else '',
+        view = dict(job_id=job_id, state=state, phase=phase if state not in TERMINAL else '',
                     text=delta, offset=after, total=len(encoded), sources=list(sources), artifacts=list(artifacts),
                     attribution=dict(attrib) if attrib else {}, error=error if error in ERRORS else (None if error is None else 'inference_failed'))
+        if extended is not None:
+            view.update(extended)
+        return view
 
     def _artifact_chunk(self, req, channel):
         a = req.arguments
@@ -425,7 +440,8 @@ class RemoteChatService:
             job.cancel.set()
         try:
             await asyncio.to_thread(self._admit, job)
-            async with asyncio.timeout(TIMEOUTS[job.mode]):
+            deadline = getattr(self.runtime, 'deadline', None)
+            async with asyncio.timeout(deadline(job) if deadline else TIMEOUTS[job.mode]):
                 await self.runtime.run(job, Sink(self, job))
             if not job.text.strip() and not job.artifacts:
                 raise ConnectError('inference_failed')

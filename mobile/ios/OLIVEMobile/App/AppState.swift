@@ -49,6 +49,9 @@ final class AppState {
     // Remote Chat v2 (olive-chat/1): attachments, media results and recovery.
     /// AUDIO voice for the next request only; nil uses the computer's default.
     var voice: String?
+    /// VIDEO length for this conversation: nil is Auto (a length stated in the
+    /// prompt, else the computer's default). Never silently carried to a new chat.
+    var videoDuration: Double?
     var draftAttachments: [StoredChatAttachment] = []
     var preparing = 0
     var attachmentNotice: String?

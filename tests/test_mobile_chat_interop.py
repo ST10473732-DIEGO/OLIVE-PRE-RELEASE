@@ -20,6 +20,7 @@ import tempfile
 import threading
 import time
 import unittest
+import unittest.mock
 import uuid
 from pathlib import Path
 
@@ -178,6 +179,40 @@ class SwiftChatInteropTests(unittest.TestCase):
         self.assertEqual(self.done({'cmd': 'cancel', 'job': slow})['state'], 'cancelled')
         result = self.done({'cmd': 'follow', 'job': slow})
         self.assertEqual((result['state'], result['artifacts']), ('cancelled', []))
+
+    def test_video_duration_image_and_progress_between_real_implementations(self):
+        self.runtime.animate = True
+        capabilities = self.done({'cmd': 'capabilities'})
+        self.assertEqual(capabilities['extensions'], ['mode_options/1'])
+        video = next(m for m in capabilities['modes'] if m['id'] == 'video')
+        self.assertEqual((video['image_max'], video['video_i2v'], video['video_max_ms']), (1, True, 180000))
+        # The phone's parser agrees with the desktop's on the shared vectors.
+        vectors = json.loads((Path(__file__).parent / 'fixtures' / 'video_duration_vectors.json').read_text('utf-8'))
+        for text, seconds in vectors:
+            self.assertEqual(self.done({'cmd': 'duration', 'text': text}), None if seconds is None else round(seconds * 1000), text)
+        image = self.root / 'sky.png'
+        image.write_bytes(png(32, 18, lambda x, y: (40, 120, 230) if y < 12 else (40, 160, 60)))
+        descriptor = self.done({'cmd': 'upload', 'path': str(image), 'kind': 'image', 'mime': 'image/png', 'name': 'sky.png'})
+        job = str(uuid.uuid4())
+        start = {'cmd': 'start', 'job': job, 'conversation': str(uuid.uuid4()), 'mode': 'video', 'text': 'Animate the clouds',
+                 'attachments': [descriptor], 'options': {'target_duration_ms': 20000, 'duration_source': 'explicit'}}
+        self.done(start); self.done(start)  # A resend is the same request: one run.
+        result = self.done({'cmd': 'follow', 'job': job})
+        self.assertEqual(result['state'], 'completed')
+        self.assertEqual(result['artifacts'][0]['duration_ms'], 20000)
+        self.assertTrue(any(step.startswith('Generating segment') for step in result['progress']), result['progress'])
+        self.assertEqual(len([r for r in self.runtime.runs if r[0] == job]), 1)
+        # Same job id, different length: a changed request, never a silent reuse.
+        changed = dict(start, options={'target_duration_ms': 5000, 'duration_source': 'explicit'})
+        self.assertEqual(self.run_command(changed).get('failed'), 'changed_duplicate')
+
+    def test_older_desktop_without_extension_still_negotiates_and_refuses_video_images(self):
+        from olive.connect import chat_protocol
+        with unittest.mock.patch.dict(chat_protocol.OPTIONAL, {'capabilities': set(), 'start': set()}):
+            capabilities = self.done({'cmd': 'capabilities'})  # accept refused, asked again without it
+            self.assertEqual(capabilities['extensions'], [])
+            video = next(m for m in capabilities['modes'] if m['id'] == 'video')
+            self.assertEqual((video['image_max'], video['video_i2v']), (0, None))
 
     def test_old_desktop_is_not_sent_olive_chat_frames(self):
         self.desktop.chat = None  # A desktop build without olive-chat/1.

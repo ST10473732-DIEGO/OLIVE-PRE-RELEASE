@@ -30,7 +30,53 @@ extension AppState {
         let mode = selectedMode, state = availability(mode)
         guard state == .available else { return state == .offline ? "Computer offline" : state.explanation }
         if preparing > 0 { return "Preparing attachment…" }
-        return attachmentProblem(for: mode)
+        return attachmentProblem(for: mode) ?? (mode.id == "video" ? videoProblem : nil)
+    }
+
+    // MARK: VIDEO length
+
+    /// VIDEO details the computer advertised (mode_options/1); nil from an older computer.
+    var videoCapability: VideoCapability? { chatCapabilities?.mode("video")?.video }
+
+    /// What the next VIDEO request asks for: the chosen length, else one stated in
+    /// the prompt (the computer's own parser rules), else nil for its default.
+    var videoTarget: (seconds: Double, source: String)? {
+        guard let capability = videoCapability, capability.configurable else { return nil }
+        if let chosen = videoDuration { return (chosen, "explicit") }
+        if let stated = VideoDuration.parse(draft) { return (stated.seconds, "prompt") }
+        return nil
+    }
+
+    /// Compact state for the composer: "Auto · 20 s", "20 s", "Auto".
+    var videoDurationLabel: String {
+        guard let target = videoTarget else {
+            let fallback = videoCapability.map { " · " + VideoDuration.label(Double($0.defaultMS) / 1000) } ?? ""
+            return "Auto" + fallback
+        }
+        return (target.source == "explicit" ? "" : "Auto · ") + VideoDuration.label(target.seconds)
+    }
+
+    /// Refused before sending, in the computer's configured terms.
+    var videoProblem: String? {
+        guard let target = videoTarget, let capability = videoCapability else { return nil }
+        let ms = Int64((target.seconds * 1000).rounded())
+        if ms < max(capability.minimumMS, 1) {
+            return "Choose a video length of at least \(VideoDuration.label(Double(capability.minimumMS) / 1000))."
+        }
+        if ms > capability.maximumMS {
+            return "VIDEO on this computer is limited to \(VideoDuration.label(Double(capability.maximumMS) / 1000)) per video. Choose a shorter length."
+        }
+        return nil
+    }
+
+    /// Factual expectation for long lengths; never an invented ETA.
+    var videoPlanNote: String? {
+        guard let target = videoTarget, let capability = videoCapability, videoProblem == nil else { return nil }
+        let segments = capability.segments(forMS: Int64((target.seconds * 1000).rounded()))
+        guard segments > 1 else { return nil }
+        var note = "\(VideoDuration.label(target.seconds)) target · \(segments) generation segments"
+        if Int64(target.seconds * 1000) >= capability.longWarningMS { note += " · may take several minutes" }
+        return note
     }
 
     /// Revalidated whenever the mode or the attachments change; nothing is dropped silently.
@@ -45,7 +91,11 @@ extension AppState {
             let kind = item.descriptor.kind, limit = capability.maximum(kind)
             counts[kind, default: 0] += 1
             if limit == 0 {
-                if mode.id == "video" { return "VIDEO currently supports text prompts only. Remove the attachment or switch mode." }
+                if mode.id == "video" {
+                    return kind == "image" || capability.imageMax == 0
+                        ? "VIDEO currently supports text prompts only. Remove the attachment or switch mode."
+                        : "VIDEO accepts one starting image, not documents or notes. Remove the attachment or switch mode."
+                }
                 if mode.id == "now" { return "OLIVE NOW answers public questions only. Remove the attachment or switch mode." }
                 return mode.short + " doesn't accept this attachment. Remove it or switch mode."
             }
@@ -54,6 +104,7 @@ extension AppState {
             }
             if item.descriptor.size > capability.maximumBytes(kind) { return "This file is too large for OLIVE \(mode.short) on this computer." }
             if counts[kind, default: 0] > limit {
+                if mode.id == "video", kind == "image" { return "OLIVE VIDEO currently accepts one starting image. Remove the extra image." }
                 return mode.id == "reimagine" ? "REIMAGINE edits one image at a time. Remove the extra image."
                     : "Too many attachments for \(mode.short) (up to \(limit) of this kind)."
             }
@@ -101,6 +152,7 @@ extension AppState {
     func startNewConversation() {
         conversationID = UUID().uuidString.lowercased()
         restoringMode = true; preset = "normal"; restoringMode = false
+        videoDuration = nil
         saveSession()
         collectLocalFiles()
     }
@@ -196,9 +248,20 @@ extension AppState {
         let peerID = chatConnection?.selectedID ?? "", jobID = UUID().uuidString.lowercased()
         let context = InferenceWire.context(history: history, user: text)
         let arguments: ConnectJSON
+        // VIDEO length travels only to a computer that accepts options (mode_options/1).
+        var options: ConnectJSON?, segments: Int?
+        if mode.id == "video", chatCapabilities?.modeOptions == true {
+            if let target = videoTarget, let capability = videoCapability {
+                let ms = Int64((target.seconds * 1000).rounded())
+                options = .object(["target_duration_ms": .int(ms), "duration_source": .string(target.source)])
+                segments = capability.segments(forMS: ms)
+            } else {
+                options = .object([:])  // Auto: the computer applies its default.
+            }
+        }
         do {
             arguments = try ChatWire.startArguments(job: jobID, conversation: conversationID, mode: mode.id, voice: spokenVoice,
-                                                    messages: context, attachments: attached.map(\.descriptor))
+                                                    messages: context, attachments: attached.map(\.descriptor), options: options)
         } catch { chatStatus = ConnectFailure.inputTooLarge.localizedDescription; return }
         var user = ChatMessage(id: UUID(), role: .user, blocks: [.text(text)])
         user.attachments = attached
@@ -207,7 +270,7 @@ extension AppState {
         messages.append(user); messages.append(answer)
         let record = PendingChatRequest(jobID: jobID, conversationID: conversationID, peerID: peerID, mode: mode.id, user: text,
             userID: user.id.uuidString.lowercased(), assistantID: answerID.uuidString.lowercased(), attachments: attached,
-            accepted: false, stopRequested: false, received: "", createdAt: Date())
+            accepted: false, stopRequested: false, received: "", createdAt: Date(), videoSegments: segments)
         pending = record; persistPending()
         currentUserID = user.id; currentAnswerID = answerID
         chatGeneration = token; admittedRequest = nil; clearedDraftRevision = nil
@@ -316,7 +379,7 @@ extension AppState {
         let mode = ChatMode.named(record.mode)
         var text = pending?.received ?? ""
         var after = text.utf8.count
-        let deadline = ContinuousClock.now.advanced(by: mode.patience)
+        let deadline = ContinuousClock.now.advanced(by: mode.patience(videoSegments: record.videoSegments))
         var saved = ContinuousClock.now
         while true {
             let offset = after
@@ -325,7 +388,8 @@ extension AppState {
             text += view.text; after += view.text.utf8.count
             streamed = (record.jobID, text)
             if !view.text.isEmpty, firstResponseSeconds == nil { firstResponseSeconds = requestStarted.duration(to: .now).secondsValue }
-            let phase = ChatText.phase(view.phase)
+            // Structured long-video progress ("segment 3 of 10") when the computer reports it.
+            let phase = view.progress?.text ?? ChatText.phase(view.phase)
             updateAnswer(record, text: text, status: view.terminal ? nil : phase ?? (text.isEmpty ? "Working on your computer…" : "Receiving"))
             chatStatus = phase ?? (text.isEmpty ? "Working" : "Receiving")
             if ContinuousClock.now - saved > .seconds(2) { pending?.received = text; persistPending(); saved = .now }

@@ -136,6 +136,15 @@ def personal_request(text):
     return _step('tasks.create', title=title[:1].upper() + title[1:])
 
 
+def verbatim_reply(text):
+    """"Reply with exactly: <words>" asks only for an answer. The words are data:
+    a token such as "video-stop-recovery-ready" must never read as a desktop
+    stop or any other action."""
+    if re.fullmatch(r'(?:please\s+)?reply with exactly:\s*\S[^\n]{0,200}', text.strip(), re.I):
+        return _step('conversation.answer', query=text.strip())
+    return None
+
+
 def ordinary_request(text):
-    return (file_transfer(text) or directory_request(text) or git_request(text) or system_request(text)
-            or personal_request(text))
+    return (verbatim_reply(text) or file_transfer(text) or directory_request(text) or git_request(text)
+            or system_request(text) or personal_request(text))

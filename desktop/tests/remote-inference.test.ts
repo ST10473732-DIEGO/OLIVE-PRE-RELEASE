@@ -55,7 +55,10 @@ describe("Remote AI presentation and narrow bridge", () => {
     }));
     expect(html).toContain("Stop remote inference");
     expect(html).toContain("OLIVE FAST");
-    expect(html).toContain("unavailable remotely");
+    // The stale "text-only / unavailable remotely" wording is gone; capabilities come from the backend matrix.
+    expect(html).not.toContain("unavailable remotely");
+    expect(html).not.toMatch(/text-only/i);
+    expect(html).toContain("capabilities are unavailable right now");
     expect(html).not.toContain("GPU");
   });
   it("reuses trusted Ask with a bounded metadata preview", () => {

@@ -97,7 +97,8 @@ final class ChatUITests: XCTestCase {
     }
 
     @MainActor func testPlusMenuChipsAndModeRevalidation() {
-        let ui = ChatUI.launch([], seed: false)
+        // An older computer without VIDEO image-to-video: the photo is refused truthfully.
+        let ui = ChatUI.launch(["--ui-test-legacy-video"], seed: false)
         ui.app.buttons["chat.attach"].tap()
         for source in ["photos", "files", "notes", "drawings"] { XCTAssertTrue(ui.app.buttons["chat.attach." + source].exists, source) }
         ui.app.buttons["chat.attach.photos"].tap()
@@ -112,6 +113,33 @@ final class ChatUITests: XCTestCase {
         ui.app.buttons["chat.attachment.remove"].firstMatch.tap()
         XCTAssertFalse(chip.waitForExistence(timeout: 2))
         XCTAssertTrue(ui.app.buttons["chat.send"].isEnabled)
+    }
+
+    @MainActor func testVideoLengthAutoCustomAndImageToVideo() {
+        let ui = ChatUI.launch([], seed: false)
+        ui.mode("video")
+        let length = ui.app.buttons["chat.videoDuration"]
+        XCTAssertTrue(length.waitForExistence(timeout: 5))
+        XCTAssertTrue(length.label.contains("Auto"), length.label)
+        ui.type("Create a 20 second cinematic shot of rain")
+        XCTAssertTrue(length.label.contains("Auto · 20 s"), "a length in the message is understood without the picker")
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.videoPlan"].label.contains("10 generation segments"))
+        length.tap()
+        for option in ["auto", "2", "5", "10", "20", "30", "60"] {
+            XCTAssertTrue(ui.app.buttons["chat.videoDuration.option." + option].waitForExistence(timeout: 5), option)
+        }
+        let custom = ui.app.textFields["chat.videoDuration.custom"]
+        custom.tap(); custom.typeText("37")
+        ui.screenshot(self, "chat-video-length-sheet")
+        ui.app.buttons["chat.videoDuration.apply"].tap()
+        XCTAssertTrue(length.waitForExistence(timeout: 5)); XCTAssertTrue(length.label.contains("37 s"), length.label)
+        ui.app.buttons["chat.attach"].tap(); ui.app.buttons["chat.attach.photos"].tap()
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.attachment.photo"].waitForExistence(timeout: 15))
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.videoPlan"].label.contains("Image → Video"))
+        XCTAssertTrue(ui.app.buttons["chat.send"].isEnabled)
+        ui.screenshot(self, "chat-video-image-to-video")
+        ui.send(timeout: 60)
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.video.player"].firstMatch.waitForExistence(timeout: 30))
     }
 
     @MainActor func testNormalWithPhotoAndNoteSnapshot() {

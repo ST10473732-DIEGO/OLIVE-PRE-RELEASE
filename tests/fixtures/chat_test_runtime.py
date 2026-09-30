@@ -17,7 +17,7 @@ import uuid
 import wave
 from pathlib import Path
 
-from olive.connect.chat_protocol import MAX_BYTES, MIMES
+from olive.connect.chat_protocol import MAX_BYTES, MIMES, video_options
 from olive.connect.contracts import ConnectError
 from olive.services.remote_chat_runtime import RemoteChatRuntime
 
@@ -67,19 +67,20 @@ class ChatTestRuntime:
     """Every mode available unless ``unavailable`` names it."""
     validate = RemoteChatRuntime.validate
 
-    def __init__(self, root, *, unavailable=(), video=None, image_edit=True, delay=0.02):
+    def __init__(self, root, *, unavailable=(), video=None, image_edit=True, delay=0.02, animate=False):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.unavailable = set(unavailable)
         self.video = video or fake_mp4
         self.image_edit = image_edit
+        self.animate = animate   # A computer with validated VIDEO image-to-video and long-form assembly.
         self.delay = delay
         self.files = {}
         self.runs = []          # (job_id, mode, attachment kinds) for assertions
         self.received = []      # attachment snapshots the "desktop" consumed
         self.voice_list = [dict(id='default', name='Test voice'), dict(id='calm', name='Calm test voice')]
 
-    def capabilities(self):
+    def _modes(self):
         def mode(key, *, image=0, document=0, note=0, outputs=('text',), citations=False, prompt=False,
                  limitations=(), voices=()):
             available = key not in self.unavailable
@@ -90,14 +91,33 @@ class ChatTestRuntime:
                                     note=dict(max=note, max_bytes=MAX_BYTES['note'])),
                         outputs=list(outputs), citations=citations, stream=outputs == ('text',), cancel=True,
                         prompt_required=prompt, tiers=[], voices=list(voices), limitations=list(limitations))
-        return [mode('fast', note=2), mode('normal', image=4, note=2), mode('max', image=4, note=2),
+        modes_list = [mode('fast', note=2), mode('normal', image=4, note=2), mode('max', image=4, note=2),
                 mode('uncensored', note=2, limitations=('automatic_tier',)),
                 mode('now', citations=True, limitations=('public_web_only',)),
                 mode('deep', document=4, note=2, image=3, citations=True),
                 mode('reimagine', image=1 if self.image_edit else 0, outputs=('image',), prompt=True,
                      limitations=('one_reference_image',) if self.image_edit else ('text_only',)),
                 mode('audio', outputs=('audio',), prompt=True, limitations=('speech_only',), voices=self.voice_list),
-                mode('video', outputs=('video',), prompt=True, limitations=('text_only', 'video_with_audio'))]
+                mode('video', image=1 if self.animate else 0, outputs=('video',), prompt=True,
+                     limitations=('one_start_image', 'video_with_audio', 'long_video') if self.animate
+                     else ('text_only', 'video_with_audio'))]
+        return modes_list
+
+    def capabilities(self, extended=False):
+        modes = self._modes()
+        if extended:
+            for entry in modes:
+                entry['options'] = video_options(self.video_capability()) if entry['id'] == 'video' else {}
+        return modes
+
+    def video_capability(self):
+        return {'supports_text_to_video': True, 'supports_image_to_video': self.animate, 'supports_audio': True,
+                'native_segment_seconds': 49 / 24, 'fps': 24, 'max_images': 1 if self.animate else 0,
+                'accepted_attachment_kinds': ['image'] if self.animate else [],
+                'continuation': 'last_frame' if self.animate else 'independent',
+                'duration': {'configurable': self.animate, 'default_seconds': 2.0, 'minimum_seconds': 0.5,
+                             'maximum_seconds': 180.0 if self.animate else 49 / 24, 'long_video_warning_seconds': 30.0,
+                             'presets': [2, 5, 10, 20, 30, 60]}}
 
     # ------------------------------------------------------------ helpers
     async def _pause(self, sink, seconds):
@@ -212,7 +232,15 @@ class ChatTestRuntime:
         sink.phase({'image': 'preparing_image_engine', 'audio': 'preparing_audio_engine', 'video': 'preparing_video_engine'}[kind])
         await self._pause(sink, 0.2)
         sink.phase({'image': 'generating_image', 'audio': 'generating_speech', 'video': 'generating_video'}[kind])
-        await self._pause(sink, 8 if slow else 0.3)
+        target = ((job.arguments.get('options') or {}).get('target_duration_ms') or 2000) / 1000
+        if kind == 'video' and self.animate:
+            segments = max(1, -(-round(target * 24 - 1) // 48))
+            for index in range(1, segments + 1):
+                sink.phase('generating_video', {'stage': 'segment', 'current': index, 'total': segments})
+                await self._pause(sink, (8 if slow else 0.3) / segments)
+            sink.phase('saving', {'stage': 'stitching', 'current': segments, 'total': segments})
+        else:
+            await self._pause(sink, 8 if slow else 0.3)
         if kind == 'image':
             references = [inp for inp in job.inputs if inp['ref']['kind'] == 'image']
             if references:
@@ -231,8 +259,9 @@ class ChatTestRuntime:
             artifact = self._save('audio', data, 'audio/wav', '.wav', job.mode, duration_seconds=1.5)
         else:
             data = self.video() if callable(self.video) else Path(self.video).read_bytes()
+            images = [inp for inp in job.inputs if inp['ref']['kind'] == 'image']
             artifact = self._save('video', data, 'video/mp4', '.mp4', job.mode, width=320, height=240,
-                                  duration_seconds=2.0, has_audio=True)
+                                  duration_seconds=target, has_audio=True, source_ids=['0' * 32] if images else [])
         sink.phase('saving')
         sink.attribute({'image': 'IMAGE', 'audio': 'SPEECH', 'video': 'VIDEO'}[kind])
         sink.text({'image': 'Image generated on your computer.', 'audio': 'Speech generated on your computer.',

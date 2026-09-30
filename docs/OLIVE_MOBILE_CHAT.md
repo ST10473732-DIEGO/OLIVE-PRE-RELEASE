@@ -42,10 +42,54 @@ launchable ("available" is not "resident"). Nothing is hard-coded on the phone.
 | DEEP | `ChatResearchService` over documents indexed for this remote conversation; `research_intent` decides documents / web / combined; images use the existing DEEP vision supplement (`qwen3-vl:8b` when installed) | PDF, text, Markdown, code, DOCX when python-docx is present (≤4); notes (≤2, indexed as Markdown); images (≤3, if vision is installed) | text + D/S sources |
 | REIMAGINE | `ChatMediaService` (ComfyUI image workflows, residency lock, GPU hand-off) | prompt required; **one** reference image when the edit workflow is ready | PNG artifact |
 | AUDIO | `ChatMediaService` VoiceStudio speech | prompt required; speech only (no music/singing/SFX); voice per request from the computer's listed voices | WAV artifact |
-| VIDEO | `ChatMediaService` LTX text-to-video | **text only** (`attachment_unsupported_mode` for images) | MP4 artifact (with audio when the workflow produces it) |
+| VIDEO | `ChatMediaService` LTX 2.3 long-form pipeline (see [OLIVE_VIDEO.md](OLIVE_VIDEO.md)); the same planner as desktop Chat | prompt required; **one** starting image when the computer advertises image-to-video (`video_one_image` for more); documents and notes refused; a computer without image-to-video keeps `attachment_unsupported_mode` | one MP4 artifact of the requested length, with audio |
 
 Limits: 4 attachments per message; images ≤20 MB, documents ≤32 MB (text types
 ≤2 MB on the phone), notes ≤192 KB; 128 KiB chunks.
+
+## VIDEO length and image-to-video (`mode_options/1`)
+
+Earlier phone builds parse every olive-chat/1 object with an exact key set, so
+new fields are **negotiated**, never simply added:
+
+1. The phone sends `capabilities` with `{"accept": ["mode_options/1"]}`. A
+   computer that predates the extension refuses the argument
+   (`invalid_request`) and the phone asks again with `{}`. A phone that does not
+   ask receives byte-identical v1 shapes (tested).
+2. With the extension, the result carries `extensions: ["mode_options/1"]` and
+   every mode an `options` object (empty except VIDEO):
+   `supports_text_to_video`, `supports_image_to_video`, `supports_audio`,
+   `native_segment_ms` (2042), `fps`, `max_images`, `accepted_attachment_kinds`,
+   `continuation` (`last_frame` / `independent`) and `duration`
+   {`configurable`, `default_ms`, `minimum_ms`, `maximum_ms`,
+   `long_warning_ms`, `presets_ms`}. Integers only: canonical JSON has no
+   fractions, so durations travel in milliseconds. Unknown keys inside
+   `options` are ignored by the phone; unknown top-level keys are still refused.
+3. A VIDEO `start` may carry optional `options`:
+   `{"target_duration_ms": 20000, "duration_source": "explicit" | "prompt"}`,
+   or `{}` for Auto (the computer resolves the prompt / default). Options are
+   VIDEO-only, bounded (`video_duration_invalid`, `video_duration_too_long`,
+   `invalid_request` for any other key) and **part of the input fingerprint**
+   when present: the same prompt at 5 s and 20 s, or with image A and image B,
+   are different requests; the same job id with a different length is
+   `changed_duplicate`. Without options the fingerprint is unchanged from
+   earlier builds.
+4. Polls of a job started with `options` carry `progress` (`null` or
+   `{"stage", "current", "total"}`; stages `segment`, `continuation`,
+   `stitching`, `encoding`, `verifying`, `saving`). The phone shows
+   *Generating segment 3 of 10…*. Phases stay the v1 set, so nothing breaks for
+   older phones.
+5. The remote job deadline scales with the planned segments; so does the phone's
+   own patience. Disconnects, restarts and downloads behave exactly as above:
+   a long VIDEO is polled by job id, never regenerated, and its (larger) MP4 is
+   transferred in 128 KiB chunks with resume and SHA-256 verification.
+
+The phone shows a compact **Duration · Auto** control next to the mode when the
+computer's VIDEO is configurable: Auto (a length stated in the message, via a
+port of the desktop's deterministic parser that shares test vectors with it,
+else the computer's default), 2 s, 5 s, 10 s, 20 s, 30 s, 1 min, or Custom in
+seconds or minutes. Lengths beyond the computer's advertised maximum are refused
+before sending. *Image → Video* appears when one image is attached.
 
 ## Protocol (`olive/connect/chat_protocol.py`, `ChatWire.swift`)
 
@@ -107,6 +151,25 @@ filesystem path. The phone downloads with `artifact_chunk` into
 the content type (PNG header + dimensions, RIFF/WAVE, MP4 `ftyp`) before the
 file becomes viewable. Only the phone whose completed job produced an artifact
 may read it. Downloading a result never repeats generation.
+
+## Desktop Remote AI card
+
+Devices → a paired phone → **Remote AI** shows the matrix this computer serves
+to paired phones, from `RemoteChatRuntime.summary()` (the same
+`capabilities()` a phone receives), grouped CHAT / RESEARCH / CREATE / CONTENT.
+A mode that is installed and launchable is shown available; a missing one is
+amber *Needs setup*. VIDEO adds *Image → Video · up to 3 min* from its actual
+capability. The permission (Off / Ask / Allow) is shown separately and still
+governs access; capability visibility never changes authorization. The card
+states that Remote AI never grants terminal, desktop control, file-system or app
+access.
+
+The permissions tab's former "Unavailable — Not in this version: Chat, Tasks, …"
+line was stale: Chat is served by Remote AI. The list now comes from
+`olive/connect/mobile_capabilities.py` (`FUTURE_CONTROLS`, `PROVIDED_BY`):
+*Additional mobile controls · Not available in this version: Tasks · Calendar ·
+Reminders · Notifications · Shared folders · Full filesystem · Terminal · Launch
+apps · Desktop Control · Install software.* None of these were implemented.
 
 ## Authority boundary
 
@@ -186,8 +249,16 @@ unknown future artifact kind renders a safe placeholder.
 - Interop: `tests/test_mobile_chat_interop.py` runs the app's own Swift
   `RemoteChatClient` / `ChatWire` / `ChatMediaStore` against the Python service
   (run by `mobile/ios/scripts/check-connect-interop.sh`).
-- iOS unit: `RemoteChatTests`. iOS UI (deterministic, in-process fixture
-  computer, `--ui-test-chat-fixture`): `ChatUITests`.
+- VIDEO length / image-to-video: `tests/test_connect_chat_video.py`
+  (extension negotiation, original shapes for older phones, options
+  validation, fingerprint, progress, one image, Stop, long chunked transfer,
+  Devices snapshot), `tests/test_video_duration.py` (parser vectors shared with
+  Swift, precedence, policy, planner, protocol vectors), `tests/test_video_long.py`
+  (real pipeline with a fake engine and real FFmpeg).
+- iOS unit: `RemoteChatTests`, `RemoteVideoTests`. iOS UI (deterministic,
+  in-process fixture computer, `--ui-test-chat-fixture`; `--ui-test-legacy-video`
+  plays an older computer): `ChatUITests`, including
+  `testVideoLengthAutoCustomAndImageToVideo`.
 - Physical test host (opt-in): `tests/fixtures/draw_phone_test_host.py --chat`
   runs the production Connect + Remote Chat service with the TEST-ONLY
   deterministic runtime (`tests/fixtures/chat_test_runtime.py`);
@@ -203,3 +274,11 @@ open); DEEP with a synthetic PDF through Files (answer + D1 citation, then a
 follow-up without re-attaching); REIMAGINE text-to-image, then a reference edit
 with a synthetic image; AUDIO "Say: OLIVE mobile audio test."; VIDEO short
 prompt; Stop during REIMAGINE; afterwards a desktop text Chat still works.
+
+VIDEO length and image-to-video on the iPhone (needs a Mac for the build):
+select VIDEO, set **20 sec** (or type "a 20 second video of …" and check
+*Auto · 20 s*), send a synthetic prompt and confirm *Generating segment N of
+10…*, then a ~20 s AVPlayer result; attach one image (Photo Library, Camera,
+Files or OLIVE Draw) and confirm *Image → Video*; a second image is refused
+before sending; interrupting the download and reconnecting resumes it; a
+computer running an older OLIVE still refuses the image truthfully.

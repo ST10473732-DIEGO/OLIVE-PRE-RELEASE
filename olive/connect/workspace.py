@@ -52,7 +52,15 @@ class DevicesWorkspace:
             value['notes_sync'] = s.notes.status(record['device_id']) if s.notes else None
             value['draw_sync'] = s.draw.status(record['device_id']) if getattr(s, 'draw', None) else None
             devices.append(value)
-        return dict(local=local, devices=devices, capabilities=s.capabilities(),
+        capabilities = s.capabilities()
+        from .mobile_capabilities import PROVIDED_BY, unavailable_controls
+        summary = getattr(getattr(s.chat, 'runtime', None), 'summary', None) if s.chat else None
+        try:
+            remote_chat = summary() if summary else None
+        except Exception:
+            remote_chat = None  # The card then says the matrix is unavailable; nothing is guessed.
+        return dict(local=local, devices=devices, capabilities=capabilities, remote_chat=remote_chat,
+            mobile_controls=dict(unavailable=unavailable_controls(capabilities), provided_by=PROVIDED_BY),
             interfaces=candidates, interface_error=interface_error, protocol=PROTOCOL,
             network=dict(state=('on' if not network.stopping.is_set() else 'off') if network else ('off' if self.network_state == 'on' else self.network_state), error=self.network_error,
                 interface=asdict(network.interface) if network else None,

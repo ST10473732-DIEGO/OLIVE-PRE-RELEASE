@@ -170,7 +170,9 @@ final class FixtureChatSession: ChatRemoteSession {
         connected = !offline
         guard !legacy else { return }
         chat = RemoteChatClient(transport: desktop, source: "cccccccc-2222-4222-8222-222222222222", target: selectedID!)
-        chatCapabilities = try? ChatWire.capabilities(FixtureChatDesktop.capabilities(unavailable: ChatUIFixture.arguments.contains("--ui-test-video-unavailable") ? ["video"] : []))
+        chatCapabilities = try? ChatWire.capabilities(FixtureChatDesktop.capabilities(
+            unavailable: ChatUIFixture.arguments.contains("--ui-test-video-unavailable") ? ["video"] : [],
+            extended: !FixtureChatDesktop.legacyVideo))
     }
     func refreshChatCapabilities() async {}
 }
@@ -178,33 +180,48 @@ final class FixtureChatSession: ChatRemoteSession {
 /// Answers olive-chat/1 packets deterministically. Jobs progress in time so Stop and
 /// progress states are observable. Artifacts are real PNG / WAV / MP4 bytes.
 actor FixtureChatDesktop: ChatFrameTransport {
-    private struct Job { var mode: String; var text: String; var sources: [ConnectJSON]; var artifacts: [ConnectJSON]; var started: Date; var state: String; var slow: Bool }
+    private struct Job { var mode: String; var text: String; var sources: [ConnectJSON]; var artifacts: [ConnectJSON]; var started: Date; var state: String; var slow: Bool
+        var segments: Int? = nil }
+    /// An older computer: no mode_options/1, VIDEO text-only.
+    static var legacyVideo: Bool { ChatUIFixture.arguments.contains("--ui-test-legacy-video") }
     private var staged: [String: (size: Int64, data: Data)] = [:]
     private var jobs: [String: Job] = [:]
     private var files: [String: Data] = [:]
     private(set) var starts = 0
 
-    static func capabilities(unavailable: Set<String> = []) -> ConnectJSON {
+    static func capabilities(unavailable: Set<String> = [], extended: Bool = false) -> ConnectJSON {
         func mode(_ id: String, image: Int64 = 0, document: Int64 = 0, note: Int64 = 0, outputs: [String] = ["text"],
                   citations: Bool = false, prompt: Bool = false, limitations: [String] = [], voices: [ConnectJSON] = []) -> ConnectJSON {
-            .object(["id": .string(id), "available": .bool(!unavailable.contains(id)), "reason": .string(unavailable.contains(id) ? "needs_setup" : ""),
+            var value: [String: ConnectJSON] = ["id": .string(id), "available": .bool(!unavailable.contains(id)), "reason": .string(unavailable.contains(id) ? "needs_setup" : ""),
                      "inputs": .object(["image": .object(["max": .int(image), "max_bytes": .int(20_971_520), "mimes": .array([.string("image/png"), .string("image/jpeg")])]),
                         "document": .object(["max": .int(document), "max_bytes": .int(33_554_432),
                             "mimes": .array(["application/pdf", "text/plain", "text/markdown", "text/x-source"].map(ConnectJSON.string))]),
                         "note": .object(["max": .int(note), "max_bytes": .int(196_608)])]),
                      "outputs": .array(outputs.map(ConnectJSON.string)), "citations": .bool(citations), "stream": .bool(outputs == ["text"]),
                      "cancel": .bool(true), "prompt_required": .bool(prompt), "tiers": .array([]), "voices": .array(voices),
-                     "limitations": .array(limitations.map(ConnectJSON.string))])
+                     "limitations": .array(limitations.map(ConnectJSON.string))]
+            if extended { value["options"] = id == "video" ? videoOptions : .object([:]) }
+            return .object(value)
         }
-        return .object(["chat_protocol": .string(ChatWire.name), "permission": .string("allow"),
+        var result: [String: ConnectJSON] = ["chat_protocol": .string(ChatWire.name), "permission": .string("allow"),
             "limits": .object(["chunk_bytes": .int(131_072), "max_attachments": .int(4), "max_output_bytes": .int(64000)]),
             "modes": .array([mode("fast", note: 2), mode("normal", image: 4, note: 2), mode("max", image: 4, note: 2),
                 mode("uncensored", note: 2, limitations: ["automatic_tier"]), mode("now", citations: true, limitations: ["public_web_only"]),
                 mode("deep", image: 3, document: 4, note: 2, citations: true), mode("reimagine", image: 1, outputs: ["image"], prompt: true, limitations: ["one_reference_image"]),
                 mode("audio", outputs: ["audio"], prompt: true, limitations: ["speech_only"],
                      voices: [.object(["id": .string("default"), "name": .string("Fixture voice")]), .object(["id": .string("calm"), "name": .string("Calm fixture voice")])]),
-                mode("video", outputs: ["video"], prompt: true, limitations: ["text_only", "video_with_audio"])])])
+                extended ? mode("video", image: 1, outputs: ["video"], prompt: true, limitations: ["one_start_image", "video_with_audio", "long_video"])
+                    : mode("video", outputs: ["video"], prompt: true, limitations: ["text_only", "video_with_audio"])])]
+        if extended { result["extensions"] = .array([.string("mode_options/1")]) }
+        return .object(result)
     }
+
+    static let videoOptions: ConnectJSON = .object([
+        "supports_text_to_video": .bool(true), "supports_image_to_video": .bool(true), "supports_audio": .bool(true),
+        "native_segment_ms": .int(2042), "fps": .int(24), "max_images": .int(1), "accepted_attachment_kinds": .array([.string("image")]),
+        "continuation": .string("last_frame"),
+        "duration": .object(["configurable": .bool(true), "default_ms": .int(2000), "minimum_ms": .int(500), "maximum_ms": .int(180_000),
+                             "long_warning_ms": .int(30_000), "presets_ms": .array([2000, 5000, 10000, 20000, 30000, 60000].map { ConnectJSON.int($0) })])])
 
     func exchangeFrame(kind: UInt8, id: String, payload: Data) async throws -> Data {
         guard kind == 17 else { throw ConnectFailure.capabilityUnavailable }
@@ -216,7 +233,10 @@ actor FixtureChatDesktop: ChatFrameTransport {
         }
         try await Task.sleep(for: .milliseconds(15))
         switch request["operation"].string ?? "" {
-        case "capabilities": return try reply(Self.capabilities())
+        case "capabilities":
+            // An older computer refuses the extension argument, exactly like the Python desktop.
+            if a["accept"] != .null && Self.legacyVideo { return try reply(nil, error: "invalid_request") }
+            return try reply(Self.capabilities(extended: a["accept"] != .null))
         case "attachment_offer":
             let key = try a["attachment_id"].text(), size = try a["size"].number(1...Int64.max)
             if staged[key] == nil { staged[key] = (size, Data()) }
@@ -302,11 +322,15 @@ actor FixtureChatDesktop: ChatFrameTransport {
             text = "Speech generated on your computer."
             artifacts = [artifact(ChatUIFixture.wav(), kind: "audio", mime: "audio/wav", mode: mode, duration: 1500)]
         case "video":
-            text = "Video generated on your computer."
-            artifacts = [artifact(await ChatUIFixture.mp4(), kind: "video", mime: "video/mp4", mode: mode, width: 320, height: 240, duration: 1000, audio: false)]
+            let target = a["options"]["target_duration_ms"].integer
+            text = attachments.isEmpty ? "Video generated on your computer." : "Video generated from your image on your computer."
+            // The fixture clip is short; the descriptor reports the requested length only to exercise display.
+            artifacts = [artifact(await ChatUIFixture.mp4(), kind: "video", mime: "video/mp4", mode: mode, width: 320, height: 240,
+                                  duration: target.map { Int($0) } ?? 1000, audio: false)]
         default: break
         }
-        return Job(mode: mode, text: text, sources: sources, artifacts: artifacts, started: Date(), state: "running", slow: slow)
+        let segments: Int? = a["options"] == .null ? nil : a["options"]["target_duration_ms"].integer.map { VideoCapability(imageToVideo: true).segments(forMS: $0) } ?? 1
+        return Job(mode: mode, text: text, sources: sources, artifacts: artifacts, started: Date(), state: "running", slow: slow, segments: segments)
     }
 
     private func view(_ id: String, after: Int, text includeText: Bool = true) -> ConnectJSON {
@@ -323,11 +347,18 @@ actor FixtureChatDesktop: ChatFrameTransport {
         let phase = job.state != "running" ? "" : media ? (elapsed < 0.5 ? "preparing_image_engine" : job.mode == "audio" ? "generating_speech" : job.mode == "video" ? "generating_video" : "generating_image") : "thinking"
         let tier = ["reimagine": "IMAGE", "audio": "SPEECH", "video": "VIDEO", "now": "LIVE", "deep": "RESEARCH", "uncensored": "FAST"][job.mode] ?? ""
         let completed = job.state == "completed"
-        return .object(["job_id": .string(id), "state": .string(job.state), "phase": .string(phase), "text": .string(delta),
+        var value: [String: ConnectJSON] = ["job_id": .string(id), "state": .string(job.state), "phase": .string(phase), "text": .string(delta),
             "offset": .int(Int64(includeText ? start : 0)), "total": .int(Int64(shown)), "sources": .array(completed ? job.sources : []),
             "artifacts": .array(completed ? job.artifacts : []),
             "attribution": .object(["mode": .string(job.mode), "tier": .string(tier), "label": .string(job.mode.uppercased() + (tier.isEmpty ? "" : " · " + tier))]),
-            "error": job.state == "cancelled" ? .string("cancelled") : .null])
+            "error": job.state == "cancelled" ? .string("cancelled") : .null]
+        if let segments = job.segments {
+            // Only for requests that carried options (an extension-aware phone), like the desktop.
+            let current = min(segments, max(1, Int(elapsed / duration * Double(segments)) + 1))
+            value["progress"] = job.state == "running" && elapsed >= 0.5
+                ? .object(["stage": .string("segment"), "current": .int(Int64(current)), "total": .int(Int64(segments))]) : .null
+        }
+        return .object(value)
     }
 }
 #endif

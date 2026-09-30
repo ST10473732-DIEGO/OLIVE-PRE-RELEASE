@@ -78,13 +78,21 @@ LTX = Workflow(
      **dict.fromkeys(('LTXVSeparateAVLatent', 'LatentUpscaleModelLoader', 'LTXVLatentUpsampler', 'VAEDecode',
                       'VAEDecodeAudio', 'CreateVideo', 'SaveVideo'), BUILTIN)},
     frozenset({'0.35.0'}),
-    # The user's manually validated LTXV23_v1.4_T2AV_Q4_FIXED workflow. Image
-    # input was bypassed there, so image-to-video is not offered.
+    # The user's manually validated LTXV23_v1.4_T2AV_Q4_FIXED workflow. Its
+    # LoadImage input was bypassed, so this entry is text-to-video only.
     defaults={'width': 768, 'height': 448, 'length': 49, 'fps': 24, 'steps': 8, 'cfg': 1.0,
               'sampler': 'euler', 'schedule': 'distilled (8 steps)', 'image_strength': 0.89})
+# Same installed LTX 2.3 files and graph with the bundled example's LoadImage
+# connected to LTXV23ImgToVideo's optional `image` (first frame, held at
+# image_strength; the node resizes and centre-crops to width x height). It
+# animates an attached image and continues long videos from the previous
+# segment's last frame. Validated on this machine's ComfyUI 0.35.0.
+LTX_I2V = Workflow(
+    'ltx-2.3-i2av', 'video', 'LTX', frozenset({'animate'}), dict(LTX.files),
+    {**LTX.nodes, 'LoadImage': BUILTIN}, frozenset({'0.35.0'}), max_references=1, defaults=dict(LTX.defaults))
 
 IMAGE_WORKFLOWS = (QWEN, KLEIN, SDXL)
-VIDEO_WORKFLOWS = (LTX,)
+VIDEO_WORKFLOWS = (LTX, LTX_I2V)
 WORKFLOWS = {w.key: w for w in IMAGE_WORKFLOWS + VIDEO_WORKFLOWS}
 
 # Preference order per request shape. SDXL is compatibility only: it is never
@@ -126,7 +134,7 @@ def availability(workflow, engine):
 def route(kind, prompt, references, engine):
     """Choose exactly one validated workflow; never fan out across models."""
     if kind == 'video':
-        order, shape = ('ltx-2.3-t2av',), 'generate'
+        order, shape = (('ltx-2.3-i2av',), 'animate') if references else (('ltx-2.3-t2av',), 'generate')
     else:
         shape = request_shape(prompt, references)
         order = ROUTES[shape]
@@ -190,16 +198,34 @@ def image_graph(workflow, prompt, seed, prefix, reference=None):
     raise ValueError('Workflow has no validated graph')
 
 
-def video_graph(workflow, prompt, seed, prefix, length=None):
+# Latent sizes (before the fixed x2 latent upscale) by source orientation. The
+# node centre-crops to these, so orientation follows the attached image.
+VIDEO_SIZES = {'landscape': (768, 448), 'portrait': (448, 768), 'square': (576, 576)}
+
+
+def video_size(width=None, height=None):
+    """Latent width/height for a source image aspect; landscape without one."""
+    if not width or not height:
+        return 'landscape', VIDEO_SIZES['landscape']
+    aspect = width / height
+    shape = 'landscape' if aspect >= 1.2 else 'portrait' if aspect <= 1 / 1.2 else 'square'
+    return shape, VIDEO_SIZES[shape]
+
+
+def video_graph(workflow, prompt, seed, prefix, length=None, *, image=None, size=None):
+    """One native LTX segment. `image` is an uploaded input name (first frame)."""
     d, f = workflow.defaults, workflow.files
     frames = ltx_frames(length or d['length'])
-    return {
+    width, height = size or (d['width'], d['height'])
+    if image is not None and 'animate' not in workflow.operations:
+        raise ValueError('Workflow has no validated image input')
+    graph = {
         'models': {'class_type': 'LTXV23ModelsLoader', 'inputs': {
             'unet_name': f[('LTXV23ModelsLoader', 'unet_name')], 'text_encoder_name': f[('LTXV23ModelsLoader', 'text_encoder_name')],
             'projections_name': f[('LTXV23ModelsLoader', 'projections_name')], 'video_vae_name': f[('LTXV23ModelsLoader', 'video_vae_name')],
             'audio_vae_name': f[('LTXV23ModelsLoader', 'audio_vae_name')]}},
         'conditioning': {'class_type': 'LTXV23ImgToVideo', 'inputs': {
-            'prompt': prompt, 'negative_prompt': LTX_NEGATIVE, 'width': d['width'], 'height': d['height'], 'length': frames,
+            'prompt': prompt, 'negative_prompt': LTX_NEGATIVE, 'width': width, 'height': height, 'length': frames,
             'frame_rate': float(d['fps']), 'batch_size': 1, 'image_strength': d['image_strength'], 'length_from_audio': False,
             'clip': ['models', 1], 'vae': ['models', 2], 'audio_vae': ['models', 3]}},
         'sample': {'class_type': 'LTXV23KSampler', 'inputs': {
@@ -214,6 +240,10 @@ def video_graph(workflow, prompt, seed, prefix, length=None):
         'save': {'class_type': 'SaveVideo', 'inputs': {'filename_prefix': prefix, 'format': 'auto', 'format.codec': 'auto',
                                                       'codec': 'auto', 'video': ['video', 0]}},
     }
+    if image is not None:
+        graph['reference'] = {'class_type': 'LoadImage', 'inputs': {'image': image}}
+        graph['conditioning']['inputs']['image'] = ['reference', 0]
+    return graph
 
 
 def combo_options(spec):

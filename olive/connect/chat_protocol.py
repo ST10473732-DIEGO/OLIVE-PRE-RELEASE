@@ -53,6 +53,14 @@ TERMINAL = frozenset({'completed', 'cancelled', 'failed', 'outcome_unknown'})
 PHASES = ('', 'approval', 'queued', 'thinking', 'retrieving', 'reading_documents', 'indexing', 'synthesizing',
           'releasing_gpu', 'preparing_image_engine', 'generating_image', 'preparing_audio_engine',
           'generating_speech', 'preparing_video_engine', 'generating_video', 'saving')
+# Additive extensions a phone may ask for in `capabilities.accept`. A phone
+# that does not ask (every build before this one parses strict key sets) gets
+# byte-identical v1 shapes; one that asks gets per-mode `options` and, for
+# jobs it started with `options`, a structured `progress` in polls.
+EXTENSIONS = ('mode_options/1',)
+# Structured long-video progress (with extension only): "segment 3 of 10".
+PROGRESS_STAGES = ('segment', 'continuation', 'stitching', 'encoding', 'verifying', 'saving')
+MAX_VIDEO_MS = 3_600_000     # Hard ceiling; the desktop's configured maximum is advertised separately.
 ERRORS = frozenset({
     'permission_denied', 'confirmation_required', 'device_revoked', 'device_unavailable', 'invalid_request',
     'expired_request', 'rate_limited', 'busy', 'ledger_full', 'changed_duplicate', 'unknown_request',
@@ -70,6 +78,9 @@ ERRORS = frozenset({
     'workflow_missing', 'model_missing', 'attachment_unsupported_mode', 'too_many_references', 'no_artifact',
     'gpu_release_unverified', 'gpu_busy', 'generation_failed', 'timeout', 'prompt_required', 'prompt_too_long',
     'audio_unsupported', 'speech_text_required', 'speech_too_long',
+    'video_duration_invalid', 'video_duration_too_long', 'video_one_image', 'video_image_unsupported',
+    'video_assembly_unavailable', 'video_storage_full', 'video_segment_invalid', 'video_assembly_failed',
+    'video_verify_failed',
 })
 _HEX64 = re.compile('[0-9a-f]{64}')
 _HEX32 = re.compile('[0-9a-f]{32}')
@@ -162,19 +173,57 @@ def attachment_ref(value):
 REQUEST_KEYS = {'protocol_version', 'request_id', 'source_device_id', 'target_device_id', 'operation',
                 'arguments', 'timestamp', 'expires_at'}
 ARGUMENTS = {
-    'capabilities': set(),
+    'capabilities': set(),       # or {'accept'}: see EXTENSIONS
     'attachment_offer': {'attachment_id', 'kind', 'mime', 'size', 'name'},
     'attachment_chunk': {'attachment_id', 'offset'},
-    'start': {'job_id', 'conversation_id', 'mode', 'voice', 'messages', 'attachments', 'input_fingerprint'},
+    'start': {'job_id', 'conversation_id', 'mode', 'voice', 'messages', 'attachments', 'input_fingerprint'},  # + optional 'options'
     'poll': {'job_id', 'after'},
     'cancel': {'job_id'},
     'artifact_chunk': {'artifact_id', 'offset', 'length'},
 }
 
 
+OPTIONAL = {'capabilities': {'accept'}, 'start': {'options'}}
+# Per-mode request options. VIDEO: the target duration in integer milliseconds
+# (canonical JSON has no fractions) and whether the person chose it or it was
+# read from their prompt. Absent means Auto: the computer resolves it.
+OPTIONS = {'video': {'target_duration_ms', 'duration_source'}}
+
+
 def start_fingerprint(arguments):
-    """Stable identity of a start: resending the same request is idempotent."""
-    return digest({k: arguments[k] for k in ('conversation_id', 'mode', 'voice', 'messages', 'attachments')})
+    """Stable identity of a start: resending the same request is idempotent.
+
+    Options (duration) are part of the identity when present, so the same
+    prompt at 5 s and at 20 s are different requests. Without options the
+    digest is unchanged from earlier builds."""
+    keys = ('conversation_id', 'mode', 'voice', 'messages', 'attachments') + (('options',) if 'options' in arguments else ())
+    return digest({k: arguments[k] for k in keys})
+
+
+def accepted(value):
+    """The extension tokens a phone asked for; unknown tokens are ignored."""
+    if type(value) is not list or len(value) > 8:
+        raise ConnectError('invalid_request')
+    for item in value:
+        if type(item) is not str or not re.fullmatch(r'[a-z0-9_./-]{1,40}', item):
+            raise ConnectError('invalid_request')
+    return [item for item in EXTENSIONS if item in value]
+
+
+def start_options(mode, value):
+    """Validate `start.options`; only modes with options may carry them."""
+    allowed = OPTIONS.get(mode)
+    if allowed is None or type(value) is not dict or not set(value) <= allowed:
+        raise ConnectError('invalid_request')
+    if 'target_duration_ms' in value:
+        ms = value['target_duration_ms']
+        if type(ms) is not int or ms < 1:
+            raise ConnectError('video_duration_invalid')
+        if ms > MAX_VIDEO_MS:
+            raise ConnectError('video_duration_too_long')
+    if 'duration_source' in value and (value['duration_source'] not in ('explicit', 'prompt') or 'target_duration_ms' not in value):
+        raise ConnectError('invalid_request')
+    return value
 
 
 class ChatRequest:
@@ -196,11 +245,14 @@ class ChatRequest:
         timestamp(value['timestamp']); timestamp(value['expires_at'])
         _int(value['expires_at'] - value['timestamp'], 1, MAX_SECONDS)
         operation, a = value['operation'], value['arguments']
-        if operation not in ARGUMENTS or type(a) is not dict or set(a) != ARGUMENTS[operation]:
+        if (operation not in ARGUMENTS or type(a) is not dict or not ARGUMENTS[operation] <= set(a)
+                or not set(a) <= ARGUMENTS[operation] | OPTIONAL.get(operation, set())):
             raise ConnectError('invalid_request')
         if binary and operation != 'attachment_chunk':
             raise ConnectError('invalid_request')
-        if operation == 'attachment_offer':
+        if operation == 'capabilities' and 'accept' in a:
+            accepted(a['accept'])
+        elif operation == 'attachment_offer':
             attachment_ref({**a})
         elif operation == 'attachment_chunk':
             if type(a['attachment_id']) is not str or not _HEX64.fullmatch(a['attachment_id']):
@@ -214,6 +266,8 @@ class ChatRequest:
                 raise ConnectError('invalid_request')
             if a['mode'] not in MODES:
                 raise ConnectError('mode_unavailable')
+            if 'options' in a:
+                start_options(a['mode'], a['options'])
             if a['voice'] is not None:
                 _text(a['voice'], 1, 120)
             messages_size(a['messages'])
@@ -245,6 +299,35 @@ class ChatRequest:
     def fingerprint(self):
         """Approval binding: the exact content of this start (never timestamps)."""
         return self.arguments.get('input_fingerprint') or digest(self.arguments)
+
+
+def progress_item(detail):
+    """Bounded structured progress for extension-aware phones, else None."""
+    if type(detail) is not dict or detail.get('stage') not in PROGRESS_STAGES:
+        return None
+    current, total = detail.get('current'), detail.get('total')
+    if type(current) is not int or type(total) is not int or not 1 <= current <= total <= 100_000:
+        return None
+    return {'stage': detail['stage'], 'current': current, 'total': total}
+
+
+def video_options(capability):
+    """VIDEO capability for olive-chat/1 (integers only; milliseconds)."""
+    if not isinstance(capability, dict):
+        return {}
+    duration = capability.get('duration') or {}
+    ms = lambda seconds: int(round(float(seconds) * 1000)) if type(seconds) in (int, float) else 0
+    return {'supports_text_to_video': bool(capability.get('supports_text_to_video')),
+            'supports_image_to_video': bool(capability.get('supports_image_to_video')),
+            'supports_audio': bool(capability.get('supports_audio')),
+            'native_segment_ms': ms(capability.get('native_segment_seconds')), 'fps': int(capability.get('fps') or 0),
+            'max_images': int(capability.get('max_images') or 0),
+            'accepted_attachment_kinds': [k for k in capability.get('accepted_attachment_kinds', []) if k in ATTACHMENT_KINDS],
+            'continuation': capability.get('continuation') if capability.get('continuation') in ('last_frame', 'independent') else 'independent',
+            'duration': {'configurable': bool(duration.get('configurable')), 'default_ms': ms(duration.get('default_seconds')),
+                         'minimum_ms': ms(duration.get('minimum_seconds')), 'maximum_ms': ms(duration.get('maximum_seconds')),
+                         'long_warning_ms': ms(duration.get('long_video_warning_seconds')),
+                         'presets_ms': [ms(p) for p in duration.get('presets', [])][:12]}}
 
 
 def request(source, target, operation, arguments, *, now, request_id=None, binary=b''):

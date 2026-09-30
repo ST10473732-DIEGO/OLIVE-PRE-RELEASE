@@ -163,7 +163,7 @@ class NaturalLanguageOrchestrator:
     @traced_request
     @selected_workspace_reference
     @owner_request
-    async def submit(self, text, chat_id=None, research_mode="", workspace_id=""):
+    async def submit(self, text, chat_id=None, research_mode="", workspace_id="", video_duration_seconds=None):
         if research_mode not in {"", "Quick", "Deep"}:
             raise ValueError("Unknown research mode")
         chat_id = chat_id or self.s.current_chat_id
@@ -171,7 +171,8 @@ class NaturalLanguageOrchestrator:
         if getattr(self.s.chats[chat_id], "preset", "") in {"reimagine", "audio", "video"}:
             # Generation modes: Send goes straight to the local media pipeline.
             # No interpreter, research routing or tool planning sees the request.
-            return await self.s.chat.send(chat_id, text)
+            options = {"target_duration_seconds": video_duration_seconds} if video_duration_seconds is not None else None
+            return await self.s.chat.send(chat_id, text, media_options=options)
         draw_chat = getattr(self, "draw_chat", None)
         if draw_chat is not None and not research_mode:
             # Literal OLIVE Draw / DrawNote requests ("Open OLIVE Draw") are UI

@@ -20,6 +20,8 @@ import { Pairing } from "./Pairing";
 import {
   deviceStatus,
   permissionGroups,
+  OFFERED,
+  unavailableControls,
   type Device,
   type DevicesState,
   type PairingState,
@@ -28,8 +30,6 @@ import {
 import { Confirm, DeviceIcon, Segmented, ago, dateLabel, deviceKind, fullTime, sentence } from "./ui";
 import "./devices.css";
 
-/** Capabilities this version offers as controls; everything else is listed as unavailable. */
-const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read", "sync.notes", "sync.draw"];
 const DRAW_STATE: Record<string, string> = {
   synced: "Synced", syncing: "Syncing", offline: "Offline · edits wait on this computer", off: "Off", error: "Sync issue",
   idle: "Waiting to connect", unsupported: "Not supported by this device’s OLIVE version",
@@ -753,7 +753,7 @@ export function Devices() {
                                   refresh={refresh}
                                 />
                               )}
-                              {!revoked && <RemoteAI device={remote} refresh={refresh} />}
+                              {!revoked && <RemoteAI device={remote} summary={data.remote_chat} refresh={refresh} />}
                               {revoked ? (
                                 <section className="devices-danger" aria-label="Remove device">
                                   <div>
@@ -847,15 +847,11 @@ export function Devices() {
                                     );
                                   })}
                                   {(() => {
-                                    const all: (readonly [string, string])[] = permissionGroups.flatMap(([, items]) => [...items] as (readonly [string, string])[]);
-                                    const unavailable = all.filter(([cap]) => {
-                                      const metadata = data.capabilities.find((c) => c.capability === cap);
-                                      return metadata && !(metadata.supported && !metadata.policy_disabled && OFFERED.includes(cap));
-                                    });
-                                    return unavailable.length ? (
+                                    const labels = unavailableControls(data);
+                                    return labels.length ? (
                                       <p className="devices-unavailable-line">
-                                        <span className="devices-unavailable">Unavailable</span>
-                                        <span>Not in this version: {unavailable.map(([, label]) => label).join(", ")}.</span>
+                                        <span className="devices-unavailable">Additional mobile controls</span>
+                                        <span>Not available in this version: {labels.join(" · ")}.</span>
                                       </p>
                                     ) : null;
                                   })()}

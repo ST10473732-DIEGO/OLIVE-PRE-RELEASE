@@ -53,6 +53,10 @@ class MediaService:
         self.engines.image.legacy=lambda:self.config.read({}).get('endpoint')==self.engines.image.endpoint
         self.file_checks={}
         self.jobs={};self.tasks={};self.cancel_events={};self.lock=asyncio.Lock()
+        # Long-video work folders never survive a restart; leftovers are OLIVE's own.
+        from .video_assembly import JobWorkspace
+        try:JobWorkspace.sweep(self.root/'jobs')
+        except OSError:pass
         if services.ollama.residency is not None:
             services.ollama.residency.external_guard=self.release_engine_for_chat
         for operation in ('import','render'):services.tool_registry.register(MediaTool(self,operation))
@@ -221,6 +225,34 @@ class MediaService:
                                  'source_id':source_ids[0] if source_ids else '','mime_type':mime,'created_at':created,
                                  'mode':mode,'chat_artifact':artifact,'provenance':provenance or {}})
         return record,artifact
+    def save_generated_file(self,source,*,mode,generator,parameters,source_ids=(),extra=None,provenance=None,sha256=None):
+        """Publish one verified OLIVE-assembled MP4 by moving it into outputs.
+
+        The source must already live under media/ (a job workspace); nothing
+        outside OLIVE's own storage is ever adopted as an artifact."""
+        import os
+        from .media_errors import MediaError
+        from .video_assembly import file_digest
+        source=Path(source).resolve()
+        if not source.is_relative_to(self.root.resolve()) or not source.is_file():raise MediaError('no_artifact','source outside media storage')
+        with source.open('rb') as stream:head=stream.read(12)
+        if head[4:8]!=b'ftyp':raise MediaError('no_artifact','not an MP4 container')
+        digest,size=file_digest(source)
+        if not size or sha256 and digest!=sha256:raise MediaError('no_artifact','verified file changed before publishing')
+        self.guard(self.root,'filesystem.write')
+        identity=uuid.uuid4().hex;target=self.root/'outputs'/(identity+'.mp4');target.parent.mkdir(parents=True,exist_ok=True)
+        if target.exists():raise MediaError('no_artifact','output identity collision')
+        os.replace(source,target)
+        with target.open('rb') as stream:os.fsync(stream.fileno())
+        created=datetime.now().isoformat(timespec='seconds')
+        filename=f'olive-{mode}-{created[:10]}-{identity[:6]}.mp4'
+        artifact={'id':identity,'kind':'video','filename':filename,'mime_type':'video/mp4','created_at':created,'mode':mode,
+                  'generator':generator,'parameters':parameters,'source_ids':list(source_ids),'completion_state':'complete',
+                  'size_bytes':size,'sha256':digest,**dict(extra or {})}
+        record=self.save_record({'id':identity,'name':filename,'kind':'video','path':str(target),'sha256':digest,
+                                 'source_id':source_ids[0] if source_ids else '','mime_type':'video/mp4','created_at':created,
+                                 'mode':mode,'chat_artifact':artifact,'provenance':provenance or {}})
+        return record,artifact
     def preserve_bytes(self,name,raw):
         """Keep an attached reference as its own immutable original record."""
         self.guard(self.root,'filesystem.write')
@@ -242,7 +274,8 @@ class MediaService:
         self.guard(path,'filesystem.read')
         stat=path.stat();key=(artifact_id,stat.st_size,stat.st_mtime_ns)
         if key not in self.file_checks:
-            if hashlib.sha256(path.read_bytes()).hexdigest()!=record['sha256']:raise MediaError('artifact_missing')
+            from .video_assembly import file_digest
+            if file_digest(path)[0]!=record['sha256']:raise MediaError('artifact_missing')  # Streamed: long videos stay out of memory.
             self.file_checks[key]=True
         return {'path':str(path),'mime_type':self.MIME[record['kind']][1],'size':stat.st_size,'filename':record['name']}
     def available_ids(self,ids):

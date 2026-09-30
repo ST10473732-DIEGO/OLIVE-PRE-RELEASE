@@ -12,14 +12,23 @@ export const MEDIA_LABELS: Record<string, string> = {
 const GUIDE: Record<string, string> = {
   reimagine: "REIMAGINE creates images on this device. Attach one image to edit it; the original is kept unchanged.",
   audio: "AUDIO speaks your text on this device. Start with “Say:” followed by the words.",
-  video: "VIDEO creates a short clip with sound on this device, about two seconds. Text prompts only.",
+  video: "VIDEO creates video with sound on this device. Pick a length or say one in your prompt; longer videos are built from about two-second segments.",
 };
 
-export function mediaPlaceholder(preset?: string): string {
+/** VIDEO wording follows what this computer's engine actually supports. */
+function guide(preset: Preset): string {
+  if (preset.id !== "video") return GUIDE[preset.id];
+  return GUIDE.video + (preset.capabilities?.includes("image-to-video") ? " Optionally attach one image to animate." : " Text prompts only.");
+}
+
+export function mediaPlaceholder(preset?: string, capabilities: string[] = []): string {
+  if (preset === "video")
+    return capabilities.includes("image-to-video")
+      ? "Describe the video to generate. Optionally attach one image to animate."
+      : "Describe the video to generate…";
   return ({
     reimagine: "Describe an image to create, or attach one and describe the edit…",
     audio: "Say: the words OLIVE should speak…",
-    video: "Describe a short video to generate…",
   } as Record<string, string>)[preset || ""] || "";
 }
 
@@ -51,7 +60,7 @@ export function MediaNotice({ chat, preset, busy, openTools, report }: {
   const ready = preset.available !== false;
   return <div className="notice chat-notice" data-tone={ready ? undefined : "warning"} role="note">
     {ready ? <Info size={14} aria-hidden="true" /> : <AlertTriangle size={14} aria-hidden="true" />}
-    <span className="grow">{ready ? GUIDE[preset.id] : `${preset.name}: ${preset.status}. Nothing is downloaded automatically.`}</span>
+    <span className="grow">{ready ? guide(preset) : `${preset.name}: ${preset.status}. Nothing is downloaded automatically.`}</span>
     {preset.id === "audio" && ready && <VoicePicker busy={busy} report={report} />}
     {preset.id === "reimagine" && <button className="compact quiet" onClick={openTools} title="Advanced local media tools: raster edits, SDXL workflow and engine setup">Open media tools</button>}
   </div>;

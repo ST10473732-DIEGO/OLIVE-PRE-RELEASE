@@ -34,6 +34,8 @@ struct PendingChatRequest: Codable, Equatable {
     var stopRequested: Bool
     var received: String
     let createdAt: Date
+    /// VIDEO segments the computer plans for this request (phone patience only).
+    var videoSegments: Int? = nil
 }
 
 /// Per-computer Chat session: its conversation id (the computer's document context

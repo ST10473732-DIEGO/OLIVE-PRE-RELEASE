@@ -38,7 +38,14 @@ export interface MediaArtifact {
   size_bytes?: number;
   width?: number;
   height?: number;
+  /** Measured duration of the file (ffprobe), never the request. */
   duration_seconds?: number;
+  /** VIDEO: the length that was asked for; kept separate from the measured one. */
+  target_duration_seconds?: number;
+  fps?: number;
+  segment_count?: number;
+  generation_mode?: "text_to_video" | "image_to_video";
+  continuation?: "none" | "last_frame" | "independent";
   has_audio?: boolean;
   /** False when the file is gone from this device; never faked. */
   available?: boolean;

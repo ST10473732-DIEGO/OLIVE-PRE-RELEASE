@@ -45,6 +45,7 @@ export const schemas = {
   'media.engines': empty,
   'media.voices': empty,
   'media.select_voice': z.object({voice:short.min(1).max(80)}).strict(),
+  'media.video_plan': z.object({text:z.string().max(4000),duration:z.number().positive().finite().max(86_400).optional(),images:z.number().int().min(0).max(8).optional()}).strict(),
   "connections.discord_status": empty,
   'connections.discord_destinations': z.object({guild_id:z.string().regex(/^[0-9]{1,22}$/).optional()}).strict(),
   'connections.discord_select': z.object({guild_id:z.string().regex(/^[0-9]{1,22}$/),channel_id:z.string().regex(/^[0-9]{1,22}$/)}).strict(),
@@ -76,7 +77,9 @@ export const schemas = {
       direction: z.union([z.literal(-1), z.literal(1)]),
     })
     .strict(),
-  "interaction.submit": z.object({ ...chat, text, workspace_id: short.optional(), research_mode: z.enum(["Quick", "Deep"]).optional() }).strict(),
+  "interaction.submit": z.object({ ...chat, text, workspace_id: short.optional(), research_mode: z.enum(["Quick", "Deep"]).optional(),
+    // VIDEO only: an explicit target length. Limits are enforced by the backend's configured policy.
+    video_duration_seconds: z.number().positive().finite().max(86_400).optional() }).strict(),
   "interaction.cancel": z.object(chat).strict(),
   "context.clear": z.object(chat).strict(),
   "studio.tree": z.object(workspace).strict(),

@@ -30,6 +30,7 @@ METHODS = {
     'media.engines': ({}, {}),
     'media.voices': ({}, {}),
     'media.select_voice': ({'voice':str}, {}),
+    'media.video_plan': ({'text':str}, {'duration':(int, float),'images':int}),
     'connections.discord_status': ({}, {}),
     'connections.discord_destinations': ({}, {'guild_id':str}),
     'connections.discord_select': ({'guild_id':str,'channel_id':str}, {}),
@@ -48,7 +49,8 @@ METHODS = {
     'chat.run_on': ({'chat_id': str, 'device_id': str}, {}),
     'chat.regenerate': ({'chat_id': str}, {}),
     'chat.branch': ({'chat_id': str, 'user_index': int, 'direction': int}, {}),
-    'interaction.submit': ({'chat_id': str, 'text': str}, {'research_mode': str, 'workspace_id': str}),
+    'interaction.submit': ({'chat_id': str, 'text': str}, {'research_mode': str, 'workspace_id': str,
+                           'video_duration_seconds': (int, float)}),
     'interaction.cancel': ({'chat_id': str}, {}),
     'context.clear': ({'chat_id': str}, {}),
     'workspace.open': ({'path': str}, {}),
@@ -108,7 +110,10 @@ def validate(value):
     if not isinstance(args, dict) or not set(required) <= set(args) or set(args) - (required.keys() | optional.keys()):
         raise ValueError('Invalid arguments')
     for key, item in args.items():
-        if type(item) is not (required | optional)[key]:
+        expected = (required | optional)[key]
+        if type(item) not in (expected if isinstance(expected, tuple) else (expected,)):
+            raise ValueError('Invalid argument type')
+        if type(item) is float and not (item == item and abs(item) != float('inf')):
             raise ValueError('Invalid argument type')
         limit = 400_000 if key == 'text' and value['method'].startswith('studio.') else 32_000 if key in ('text','request','selection') else 4096
         if isinstance(item, str) and (len(item) > limit or '\x00' in item):

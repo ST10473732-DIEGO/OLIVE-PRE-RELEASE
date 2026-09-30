@@ -19,6 +19,7 @@ export function artifactSummary(artifact: MediaArtifact): string {
   if (artifact.duration_seconds) parts.push(`${artifact.duration_seconds.toFixed(1)} s`);
   if (artifact.kind === "video" && artifact.has_audio) parts.push("with sound");
   if (artifact.parameters?.operation === "edit") parts.push("edited from your attachment");
+  if (artifact.generation_mode === "image_to_video") parts.push("from your image");
   if (artifact.generator?.family) parts.push(artifact.generator.family);
   return parts.join(" · ");
 }
@@ -29,6 +30,10 @@ export function artifactDetails(artifact: MediaArtifact) {
     kind: artifact.kind, file: artifact.filename, type: artifact.mime_type, created: artifact.created_at,
     mode: artifact.mode, generator: artifact.generator, parameters: artifact.parameters,
     references: artifact.source_ids?.length || 0, bytes: artifact.size_bytes,
+    ...(artifact.kind === "video" && artifact.target_duration_seconds !== undefined ? {
+      target_seconds: artifact.target_duration_seconds, measured_seconds: artifact.duration_seconds,
+      segments: artifact.segment_count, generation: artifact.generation_mode, continuation: artifact.continuation,
+    } : {}),
   };
 }
 

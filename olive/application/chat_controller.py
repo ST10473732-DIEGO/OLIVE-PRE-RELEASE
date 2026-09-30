@@ -196,13 +196,13 @@ class ChatController:
         for task in list(self.generations.values()):
             task.cancel()
 
-    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None, research_kind="", note_evidence=None):
+    async def send(self, chat_id, text="", regenerate=False, selected_document_id=None, *, observed_text='', existing_user_message_id=None, uncensored_selection=None, research_kind="", note_evidence=None, media_options=None):
         if chat_id in self.generations:
             raise ValueError("This conversation is already generating")
         chat = self.s.chats[chat_id]
         from ..services.chat_media_service import MEDIA_PRESETS
         if chat.preset in MEDIA_PRESETS:
-            return await self._send_media(chat_id, text, regenerate, observed_text, existing_user_message_id)
+            return await self._send_media(chat_id, text, regenerate, observed_text, existing_user_message_id, media_options)
         remote = self.targets.get(chat_id)
         uncensored_choice = None
         routing_text = text
@@ -419,7 +419,7 @@ class ChatController:
                 return
             await asyncio.sleep(.25)
 
-    async def _send_media(self, chat_id, text, regenerate, observed_text, existing_user_message_id):
+    async def _send_media(self, chat_id, text, regenerate, observed_text, existing_user_message_id, media_options=None):
         """Dispatch straight to the media pipeline; no text model answers first."""
         from ..services.media_errors import MediaError
         from ..services.chat_media_service import LABELS, MEDIA_PRESETS
@@ -435,7 +435,7 @@ class ChatController:
                 raise MediaError("attachment_unsupported_mode")
             if existing_user_message_id and (not chat.messages or chat.messages[-1].id != existing_user_message_id):
                 raise ValueError('The original user message changed before answer generation')
-            request = self.s.chat_media.plan(chat, text, self.images.get(chat_id, []))
+            request = self.s.chat_media.plan(chat, text, self.images.get(chat_id, []), media_options)
         except ValueError:
             if not regenerate and not existing_user_message_id and text:
                 chat.add_message("user", text)
@@ -459,7 +459,10 @@ class ChatController:
             if cancel.is_set():
                 raise asyncio.CancelledError()  # Stop wins over a late result.
             noun = {"image": "Image", "audio": "Speech", "video": "Video"}[kind]
-            content = noun + (" edited from your attachment." if artifact.get("source_ids") else " generated on this device.")
+            if not artifact.get("source_ids"):
+                content = noun + " generated on this device."
+            else:
+                content = "Video generated from your image on this device." if kind == "video" else noun + " edited from your attachment."
             message = chat.add_message("assistant", content)
             message.artifacts = [artifact]
             message.provider = {**provider, "family": artifact["generator"].get("family", "")}

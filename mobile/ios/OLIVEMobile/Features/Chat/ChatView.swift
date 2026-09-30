@@ -10,6 +10,7 @@ struct ChatView: View {
     @State private var atBottom = true
     @State private var confirmingClear = false
     @State private var choosingMode = false
+    @State private var choosingDuration = false
     @State private var source: AttachmentSource?
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var pickingPhotos = false
@@ -74,6 +75,7 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $choosingMode) { ModePickerSheet() }
+        .sheet(isPresented: $choosingDuration) { VideoDurationSheet() }
         .sheet(item: Binding(get: { source == .notes || source == .drawings ? source : nil }, set: { source = $0 })) { chosen in
             if chosen == .notes { NotePickerSheet() } else { DrawPickerSheet() }
         }
@@ -120,6 +122,19 @@ struct ChatView: View {
         return blocker == "Computer offline" ? "Your OLIVE computer is offline. Your draft stays here." : blocker
     }
 
+    /// VIDEO only: "Image → Video" with one accepted image, and the planned length.
+    private var videoNote: String? {
+        guard state.selectedMode.id == "video", !state.active else { return nil }
+        let animate = state.draftAttachments.count == 1 && (state.selectedCapability?.imageMax ?? 0) > 0
+        let plan = state.videoPlanNote
+        switch (animate, plan) {
+        case (true, let plan?): return "Image → Video · " + plan
+        case (true, nil): return "Image → Video"
+        case (false, let plan?): return plan
+        default: return nil
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 20) {
             BreathingMark()
@@ -158,10 +173,19 @@ struct ChatView: View {
                 }.lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 8)
                 if state.session?.selected != nil || state.chatConnection != nil {
+                    if state.selectedMode.id == "video", state.videoCapability?.configurable == true {
+                        VideoDurationButton(presented: $choosingDuration)
+                    }
                     ModeButton(presented: $choosingMode)
                 }
             }.padding(.horizontal, 6)
             AttachmentChips()
+            if composerNotice == nil, let note = videoNote {
+                Label(note, systemImage: state.draftAttachments.isEmpty ? "film" : "photo.on.rectangle.angled")
+                    .font(.caption).foregroundStyle(OliveTheme.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 8)
+                    .accessibilityIdentifier("chat.videoPlan")
+            }
             if let notice = composerNotice {
                 Text(notice).font(.caption).foregroundStyle(OliveTheme.attention).frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 8)

@@ -14,6 +14,12 @@ indirect enum ConnectJSON: Equatable, Sendable {
     func fields(_ names: Set<String>) throws {
         guard let object, Set(object.keys) == names else { throw ConnectFailure.responseMalformed }
     }
+    /// Required keys plus explicitly allowed additive ones; anything else is refused.
+    func fields(_ names: Set<String>, optional: Set<String>) throws {
+        guard let object else { throw ConnectFailure.responseMalformed }
+        let keys = Set(object.keys)
+        guard names.isSubset(of: keys), keys.isSubset(of: names.union(optional)) else { throw ConnectFailure.responseMalformed }
+    }
     func text() throws -> String {
         guard let string else { throw ConnectFailure.responseMalformed }; return string
     }

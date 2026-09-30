@@ -20,7 +20,7 @@ struct ChatMode: Identifiable, Hashable, Sendable {
         ChatMode(id: "deep", short: "DEEP", group: .research, summary: "Documents and research with citations.", symbol: "doc.text.magnifyingglass"),
         ChatMode(id: "reimagine", short: "REIMAGINE", group: .create, summary: "Create or edit an image.", symbol: "photo.artframe"),
         ChatMode(id: "audio", short: "AUDIO", group: .create, summary: "Spoken audio from your words.", symbol: "waveform"),
-        ChatMode(id: "video", short: "VIDEO", group: .create, summary: "A short video from your description.", symbol: "film"),
+        ChatMode(id: "video", short: "VIDEO", group: .create, summary: "Video from your description or a starting image.", symbol: "film"),
     ]
     static let legacy: Set<String> = ["fast", "normal", "max"]
     static func named(_ id: String) -> ChatMode { all.first { $0.id == id } ?? all[1] }
@@ -36,6 +36,12 @@ struct ChatMode: Identifiable, Hashable, Sendable {
         case "video": .seconds(1800)
         default: .seconds(360)
         }
+    }
+
+    /// A long VIDEO is many sequential segments on the computer: wait accordingly.
+    func patience(videoSegments segments: Int?) -> Duration {
+        guard id == "video", let segments, segments > 1 else { return patience }
+        return patience + .seconds(600 * min(segments - 1, 2000))
     }
 }
 
@@ -86,6 +92,8 @@ enum ChatText {
         case "text_only": mode.short + " currently supports text prompts only."
         case "speech_only": "Spoken audio only — not music, singing or sound effects."
         case "one_reference_image": "Attach one image to edit it."
+        case "one_start_image": "Optionally attach one image to animate."
+        case "long_video": "Choose a length; longer videos take several minutes."
         case "automatic_tier": "Your computer chooses the tier automatically."
         case "public_web_only": "Public questions only; attachments stay on this iPhone."
         case "video_with_audio": "Videos include generated sound."
@@ -138,6 +146,13 @@ enum ChatText {
         case "audio_unsupported": "OLIVE AUDIO creates spoken audio only — not music, singing or sound effects."
         case "speech_text_required": "Say what OLIVE should speak, for example: Say: Welcome to OLIVE."
         case "speech_too_long": "Keep speech text under 4,000 characters."
+        case "video_duration_invalid": "Choose a video length of at least half a second."
+        case "video_duration_too_long": "That video is longer than this computer allows. Choose a shorter length."
+        case "video_one_image": "OLIVE VIDEO currently accepts one starting image."
+        case "video_image_unsupported": "VIDEO on this computer supports text prompts only. Remove the image."
+        case "video_assembly_unavailable": "Your computer can only make about 2-second videos until FFmpeg is installed there."
+        case "video_storage_full": "Your computer doesn't have enough free space for this video."
+        case "video_segment_invalid", "video_assembly_failed", "video_verify_failed": "The video couldn't be completed on your computer. Nothing was saved."
         case "artifact_unavailable": "This result is no longer available on your computer."
         case "changed_duplicate": "This request changed while it was being sent. Nothing was run twice."
         case "ledger_full": "Your computer's request history is full. Check Devices on the computer."

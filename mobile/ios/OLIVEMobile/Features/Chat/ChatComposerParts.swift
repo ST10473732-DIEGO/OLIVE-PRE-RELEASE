@@ -232,6 +232,110 @@ struct ModePickerSheet: View {
     }
 }
 
+// MARK: - VIDEO length
+
+/// Compact "Duration · Auto" control, shown only when the computer plans VIDEO length.
+struct VideoDurationButton: View {
+    @Environment(AppState.self) private var state
+    @Binding var presented: Bool
+    var body: some View {
+        let label = state.videoDurationLabel
+        Button { presented = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "timer").font(.caption2)
+                Text(label)
+            }
+            .font(.caption.weight(.semibold)).foregroundStyle(OliveTheme.accent)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(OliveTheme.accent.opacity(0.12), in: Capsule())
+            .frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .disabled(state.active)
+        .accessibilityLabel("Video length, " + label)
+        .accessibilityHint("Choose how long the video should be")
+        .accessibilityIdentifier("chat.videoDuration")
+    }
+}
+
+/// Auto, the computer's presets, or a custom length in seconds or minutes.
+struct VideoDurationSheet: View {
+    @Environment(AppState.self) private var state
+    @Environment(\.dismiss) private var dismiss
+    @State private var custom = ""
+    @State private var minutes = false
+    @FocusState private var typing: Bool
+
+    var body: some View {
+        let capability = state.videoCapability
+        let maximum = Double(capability?.maximumMS ?? 0) / 1000
+        let presets = (capability?.presetsMS ?? []).map { Double($0) / 1000 }.filter { maximum == 0 || $0 <= maximum }
+        let typed = VideoDuration.custom(custom, minutes: minutes)
+        NavigationStack {
+            List {
+                Section {
+                    choice(nil, title: "Auto", detail: autoDetail)
+                    ForEach(presets, id: \.self) { seconds in choice(seconds, title: VideoDuration.label(seconds), detail: nil) }
+                } footer: {
+                    Text("Longer videos are made on your computer from about 2-second segments, one after another"
+                         + (maximum > 0 ? ", up to \(VideoDuration.label(maximum))." : "."))
+                }.listRowBackground(OliveTheme.raised)
+                Section {
+                    HStack(spacing: 10) {
+                        TextField("Length", text: $custom).keyboardType(.decimalPad).focused($typing)
+                            .accessibilityLabel("Custom length").accessibilityIdentifier("chat.videoDuration.custom")
+                        Picker("Unit", selection: $minutes) {
+                            Text("sec").tag(false)
+                            Text("min").tag(true)
+                        }.pickerStyle(.segmented).frame(maxWidth: 150).accessibilityIdentifier("chat.videoDuration.unit")
+                    }
+                    Button("Use \(typed.map(VideoDuration.label) ?? "custom length")") {
+                        guard let typed else { return }
+                        state.videoDuration = typed; dismiss()
+                    }
+                    .disabled(typed == nil || (maximum > 0 && (typed ?? 0) > maximum))
+                    .accessibilityIdentifier("chat.videoDuration.apply")
+                } header: { Text("Custom") } footer: {
+                    if let typed, maximum > 0, typed > maximum {
+                        Text("This computer allows up to \(VideoDuration.label(maximum)) per video.").foregroundStyle(OliveTheme.attention)
+                    }
+                }.listRowBackground(OliveTheme.raised)
+            }
+            .oliveListStyle()
+            .navigationTitle("Video length").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("chat.videoDuration.done") } }
+            .onAppear {
+                if let chosen = state.videoDuration, !presets.contains(chosen) { custom = String(format: chosen == chosen.rounded() ? "%.0f" : "%.1f", chosen) }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var autoDetail: String {
+        if let stated = VideoDuration.parse(state.draft) { return "From your message · " + VideoDuration.label(stated.seconds) }
+        let fallback = state.videoCapability.map { VideoDuration.label(Double($0.defaultMS) / 1000) } ?? ""
+        return "Uses a length in your message, else " + (fallback.isEmpty ? "your computer’s default" : fallback)
+    }
+
+    private func choice(_ seconds: Double?, title: String, detail: String?) -> some View {
+        let selected = state.videoDuration == seconds
+        return Button {
+            state.videoDuration = seconds; dismiss()
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).foregroundStyle(OliveTheme.text)
+                    if let detail { Text(detail).font(.footnote).foregroundStyle(OliveTheme.secondary).fixedSize(horizontal: false, vertical: true) }
+                }
+                Spacer(minLength: 8)
+                if selected { Image(systemName: "checkmark").foregroundStyle(OliveTheme.accent).accessibilityHidden(true) }
+            }.contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("chat.videoDuration.option." + (seconds.map { String(Int($0)) } ?? "auto"))
+    }
+}
+
 // MARK: - OLIVE Notes and OLIVE Draw pickers
 
 struct NotePickerSheet: View {

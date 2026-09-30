@@ -459,6 +459,7 @@ export default function App() {
       selection?: string;
     },
     researchMode?: "Quick" | "Deep",
+    extra?: { video_duration_seconds?: number },
   ) => {
     if (!chat || inFlight.current || busy || !text.trim()) return;
     inFlight.current = true;
@@ -483,7 +484,8 @@ export default function App() {
         });
       else await call("interaction.submit", { chat_id: chat.id, text,
         ...(workspace ? {workspace_id: workspace} : {}),
-        ...(researchMode ? {research_mode: researchMode} : {}) });
+        ...(researchMode ? {research_mode: researchMode} : {}),
+        ...(extra?.video_duration_seconds !== undefined ? {video_duration_seconds: extra.video_duration_seconds} : {}) });
       await refresh();
     } catch (e) {
       report(e);
@@ -690,7 +692,7 @@ export default function App() {
                   chat={chat}
                   setChat={setChat}
                   busy={busy || chat.generating || !!snapshot.initializing}
-                  submit={(text, mode) => submit(text, undefined, mode)}
+                  submit={(text, mode, extra) => submit(text, undefined, mode, extra)}
                   cancel={cancel}
                   report={report}
                   openStudio={(id, session) => {

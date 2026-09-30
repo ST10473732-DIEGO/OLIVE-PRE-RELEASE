@@ -5,6 +5,8 @@ import hashlib
 import io
 import json
 import struct
+import subprocess
+import shutil
 import tempfile
 import unittest
 import wave
@@ -33,8 +35,25 @@ def png(color='red', size=(64, 48)):
     return buffer.getvalue()
 
 
-def mp4():
-    return struct.pack('>I', 24) + b'ftypisom' + b'\0' * 12 + b'fake-mp4-payload'
+_MP4 = {}
+
+
+def mp4(frames=49, size=(1536, 896), audio=True):
+    """A real H.264/AAC clip shaped like one LTX segment (the pipeline probes it
+    with ffprobe), or a bare MP4 header on a computer without FFmpeg."""
+    if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
+        return struct.pack('>I', 24) + b'ftypisom' + b'\0' * 12 + b'fake-mp4-payload'
+    key = (frames, size, audio)
+    if key not in _MP4:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'clip.mp4'
+            argv = ['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', f'testsrc2=size={size[0]}x{size[1]}:rate=24']
+            if audio:
+                argv += ['-f', 'lavfi', '-t', '2.01', '-i', 'sine=frequency=440:sample_rate=48000', '-c:a', 'aac', '-ac', '2']
+            argv += ['-frames:v', str(frames), '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-f', 'mp4', str(target)]
+            subprocess.run(argv, check=True)
+            _MP4[key] = target.read_bytes()
+    return _MP4[key]
 
 
 def wav(seconds=0.5):
@@ -236,7 +255,8 @@ class ChatMediaTests(unittest.IsolatedAsyncioTestCase):
         self.preset('video')
         self.engine('video', FakeComfy(wf.VIDEO_WORKFLOWS, mp4()))
         self.s.chat.images[self.chat_id] = [('a.png', data)]
-        with self.assertRaisesRegex(ValueError, 'does not use attachments'):
+        # A computer without the validated image-to-video workflow refuses truthfully.
+        with self.assertRaisesRegex(ValueError, 'supports text prompts only'):
             await self.s.chat.send(self.chat_id, 'Animate this scene with slow camera movement.')
 
     async def test_missing_engine_start_failure_and_remote_target(self):

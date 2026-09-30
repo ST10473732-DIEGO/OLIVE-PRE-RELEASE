@@ -47,8 +47,14 @@ actor RemoteChatClient {
         return protocols.contains(.string(ChatWire.name))
     }
 
+    /// Asks for this build's additive extensions; a computer that predates them
+    /// refuses the argument, and is asked again in the original form.
     func capabilities() async throws -> ChatCapabilities {
-        try ChatWire.capabilities(try await call("capabilities", .object([:])).result)
+        do {
+            return try ChatWire.capabilities(try await call("capabilities", ChatWire.capabilitiesArguments(extended: true)).result)
+        } catch let refused as ChatRemoteError where refused.code == "invalid_request" {
+            return try ChatWire.capabilities(try await call("capabilities", ChatWire.capabilitiesArguments(extended: false)).result)
+        }
     }
 
     /// Offer, then send only what the computer is missing, in bounded chunks read

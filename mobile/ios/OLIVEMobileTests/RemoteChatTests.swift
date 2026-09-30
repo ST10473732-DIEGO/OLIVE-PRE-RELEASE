@@ -372,7 +372,7 @@ final class RemoteChatTests: XCTestCase {
         try await waitUntil { app.preparing == 0 && !app.draftAttachments.isEmpty }
         XCTAssertNil(app.sendBlocker)
         app.preset = "video"
-        XCTAssertEqual(app.sendBlocker, "VIDEO currently supports text prompts only. Remove the attachment or switch mode.")
+        XCTAssertEqual(app.sendBlocker, "VIDEO accepts one starting image, not documents or notes. Remove the attachment or switch mode.")
         XCTAssertFalse(app.canSend)
         app.preset = "now"
         XCTAssertNotNil(app.sendBlocker)
@@ -414,6 +414,204 @@ final class RemoteChatTests: XCTestCase {
         let starts = await session.desktop.starts
         XCTAssertEqual(starts, 1, "status recovery, not regeneration")
     }
+}
+
+// MARK: - OLIVE VIDEO length and image-to-video
+
+@MainActor
+final class RemoteVideoTests: XCTestCase {
+    private lazy var directory: URL = {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("RemoteVideoTests-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }()
+
+    private func waitUntil(_ seconds: Double = 12, _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline { if await condition() { return }; try await Task.sleep(for: .milliseconds(50)) }
+        XCTFail("Timed out")
+    }
+
+    private func state(legacy: Bool = false) -> AppState {
+        let session = FixtureChatSession(offline: false, legacy: false)
+        if legacy { session.chatCapabilities = try? ChatWire.capabilities(FixtureChatDesktop.capabilities()) }
+        return AppState(store: RemoteVideoShellStore(directory), chatConnection: session)
+    }
+
+    /// Kept identical to tests/fixtures/video_duration_vectors.json (checked by tests/test_video_duration.py).
+    static let vectors: [(String, Double?)] = [
+        // BEGIN video_duration_vectors
+        ("Generate a 5 second video", 5.0),
+        ("Generate a 20 second video", 20.0),
+        ("Make this image into a 30 second video", 30.0),
+        ("Create a 1 minute cinematic scene", 60.0),
+        ("a 20-second video of rain", 20.0),
+        ("waves for 20 seconds", 20.0),
+        ("clouds, 20 sec", 20.0),
+        ("clouds, 20 secs.", 20.0),
+        ("a 20s video of a cat", 20.0),
+        ("a woman in her 20s walking", nil),
+        ("the 1920s street scene", nil),
+        ("half a minute of rain", 30.0),
+        ("rain for half a minute", 30.0),
+        ("a 1 minute 30 seconds scene", 90.0),
+        ("90 seconds of waves", 90.0),
+        ("make a 2 minutes video", 120.0),
+        ("ocean (0:20)", 20.0),
+        ("city at 5:30 pm", nil),
+        ("01:30 of forest", 90.0),
+        ("the ball drops after 3 seconds", nil),
+        ("Generate a 5 second calm scene of clouds moving over mountains.", 5.0),
+        ("Generate a 20 second cinematic scene of clouds moving over a futuristic city.", 20.0),
+        ("Generate a 13 second video of gentle waves.", 13.0),
+        ("a five second clip of fire", 5.0),
+        ("a minute and a half long video", 90.0),
+        ("1m30s video of dogs", 90.0),
+        ("a 5m tall wave", nil),
+        ("Animate the clouds slowly and make the red circle drift to the right.", nil),
+        ("for 0:20", 20.0),
+        ("20 seconds long cat video", 20.0),
+        ("a 2.5 second clip", 2.5),
+        ("Create an 8 second clip", 8.0),
+        ("an 11-second shot", 11.0),
+        ("A 37 SECOND VIDEO OF A FOX", 37.0),
+        ("duration: 45s", 45.0),
+        ("a 2 hour movie", 7200.0),
+        ("0:00 of nothing", nil),
+        ("at 10:15 the lights turn on", nil),
+        ("a 90-minute film", 5400.0),
+        // END video_duration_vectors
+    ]
+
+    func testDurationParserMatchesDesktopVectors() {
+        for (text, expected) in Self.vectors {
+            XCTAssertEqual(VideoDuration.parse(text)?.seconds, expected, text)
+        }
+        XCTAssertEqual(VideoDuration.label(20), "20 s"); XCTAssertEqual(VideoDuration.label(90), "1 min 30 s"); XCTAssertEqual(VideoDuration.label(2.5), "2.5 s")
+        XCTAssertEqual(VideoDuration.custom("37", minutes: false), 37); XCTAssertEqual(VideoDuration.custom("1.5", minutes: true), 90)
+        for bad in ["", "0", "-3", "abc", "20s"] { XCTAssertNil(VideoDuration.custom(bad, minutes: false), bad) }
+    }
+
+    func testDurationAndImageArePartOfTheRequestIdentity() throws {
+        func args(_ options: ConnectJSON?) throws -> ConnectJSON {
+            try ChatWire.startArguments(job: "11111111-1111-4111-8111-111111111111", conversation: "22222222-2222-4222-8222-222222222222",
+                mode: "video", voice: nil, messages: [("user", "Generate a 20 second cinematic scene — café lights")],
+                attachments: [ChatAttachmentDescriptor(id: String(repeating: "b", count: 64), kind: "image", mime: "image/png", size: 4321, name: "Sky.png")],
+                options: options)
+        }
+        // Computed by olive.connect.chat_protocol.start_fingerprint for the same arguments.
+        XCTAssertEqual(try args(nil)["input_fingerprint"], .string("74bc04bd810187ee7db16d7b310b5ccd000e8150c48a8b151fffb73754eaebe9"))
+        XCTAssertEqual(try args(.object([:]))["input_fingerprint"], .string("9d019164611f30be90c26f3d8f75f1878c731f33eb6c1ec8d36dcdf181785ebe"))
+        XCTAssertEqual(try args(.object(["target_duration_ms": .int(20000), "duration_source": .string("prompt")]))["input_fingerprint"],
+                       .string("5fbca25b6c6cf3096534fb7fc911465b5b32825e3002f4ad1ef029c20bd8b732"))
+        XCTAssertEqual(try args(.object(["target_duration_ms": .int(5000), "duration_source": .string("explicit")]))["input_fingerprint"],
+                       .string("8693619fc915e66887d761a7735ec6cf78822b7191cac690bd4f8e00c09aac7a"))
+        XCTAssertThrowsError(try ChatWire.startArguments(job: UUID().uuidString.lowercased(), conversation: UUID().uuidString.lowercased(),
+            mode: "normal", voice: nil, messages: [("user", "x")], attachments: [], options: .object([:])), "options are VIDEO-only")
+    }
+
+    func testExtendedCapabilitiesAreAdditiveAndOlderShapesStillParse() throws {
+        let legacy = try ChatWire.capabilities(FixtureChatDesktop.capabilities())
+        XCTAssertFalse(legacy.modeOptions); XCTAssertNil(legacy.mode("video")?.video); XCTAssertEqual(legacy.mode("video")?.imageMax, 0)
+        let extended = try ChatWire.capabilities(FixtureChatDesktop.capabilities(extended: true))
+        XCTAssertTrue(extended.modeOptions)
+        let video = try XCTUnwrap(extended.mode("video")?.video)
+        XCTAssertTrue(video.imageToVideo); XCTAssertTrue(video.configurable)
+        XCTAssertEqual(video.maximumMS, 180_000); XCTAssertEqual(video.nativeSegmentMS, 2042)
+        XCTAssertEqual(extended.mode("video")?.imageMax, 1)
+        XCTAssertNil(extended.mode("fast")?.video)
+        XCTAssertEqual(video.segments(forMS: 20_000), 10); XCTAssertEqual(video.segments(forMS: 13_000), 7); XCTAssertEqual(video.segments(forMS: 2000), 1)
+        // A newer computer's extra keys inside VIDEO options are ignored.
+        guard case .object(var options) = FixtureChatDesktop.videoOptions else { return XCTFail() }
+        options["future_field"] = .string("ignored")
+        XCTAssertNoThrow(try VideoCapability(.object(options)))
+        // Unknown extensions are dropped; unknown top-level keys are still refused.
+        guard case .object(var root) = FixtureChatDesktop.capabilities(extended: true) else { return XCTFail() }
+        root["extensions"] = .array([.string("mode_options/1"), .string("teleport/9")])
+        XCTAssertEqual(try ChatWire.capabilities(.object(root)).extensions, ["mode_options/1"])
+        root["surprise"] = .bool(true)
+        XCTAssertThrowsError(try ChatWire.capabilities(.object(root)))
+    }
+
+    func testStructuredProgressIsOptionalAndBounded() throws {
+        func view(_ progress: ConnectJSON?) throws -> ChatJobView {
+            let job = "33333333-3333-4333-8333-333333333333"
+            var value: [String: ConnectJSON] = ["job_id": .string(job), "state": .string("running"), "phase": .string("generating_video"),
+                "text": .string(""), "offset": .int(0), "total": .int(0), "sources": .array([]), "artifacts": .array([]),
+                "attribution": .object([:]), "error": .null]
+            if let progress { value["progress"] = progress }
+            return try ChatWire.view(.object(value), job: job, after: 0)
+        }
+        XCTAssertNil(try view(nil).progress)
+        XCTAssertNil(try view(.null).progress)
+        let segment = try view(.object(["stage": .string("segment"), "current": .int(3), "total": .int(10)])).progress
+        XCTAssertEqual(segment?.text, "Generating segment 3 of 10…")
+        XCTAssertEqual(try view(.object(["stage": .string("stitching"), "current": .int(10), "total": .int(10)])).progress?.text, "Stitching 10 segments…")
+        XCTAssertNil(try view(.object(["stage": .string("future_stage"), "current": .int(1), "total": .int(2)])).progress)
+        XCTAssertThrowsError(try view(.object(["stage": .string("segment"), "current": .int(11), "total": .int(10)])))
+    }
+
+    func testAutoDurationFromPromptExplicitChoiceAndLimits() {
+        let app = state()
+        app.preset = "video"
+        XCTAssertEqual(app.videoDurationLabel, "Auto · 2 s")
+        app.draft = "Create a 20 second cinematic shot of rain"
+        XCTAssertEqual(app.videoTarget?.seconds, 20); XCTAssertEqual(app.videoTarget?.source, "prompt")
+        XCTAssertEqual(app.videoDurationLabel, "Auto · 20 s")
+        XCTAssertEqual(app.videoPlanNote, "20 s target · 10 generation segments")
+        app.videoDuration = 5  // The chosen length wins over the prompt.
+        XCTAssertEqual(app.videoTarget?.seconds, 5); XCTAssertEqual(app.videoTarget?.source, "explicit")
+        XCTAssertEqual(app.videoDurationLabel, "5 s")
+        app.videoDuration = 600
+        XCTAssertEqual(app.sendBlocker, "VIDEO on this computer is limited to 3 min per video. Choose a shorter length.")
+        app.videoDuration = 37
+        XCTAssertNil(app.sendBlocker)
+        app.clearChat()
+        XCTAssertNil(app.videoDuration, "a new conversation starts on Auto")
+    }
+
+    func testVideoAcceptsOneImageOnlyWhenTheComputerSupportsIt() async throws {
+        func photo(_ app: AppState, _ colour: UIColor) async throws {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 36)).image { context in colour.setFill(); context.fill(CGRect(x: 0, y: 0, width: 64, height: 36)) }
+            let data = try XCTUnwrap(image.pngData())
+            let count = app.draftAttachments.count
+            app.addAttachment { directory in try AttachmentPreparation.photo(data, source: "photo", name: "sky.png", directory: directory) }
+            try await waitUntil { app.preparing == 0 && app.draftAttachments.count == count + 1 }
+        }
+        let app = state()
+        app.preset = "video"; app.draft = "Animate the clouds"
+        try await photo(app, .blue)
+        XCTAssertNil(app.sendBlocker)
+        try await photo(app, .red)
+        XCTAssertEqual(app.sendBlocker, "OLIVE VIDEO currently accepts one starting image. Remove the extra image.")
+        // An older computer keeps its truthful text-only rejection.
+        let old = state(legacy: true)
+        old.preset = "video"; old.draft = "Animate the clouds"
+        try await photo(old, .blue)
+        XCTAssertEqual(old.sendBlocker, "VIDEO currently supports text prompts only. Remove the attachment or switch mode.")
+    }
+
+    func testLongVideoSendsItsLengthShowsSegmentsAndCompletes() async throws {
+        let app = state()
+        app.preset = "video"; app.draft = "Generate a 20 second cinematic scene of clouds"
+        app.send()
+        try await waitUntil { app.pending?.videoSegments == 10 }
+        try await waitUntil { (app.messages.last?.status ?? "").hasPrefix("Generating segment") }
+        try await waitUntil { !app.active }
+        XCTAssertEqual(app.chatStatus, "Completed")
+        XCTAssertEqual(app.messages.last?.artifacts.first?.durationMS, 20_000)
+    }
+}
+
+@MainActor private final class RemoteVideoShellStore: ShellStore {
+    let directory: URL
+    var text = ""
+    init(_ directory: URL) { self.directory = directory }
+    var companionDirectory: URL? { directory }
+    func loadDestination() -> Destination { .chat }
+    func saveDestination(_ value: Destination) {}
+    func loadDraft() throws -> String { text }
+    func saveDraft(_ value: String) throws { text = value }
 }
 
 actor FetchLog {

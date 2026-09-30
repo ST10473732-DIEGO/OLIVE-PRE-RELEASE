@@ -37,9 +37,22 @@ class MediaError(ValueError):
         'speech_text_required': 'Say what OLIVE should speak, for example: Say: Welcome to OLIVE.',
         'speech_too_long': 'Keep speech text under 4,000 characters.',
         'regenerate_unsupported': 'Send the media request again to create a new artifact. Regeneration of media is not supported.',
+        'video_duration_invalid': 'Choose a video length of at least half a second. Nothing was generated.',
+        'video_duration_too_long': ('OLIVE VIDEO on this computer is limited to {limit} per video. The limit is the '
+                                    '"media_video.max_duration_seconds" setting in settings.json in your OLIVE profile. '
+                                    'Nothing was generated.'),
+        'video_one_image': 'OLIVE VIDEO currently accepts one starting image. Remove the extra images and send again.',
+        'video_image_unsupported': 'OLIVE VIDEO on this computer supports text prompts only. Remove the image and describe the video in text.',
+        'video_assembly_unavailable': ('Videos longer or shorter than one native segment (about 2 seconds) need FFmpeg on this '
+                                       'computer. OLIVE does not install it. Nothing was generated.'),
+        'video_storage_full': 'This computer does not have enough free disk space for this video. Free some space or choose a shorter length. Nothing was generated.',
+        'video_segment_invalid': 'A generated video segment did not match the planned format, so the video was not completed. Nothing was saved.',
+        'video_assembly_failed': 'OLIVE could not join the video segments. Nothing was saved; details are in the local log.',
+        'video_verify_failed': 'The finished video did not pass verification, so it was not saved.',
     }
 
-    def __init__(self, code, detail=''):
+    def __init__(self, code, detail='', **values):
         self.code = code
         self.detail = str(detail)[:500]  # Internal diagnostics; never shown in Chat.
-        super().__init__(self.MESSAGES[code])
+        # Only OLIVE-computed values (limits) are formatted in; never peer text.
+        super().__init__(self.MESSAGES[code].format(**values) if values else self.MESSAGES[code].replace('{limit}', 'its configured maximum'))

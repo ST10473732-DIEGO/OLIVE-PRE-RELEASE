@@ -49,8 +49,14 @@ func runChatHarness(source: String, target: String, directory: URL) async {
             case "capabilities":
                 let capabilities = try await client.capabilities()
                 emit(.object(["done": .object(["permission": .string(capabilities.permission),
+                    "extensions": .array(capabilities.extensions.map(ConnectJSON.string)),
                     "modes": .array(capabilities.modes.map { .object(["id": .string($0.id), "available": .bool($0.available),
-                        "image_max": .int(Int64($0.imageMax)), "document_max": .int(Int64($0.documentMax))]) })])]))
+                        "image_max": .int(Int64($0.imageMax)), "document_max": .int(Int64($0.documentMax)),
+                        "video_i2v": $0.video.map { .bool($0.imageToVideo) } ?? .null,
+                        "video_max_ms": $0.video.map { .int($0.maximumMS) } ?? .null]) })])]))
+            case "duration":
+                let parsed = VideoDuration.parse(try command["text"].text())
+                emit(.object(["done": parsed.map { .int(Int64(($0.seconds * 1000).rounded())) } ?? .null]))
             case "upload":
                 let file = URL(fileURLWithPath: try command["path"].text())
                 let data = try Data(contentsOf: file)
@@ -65,18 +71,23 @@ func runChatHarness(source: String, target: String, directory: URL) async {
                                              size: try a["size"].number(1...Int64.max), name: try a["name"].text())
                 }
                 let arguments = try ChatWire.startArguments(job: try command["job"].uuid(), conversation: try command["conversation"].uuid(),
-                    mode: try command["mode"].text(), voice: command["voice"].string, messages: [("user", try command["text"].text())], attachments: attachments)
+                    mode: try command["mode"].text(), voice: command["voice"].string, messages: [("user", try command["text"].text())], attachments: attachments,
+                    options: command["options"] == .null ? nil : command["options"])
                 let view = try await client.start(arguments)
                 emit(.object(["done": .object(["state": .string(view.state)])]))
             case "follow":
                 let job = try command["job"].uuid()
                 var after = Int(command["after"].integer ?? 0), text = ""
+                var progress: [ConnectJSON] = []
                 while true {
                     let view = try await client.poll(job: job, after: after)
                     text += view.text; after += view.text.utf8.count
+                    if let step = view.progress, progress.last != .string(step.text) { progress.append(.string(step.text)) }
                     if view.state == "not_received" || (view.terminal && after >= view.total) {
                         for artifact in view.artifacts { artifacts[artifact.artifactID] = artifact }
-                        emit(.object(["done": summary(view, text: text)])); break
+                        var done = summary(view, text: text)
+                        if case .object(var fields) = done { fields["progress"] = .array(progress); done = .object(fields) }
+                        emit(.object(["done": done])); break
                     }
                     try await Task.sleep(for: .milliseconds(50))
                 }
