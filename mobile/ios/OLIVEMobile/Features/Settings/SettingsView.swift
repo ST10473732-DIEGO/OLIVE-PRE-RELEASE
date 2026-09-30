@@ -33,7 +33,14 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.notesSync")
                 Text("Notes are saved on this phone first. When this is on and your computer allows Notes sync for this phone, changes sync over OLIVE Connect while OLIVE is open. Copying text never syncs anything.")
                     .font(.footnote).foregroundStyle(OliveTheme.secondary)
-            } header: { Text("OLIVE Notes") }
+            } header: { Text("OLIVE DrawNote · Notes") }
+                .listRowBackground(OliveTheme.raised)
+            Section {
+                Toggle("Sync drawings with your computer", isOn: Binding(get: { state.draw.sync.enabled }, set: { state.draw.sync.enabled = $0 }))
+                    .accessibilityIdentifier("settings.drawSync")
+                Text("Drawings are saved on this phone first. When this is on and your computer allows Draw sync for this phone (Devices › this iPhone › Draw sync on the computer), completed strokes and imported images sync over OLIVE Connect while OLIVE is open. Notes and Draw permissions are separate.")
+                    .font(.footnote).foregroundStyle(OliveTheme.secondary)
+            } header: { Text("OLIVE DrawNote · Draw") }
                 .listRowBackground(OliveTheme.raised)
             if let notifications = state.background?.notifications {
                 Section("Notifications") {

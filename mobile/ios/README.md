@@ -19,6 +19,20 @@ acceptance). Opt-in Notes UI tests: `TEST_RUNNER_OLIVE_NOTES_UI_ACCEPTANCE=1`
 (isolated profile) and `TEST_RUNNER_OLIVE_NOTES_LIVE_ACCEPTANCE=1` with
 `TEST_RUNNER_OLIVE_NOTES_LIVE_STEPS` (real pairing, synthetic notes only).
 
+**OLIVE DrawNote** (tab *DrawNote*) holds two sections, **Notes | Draw**. Notes
+is the OLIVE Notes above (unchanged). **Draw** is a native OLIVE Draw canvas
+(`OLIVEMobile/Core/Draw`, `OLIVEMobile/Features/Draw`): the desktop's replicated
+record model and `olive-draw/1` (Connect frames 15/16, `sync.draw`) implemented in
+Swift over its own SQLite store, a CoreGraphics renderer and native touch input.
+See `docs/OLIVE_DRAWNOTE.md` › *OLIVE Draw on iPhone*. `check-connect-interop.sh`
+also runs `tests/test_draw_phone_engine.py` (the Swift Draw engine against the
+Python desktop engine). Opt-in Draw UI tests: `TEST_RUNNER_OLIVE_DRAW_UI_ACCEPTANCE=1`
+(isolated profile) and `TEST_RUNNER_OLIVE_DRAW_LIVE_ACCEPTANCE=1` with
+`TEST_RUNNER_OLIVE_DRAW_LIVE_STEPS` (real pairing, synthetic drawings only).
+`tests/fixtures/draw_phone_test_host.py` is a test-only desktop stand-in (temporary
+profile) for pairing the phone's separate acceptance identity
+(`--c92-pairing-check`) when the real desktop cannot be driven.
+
 Open `OLIVEMobile.xcodeproj`; select the shared **OLIVEMobile** scheme.
 The app supports iPhone on **iOS 17+**, in portrait and landscape.
 All three targets use Swift 6. The product name on the phone is **OLIVE**.
@@ -102,8 +116,8 @@ development step; Xcode does not fetch dependencies.
 ## Source layout
 
 - `App`: composition root and main-actor Observation state.
-- `Navigation`: three native tabs and a Settings sheet.
-- `Features`: Home, Chat/selected Chat, Today/agenda, Files, Studio, Devices and Settings.
+- `Navigation`: native tabs (Home, Chat, DrawNote, Devices) and a Settings sheet.
+- `Features`: Home, Chat/selected Chat, Today/agenda, Files, Studio, Notes, Draw, Devices and Settings.
 - `DesignSystem`: Grove semantic colors, type, spacing and components.
 - `Core/Models`: local presentation values, not desktop database replicas.
 - `Core/Persistence`: atomic protected stores and explicit preserved-data recovery; keys stay in Keychain.

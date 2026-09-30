@@ -3,7 +3,7 @@
 <plist version="1.0"><dict>
 <key>NSLocalNetworkUsageDescription</key><string>OLIVE discovers and securely connects to your OLIVE computer for local Chat.</string>
 <key>NSBonjourServices</key><array><string>_olive-connect._tcp</string></array>
-<key>NSCameraUsageDescription</key><string>Scan the pairing code displayed by your OLIVE computer.</string>
+<key>NSCameraUsageDescription</key><string>Scan the pairing code displayed by your OLIVE computer, or take a photo to add to a drawing.</string>
 <key>UIBackgroundModes</key><array><string>processing</string></array>
 <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>io.github.st10473732-diego.olive.mobile.continued.*</string></array>
 </dict></plist>

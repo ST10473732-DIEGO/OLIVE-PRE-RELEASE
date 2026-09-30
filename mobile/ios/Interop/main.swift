@@ -35,6 +35,12 @@ if CommandLine.arguments[1] == "--pair-fixture" {
     exit(0)
 }
 
+if CommandLine.arguments[1] == "--draw-harness" {
+    // OLIVE Draw: the real Swift engine, store, codec and renderer (tests/test_draw_phone_engine.py).
+    runDrawHarness(directory: URL(fileURLWithPath: CommandLine.arguments[2], isDirectory: true))
+    exit(0)
+}
+
 if CommandLine.arguments[1] == "--notes-harness" {
     // OLIVE Notes: the real Swift JavaScriptCore host and SQLite store, driven by
     // tests/test_notes_phone_engine.py (JSON lines, same commands as the Node harness).

@@ -406,10 +406,16 @@ private struct NotesUI {
     var text: String { editor.value as? String ?? "" }
 
     func log(_ line: String) { print("NOTES-UI \(Date().timeIntervalSince1970) \(line)") }
+    /// OLIVE DrawNote tab › Notes section (Notes itself is unchanged).
     func openNotes() {
-        app.tabBars.buttons["Notes"].tap()
-        if editor.exists { app.navigationBars.buttons.element(boundBy: 0).tap() }   // Resumed inside a note.
-        XCTAssertTrue(app.navigationBars["OLIVE Notes"].waitForExistence(timeout: 10) || app.navigationBars["Recently Deleted"].exists)
+        app.tabBars.buttons["DrawNote"].tap()
+        if editor.exists || app.descendants(matching: .any)["draw.canvas"].exists {
+            app.navigationBars.buttons.element(boundBy: 0).tap()   // Resumed inside a note or drawing.
+        }
+        let section = app.segmentedControls["drawnote.section"].buttons["Notes"]
+        XCTAssertTrue(section.waitForExistence(timeout: 10))
+        if !section.isSelected { section.tap() }
+        XCTAssertTrue(app.navigationBars["OLIVE DrawNote"].waitForExistence(timeout: 10) || app.navigationBars["Recently Deleted"].exists)
         if app.navigationBars["Recently Deleted"].exists { app.buttons["Show notes"].tap() }
     }
     /// A list row by exact title (its combined label is "[Pinned, ]Title, preview, time").
@@ -418,7 +424,7 @@ private struct NotesUI {
     }
     func backToList() {
         if editor.exists { app.navigationBars.buttons.element(boundBy: 0).tap() }
-        XCTAssertTrue(app.navigationBars["OLIVE Notes"].waitForExistence(timeout: 10) || app.navigationBars["Recently Deleted"].exists)
+        XCTAssertTrue(app.navigationBars["OLIVE DrawNote"].waitForExistence(timeout: 10) || app.navigationBars["Recently Deleted"].exists)
     }
     func create(_ name: String, _ body: String) {
         app.buttons.matching(identifier: "New note").firstMatch.tap()
@@ -518,7 +524,7 @@ final class NotesUIAcceptanceTests: XCTestCase {
         XCTAssertTrue(ui.search("café")); ui.cancelSearch()
         // Delete -> Recently Deleted -> Restore.
         ui.open("OLIVE Notes Delete Test"); ui.menu("Delete"); app.buttons["Delete"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["OLIVE Notes"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["OLIVE DrawNote"].waitForExistence(timeout: 5))
         XCTAssertFalse(ui.row("OLIVE Notes Delete Test").waitForExistence(timeout: 2))
         app.buttons["Show recently deleted notes"].tap()
         ui.open("OLIVE Notes Delete Test", timeout: 5); app.buttons["Restore"].tap(); ui.backToList()

@@ -14,6 +14,11 @@ final class AppState {
     @ObservationIgnored lazy var studio = StudioModel(session: session, background: background, directory: companionDirectory)
     /// OLIVE Notes: local-first; syncs over this session only when allowed on both sides.
     @ObservationIgnored lazy var notes = NotesModel(directory: companionDirectory)
+    /// OLIVE Draw: local-first; syncs over this session only when allowed on both sides.
+    @ObservationIgnored lazy var draw = DrawModel(directory: companionDirectory, defaults: drawDefaults)
+    /// OLIVE DrawNote's current section (Notes | Draw), remembered on this phone only.
+    var drawNoteSection: DrawNoteSection { didSet { store.saveDrawNoteSection(drawNoteSection) } }
+    @ObservationIgnored private let drawDefaults: UserDefaults
     let companionDirectory: URL
     let background: BackgroundWorkCoordinator?
     let chatStore: MobileChatStore?
@@ -45,8 +50,10 @@ final class AppState {
     var canSend: Bool { !active && background?.active == nil && background?.cancelling != true && chatConnection?.connected == true && chatConnection?.capability?["permission"].string != "deny" && chatConnection?.capability?["presets"][preset].boolean == true && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && draft.utf8.count <= 16000 }
 
     init(store: any ShellStore, connectClient: any ConnectClient = DisconnectedConnectClient(),
-         pairingService: any PairingService = UnavailablePairingService(), session: ConnectSession? = nil, chatConnection: (any ChatRemoteSession)? = nil) {
+         pairingService: any PairingService = UnavailablePairingService(), session: ConnectSession? = nil, chatConnection: (any ChatRemoteSession)? = nil,
+         drawDefaults: UserDefaults = .standard) {
         self.session = session
+        self.drawDefaults = drawDefaults
         companionDirectory = store.companionDirectory ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         background = session == nil ? nil : BackgroundWorkCoordinator(directory: companionDirectory)
         chatStore = session == nil ? nil : MobileChatStore(directory: companionDirectory)
@@ -55,6 +62,7 @@ final class AppState {
         self.connectClient = connectClient
         self.pairingService = pairingService
         destination = store.loadDestination()
+        drawNoteSection = store.loadDrawNoteSection()
         do { draft = try store.loadDraft() }
         catch {
             draft = ""
@@ -192,19 +200,25 @@ final class AppState {
             // Notes must speak as this phone's authenticated Connect identity.
             self.notes.start(deviceID: identity.publicIdentity.deviceID)
             await self.notes.sync.bind(channel: channel, peer: peer.id, capability: self.session?.notesCapability)
+            // Draw records are made by the same authenticated identity; the probe,
+            // hello and pumps run on their own tasks (never blocking Connect).
+            self.draw.start(deviceID: identity.publicIdentity.deviceID)
+            await self.draw.sync.bind(channel: channel, local: identity.publicIdentity.deviceID, peer: peer.id)
         }
-        session?.onDisconnect = { [weak self] in self?.files.invalidate(); self?.notes.sync.invalidate() }
+        session?.onDisconnect = { [weak self] in self?.files.invalidate(); self?.notes.sync.invalidate(); self?.draw.sync.invalidate() }
         session?.onNotesCapability = { [weak self] value in self?.notes.sync.capabilityChanged(value) }
         startNotes()
         session?.activate()
     }
     private func startNotes() {
-        guard notes.engine == nil else { return }
+        guard notes.engine == nil || draw.engine == nil else { return }
         Task { [weak self] in
             guard let self else { return }
             let id = await self.session?.localDeviceID() ?? Self.notesLocalID()
             if self.notes.engine == nil { self.notes.start(deviceID: id) }
             self.notes.sync.remember(peer: self.session?.selectedID)
+            if self.draw.engine == nil { self.draw.start(deviceID: id) }
+            self.draw.sync.remember(peer: self.session?.selectedID)
         }
     }
     /// Before this phone has a Connect identity, Notes still works locally.
@@ -218,6 +232,10 @@ final class AppState {
     func suspend() {
         saveDraft()
         notes.flush() // Local persistence first; sync resumes on the next connection.
+        // Draw: completed edits are already committed; finish any in-flight commit
+        // under a short background assertion. Never waits for the computer.
+        let drawAssertion = UIApplication.shared.beginBackgroundTask(withName: "OLIVE Draw save") {}
+        Task { await draw.flush(); if drawAssertion != .invalid { UIApplication.shared.endBackgroundTask(drawAssertion) } }
         if background?.active != nil, background?.continuationGranted == true { session?.suspend(continuing: true); return }
         guard active || background?.active != nil else { session?.suspend(); return }
         session?.suspend(continuing: true) // Short cleanup retains only the existing active session.
@@ -248,6 +266,9 @@ final class AppState {
         session?.finishBackgroundWork()
     }
     func openChat() { destination = .chat }
+    /// Open-note navigation lands in DrawNote › Notes; Draw links land in Draw.
+    func openNotes() { drawNoteSection = .notes; destination = .notes }
+    func openDraw() { drawNoteSection = .draw; destination = .notes }
     var canClearChat: Bool { !active && !messages.isEmpty }
     /// Clears the visible conversation, its model context and this computer's saved iPhone history.
     func clearChat() {

@@ -57,7 +57,7 @@ struct OLIVEMobileApp: App {
                     try ProtectedStore<[MobileFileReceipt]>(url: files.appendingPathComponent("receipts-v1.json"), maximumBytes: 8_000_000).save([receipt])
                 } catch { assertionFailure("Could not prepare isolated file UI fixture") }
             }
-            let isolated = AppState(store: LocalShellStore(defaults: defaults, directory: directory))
+            let isolated = AppState(store: LocalShellStore(defaults: defaults, directory: directory), drawDefaults: defaults)
             if args.contains("--ui-test-sync-conflict") {
                 do {
                     let phone = try ConnectIdentity.generate(), desktop = try ConnectIdentity.generate()

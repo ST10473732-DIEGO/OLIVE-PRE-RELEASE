@@ -18,6 +18,7 @@ xcrun swiftc -swift-version 6 -module-cache-path "$OUT/cache" \
   mobile/ios/OLIVEMobile/Core/Security/SecretStore.swift \
   mobile/ios/OLIVEMobile/Core/Notes/NotesDatabase.swift \
   mobile/ios/OLIVEMobile/Core/Notes/NotesEngineHost.swift \
+  $(ls mobile/ios/OLIVEMobile/Core/Draw/*.swift | grep -v DrawSync.swift) mobile/ios/Interop/DrawHarness.swift \
   mobile/ios/Interop/main.swift "$OUT/tls.o" \
   -L"$OPENSSL/lib" -lssl -lcrypto -o "$OUT/interop"
 "$OUT/interop" tests/fixtures/mobile_connect/vectors.json "$OUT/swift.json"
@@ -33,3 +34,8 @@ OLIVE_SWIFT_INTEROP="$OUT/interop" "$PYTHON" -m unittest tests.test_mobile_pairi
 # OLIVE Notes: the committed phone engine in the real Swift JavaScriptCore host
 # and SQLite store, against the Python desktop engine (olive-notes/1 bytes).
 OLIVE_NOTES_SWIFT_HARNESS="$OUT/interop" "$PYTHON" -m unittest tests.test_notes_phone_engine -v
+
+# OLIVE Draw: the phone's native Swift engine (SQLite store, replica rules,
+# olive-draw/1 codec, image canonicalization, CoreGraphics renderer) against the
+# Python desktop engine over real olive-draw/1 bytes.
+OLIVE_DRAW_SWIFT_HARNESS="$OUT/interop" "$PYTHON" -m unittest tests.test_draw_phone_engine -v

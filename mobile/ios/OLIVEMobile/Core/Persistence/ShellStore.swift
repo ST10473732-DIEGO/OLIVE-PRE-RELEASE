@@ -7,9 +7,15 @@ protocol ShellStore {
     func saveDestination(_ destination: Destination)
     func loadDraft() throws -> String
     func saveDraft(_ draft: String) throws
+    func loadDrawNoteSection() -> DrawNoteSection
+    func saveDrawNoteSection(_ section: DrawNoteSection)
 }
 
-extension ShellStore { var companionDirectory: URL? { nil } }
+extension ShellStore {
+    var companionDirectory: URL? { nil }
+    func loadDrawNoteSection() -> DrawNoteSection { .notes }
+    func saveDrawNoteSection(_ section: DrawNoteSection) {}
+}
 
 /// Navigation is non-secret preferences. Draft text is a protected, local-only
 /// file, excluded from backup; this is not a desktop conversation repository.
@@ -31,6 +37,13 @@ final class LocalShellStore: ShellStore {
     }
     func saveDestination(_ destination: Destination) {
         defaults.set(destination.rawValue, forKey: "shell.v1.destination")
+    }
+    /// OLIVE DrawNote remembers its last section on this phone (never synced).
+    func loadDrawNoteSection() -> DrawNoteSection {
+        DrawNoteSection(rawValue: defaults.string(forKey: "shell.v1.drawnote.section") ?? "") ?? .notes
+    }
+    func saveDrawNoteSection(_ section: DrawNoteSection) {
+        defaults.set(section.rawValue, forKey: "shell.v1.drawnote.section")
     }
     func loadDraft() throws -> String {
         guard FileManager.default.fileExists(atPath: draftURL.path) else { return "" }

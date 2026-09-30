@@ -12,6 +12,9 @@ actor ConnectTransport: InferenceTransport {
     /// OLIVE Notes: desktop-initiated olive-notes/1 requests (frame 13 -> 14).
     private var notesInbound: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?
     func setNotesInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?) { notesInbound = handler }
+    /// OLIVE Draw: desktop-initiated olive-draw/1 requests (frame 15 -> 16).
+    private var drawInbound: (@Sendable (ConnectFrame) async -> ConnectFrame)?
+    func setDrawInbound(_ handler: (@Sendable (ConnectFrame) async -> ConnectFrame)?) { drawInbound = handler }
     func setInbound(_ handler: (@Sendable (ConnectFrame) async throws -> ConnectFrame)?, delivered: (@Sendable (ConnectFrame) async -> Void)? = nil) {
         inbound = handler; inboundDelivered = delivered
     }
@@ -140,6 +143,15 @@ actor ConnectTransport: InferenceTransport {
                     try await write(reply.encode())
                     continue
                 }
+                if frame.kind == 15 {
+                    // A desktop only sends Draw frames after this phone spoke olive-draw/1.
+                    // Every request gets a correlated answer (a rejection when Draw is not bound).
+                    let reply = await drawInbound?(frame) ?? ConnectFrame(kind: 16,
+                        payload: DrawProtocol.encodeResponse(requestID: DrawProtocol.requestID(of: frame.payload), error: "capability_unavailable"))
+                    guard reply.kind == 16 else { throw ConnectFailure.responseMalformed }
+                    try await write(reply.encode())
+                    continue
+                }
                 if [5, 7].contains(frame.kind), let inbound {
                     let reply = try await inbound(frame)
                     guard reply.kind == frame.kind + 1 else { throw ConnectFailure.responseMalformed }
@@ -147,11 +159,13 @@ actor ConnectTransport: InferenceTransport {
                     await inboundDelivered?(reply)
                     continue
                 }
-                guard [2, 6, 8, 10, 12, 14].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
-                let v = try ConnectJSON.decode(frame.payload, limit: ConnectFrame.limit(frame.kind), allowDecimals: frame.kind == 12)
+                guard [2, 6, 8, 10, 12, 14, 16].contains(frame.kind) else { throw ConnectFailure.responseMalformed }
+                let v = try ConnectJSON.decode(frame.payload, limit: ConnectFrame.limit(frame.kind), allowDecimals: frame.kind == 12 || frame.kind == 16)
                 #if DEBUG
                 acceptanceTrace("decoded-\(frame.kind)", persist: false)
                 #endif
+                // An uncorrelated Draw rejection is inert (nothing of ours can be waiting on it).
+                if frame.kind == 16 && v["request_id"] == .null { continue }
                 let id = try v["request_id"].uuid()
                 if let (kind, _, continuation) = pending.removeValue(forKey: id) {
                     guard kind == frame.kind else {
@@ -177,7 +191,7 @@ actor ConnectTransport: InferenceTransport {
     }
     func exchangeFrame(kind: UInt8, id: String, payload: Data) async throws -> Data {
         guard ready, !closed else { throw ConnectFailure.peerOffline }
-        guard [1, 5, 7, 9, 11, 13].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
+        guard [1, 5, 7, 9, 11, 13, 15].contains(kind) else { throw ConnectFailure.capabilityUnavailable }
         _ = try ConnectJSON.string(id).uuid()
         let encoded = try ConnectFrame(kind: kind, payload: payload).encode()
         guard pending.count < 8, pending[id] == nil else { throw ConnectFailure.resourceBusy }
@@ -194,7 +208,7 @@ actor ConnectTransport: InferenceTransport {
                 }
             }
             Task {
-                try? await Task.sleep(for: .seconds(7))
+                try? await Task.sleep(for: .seconds(kind == 15 ? 20 : 7))   // Draw: one bounded batch or asset chunk.
                 if let (_, currentTicket, continuation) = pending[id], currentTicket == ticket {
                     pending.removeValue(forKey: id)
                     continuation.resume(throwing: ConnectFailure.requestTimeout)
@@ -207,7 +221,7 @@ actor ConnectTransport: InferenceTransport {
         #if DEBUG
         if !closed { acceptanceTrace("close") }
         #endif
-        closed = true; ready = false; authenticatedIDs = nil; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; notesInbound = nil; reader?.cancel(); reader = nil
+        closed = true; ready = false; authenticatedIDs = nil; sender?.cancel(); sender = nil; inbound = nil; inboundDelivered = nil; notesInbound = nil; drawInbound = nil; reader?.cancel(); reader = nil
         let waiting = pending; pending.removeAll()
         for (_, _, c) in waiting.values { c.resume(throwing: ConnectFailure.connectionLost) }
         await socket.close(); tls = nil; plaintext.removeAll()

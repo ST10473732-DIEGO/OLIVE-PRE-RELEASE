@@ -1,12 +1,13 @@
 # OLIVE DrawNote
 
-OLIVE DrawNote is one section of OLIVE Desktop with two sub-applications:
+OLIVE DrawNote is one section of OLIVE Desktop and of OLIVE for iPhone, with
+two sub-applications:
 
 ```
 OLIVE DrawNote
  ├── Notes  — the existing OLIVE Notes (unchanged; syncs with the phone)
  └── Draw   — OLIVE Draw: a manual Paint-style canvas with image import and
-              cross-device sync (desktop in this milestone)
+              cross-device sync (desktop and iPhone)
 ```
 
 Draw is a normal local application. It works with Ollama, ComfyUI and
@@ -14,11 +15,14 @@ VoiceStudio stopped and no model loaded, and never involves the model residency
 manager. REIMAGINE remains the AI image generator; Draw is a manual canvas and
 Chat has no pixel or stroke authority over it.
 
-**Status of sync.** The desktop side of Draw sync is implemented and verified
-between two real OLIVE desktops over OLIVE Connect TLS. The iPhone Draw UI is
-the next (Mac/mobile) milestone; **physical iPhone Draw sync is not verified**.
-Completed drawing edits synchronize near-real-time (one completed stroke is one
-unit); individual pointer points are not streamed.
+**Status of sync.** Draw sync is implemented on the desktop and on the iPhone
+(see [OLIVE Draw on iPhone](#olive-draw-on-iphone)). Verified: desktop ↔ desktop
+over OLIVE Connect TLS; a physical iPhone ↔ a Mac test host running the
+production Python Connect/Draw services over real TLS on the LAN; and a physical
+iPhone ↔ the user's CachyOS desktop in both directions (live strokes, local-origin
+Undo/Redo, image transfer, offline + force-quit + desktop restart, drawing
+creation). Completed drawing edits synchronize near-real-time (one completed
+stroke is one unit); individual touch or pointer points are not streamed.
 
 ## Product structure and routing
 
@@ -36,7 +40,9 @@ unit); individual pointer points are not streamed.
 ### Notes preservation
 
 Nothing in `olive/notes`, `notes.sqlite3`, `olive-notes/1`, the Notes CRDT,
-Connect frames 13/14, the phone engine or `mobile/` changed. Notes is wrapped in
+Connect frames 13/14 or the phone Notes engine/store changed. On the phone the
+Notes tab became **OLIVE DrawNote** with a Notes | Draw switch; the Notes screens
+themselves are unchanged apart from the section switch and title. Notes is wrapped in
 the same `SpaceSlot` provider as other multi-view pages (its status and actions
 appear in the DrawNote header). The phone app keeps calling the product Notes.
 
@@ -378,30 +384,206 @@ A record that fails validation in the local store makes that drawing
 an asset whose bytes do not match its hash is never served. Nothing is replaced
 with an empty drawing.
 
-## Mobile integration contract (next milestone)
+## OLIVE Draw on iPhone
 
-The phone will need: apply local operation, apply remote records, ordered visible
-operations, local-origin undo/redo, per-peer cursors, metadata, asset
-references. The contract:
+### Navigation
 
-1. **Replica rules**: `desktop/src/features/draw/replica.ts` is pure TypeScript
-   (no DOM, no bridge). The phone can bundle it for JavaScriptCore (as Notes
-   does with its engine) or port the ~150 lines to Swift. Either way it must
-   pass `olive/draw/conformance_v1.json` in any arrival order.
-2. **Records and operations**: `drawing_schema.json` (validation rules as in
-   `document.py`/`model.ts`); ids are 128-bit random; the phone uses its Connect
-   device id as `device`; Lamport per drawing.
-3. **Storage**: a SQLite store equivalent to store schema 2 (records, feed seq,
-   peer cursors, epoch, tombstones, assets, local undo stacks).
-4. **Wire**: `protocol_v1.json` / `protocol.py`, Connect frames 15/16. The phone
-   speaks first (hello), then pumps its feed; it answers the desktop's requests
-   with `wants`.
-5. **Images**: import on the phone must produce canonical assets the same way
-   (decode with orientation, sRGB, re-encode PNG/JPEG without metadata) and
-   render image operations at their document rectangle in operation order,
-   ignoring EXIF.
-6. **Pressure**: stored pressure values render with the same width rule
-   (width × (0.2 + 0.8 × pressure)) everywhere.
+The phone's third tab is **DrawNote** (title **OLIVE DrawNote**) with a
+segmented **Notes | Draw** switch at the top of each list. The last-used section
+is remembered on the phone (`shell.v1.drawnote.section`, never synced); the saved
+tab value is still `notes`, so an existing saved destination opens DrawNote.
+`AppState.openNotes()` lands in Notes and `openDraw()` in Draw. Chat, Devices and
+Settings are unchanged.
+
+### Architecture
+
+| Layer | File (under `mobile/ios/OLIVEMobile/`) |
+| --- | --- |
+| Records, operations, validation, limits (mirror of `document.py`/`model.ts`) | `Core/Draw/DrawDocument.swift` |
+| In-memory replica (port of `replica.ts`) | `Core/Draw/DrawReplica.swift` |
+| SQLite store, replica rules in SQL (port of `store.py` + `records.py`) | `Core/Draw/DrawStore.swift` |
+| Library, edits, local undo, assets, olive-draw/1 engine (one actor) | `Core/Draw/DrawEngine.swift` |
+| olive-draw/1 codec (port of `protocol.py`) and wire helpers | `Core/Draw/DrawProtocol.swift`, `Core/Draw/DrawWire.swift` |
+| Image validation, import canonicalization | `Core/Draw/DrawAssets.swift` |
+| CoreGraphics renderer (port of `render.ts`) | `Core/Draw/DrawRender.swift` |
+| Touch capture and viewport math (ports of `capture.ts`, `viewport.ts`) | `Core/Draw/DrawCapture.swift` |
+| Connect integration (probe, hello, frames 15/16, status) | `Core/Draw/DrawSync.swift` |
+| Library, editor, canvas, DrawNote switch | `Features/Draw/*.swift` |
+
+**Replica implementation: native Swift, not the TypeScript replica in
+JavaScriptCore.** The rules are small (`replica.ts` is ~125 lines) and whole-record
+based; the phone also needs them in SQL for the durable store (as Python does),
+the CoreGraphics renderer needs typed operations anyway, persistence integrates
+directly with SQLite without a JS↔Swift bridge per record, an actor gives simple
+Swift-concurrency isolation, and the shared fixture runs directly in XCTest.
+Notes stays on JavaScriptCore because it needs Yjs; Draw does not use Yjs.
+
+Every SQLite access goes through one actor (`DrawEngine`); UI state is on the
+main actor; the only `@unchecked Sendable` in Draw is a render-result box whose
+ownership passes once from the render task to the main actor.
+
+### Conformance and interoperability
+
+- `conformance_v1.json` (the shared file, bundled into the test target by
+  reference) passes on the phone through both the in-memory replica and the
+  SQLite store, 16 random arrival orders per scenario plus duplicate delivery.
+- Limits and protocol constants are compared field by field with the shared
+  `drawing_schema.json` and `protocol_v1.json` in a unit test.
+- `tests/test_draw_phone_engine.py` drives the real Swift engine (built from the
+  app sources by `mobile/ios/scripts/check-connect-interop.sh`) against the real
+  Python desktop engine with real olive-draw/1 bytes: conformance in random
+  orders, phone records accepted by Python validation, Lamport ordering,
+  local-origin undo isolation, undo history across a SIGKILL, offline edits,
+  duplicate/lost/reordered delivery, restart before ACK, conflicts, three
+  replicas (desktop, phone, third) with forwarding, seeded random histories,
+  tombstones both ways, trash/restore, image import (EXIF/GPS stripped,
+  orientation applied), placement, bad images, assets both ways, a transfer
+  interrupted by killing the phone process, corrupt transfers, permission
+  Off/Allow, epoch changes both ways, strict protocol rejections and a
+  1,000-stroke initial sync. 25 tests.
+
+### Storage and data protection
+
+`Application Support/Companion/Draw/drawings.sqlite3`: store schema 2 with the
+same logical tables as the desktop (`meta` store_id/epoch/feed_seq, `drawings`,
+`draw_records`, `draw_visibility`, `draw_history`, `draw_purges`,
+`draw_assets`, `draw_wanted`, `draw_peers`, `draw_thumbnails`), WAL,
+`synchronous=FULL`, one transaction per change. The folder and the database,
+`-wal` and `-shm` files use the same Data Protection class as the Notes store,
+`completeUntilFirstUserAuthentication` (verified on the physical iPhone by a unit
+test), and the folder is excluded from device backup. This is iOS file protection
+only; the database has no additional encryption. A newer or unrecognised
+database is refused without being modified; an unreadable one is kept (never
+replaced by an empty store) and Draw shows "Drawing storage unavailable"; a
+record that fails validation makes that drawing "Could not load drawing" and
+is never sent to peers.
+
+### Rendering, touch and Apple Pencil
+
+- The committed picture is a raster cache of the visible viewport, rendered off
+  the main thread from the operations; the live stroke is drawn separately
+  (a shape layer; pressure strokes use the renderer itself). Rendered pixels are
+  never stored as the drawing.
+- One finger draws one stroke (or one erase) per gesture, committed at touch-up;
+  points are quantized to 1/100 document px exactly as on the desktop. Two
+  fingers pinch-zoom (10 %–1600 %, around the focal point) and pan; a pinch or
+  pan that starts cancels a stroke begun by its first finger. The navigation
+  stack's swipe-back gestures are disabled while the canvas is on screen
+  (iOS 26 recognizes swipe-back anywhere, which cancelled left-to-right strokes).
+- Apple Pencil: `UITouch.type == .pencil` samples use `force /
+  maximumPossibleForce` as pressure, trusted only once it varies; fingers never
+  produce pressure. The width rule is the desktop's
+  `width × (0.2 + 0.8 × pressure)` (unit-tested, including measured stroke
+  widths). A Pencil double-tap whose system preference is "switch to eraser"
+  toggles the eraser. **Neither was exercised on hardware**: the test iPhone does
+  not support Apple Pencil.
+- Smoothing is the desktop's (quadratics through midpoints); each quadratic is
+  drawn as short line pieces because CoreGraphics offsets very tight curves
+  with a squared corner where Chromium draws them round. A synthetic drawing
+  (strokes, pressure, translucency, eraser, image, dot) rendered by the phone
+  renderer and by the desktop's `render.ts` in Chromium: 97.3 % of pixels
+  identical, 98.6 % within 8 of 255 levels, all differences at antialiased edges;
+  every sampled coordinate identical (stroke, translucent overlap, eraser cut,
+  background, image colour, image transparency).
+- Fit is the default on open; rotation keeps the logical centre and zoom and
+  never changes document data. Transparent pages show a checkerboard in the
+  editor only.
+
+### Image import and export
+
+- Sources: Photo Library (`PhotosPicker`, no library permission needed), Files
+  (document picker), Camera (native `UIImagePickerController`; the photo is not
+  saved to the library). PNG, JPEG and HEIC/HEIF sources are read; headers are
+  bounded before decoding (40 MB, 16384 px, 50 M pixels).
+- Canonicalization follows the desktop: orientation applied, sRGB, re-encoded
+  at the placed size (natural size if it fits, else within 90 % of the canvas,
+  never upscaled, centred), PNG for PNG sources and JPEG 95 % otherwise, then
+  every APPn/COM segment (JPEG) and eXIf/text/time chunk (PNG) removed: assets
+  carry pixels and colour space only. A test with synthetic EXIF (orientation,
+  camera make/model, timestamp) and GPS confirms none survives. The asset id is
+  the SHA-256 of these bytes; independently importing the same file on the
+  phone and on the desktop is not expected to give identical bytes (different
+  encoders), and nothing depends on it.
+- Assets are validated again on receipt (type from bytes, header bounds, PNG
+  chunk CRCs with IHDR first and IEND last or a JPEG EOI, SHA-256, a bounded
+  ImageIO decode) and stored atomically only when complete; a
+  missing asset shows an "Image arriving…" frame and export refuses until it
+  arrives.
+- Export: PNG (transparency kept) or JPEG 92 % (white under transparency),
+  flattened at document resolution, offered through the standard share sheet
+  with a sanitized file name; OLIVE uploads nothing.
+
+### Sync on the phone
+
+- On every Connect channel the phone first asks the read-only
+  `connect.ping`/`protocols` probe (frame 1). Only if the computer lists
+  `olive-draw/1` does it send its Draw `hello` (frame 15), which is how the
+  desktop learns this phone speaks Draw. An older desktop rejects the probe,
+  keeps the channel, never receives a Draw frame, and the phone shows "this
+  computer's OLIVE doesn't support Draw yet" (tested with a fake older desktop:
+  no Draw frame, one probe, no reconnect loop).
+- Content flows only when **Settings › OLIVE DrawNote › Draw › Sync drawings
+  with your computer** is on (default on) **and** the computer's
+  **Devices › this iPhone › Draw sync** is Allow (default Off). With the
+  phone's switch off, desktop requests are answered `permission_off`. Notes
+  and Draw switches and permissions are separate.
+- After a local edit is saved, the phone pumps its feed; desktop requests
+  (frame 16 answers) are handled by the same engine. There is no polling: an
+  edit, a desktop request or a new channel starts a pump. In the background iOS
+  suspends the app and the Connect channel closes; on resume the channel
+  reconnects and catches up. Completed edits are durable before anything is
+  sent, and pending records survive force-quit.
+- Status line: Saved on this phone · Syncing… · Synced · Offline — N edits
+  waiting · N images arriving · your computer does not allow Draw sync · this
+  computer's OLIVE doesn't support Draw yet · Sync issue.
+
+### Physical iPhone verification
+
+On a physical iPhone (no simulator):
+
+- Unit tests on the device: document/conformance, store (undo/redo, restart,
+  remote edits, library, limits, Data Protection, corrupted/newer stores),
+  assets, renderer pixels, input/viewport, three-replica sync engine, DrawSync
+  negotiation (fake older desktop, permission Off → Allow, phone switch off,
+  offline counts) and the editor model; plus the whole existing mobile suite.
+- UI (isolated profile, synthetic drawing, real touch synthesis): create, pen,
+  colour, size, opacity, eraser, undo/redo, pinch zoom, Fit, transparent
+  background, image import, draw over the image, share PNG and JPEG,
+  duplicate, delete, Recently Deleted, restore, relaunch (drawing, image, undo
+  history and DrawNote section kept), landscape rotation and accessibility text
+  sizes. XCUITest cannot synthesize a two-finger drag, so pan is covered by unit
+  tests only.
+- Live against a Mac test host (`tests/fixtures/draw_phone_test_host.py`: the
+  production Python Connect, Draw and Notes services on a temporary profile,
+  paired with the phone's separate acceptance identity) over the LAN:
+  permission Off (nothing received, phone shows it) and Notes Allow not
+  granting Draw; Allow delivered the pending drawing 0.3 s later; desktop
+  creates → phone; red/blue/green local-origin Undo/Redo isolation both ways;
+  images both directions (hash-verified, nothing left wanted); both sides
+  editing offline then converging; a pending edit surviving force-quit and
+  arriving exactly once; background → desktop edit → resume catch-up
+  (within about 2 s); desktop restart; phone trash → desktop, desktop restore → phone;
+  concurrent trash/restore converging on both.
+- Against the user's CachyOS desktop (existing pairing, synthetic drawings):
+  with Draw sync Off the phone reported "does not allow"; after Allow, phone
+  edits were acknowledged within about 40 ms of each touch-up. The user then
+  confirmed on both devices: phone content visible on Linux; desktop and phone
+  strokes appearing live on the other device without reopening; phone Undo/Redo
+  affecting only the phone's stroke and desktop Undo only the desktop's;
+  a desktop image showing "Image arriving…" then completing on the phone, and
+  PNG export on the phone; a phone edit made while the desktop was offline
+  surviving force-quit and arriving exactly once after the desktop restarted;
+  a drawing created on Linux appearing on the phone.
+
+### Performance (physical iPhone, Debug build)
+
+Desktop's own benchmark strokes (80 points each): 1,000 strokes load 0.7 s
+(records + replica), full-viewport render 0.13–0.26 s; 5,000 strokes load
+3.6 s, render 0.6–1.2 s (off the main thread; the cached raster is transformed
+during pinch/pan). One edit 1–4 ms, Undo < 1 ms. A 4000 × 3000 JPEG imports in
+30 ms (placed at 1296 × 972); flatten + PNG + JPEG export of 1920 × 1080 in
+26 ms. Decoded images are kept only for the open drawing and dropped on
+memory warnings; canonical asset bytes stay in SQLite.
 
 ## Rendering, zoom, pan and high DPI
 
@@ -465,19 +647,30 @@ no `innerHTML`; no paths from the renderer or peers; no model access.
 
 ## Known limitations
 
-- Physical iPhone Draw UI and sync: **not implemented / not verified** (next
-  milestone). Desktop ↔ desktop is verified.
 - Sync unit is a completed edit; there is no live preview of a remote stroke
   while it is being drawn.
 - Imported images are placed once (no move/resize/selection yet); no shapes,
   text, fill or layers.
 - Unreferenced image assets are retained (no garbage collection yet).
-- Pen pressure, a pen's eraser end, touch and a physical trackpad were not
-  exercised with real hardware here; Windows was not run.
+- Apple Pencil pressure and the Pencil eraser gesture are implemented but not
+  verified on hardware (the test iPhone does not support Apple Pencil). Camera
+  import uses the native picker but was not exercised physically (tests use
+  synthetic images). Two-finger pan on the phone is unit-tested only.
+  A desktop pen's eraser end, touch and a physical trackpad were not exercised
+  with real hardware; Windows was not run.
 - A stroke in progress at a crash is lost; the remembered section/selection may
   reset after a hard kill.
+- On the phone, opening a 5,000-stroke drawing takes about 3.6 s in a Debug
+  build.
 
 ## Tested flows
+
+- iPhone: see [Physical iPhone verification](#physical-iphone-verification);
+  `tests/test_draw_phone_engine.py` (Swift engine against Python, run by
+  `mobile/ios/scripts/check-connect-interop.sh`); opt-in UI tests
+  `DrawUIAcceptanceTests`, `DrawUILayoutTests` (`TEST_RUNNER_OLIVE_DRAW_UI_ACCEPTANCE=1`),
+  `DrawLiveAcceptanceTests` (`TEST_RUNNER_OLIVE_DRAW_LIVE_ACCEPTANCE=1`, steps in
+  `TEST_RUNNER_OLIVE_DRAW_LIVE_STEPS`) and `DrawTestHostPairingTests`.
 
 - Python: `test_draw_core` (store, migration v1→v2, assets, EXIF ingest, limits,
   backup/restore with assets, crash), `test_draw_conformance`, `test_draw_chat`,

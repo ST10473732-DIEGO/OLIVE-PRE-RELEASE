@@ -13,6 +13,7 @@ struct NotesView: View {
         @Bindable var model = state.notes
         NavigationStack(path: $path) {
             List {
+                Section { DrawNoteSectionPicker() }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 Section { SyncLine(sync: model.sync) }.listRowBackground(OliveTheme.raised)
                 if !model.available {
                     Section {
@@ -40,7 +41,7 @@ struct NotesView: View {
             }
             .oliveListStyle()
             .searchable(text: $model.query, prompt: "Search notes")
-            .navigationTitle(showTrash ? "Recently Deleted" : "OLIVE Notes")
+            .navigationTitle(showTrash ? "Recently Deleted" : "OLIVE DrawNote")
             .navigationDestination(for: String.self) { id in NoteEditorView(noteID: id) }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
