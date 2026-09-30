@@ -16,6 +16,8 @@ export interface Preset {
   description: string;
   pipeline: string;
   status: string;
+  /** Longer backend wording behind `status`, for example OLIVE NOW's retrieval note. */
+  detail?: string;
   /** Runtime readiness; media presets report engine state, not an Ollama model. */
   available?: boolean;
   capabilities: string[];

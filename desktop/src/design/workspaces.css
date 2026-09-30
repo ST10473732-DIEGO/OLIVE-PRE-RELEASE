@@ -757,3 +757,7 @@ p[role="status"]:not(:empty) {
 .presets-model { color: var(--text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .presets-purpose { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .presets-more { margin: 0; padding: 0 14px 10px; color: var(--text-muted); font-size: 12px; }
+/* Long engine states ("Needs setup · speech service is exposed on the network")
+   wrap inside their cell instead of spilling past the table edge. */
+.presets-row > [role="cell"] { min-width: 0; }
+.presets-status .ws-pill { height: auto; min-height: 20px; max-width: 100%; padding: 2px 8px; border-radius: 10px; white-space: normal; line-height: 1.35; overflow-wrap: anywhere; }

@@ -44,6 +44,7 @@ import { TaskCard, useChatTasks } from "./chat/TaskCard";
 import { MediaNotice, mediaPlaceholder, MEDIA_LABELS } from "./chat/MediaNotice";
 import { MEDIA_PRESETS, type PresetId } from "../../electron/presets";
 import { OliveLogo } from "../components/OliveLogo";
+import { presetLabel } from "../services/runtimeState";
 
 const HISTORY_KEY = "olive.chat.history";
 // The conversation rail is docked open on a wide window and remembered;
@@ -687,7 +688,7 @@ export function Chat({
                       {!chat.preset && <option value="" disabled>Previous selection · Advanced</option>}
                       {snapshot.presets?.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.name}{chat.run_on ? (["uncensored", "now", "deep", ...MEDIA_PRESETS].includes(m.id) ? " · Unavailable remotely" : "") : m.available === false || (!MEDIA_PRESETS.includes(m.id) && m.status !== "Ready") ? ` · ${m.status}` : ""}
+                          {presetLabel(m, Boolean(chat.run_on))}
                         </option>
                       ))}
                     </select>

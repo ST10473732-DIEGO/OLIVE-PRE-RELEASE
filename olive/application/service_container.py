@@ -407,36 +407,62 @@ class ServiceContainer:
         self.mail.background.start()
         try:
             await self.local_ollama_runtime.start()
-            await self.model_registry.refresh()
-            self.model_infos = await self.ollama.list_models()
-            embedding = self.model_registry.select_embedding_model(self.settings.get("embedding_model"))
-            if embedding:
-                self.settings["embedding_model"] = embedding
-                self.rag.embedding_model = embedding
-                self.code_retrieval.embedding_model = embedding
-                self.settings_repo.save(self.settings)
-            default = choose_default_chat_model(
-                [model for model in self.model_infos if not model.is_embedding]
-            )
-            for chat in self.chats.values():
-                if chat.preset:
-                    self.presets.apply(chat, chat.preset)
-                elif not chat.model:
-                    chat.model = default
-            self.ollama_state = "Ollama ready" if self.model_infos else "Ollama ready. No models installed"
-            self.save_chats()
         except Exception:
-            logger.exception("Ollama initialization failed")
-            self.ollama_state = "Ollama unavailable. Start Ollama and refresh Models"
+            logger.exception("Local Ollama startup failed")
+        if await self.refresh_model_inventory():
+            try:
+                default = choose_default_chat_model(
+                    [model for model in self.model_infos if not model.is_embedding]
+                )
+                for chat in self.chats.values():
+                    if chat.preset:
+                        self.presets.apply(chat, chat.preset)
+                    elif not chat.model:
+                        chat.model = default
+                self.save_chats()
+            except Exception:
+                logger.exception("Applying models to conversations failed")
         try:
             # Reachability/inventory of already-running media engines; never starts one.
             await self.chat_media.refresh()
         except Exception:
             logger.exception("Media engine status check failed")
-        self.publish("models", self.data.models())
-        self.publish("status", self.data.status())
+        self.publish_model_state()
         self.publish("desktop", self.desktop.status())
         await self.knowledge.resume_pending()
+
+    async def refresh_model_inventory(self):
+        """Re-read the local Ollama inventory into every derived model fact.
+
+        The registry, `model_infos` (digests), the embedding choice and
+        `ollama_state` are updated together, so preset readiness is never built
+        from a mix of old and new inventory. Read-only: nothing is downloaded.
+        Returns whether Ollama answered.
+        """
+        try:
+            await self.model_registry.refresh()
+            self.model_infos = await self.ollama.list_models()
+        except Exception:
+            logger.exception("Ollama model inventory refresh failed")
+            # An unreachable server cannot say what it has; do not keep
+            # reporting presets ready from an earlier inventory.
+            self.model_registry.models = {}
+            self.model_infos = []
+            self.ollama_state = "Ollama unavailable. Start Ollama and refresh Models"
+            return False
+        embedding = self.model_registry.select_embedding_model(self.settings.get("embedding_model"))
+        if embedding:
+            self.settings["embedding_model"] = embedding
+            self.rag.embedding_model = embedding
+            self.code_retrieval.embedding_model = embedding
+            self.settings_repo.save(self.settings)
+        self.ollama_state = "Ollama ready" if self.model_infos else "Ollama ready. No models installed"
+        return True
+
+    def publish_model_state(self):
+        """Tell every window the model inventory changed; each re-reads presets."""
+        self.publish("models", self.data.models())
+        self.publish("status", self.data.status())
 
     async def _execute_indexing_job(self, job):
         await self.knowledge.execute_job(job)

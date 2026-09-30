@@ -28,8 +28,14 @@ class ModelController:
                 "decisions": self.s.model_router.decisions[-20:], "benchmark_active": bool(self.s.model_benchmarks.active)}
 
     async def refresh(self):
-        await self.s.model_registry.refresh()
-        await self.s.model_residency.refresh()
+        # Same inventory refresh as startup, then tell every window, so the
+        # title bar, Home and Chat re-read presets instead of keeping stale ones.
+        reachable = await self.s.refresh_model_inventory()
+        if reachable:
+            await self.s.model_residency.refresh()
+        self.s.publish_model_state()
+        if not reachable:
+            raise RuntimeError("The local model service is not reachable. Start Ollama and refresh Models.")
         return self.status()
 
     def save(self, policy):

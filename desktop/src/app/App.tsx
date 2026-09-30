@@ -33,6 +33,7 @@ import {
   runtimeState as describeRuntime,
   modelStatus,
   connectSummary,
+  SNAPSHOT_TOPICS,
   type ConnectSnapshotLike,
 } from "../services/runtimeState";
 import { useResource } from "../services/useResource";
@@ -349,11 +350,7 @@ export default function App() {
         setWorkspace(id);
         setStudioRequest((current) => ({ id, revision: current.revision + 1 }));
       }
-      if (
-        ["runtime.ready", "runtime.initialized", "chats", "models"].includes(
-          event.topic,
-        )
-      )
+      if (SNAPSHOT_TOPICS.includes(event.topic))
         void refresh().catch(report);
     });
     void refresh().catch(report);
