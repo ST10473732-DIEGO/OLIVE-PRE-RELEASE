@@ -65,6 +65,57 @@ struct ChatUI {
     func screenshot(_ test: XCTestCase, _ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = name; shot.lifetime = .keepAlways; test.add(shot)
     }
+    /// Picks a VIDEO length from the Duration sheet ("auto", "20", …).
+    @MainActor func videoLength(_ option: String) {
+        let length = app.buttons["chat.videoDuration"]
+        XCTAssertTrue(length.waitForExistence(timeout: 10), "no Duration control"); length.tap()
+        let row = app.buttons["chat.videoDuration.option." + option]
+        for _ in 0..<4 where !(row.waitForExistence(timeout: 2) && row.isHittable) { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(row.exists, option); row.tap()
+        XCTAssertTrue(length.waitForExistence(timeout: 5))
+    }
+    @MainActor var videoPlayers: Int { app.descendants(matching: .any).matching(identifier: "chat.video.player").count }
+    /// After Send: follows the running request, logging each distinct status line, until it ends.
+    @MainActor func follow(timeout: TimeInterval) -> [String] {
+        XCTAssertTrue(app.buttons["chat.stop"].waitForExistence(timeout: 30), "request did not start")
+        var seen: [String] = []
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeout {
+            let status = lastStatus()
+            if !status.isEmpty, seen.last != status {
+                seen.append(status); NSLog("OLIVE-DIAG t=%.0fs status=%@", Date().timeIntervalSince(start), status)
+            }
+            if app.buttons["chat.send"].exists && !app.buttons["chat.stop"].exists { break }
+            sleep(2)
+        }
+        NSLog("OLIVE-DIAG request seconds=%.0f final=%@", Date().timeIntervalSince(start), lastStatus())
+        return seen
+    }
+    /// The on-device AVPlayer item's loaded duration and audio tracks (DEBUG `--ui-test-diagnostics`).
+    @MainActor func lastPlayerDiagnostic() -> (seconds: Double, audioTracks: Int) {
+        let d = playerDiagnostic(); return (d.seconds, d.audioTracks)
+    }
+    @MainActor func playerDiagnostic() -> (seconds: Double, audioTracks: Int, position: Double, rate: Double, session: String) {
+        let player = app.descendants(matching: .any).matching(identifier: "chat.video.player").allElementsBoundByIndex.last
+        var value = ""
+        for _ in 0..<20 { value = (player?.value as? String) ?? ""; if !value.isEmpty { break }; sleep(1) }
+        NSLog("OLIVE-DIAG player %@", value)
+        func field(_ key: String) -> String? {
+            value.components(separatedBy: "; ").first { $0.hasPrefix(key + "=") }.map { String($0.dropFirst(key.count + 1)) }
+        }
+        return (Double(field("avplayer_duration") ?? "") ?? 0, Int(field("audio_tracks") ?? "") ?? 0,
+                Double(field("position") ?? "") ?? 0, Double(field("rate") ?? "") ?? 0, field("session") ?? "")
+    }
+    @MainActor func clearComposer() {
+        // The accessibility value is truncated, so delete from the end until only the placeholder is left.
+        for _ in 0..<4 {
+            let text = (composer.value as? String) ?? ""
+            if text.isEmpty || text == "Message OLIVE" { break }
+            composer.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.9)).tap()
+            composer.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 80))
+        }
+        if app.buttons["chat.dismissKeyboard"].exists { app.buttons["chat.dismissKeyboard"].tap() }
+    }
 }
 
 /// Deterministic Chat UI on the phone against the in-process fixture computer
@@ -129,6 +180,8 @@ final class ChatUITests: XCTestCase {
             XCTAssertTrue(ui.app.buttons["chat.videoDuration.option." + option].waitForExistence(timeout: 5), option)
         }
         let custom = ui.app.textFields["chat.videoDuration.custom"]
+        // The sheet opens at medium height; the Custom row is built once scrolled into view.
+        for _ in 0..<4 where !(custom.waitForExistence(timeout: 2) && custom.isHittable) { ui.app.collectionViews.firstMatch.swipeUp() }
         custom.tap(); custom.typeText("37")
         ui.screenshot(self, "chat-video-length-sheet")
         ui.app.buttons["chat.videoDuration.apply"].tap()
@@ -140,6 +193,33 @@ final class ChatUITests: XCTestCase {
         ui.screenshot(self, "chat-video-image-to-video")
         ui.send(timeout: 60)
         XCTAssertTrue(ui.app.descendants(matching: .any)["chat.video.player"].firstMatch.waitForExistence(timeout: 30))
+    }
+
+    @MainActor func testVideoCustomLengthWithLargeTextAndVoiceOverLabels() {
+        let ui = ChatUI.launch(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"], seed: false)
+        ui.mode("video")
+        let length = ui.app.buttons["chat.videoDuration"]
+        XCTAssertTrue(length.waitForExistence(timeout: 5)); XCTAssertTrue(length.isHittable)
+        XCTAssertTrue(length.label.hasPrefix("Video length, Auto"), length.label)
+        ui.screenshot(self, "chat-video-duration-large-text")
+        length.tap()
+        for option in ["auto", "2", "5", "10", "20", "30", "60"] {
+            let row = ui.app.buttons["chat.videoDuration.option." + option]
+            for _ in 0..<4 where !(row.waitForExistence(timeout: 2) && row.isHittable) { ui.app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(row.exists, option)
+        }
+        XCTAssertTrue(ui.app.buttons["chat.videoDuration.option.60"].label.contains("1 min"))
+        let custom = ui.app.textFields["chat.videoDuration.custom"]
+        for _ in 0..<4 where !(custom.waitForExistence(timeout: 2) && custom.isHittable) { ui.app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertEqual(custom.label, "Custom length")
+        custom.tap(); custom.typeText("13")
+        let apply = ui.app.buttons["chat.videoDuration.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 5)); XCTAssertEqual(apply.label, "Use 13 s")
+        ui.screenshot(self, "chat-video-custom-13-large-text")
+        apply.tap()
+        XCTAssertTrue(length.waitForExistence(timeout: 5)); XCTAssertEqual(length.label, "Video length, 13 s")
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.videoPlan"].label.contains("7 generation segments"))
+        XCTAssertTrue(ui.app.buttons["chat.send"].isHittable)
     }
 
     @MainActor func testNormalWithPhotoAndNoteSnapshot() {
@@ -431,6 +511,272 @@ final class ChatTestHostTests: XCTestCase {
         // Earlier media reopens from this iPhone without regenerating.
         XCTAssertTrue(ui.app.descendants(matching: .any)["chat.video.player"].firstMatch.exists || ui.app.buttons["chat.audio.play"].firstMatch.exists
                       || ui.app.buttons["chat.artifact.image.open"].firstMatch.exists)
+    }
+
+    /// Host started with --chat-animate (long-form VIDEO, 10 segments) and a 20 s synthetic MP4. The Mac
+    /// orchestrator takes the computer off the network mid-generation and again mid-download; the phone
+    /// must follow the same job to one artifact, never resubmitting it.
+    @MainActor func testLongVideoRecoversAcrossDisconnects() throws {
+        try XCTSkipUnless(enabled && ProcessInfo.processInfo.environment["OLIVE_CHAT_VIDEO_RECOVERY"] == "1", "Explicit long-VIDEO recovery acceptance only")
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--c92-pairing-check", "--ui-test-diagnostics"]
+        app.launch()
+        let ui = ChatUI(app: app); ui.openChat()
+        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: app.buttons["chat.attach"])], timeout: 60)
+        ui.mode("video"); ui.videoLength("20")
+        XCTAssertEqual(app.buttons["chat.videoDuration"].label, "Video length, 20 s")
+        ui.type("A slow synthetic long scene for recovery")
+        let before = ui.videoPlayers
+        app.buttons["chat.send"].tap()
+        let statuses = ui.follow(timeout: 900)
+        XCTAssertTrue(statuses.contains { $0.hasPrefix("Generating segment") && $0.contains("of 10") }, statuses.joined(separator: " | "))
+        XCTAssertTrue(app.descendants(matching: .any)["chat.video.player"].firstMatch.waitForExistence(timeout: 60))
+        XCTAssertEqual(ui.videoPlayers, before + 1, "exactly one new artifact")
+        let played = ui.lastPlayerDiagnostic()
+        XCTAssertEqual(played.seconds, 20, accuracy: 0.5); XCTAssertGreaterThanOrEqual(played.audioTracks, 1)
+        ui.screenshot(self, "test-host-long-video-recovered")
+    }
+
+    /// Host started with --chat-legacy: olive-chat/1 without the mode_options/1 extension.
+    @MainActor func testOlderComputerVideoFallback() throws {
+        try XCTSkipUnless(enabled && ProcessInfo.processInfo.environment["OLIVE_CHAT_LEGACY_HOST"] == "1", "Explicit older-computer acceptance only")
+        continueAfterFailure = false
+        let ui = launch()
+        ui.mode("video")
+        XCTAssertFalse(ui.app.buttons["chat.videoDuration"].waitForExistence(timeout: 5), "no Duration control for an older computer")
+        ui.attach("photos")
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.attachment.photo"].waitForExistence(timeout: 15))
+        let notice = ui.app.staticTexts["chat.composerNotice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 5)); XCTAssertTrue(notice.label.contains("VIDEO currently supports text prompts only"), notice.label)
+        XCTAssertFalse(ui.app.buttons["chat.send"].isEnabled)
+        ui.screenshot(self, "test-host-legacy-video-image-rejected")
+        ui.app.buttons["chat.attachment.remove"].firstMatch.tap()
+        for mode in ["fast", "normal", "max"] {
+            ui.mode(mode); ui.type("Reply with exactly: \(mode)-mobile-ready"); ui.send()
+            XCTAssertTrue(ui.app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "\(mode)-mobile-ready")).firstMatch.waitForExistence(timeout: 20), mode)
+        }
+        ui.mode("video"); ui.type("A short calm synthetic scene"); ui.send(timeout: 120)
+        XCTAssertTrue(ui.app.descendants(matching: .any)["chat.video.player"].firstMatch.waitForExistence(timeout: 90))
+        // Stays connected: no reconnect loop after the extension was declined.
+        var seen = Set<String>()
+        for _ in 0..<15 { seen.insert(ui.app.staticTexts["chat.draftStatus"].label); sleep(1) }
+        NSLog("OLIVE-DIAG legacy header statuses %@", seen.sorted().joined(separator: " | "))
+        XCTAssertFalse(seen.contains { $0.localizedCaseInsensitiveContains("connecting") || $0.localizedCaseInsensitiveContains("offline") }, seen.sorted().joined(separator: " | "))
+        ui.screenshot(self, "test-host-legacy-text-modes")
+    }
+}
+
+/// OPT-IN physical acceptance of OLIVE VIDEO length and image-to-video against the user's REAL paired
+/// computer, using the normal app profile and its existing pairing. Each test is gated on its own
+/// OLIVE_CHAT_REAL_VIDEO_STEP value and runs at most ONE real GPU generation. Images are generated by
+/// the test (never the person's photos). Refuses to run if the composer holds unsent user text.
+final class ChatRealVideoTests: XCTestCase {
+    private func gate(_ step: String) throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["OLIVE_CHAT_REAL_VIDEO_STEP"] == step, "Explicit real-computer VIDEO step only")
+        continueAfterFailure = false
+    }
+    private var seconds: String { ProcessInfo.processInfo.environment["OLIVE_CHAT_REAL_VIDEO_SECONDS"] ?? "20" }
+    private static let prompts = ["Generate a 13 second video of gentle waves.",
+                                  "Generate a cinematic scene of clouds moving over a futuristic city.",
+                                  "Animate the clouds slowly and move the subject gradually across the scene.",
+                                  "Generate a calm scene of fog drifting across a quiet harbour.",
+                                  "Reply with exactly: normal-after-video-stop"]
+
+    @MainActor private func launch() throws -> ChatUI {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-real-desktop", "--ui-test-synthetic-pickers", "--ui-test-diagnostics"]
+        app.launch()
+        let ui = ChatUI(app: app); ui.openChat()
+        XCTAssertTrue(ui.composer.waitForExistence(timeout: 30))
+        // Only this test's own leftovers (from an interrupted run) are cleared; anything else is the person's.
+        let existing = (ui.composer.value as? String) ?? ""
+        let ours = Self.prompts.contains { !existing.isEmpty && $0.hasPrefix(existing.replacingOccurrences(of: "...", with: "").replacingOccurrences(of: "…", with: "")) }
+        try XCTSkipUnless(existing.isEmpty || existing == "Message OLIVE" || ours, "The composer holds unsent text; not touching the user's draft")
+        let removes = app.buttons.matching(identifier: "chat.attachment.remove").allElementsBoundByIndex
+        try XCTSkipUnless(removes.allSatisfy { $0.label.hasPrefix("Remove Synthetic") }, "The draft holds attachments; not touching them")
+        if ours { ui.clearComposer() }
+        while app.buttons["chat.attachment.remove"].firstMatch.exists { app.buttons["chat.attachment.remove"].firstMatch.tap(); sleep(1) }
+        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: app.buttons["chat.attach"])], timeout: 120)
+        XCTAssertTrue(app.buttons["chat.attach"].isEnabled, "olive-chat/1 not negotiated with the real computer")
+        return ui
+    }
+
+    /// Negotiation, Duration UI and image rules against the real computer. Sends nothing.
+    @MainActor func testCapabilitiesDurationAndImageRules() throws {
+        try gate("capabilities")
+        let ui = try launch(), app = ui.app
+        ui.mode("video")
+        let length = app.buttons["chat.videoDuration"]
+        XCTAssertTrue(length.waitForExistence(timeout: 20), "the computer did not offer configurable VIDEO length")
+        let advertised = (length.value as? String) ?? ""
+        NSLog("OLIVE-DIAG real VIDEO capability %@", advertised)
+        for expected in ["extensions=mode_options/1", "t2v=true", "i2v=true", "audio=true", "max_images=1", "image_max=1", "configurable=true"] {
+            XCTAssertTrue(advertised.contains(expected), expected)
+        }
+        XCTAssertTrue(length.label.hasPrefix("Video length, Auto"), length.label)
+        ui.screenshot(self, "real-video-duration-auto")
+        length.tap()
+        for option in ["auto", "2", "5", "10", "20", "30", "60"] {
+            let row = app.buttons["chat.videoDuration.option." + option]
+            for _ in 0..<4 where !(row.waitForExistence(timeout: 2) && row.isHittable) { app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(row.exists, option)
+        }
+        let custom = app.textFields["chat.videoDuration.custom"]
+        for _ in 0..<4 where !(custom.waitForExistence(timeout: 2) && custom.isHittable) { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(custom.exists)
+        ui.screenshot(self, "real-video-duration-sheet")
+        app.buttons["chat.videoDuration.done"].tap()
+        ui.type("Generate a 13 second video of gentle waves.")
+        XCTAssertEqual(length.label, "Video length, Auto · 13 s")
+        let plan = app.descendants(matching: .any)["chat.videoPlan"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 5)); NSLog("OLIVE-DIAG real plan %@", plan.label)
+        ui.screenshot(self, "real-video-auto-13")
+        ui.clearComposer()
+        ui.attach("photos")
+        XCTAssertTrue(app.descendants(matching: .any)["chat.attachment.photo"].waitForExistence(timeout: 15))
+        XCTAssertTrue(plan.waitForExistence(timeout: 5)); XCTAssertTrue(plan.label.contains("Image → Video"), plan.label)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'supports text prompts only'")).firstMatch.exists)
+        ui.screenshot(self, "real-video-image-to-video")
+        ui.attach("camera")  // A different generated image (identical bytes would be deduplicated).
+        let notice = app.staticTexts["chat.composerNotice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 15)); XCTAssertTrue(notice.label.contains("accepts one starting image"), notice.label)
+        XCTAssertFalse(app.buttons["chat.send"].isEnabled)
+        ui.screenshot(self, "real-video-second-image-rejected")
+        while app.buttons["chat.attachment.remove"].firstMatch.exists { app.buttons["chat.attachment.remove"].firstMatch.tap(); sleep(1) }
+        ui.mode("normal")  // Leave the conversation as it was found.
+    }
+
+    /// ONE real text-to-video generation at the chosen length (default 20 s).
+    @MainActor func testTextToVideoAtChosenLength() throws {
+        try gate("t2v")
+        let ui = try launch(), app = ui.app
+        ui.mode("video"); ui.videoLength(seconds)
+        XCTAssertEqual(app.buttons["chat.videoDuration"].label, "Video length, \(seconds) s")
+        ui.type("Generate a cinematic scene of clouds moving over a futuristic city.")
+        NSLog("OLIVE-DIAG real plan %@", app.descendants(matching: .any)["chat.videoPlan"].label)
+        let before = ui.videoPlayers
+        app.buttons["chat.send"].tap()
+        let statuses = ui.follow(timeout: 5400)
+        verifyResult(ui, statuses: statuses, before: before, name: "real-t2v")
+    }
+
+    /// ONE real image-to-video generation from a generated image; a second image is refused first.
+    @MainActor func testImageToVideoAtChosenLength() throws {
+        try gate("i2v")
+        let ui = try launch(), app = ui.app
+        ui.mode("video"); ui.videoLength(seconds)
+        ui.attach("photos")
+        XCTAssertTrue(app.descendants(matching: .any)["chat.attachment.photo"].waitForExistence(timeout: 15))
+        ui.attach("camera")  // A different generated image (identical bytes would be deduplicated).
+        let notice = app.staticTexts["chat.composerNotice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 15)); XCTAssertTrue(notice.label.contains("accepts one starting image"), notice.label)
+        XCTAssertFalse(app.buttons["chat.send"].isEnabled, "a second image is refused before sending")
+        app.descendants(matching: .any)["chat.attachment.camera"].buttons["chat.attachment.remove"].tap(); sleep(1)
+        XCTAssertTrue(app.descendants(matching: .any)["chat.attachment.photo"].exists, "the starting image stays")
+        XCTAssertEqual(app.buttons.matching(identifier: "chat.attachment.remove").count, 1)
+        ui.type("Animate the clouds slowly and move the subject gradually across the scene.")
+        let plan = app.descendants(matching: .any)["chat.videoPlan"]
+        XCTAssertTrue(plan.label.contains("Image → Video"), plan.label); NSLog("OLIVE-DIAG real plan %@", plan.label)
+        ui.screenshot(self, "real-i2v-ready")
+        let before = ui.videoPlayers
+        app.buttons["chat.send"].tap()
+        let statuses = ui.follow(timeout: 5400)
+        verifyResult(ui, statuses: statuses, before: before, name: "real-i2v")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'from your image'")).firstMatch.exists,
+                      "the computer reports it animated the image")
+    }
+
+    @MainActor private func verifyResult(_ ui: ChatUI, statuses: [String], before: Int, name: String) {
+        let app = ui.app
+        let segments = statuses.filter { $0.hasPrefix("Generating segment") }
+        NSLog("OLIVE-DIAG %@ segment statuses %@", name, segments.joined(separator: " | "))
+        XCTAssertFalse(segments.isEmpty, statuses.joined(separator: " | "))
+        XCTAssertTrue(app.descendants(matching: .any)["chat.video.player"].firstMatch.waitForExistence(timeout: 120), ui.lastStatus())
+        XCTAssertEqual(ui.videoPlayers, before + 1, "exactly one new artifact")
+        let target = Double(seconds) ?? 20
+        let played = ui.lastPlayerDiagnostic()
+        XCTAssertEqual(played.seconds, target, accuracy: max(1.0, target * 0.1)); XCTAssertGreaterThanOrEqual(played.audioTracks, 1)
+        ui.screenshot(self, name + "-result")
+        ui.mode("normal")
+    }
+
+    /// No generation: plays the newest downloaded video, opens the Share Sheet, then relaunches the app
+    /// and checks the same video is still there (downloaded once, never requested again).
+    @MainActor func testLatestVideoPlaysSharesAndSurvivesRelaunch() throws {
+        try gate("playback")
+        var ui = try launch()
+        let app = ui.app
+        let player = app.descendants(matching: .any).matching(identifier: "chat.video.player").allElementsBoundByIndex.last!
+        XCTAssertTrue(player.waitForExistence(timeout: 30))
+        let players = ui.videoPlayers
+        let before = ui.playerDiagnostic()
+        XCTAssertGreaterThan(before.seconds, 0)
+        player.tap(); sleep(1)
+        let control = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Play' OR label == 'Pause'")).firstMatch
+        if !control.exists { player.tap(); sleep(1) }
+        XCTAssertTrue(control.waitForExistence(timeout: 5), "AVKit playback controls")
+        if control.label == "Play" { control.tap() }
+        sleep(6)
+        let playing = ui.playerDiagnostic()
+        NSLog("OLIVE-DIAG playback before=%.1f after=%.1f rate=%.1f duration=%.3f audio=%d session=%@",
+              before.position, playing.position, playing.rate, playing.seconds, playing.audioTracks, playing.session)
+        XCTAssertGreaterThan(playing.position, before.position + 2, "AVPlayer advanced")
+        XCTAssertEqual(playing.session, "AVAudioSessionCategoryPlayback", "video sound is audible with the Ring/Silent switch on")
+        ui.screenshot(self, "real-video-playing")
+        player.tap(); sleep(1)
+        let pause = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Pause'")).firstMatch
+        if pause.waitForExistence(timeout: 3) { pause.tap() }
+        let share = app.buttons.matching(identifier: "chat.artifact.share").allElementsBoundByIndex.last!
+        share.tap()
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 10), "Share Sheet did not open")
+        ui.screenshot(self, "real-video-share")
+        let close = app.buttons["Close"].firstMatch
+        if close.exists { close.tap() } else { app.swipeDown() }
+        sleep(1)
+        app.terminate()
+        ui = try launch()
+        let again = ui.app.descendants(matching: .any).matching(identifier: "chat.video.player").allElementsBoundByIndex.last!
+        XCTAssertTrue(again.waitForExistence(timeout: 30))
+        let relaunched = ui.playerDiagnostic()
+        NSLog("OLIVE-DIAG relaunch players=%d (was %d) duration=%.3f audio=%d", ui.videoPlayers, players, relaunched.seconds, relaunched.audioTracks)
+        XCTAssertEqual(ui.videoPlayers, players); XCTAssertEqual(relaunched.seconds, before.seconds, accuracy: 0.01)
+        XCTAssertFalse(ui.app.buttons["chat.stop"].exists, "nothing was sent again")
+        ui.screenshot(self, "real-video-after-relaunch")
+    }
+
+    /// Stop during a real VIDEO once segment progress is shown, then a NORMAL request works.
+    @MainActor func testStopDuringVideoThenNormal() throws {
+        try gate("stop")
+        let ui = try launch(), app = ui.app
+        ui.mode("video"); ui.videoLength(seconds)
+        ui.type("Generate a calm scene of fog drifting across a quiet harbour.")
+        let before = ui.videoPlayers
+        app.buttons["chat.send"].tap()
+        let stop = app.buttons["chat.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 30))
+        let started = Date()
+        var status = ""
+        while Date().timeIntervalSince(started) < 1800 {
+            status = ui.lastStatus()
+            if status.hasPrefix("Generating segment 2") || status.hasPrefix("Generating segment 3") { break }
+            sleep(2)
+        }
+        NSLog("OLIVE-DIAG stop pressed after %.0fs at status=%@", Date().timeIntervalSince(started), status)
+        XCTAssertTrue(status.hasPrefix("Generating segment"), status)
+        ui.screenshot(self, "real-video-before-stop")
+        stop.tap()
+        XCTAssertTrue(app.staticTexts["Generation stopped."].waitForExistence(timeout: 120), ui.lastStatus())
+        ui.screenshot(self, "real-video-stopped")
+        sleep(60)  // A late artifact would appear here.
+        XCTAssertEqual(ui.videoPlayers, before, "no late artifact after Stop")
+        XCTAssertEqual(ui.lastStatus(), "Generation stopped.")
+        ui.mode("normal"); ui.type("Reply with exactly: normal-after-video-stop")
+        let normal = Date()
+        ui.send(timeout: 600)
+        NSLog("OLIVE-DIAG normal after stop seconds=%.1f status=%@", Date().timeIntervalSince(normal), ui.lastStatus())
+        XCTAssertGreaterThanOrEqual(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] 'normal-after-video-stop'")).count, 2)
+        ui.screenshot(self, "real-normal-after-stop")
     }
 }
 

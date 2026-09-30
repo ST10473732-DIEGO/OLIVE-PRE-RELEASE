@@ -18,7 +18,26 @@ enum ChatUIFixture {
     static var enabled: Bool { arguments.contains("--ui-test-session") && arguments.contains("--ui-test-chat-fixture") }
     /// Isolated UI-test sessions and the separate test-host acceptance identity only.
     static var testSession: Bool { arguments.contains("--ui-test-session") || arguments.contains("--c92-pairing-check") }
-    static var syntheticPickers: Bool { testSession && arguments.contains("--ui-test-synthetic-pickers") }
+    static var syntheticPickers: Bool {
+        (testSession || realDesktopAcceptance) && arguments.contains("--ui-test-synthetic-pickers")
+    }
+    /// Opt-in physical acceptance against the paired real computer (normal profile): Photo/Camera/Files
+    /// feed generated images only, so the person's own photos and files are never touched.
+    static var realDesktopAcceptance: Bool { arguments.contains("--ui-test-real-desktop") }
+    /// Content-free diagnostics for acceptance tests: the computer's advertised VIDEO capability on the
+    /// Duration control and the loaded AVPlayer item duration on video players (accessibility values).
+    static var diagnostics: Bool { arguments.contains("--ui-test-diagnostics") }
+
+    @MainActor
+    static func videoDiagnostic(_ state: AppState) -> String {
+        guard diagnostics, let capabilities = state.chatCapabilities else { return "" }
+        let extensions = "extensions=" + capabilities.extensions.joined(separator: ",")
+        guard let v = capabilities.mode("video")?.video else { return extensions + "; video=legacy" }
+        return [extensions, "t2v=\(v.textToVideo)", "i2v=\(v.imageToVideo)", "audio=\(v.audio)", "segment_ms=\(v.nativeSegmentMS)",
+                "fps=\(v.fps)", "max_images=\(v.maxImages)", "image_max=\(capabilities.mode("video")?.imageMax ?? -1)",
+                "configurable=\(v.configurable)", "default_ms=\(v.defaultMS)", "min_ms=\(v.minimumMS)", "max_ms=\(v.maximumMS)",
+                "presets_ms=" + v.presetsMS.map(String.init).joined(separator: ",")].joined(separator: "; ")
+    }
 
     /// A synthetic note and drawing in the isolated profile (never the user's DrawNote).
     @MainActor

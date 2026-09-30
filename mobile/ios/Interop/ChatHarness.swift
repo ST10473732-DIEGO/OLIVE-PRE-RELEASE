@@ -31,7 +31,8 @@ private func summary(_ view: ChatJobView, text: String) -> ConnectJSON {
              "sources": .array(view.sources.map { .object(["id": .string($0.id), "kind": .string($0.kind),
                  "url": $0.url.map { .string($0.absoluteString) } ?? .null, "title": .string($0.title)]) }),
              "artifacts": .array(view.artifacts.map { .object(["artifact_id": .string($0.artifactID), "kind": .string($0.kind),
-                 "size": .int($0.size), "sha256": .string($0.sha256)]) })])
+                 "size": .int($0.size), "sha256": .string($0.sha256),
+                 "duration_ms": $0.durationMS.map { .int(Int64($0)) } ?? .null]) })])
 }
 
 func runChatHarness(source: String, target: String, directory: URL) async {

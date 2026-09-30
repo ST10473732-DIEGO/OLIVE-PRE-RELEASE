@@ -334,6 +334,9 @@ struct VideoArtifactView: View {
     let artifact: ChatArtifact
     let url: URL
     @State private var player: AVPlayer?
+    #if DEBUG
+    @State private var diagnostic = ""
+    #endif
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             VideoPlayer(player: player)
@@ -342,6 +345,21 @@ struct VideoArtifactView: View {
                 .clipShape(RoundedRectangle(cornerRadius: OliveTheme.Radius.card, style: .continuous))
                 .accessibilityLabel("Generated video from OLIVE VIDEO")
                 .accessibilityIdentifier("chat.video.player")
+                #if DEBUG
+                .accessibilityValue(diagnostic)
+                .task(id: player == nil) {
+                    // Acceptance diagnostics only: what this AVPlayer's item holds and whether it is playing.
+                    guard ChatUIFixture.diagnostics, let player, let asset = player.currentItem?.asset,
+                          let duration = try? await asset.load(.duration) else { return }
+                    let audio = (try? await asset.loadTracks(withMediaType: .audio).count) ?? 0
+                    while !Task.isCancelled {
+                        diagnostic = String(format: "avplayer_duration=%.3f; audio_tracks=%d; position=%.1f; rate=%.1f; session=%@",
+                                            duration.seconds, audio, player.currentTime().seconds, player.rate,
+                                            AVAudioSession.sharedInstance().category.rawValue)
+                        try? await Task.sleep(for: .milliseconds(500))
+                    }
+                }
+                #endif
             HStack {
                 Text([artifact.durationMS.map { AudioArtifactView.time(Double($0) / 1000) }, artifact.hasAudio == true ? "with sound" : nil,
                       ByteCountFormatter.string(fromByteCount: artifact.size, countStyle: .file)].compactMap { $0 }.joined(separator: " · "))
@@ -352,5 +370,16 @@ struct VideoArtifactView: View {
         }
         .onAppear { if player == nil { player = AVPlayer(url: url) } }
         .onDisappear { player?.pause() }
+        .onReceive(NotificationCenter.default.publisher(for: AVPlayer.rateDidChangeNotification)) { note in
+            // Generated videos carry sound: once the person starts playback, play it like a movie
+            // (audible with the Ring/Silent switch on), as the AUDIO player does. Showing a video
+            // without playing it leaves other apps' audio alone.
+            guard let player, note.object as? AVPlayer === player, player.rate != 0 else { return }
+            let session = AVAudioSession.sharedInstance()
+            if session.category != .playback || session.mode != .moviePlayback {
+                try? session.setCategory(.playback, mode: .moviePlayback)
+                try? session.setActive(true)
+            }
+        }
     }
 }

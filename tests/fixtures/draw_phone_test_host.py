@@ -61,10 +61,11 @@ class NoModels:
 
 
 class Host:
-    def __init__(self, profile, chat=False, video=None):
+    def __init__(self, profile, chat=False, video=None, animate=False, slow_seconds=8.0):
         import asyncio
         self.profile = Path(profile)
         self.chat_enabled, self.video = chat, video
+        self.animate, self.slow_seconds = animate, slow_seconds
         self.chat_runtime = None
         self.loop = asyncio.new_event_loop()
         threading.Thread(target=self.loop.run_forever, daemon=True, name='test-host-loop').start()
@@ -87,7 +88,8 @@ class Host:
         if self.chat_enabled:
             from tests.fixtures.chat_test_runtime import ChatTestRuntime
             if self.chat_runtime is None:
-                self.chat_runtime = ChatTestRuntime(self.profile / 'chat-artifacts', video=self.video, delay=0.05)
+                self.chat_runtime = ChatTestRuntime(self.profile / 'chat-artifacts', video=self.video, delay=0.05, animate=self.animate)
+                self.chat_runtime.slow_seconds = self.slow_seconds
             self.service.attach_chat(self.chat_runtime, self.loop)
         self.network = None
         self.network_on()
@@ -264,6 +266,16 @@ class Host:
                 return self.pair()
             if cmd == 'permission':
                 return self.permission(args['capability'], args['decision'])
+            if cmd == 'drop_phone':
+                # A Wi-Fi-like loss on the phone's side: its channels close abruptly (and again if it
+                # reconnects) for `seconds`, while the computer stays online and keeps working.
+                end = time.time() + args.get('seconds', 8)
+                drops = 0
+                while time.time() < end:
+                    if self.service.network.channels.get(self.phone()) is not None:
+                        self.service.network.disconnect(self.phone(), wait=False); drops += 1
+                    time.sleep(.2)
+                return drops
             if cmd == 'network_off':
                 return self.network_off()
             if cmd == 'network_on':
@@ -332,6 +344,11 @@ def main():
     parser.add_argument('--send', help='Send one JSON command to a running host and print the reply')
     parser.add_argument('--chat', action='store_true', help='Also serve olive-chat/1 with the deterministic TEST runtime')
     parser.add_argument('--chat-video', help='A synthetic MP4 the test runtime returns for VIDEO')
+    parser.add_argument('--chat-animate', action='store_true',
+                        help='VIDEO as a validated long-form/image-to-video computer (mode_options/1 duration, segment progress)')
+    parser.add_argument('--chat-legacy', action='store_true',
+                        help='An older computer: olive-chat/1 without the mode_options/1 extension (text-only VIDEO)')
+    parser.add_argument('--chat-slow-seconds', type=float, default=8.0, help='How long a "slow" media request runs')
     args = parser.parse_args()
     if args.send:
         print(json.dumps(send(args.port, json.loads(args.send)), indent=1))
@@ -339,7 +356,12 @@ def main():
     profile = Path(args.profile) if args.profile else Path(tempfile.mkdtemp(prefix='olive-draw-test-host-'))
     if profile.exists() and any(profile.iterdir()):
         parser.error('Refusing to use a non-empty profile: the test host only runs on a fresh temporary profile.')
-    host = Host(profile, chat=args.chat, video=args.chat_video)
+    if args.chat_legacy:
+        if args.chat_animate:
+            parser.error('--chat-legacy and --chat-animate describe different computers')
+        from olive.connect import chat_protocol
+        chat_protocol.OPTIONAL.clear()  # No `accept` / `options`: the pre-extension protocol, as shipped before.
+    host = Host(profile, chat=args.chat, video=args.chat_video, animate=args.chat_animate, slow_seconds=args.chat_slow_seconds)
     print(json.dumps({'ready': True, 'profile': str(profile), 'local_id': host.service.local_id, **host.network_on()}), flush=True)
     serve(host, args.port)
 

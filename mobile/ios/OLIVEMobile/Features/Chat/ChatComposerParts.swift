@@ -151,7 +151,7 @@ struct ModeButton: View {
         Button { presented = true } label: {
             HStack(spacing: 4) {
                 Image(systemName: mode.symbol).font(.caption2)
-                Text(mode.short)
+                Text(mode.short).fixedSize()  // The status beside it truncates instead of the mode name.
                 Image(systemName: "chevron.up.chevron.down").font(.caption2)
             }
             .font(.caption.weight(.semibold)).foregroundStyle(OliveTheme.accent)
@@ -243,7 +243,7 @@ struct VideoDurationButton: View {
         Button { presented = true } label: {
             HStack(spacing: 4) {
                 Image(systemName: "timer").font(.caption2)
-                Text(label)
+                Text("Duration · " + label)
             }
             .font(.caption.weight(.semibold)).foregroundStyle(OliveTheme.accent)
             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -254,6 +254,9 @@ struct VideoDurationButton: View {
         .accessibilityLabel("Video length, " + label)
         .accessibilityHint("Choose how long the video should be")
         .accessibilityIdentifier("chat.videoDuration")
+        #if DEBUG
+        .accessibilityValue(ChatUIFixture.videoDiagnostic(state))
+        #endif
     }
 }
 
@@ -263,6 +266,8 @@ struct VideoDurationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var custom = ""
     @State private var minutes = false
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var keyboard: CGFloat = 0
     @FocusState private var typing: Bool
 
     var body: some View {
@@ -271,43 +276,60 @@ struct VideoDurationSheet: View {
         let presets = (capability?.presetsMS ?? []).map { Double($0) / 1000 }.filter { maximum == 0 || $0 <= maximum }
         let typed = VideoDuration.custom(custom, minutes: minutes)
         NavigationStack {
-            List {
-                Section {
-                    choice(nil, title: "Auto", detail: autoDetail)
-                    ForEach(presets, id: \.self) { seconds in choice(seconds, title: VideoDuration.label(seconds), detail: nil) }
-                } footer: {
-                    Text("Longer videos are made on your computer from about 2-second segments, one after another"
-                         + (maximum > 0 ? ", up to \(VideoDuration.label(maximum))." : "."))
-                }.listRowBackground(OliveTheme.raised)
-                Section {
-                    HStack(spacing: 10) {
-                        TextField("Length", text: $custom).keyboardType(.decimalPad).focused($typing)
-                            .accessibilityLabel("Custom length").accessibilityIdentifier("chat.videoDuration.custom")
-                        Picker("Unit", selection: $minutes) {
-                            Text("sec").tag(false)
-                            Text("min").tag(true)
-                        }.pickerStyle(.segmented).frame(maxWidth: 150).accessibilityIdentifier("chat.videoDuration.unit")
+            ScrollViewReader { scroller in
+                List {
+                    Section {
+                        choice(nil, title: "Auto", detail: autoDetail)
+                        ForEach(presets, id: \.self) { seconds in choice(seconds, title: VideoDuration.label(seconds), detail: nil) }
+                    } footer: {
+                        Text("Longer videos are made on your computer from about 2-second segments, one after another"
+                             + (maximum > 0 ? ", up to \(VideoDuration.label(maximum))." : "."))
+                    }.listRowBackground(OliveTheme.raised)
+                    Section {
+                        HStack(spacing: 10) {
+                            TextField("Length", text: $custom).keyboardType(.decimalPad).focused($typing)
+                                .accessibilityLabel("Custom length").accessibilityIdentifier("chat.videoDuration.custom")
+                            Picker("Unit", selection: $minutes) {
+                                Text("sec").tag(false)
+                                Text("min").tag(true)
+                            }.pickerStyle(.segmented).frame(maxWidth: 150).accessibilityIdentifier("chat.videoDuration.unit")
+                        }
+                        Button("Use \(typed.map(VideoDuration.label) ?? "custom length")") {
+                            guard let typed else { return }
+                            state.videoDuration = typed; dismiss()
+                        }
+                        .disabled(typed == nil || (maximum > 0 && (typed ?? 0) > maximum))
+                        .accessibilityIdentifier("chat.videoDuration.apply")
+                        .id("custom.apply")
+                    } header: { Text("Custom") } footer: {
+                        if let typed, maximum > 0, typed > maximum {
+                            Text("This computer allows up to \(VideoDuration.label(maximum)) per video.").foregroundStyle(OliveTheme.attention)
+                        }
+                    }.listRowBackground(OliveTheme.raised)
+                }
+                .oliveListStyle()
+                // Keep what is being typed, and its Use button, above the keyboard at any text size.
+                // This sheet's list does not get the keyboard inset on its own: make room for the
+                // keyboard explicitly, then bring the Custom row into view.
+                .contentMargins(.bottom, keyboard, for: .scrollContent)
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                    guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+                          let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen else { return }
+                    keyboard = max(0, screen.bounds.maxY - frame.minY)
+                    if keyboard > 0, typing {
+                        Task { try? await Task.sleep(for: .milliseconds(100)); withAnimation { scroller.scrollTo("custom.apply", anchor: .bottom) } }
                     }
-                    Button("Use \(typed.map(VideoDuration.label) ?? "custom length")") {
-                        guard let typed else { return }
-                        state.videoDuration = typed; dismiss()
-                    }
-                    .disabled(typed == nil || (maximum > 0 && (typed ?? 0) > maximum))
-                    .accessibilityIdentifier("chat.videoDuration.apply")
-                } header: { Text("Custom") } footer: {
-                    if let typed, maximum > 0, typed > maximum {
-                        Text("This computer allows up to \(VideoDuration.label(maximum)) per video.").foregroundStyle(OliveTheme.attention)
-                    }
-                }.listRowBackground(OliveTheme.raised)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboard = 0 }
+                .onChange(of: custom) { _, _ in withAnimation { scroller.scrollTo("custom.apply", anchor: .bottom) } }
             }
-            .oliveListStyle()
             .navigationTitle("Video length").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("chat.videoDuration.done") } }
             .onAppear {
                 if let chosen = state.videoDuration, !presets.contains(chosen) { custom = String(format: chosen == chosen.rounded() ? "%.0f" : "%.1f", chosen) }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 
     private var autoDetail: String {

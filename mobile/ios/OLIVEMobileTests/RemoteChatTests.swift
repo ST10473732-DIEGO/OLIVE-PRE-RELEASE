@@ -566,7 +566,9 @@ final class RemoteVideoTests: XCTestCase {
         XCTAssertEqual(app.sendBlocker, "VIDEO on this computer is limited to 3 min per video. Choose a shorter length.")
         app.videoDuration = 37
         XCTAssertNil(app.sendBlocker)
+        app.messages = [ChatMessage(id: UUID(), role: .user, blocks: [.text("An earlier turn")])]  // Only a non-empty chat can be cleared.
         app.clearChat()
+        XCTAssertTrue(app.messages.isEmpty)
         XCTAssertNil(app.videoDuration, "a new conversation starts on Auto")
     }
 

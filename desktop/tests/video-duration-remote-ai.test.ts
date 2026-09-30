@@ -9,7 +9,7 @@ import { mediaPlaceholder } from "../src/features/chat/MediaNotice";
 import { artifactDetails, artifactSummary } from "../src/features/chat/MediaArtifacts";
 import {
   durationLabel, estimateLabel, parseCustomDuration, planLine, videoInput, type VideoPlan,
-} from "../src/features/chat/videoDuration";
+} from "../src/features/chat/videoDurationModel";
 import type { MediaArtifact } from "../src/services/api";
 
 const MODES = ["fast", "normal", "max", "uncensored", "now", "deep", "reimagine", "audio", "video"];

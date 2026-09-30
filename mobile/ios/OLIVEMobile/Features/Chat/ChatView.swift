@@ -122,6 +122,11 @@ struct ChatView: View {
         return blocker == "Computer offline" ? "Your OLIVE computer is offline. Your draft stays here." : blocker
     }
 
+    private var showsVideoLength: Bool {
+        (state.session?.selected != nil || state.chatConnection != nil)
+            && state.selectedMode.id == "video" && state.videoCapability?.configurable == true
+    }
+
     /// VIDEO only: "Image → Video" with one accepted image, and the planned length.
     private var videoNote: String? {
         guard state.selectedMode.id == "video", !state.active else { return nil }
@@ -173,17 +178,22 @@ struct ChatView: View {
                 }.lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 8)
                 if state.session?.selected != nil || state.chatConnection != nil {
-                    if state.selectedMode.id == "video", state.videoCapability?.configurable == true {
+                    if showsVideoLength, !typeSize.isAccessibilitySize {
                         VideoDurationButton(presented: $choosingDuration)
                     }
                     ModeButton(presented: $choosingMode)
                 }
             }.padding(.horizontal, 6)
+            if showsVideoLength, typeSize.isAccessibilitySize {
+                // Accessibility text sizes: the length gets its own row instead of squeezing the mode.
+                HStack { VideoDurationButton(presented: $choosingDuration); Spacer(minLength: 0) }.padding(.horizontal, 6)
+            }
             AttachmentChips()
             if composerNotice == nil, let note = videoNote {
                 Label(note, systemImage: state.draftAttachments.isEmpty ? "film" : "photo.on.rectangle.angled")
                     .font(.caption).foregroundStyle(OliveTheme.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 8)
+                    .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("chat.videoPlan")
             }
             if let notice = composerNotice {

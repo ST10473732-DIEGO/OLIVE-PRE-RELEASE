@@ -20,7 +20,10 @@ structured sources and verified image/speech/video files with native players.
 See `docs/OLIVE_MOBILE_CHAT.md`. Deterministic Chat UI tests run with an in-process
 fixture computer; opt-in: `TEST_RUNNER_OLIVE_CHAT_TEST_HOST=1` (Mac test host,
 `tests/fixtures/draw_phone_test_host.py --chat`) and
-`TEST_RUNNER_OLIVE_CHAT_REAL_DESKTOP=1` (the real paired computer, synthetic prompts).
+`TEST_RUNNER_OLIVE_CHAT_REAL_DESKTOP=1` (the real paired computer, synthetic prompts);
+VIDEO length / image-to-video on the real computer: `TEST_RUNNER_OLIVE_CHAT_REAL_VIDEO_STEP`
+(one step per run; see `docs/OLIVE_MOBILE_CHAT.md`). On a physical iPhone, run the UI
+test classes one at a time rather than the whole target in one invocation.
 
 **OLIVE Notes** (tab *Notes*) is a local-first notepad that syncs with the
 paired computer over Connect frames 13/14 (`olive-notes/1`). Its engine is

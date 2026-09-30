@@ -75,6 +75,7 @@ class ChatTestRuntime:
         self.image_edit = image_edit
         self.animate = animate   # A computer with validated VIDEO image-to-video and long-form assembly.
         self.delay = delay
+        self.slow_seconds = 8    # How long a request whose prompt says "slow" keeps working.
         self.files = {}
         self.runs = []          # (job_id, mode, attachment kinds) for assertions
         self.received = []      # attachment snapshots the "desktop" consumed
@@ -237,10 +238,10 @@ class ChatTestRuntime:
             segments = max(1, -(-round(target * 24 - 1) // 48))
             for index in range(1, segments + 1):
                 sink.phase('generating_video', {'stage': 'segment', 'current': index, 'total': segments})
-                await self._pause(sink, (8 if slow else 0.3) / segments)
+                await self._pause(sink, (self.slow_seconds if slow else 0.3) / segments)
             sink.phase('saving', {'stage': 'stitching', 'current': segments, 'total': segments})
         else:
-            await self._pause(sink, 8 if slow else 0.3)
+            await self._pause(sink, self.slow_seconds if slow else 0.3)
         if kind == 'image':
             references = [inp for inp in job.inputs if inp['ref']['kind'] == 'image']
             if references:

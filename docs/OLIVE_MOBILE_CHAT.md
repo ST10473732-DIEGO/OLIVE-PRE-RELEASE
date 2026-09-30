@@ -263,7 +263,25 @@ unknown future artifact kind renders a safe placeholder.
   runs the production Connect + Remote Chat service with the TEST-ONLY
   deterministic runtime (`tests/fixtures/chat_test_runtime.py`);
   `ChatTestHostTests` (env `OLIVE_CHAT_TEST_HOST=1`) drives the phone. **This
-  never counts as real-model verification.**
+  never counts as real-model verification.** VIDEO host variants:
+  `--chat-animate` (long-form/image-to-video computer with segment progress;
+  `--chat-slow-seconds N` for requests whose prompt says "slow"), and
+  `--chat-legacy` (an older computer without `mode_options/1`). The host command
+  `drop_phone` closes only the phone's channels for a while (a Wi-Fi-like loss;
+  the computer keeps working), unlike `network_off`, which is OLIVE going
+  offline and ends running jobs as `computer_stopped`. Tests:
+  `testLongVideoRecoversAcrossDisconnects` (`OLIVE_CHAT_VIDEO_RECOVERY=1`) and
+  `testOlderComputerVideoFallback` (`OLIVE_CHAT_LEGACY_HOST=1`).
+- Physical real computer (opt-in, normal profile and pairing, generated images
+  only): `ChatRealVideoTests`, one step per run via
+  `OLIVE_CHAT_REAL_VIDEO_STEP` = `capabilities` (sends nothing), `t2v`, `i2v`
+  (`OLIVE_CHAT_REAL_VIDEO_SECONDS`, default 20), `playback` (no generation:
+  play, Share, relaunch), `stop`. Each generating step runs one real GPU job.
+  Debug-only `--ui-test-diagnostics` exposes the advertised VIDEO capability and
+  the on-device AVPlayer item duration as accessibility values.
+- Video playback switches the audio session to `.playback`/`.moviePlayback`
+  only once the person starts a video, so its sound is audible with the
+  Ring/Silent switch on (showing a video never interrupts other audio).
 
 ## Real-desktop acceptance (manual)
 

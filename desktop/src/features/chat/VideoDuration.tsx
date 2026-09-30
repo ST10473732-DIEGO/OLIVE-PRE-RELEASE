@@ -3,7 +3,7 @@ import { Clapperboard, ImagePlay } from "lucide-react";
 import { call } from "../../services/api";
 import {
   DURATION_PRESETS, VIDEO_INPUT_NOTICE, durationLabel, parseCustomDuration, planLine, videoInput, type VideoPlan,
-} from "./videoDuration";
+} from "./videoDurationModel";
 
 /** Presentational VIDEO length control: Auto, presets or a custom length. */
 export function VideoDurationView({ value, plan, images, busy, onChange }: {
