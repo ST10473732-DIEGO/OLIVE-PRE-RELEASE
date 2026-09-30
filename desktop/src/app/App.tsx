@@ -1,4 +1,4 @@
-import { chatCompatibleRoute } from "../navigation/features";
+import { chatCompatibleRoute, drawNoteRoute } from "../navigation/features";
 import type { RecordTarget } from "../services/handoff";
 import { HomePage } from "../features/Home";
 import { Welcome } from "../features/Welcome";
@@ -64,6 +64,7 @@ const TasksPage = lazy(() => import("../features/personal/Tasks"));
 const RemindersPage = lazy(() => import("../features/personal/Reminders"));
 const MailPage = lazy(() => import("../features/mail/Mail"));
 const NotesPage = lazy(() => import("../features/notes/Notes"));
+const DrawPage = lazy(() => import("../features/draw/Draw"));
 import "../features/personal/personal.css";
 import Today from "../features/personal/Today";
 type Route = string;
@@ -105,6 +106,8 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("spaceViews", JSON.stringify(spaceViews));
   }, [spaceViews]);
+  const spaceViewsRef = useRef(spaceViews);
+  spaceViewsRef.current = spaceViews;
   // V2 §15: the pane is expanded, a 48 px rail, or hidden (an overlay opened
   // from the title bar) depending on the window width and the space.
   const [width, setWidth] = useState(() => window.innerWidth);
@@ -306,6 +309,17 @@ export default function App() {
         setHandoffs((current) => ({ ...current, notes: { id, revision: (current.notes?.revision || 0) + 1 } }));
         setRoute("notes");
         setVisited((current) => (current.includes("notes") ? current : [...current, "notes"]));
+      }
+      if (event.topic === "drawnote.navigate") {
+        // Chat asked for OLIVE DrawNote: Draw (optionally one drawing), or the
+        // section last used on this device. Navigation only.
+        const section = drawNoteRoute(data.section, spaceViewsRef.current.drawnote);
+        if (section === "draw") {
+          const id = typeof data.drawing_id === "string" ? data.drawing_id : "";
+          if (id) setHandoffs((current) => ({ ...current, draw: { id, revision: (current.draw?.revision || 0) + 1 } }));
+        }
+        setRoute(section);
+        setVisited((current) => (current.includes(section) ? current : [...current, section]));
       }
       if (event.topic === "approval.closed")
         setApprovals((a) => a.filter((x) => x.id !== data.id));
@@ -721,7 +735,10 @@ export default function App() {
                   </Suspense></SpaceSlot.Provider>
                 </div>
               )}
-              {mounted("notes") && <div className="route-host" hidden={route!=="notes"}><Suspense fallback={<p>Opening OLIVE Notes…</p>}><NotesPage report={report} target={handoffs.notes} visible={route==="notes"}/></Suspense></div>}
+              {/* OLIVE DrawNote: Notes and Draw stay mounted once visited, so
+                  switching between them never reloads the open note or drawing. */}
+              {mounted("notes") && <div className="route-host" hidden={route!=="notes"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "notes" }}><Suspense fallback={<p>Opening OLIVE Notes…</p>}><NotesPage report={report} target={handoffs.notes} visible={route==="notes"}/></Suspense></SpaceSlot.Provider></div>}
+              {mounted("draw") && <div className="route-host" hidden={route!=="draw"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "draw" }}><Suspense fallback={<p>Opening OLIVE Draw…</p>}><DrawPage report={report} target={handoffs.draw} visible={route==="draw"}/></Suspense></SpaceSlot.Provider></div>}
               {mounted("mail") && <div className="route-host" hidden={route!=="mail"}><Suspense fallback={<p>Opening Mail…</p>}><MailPage target={handoffs.mail}/></Suspense></div>}
               {mounted("calendar") && <div className="route-host" hidden={route!=="calendar"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "calendar" }}><Suspense fallback={<p>Opening Calendar…</p>}><CalendarPage target={handoffs.calendar} createRequest={nativeCreate.calendar}/></Suspense></SpaceSlot.Provider></div>}
               {mounted("tasks") && <div className="route-host" hidden={route!=="tasks"}><SpaceSlot.Provider value={{ target: spaceActions, active: route === "tasks" }}><Suspense fallback={<p>Opening Tasks…</p>}><TasksPage target={handoffs.tasks} createRequest={nativeCreate.tasks}/></Suspense></SpaceSlot.Provider></div>}

@@ -42,4 +42,4 @@ olive = "olive.ui_qt.application:main"
 include = ["olive*", "dmdo"]
 
 [tool.setuptools.package-data]
-olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json"]
+olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json", "draw/drawing_schema.json", "draw/protocol_v1.json", "draw/conformance_v1.json"]

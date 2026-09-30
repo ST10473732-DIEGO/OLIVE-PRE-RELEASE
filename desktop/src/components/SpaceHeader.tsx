@@ -15,6 +15,7 @@ const DESCRIPTIONS: Record<string, string> = {
   plan: "Your calendar, tasks and reminders, on this device.",
   library: "What OLIVE knows: your documents, remembered facts and projects.",
   build: "Give OLIVE an objective, or write and run code yourself.",
+  drawnote: "Your notes and drawings, stored on this device.",
 };
 
 // The Grove space header: the space's title and one line of context, the
@@ -74,7 +75,7 @@ export function SpaceHeader({
               requestAnimationFrame(() => tabs.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
             }}
           >
-            {featureById(id)?.label}
+            {featureById(id)?.view ?? featureById(id)?.label}
           </button>
         ))}
         <span className="space-tab-line" ref={line} aria-hidden="true" />

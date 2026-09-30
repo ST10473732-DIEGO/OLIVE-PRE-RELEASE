@@ -34,7 +34,7 @@ CAPABILITIES = frozenset({
     'calendar', 'reminders', 'notifications', 'files.receive', 'files.send', 'files.shared',
     'filesystem.full', 'studio.view', 'studio.edit', 'studio.build', 'studio.test', 'studio.debug', 'studio.run', 'models.remote', 'apps.launch',
     'terminal', 'desktop_control', 'software.install',
-    'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'sync.notes',
+    'sync.tasks', 'sync.calendar', 'sync.reminders', 'sync.chat', 'sync.notes', 'sync.draw',
 })
 SAFE_OPERATIONS = {'connect.ping': 'ping', 'device.status': 'read', 'chat.metadata.read': 'read'}
 
@@ -132,7 +132,18 @@ class RequestEnvelope:
         except (ValueError, TypeError, RecursionError, UnicodeError):
             raise ConnectError('malformed_message') from None
 
+    @property
+    def is_protocol_probe(self):
+        # Read-only probe for optional protocols (olive-notes/1, olive-draw/1).
+        # Older builds reject this operation with "unknown_operation" and keep
+        # the channel open, so it is safe to ask any desktop.
+        return self.capability == 'connect.ping' and self.operation == 'protocols'
+
     def validate_operation(self):
+        if self.is_protocol_probe:
+            if self.arguments:
+                raise ConnectError('invalid_arguments')
+            return
         if self.capability not in SAFE_OPERATIONS:
             raise ConnectError('capability_unavailable')
         if self.operation != SAFE_OPERATIONS[self.capability]:

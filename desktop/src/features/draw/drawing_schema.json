@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "operations": {
+    "1": ["stroke", "erase", "clear", "background"],
+    "2": ["stroke", "erase", "clear", "background", "image"]
+  },
+  "record_kinds": ["create", "op", "visibility", "meta"],
+  "meta_fields": ["title", "trashed"],
+  "tools": ["pen"],
+  "backgrounds": ["#ffffff", "transparent"],
+  "image_types": ["image/png", "image/jpeg"],
+  "limits": {
+    "min_canvas": 16,
+    "max_canvas": 8192,
+    "max_canvas_pixels": 33554432,
+    "max_operations": 20000,
+    "max_records": 100000,
+    "max_points": 10000,
+    "max_operation_bytes": 400000,
+    "max_document_bytes": 48000000,
+    "min_width": 0.5,
+    "max_width": 256,
+    "max_title_chars": 200,
+    "max_drawings": 5000,
+    "max_undo": 1000,
+    "thumbnail_max_side": 320,
+    "thumbnail_max_bytes": 96000,
+    "max_import_bytes": 40000000,
+    "max_import_side": 16384,
+    "max_import_pixels": 50000000,
+    "max_asset_bytes": 48000000,
+    "max_asset_side": 8192,
+    "max_asset_pixels": 33554432,
+    "asset_chunk_bytes": 600000
+  }
+}

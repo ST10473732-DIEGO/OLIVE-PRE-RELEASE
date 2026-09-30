@@ -29,7 +29,13 @@ import { Confirm, DeviceIcon, Segmented, ago, dateLabel, deviceKind, fullTime, s
 import "./devices.css";
 
 /** Capabilities this version offers as controls; everything else is listed as unavailable. */
-const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read", "sync.notes"];
+const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read", "sync.notes", "sync.draw"];
+const DRAW_STATE: Record<string, string> = {
+  synced: "Synced", syncing: "Syncing", offline: "Offline · edits wait on this computer", off: "Off", error: "Sync issue",
+  idle: "Waiting to connect", unsupported: "Not supported by this device’s OLIVE version",
+};
+/** Only Off and Allow: live sync never stops to ask per note or per stroke. */
+const LIVE_SYNC = new Set(["sync.notes", "sync.draw"]);
 const NOTES_STATE: Record<string, string> = {
   synced: "Synced", syncing: "Syncing", offline: "Offline · changes wait on this computer", off: "Off", error: "Sync issue", idle: "Waiting to connect",
 };
@@ -801,6 +807,14 @@ export function Devices() {
                                           <div className="devices-row-line devices-permission" key={cap}>
                                             <span className="devices-row-label">
                                               {label}
+                                              {cap === "sync.draw" && remote.draw_sync && remote.draw_sync.state !== "off" && (
+                                                <small className="devices-notes-sync">
+                                                  {DRAW_STATE[remote.draw_sync.state] || sentence(remote.draw_sync.state)}
+                                                  {remote.draw_sync.pending ? ` · ${remote.draw_sync.pending} edit${remote.draw_sync.pending === 1 ? "" : "s"} to send` : ""}
+                                                  {remote.draw_sync.pending_assets ? ` · ${remote.draw_sync.pending_assets} image${remote.draw_sync.pending_assets === 1 ? "" : "s"} arriving` : ""}
+                                                  {remote.draw_sync.last_sync ? ` · last ${remote.draw_sync.last_sync.slice(11, 16)} UTC` : ""}
+                                                </small>
+                                              )}
                                               {cap === "sync.notes" && remote.notes_sync && remote.notes_sync.state !== "off" && (
                                                 <small className="devices-notes-sync">
                                                   {NOTES_STATE[remote.notes_sync.state] || sentence(remote.notes_sync.state)}
@@ -810,7 +824,7 @@ export function Devices() {
                                               )}
                                             </span>
                                             <Segmented
-                                              options={cap === "sync.notes" ? ["deny", "allow"] : undefined}
+                                              options={LIVE_SYNC.has(cap) ? ["deny", "allow"] : undefined}
                                               label={label}
                                               value={
                                                 remote.permissions?.find(

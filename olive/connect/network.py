@@ -20,7 +20,7 @@ from .network_diagnostics import ChannelDiagnostics
 from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, frame, header,
                            require_current, tls_context, FILE_REQUEST, FILE_RESPONSE,
                            INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE,
-                           NOTES_REQUEST, NOTES_RESPONSE)
+                           NOTES_REQUEST, NOTES_RESPONSE, DRAW_REQUEST, DRAW_RESPONSE)
 
 CONNECT_TIMEOUT = 3.0
 HANDSHAKE_TIMEOUT = 3.0
@@ -234,6 +234,32 @@ class Channel:
             with self.lock:
                 self.pending.pop(request['request_id'], None)
 
+    def draw_request(self, raw):
+        """One olive-draw/1 exchange. A timeout fails this request only."""
+        from ..draw import protocol as draw_protocol
+        request = draw_protocol.decode_request(raw)
+        if request['source_device_id'] != self.owner.service.local_id or request['target_device_id'] != self.peer:
+            raise ConnectError('source_mismatch')
+        self.check()
+        future = Future()
+        future.sync_protocol = draw_protocol.PROTOCOL
+        with self.lock:
+            if len(self.pending) >= MAX_PENDING or request['request_id'] in self.pending:
+                raise ConnectError('backpressure')
+            self.pending[request['request_id']] = future
+            try:
+                self.writes.put_nowait(frame(DRAW_REQUEST, raw))
+            except queue.Full:
+                self.pending.pop(request['request_id'])
+                raise ConnectError('backpressure') from None
+        try:
+            return future.result(timeout=REQUEST_TIMEOUT * 3)
+        except TimeoutError:
+            raise ConnectError('draw_request_timeout') from None
+        finally:
+            with self.lock:
+                self.pending.pop(request['request_id'], None)
+
     def request(self, raw, timeout=REQUEST_TIMEOUT, *, _sync=False, _admission=None):
         if _sync:
             from ..sync.records import SyncRequest
@@ -271,6 +297,7 @@ class Channel:
     def process(self, kind, payload):
         self.check()
         allowed = (self.owner.allow_notes_message(self.peer) if kind in (NOTES_REQUEST, NOTES_RESPONSE)
+                   else self.owner.allow_draw_message(self.peer) if kind in (DRAW_REQUEST, DRAW_RESPONSE)
                    else self.owner.allow_studio_message(self.peer) if kind in (STUDIO_REQUEST, STUDIO_RESPONSE)
                    else self.owner.allow_inference_message(self.peer) if kind in (INFERENCE_REQUEST, INFERENCE_RESPONSE)
                    else self.owner.allow_file_message(self.peer) if kind in (FILE_REQUEST, FILE_RESPONSE)
@@ -302,6 +329,26 @@ class Channel:
                         raise ConnectError('invalid_response')
                     future.set_result(response)
                 # A late answer after a local timeout is inert: CRDT resend is idempotent.
+        elif kind == DRAW_REQUEST:
+            draw = getattr(self.owner.service, 'draw', None)
+            if draw is None:
+                from ..draw import protocol as draw_protocol
+                self.write(frame(DRAW_RESPONSE, draw_protocol.encode_response(None, error='capability_unavailable')))
+            else:
+                draw.receive(payload, self, lambda raw: self.write(frame(DRAW_RESPONSE, raw)))
+        elif kind == DRAW_RESPONSE:
+            from ..draw import protocol as draw_protocol
+            try:
+                response = draw_protocol.decode_response(payload)
+            except draw_protocol.DrawProtocolError:
+                raise ConnectError('invalid_response') from None
+            with self.lock:
+                future = self.pending.get(response['request_id']) if response['request_id'] else None
+                if future is not None:
+                    if future.done() or getattr(future, 'sync_protocol', '') != draw_protocol.PROTOCOL:
+                        raise ConnectError('invalid_response')
+                    future.set_result(response)
+                # A late answer after a local timeout is inert: record resend is idempotent.
         elif kind == STUDIO_REQUEST:
             studio = self.owner.service.studio
             if studio is None:
@@ -561,6 +608,7 @@ class LocalNetwork:
         self.inference_rates = {}
         self.studio_rates = {}
         self.notes_rates = {}
+        self.draw_rates = {}
         self.targets = {}
         self.attempts = Budget(12, 60)
         self.audit_budget = Budget(30, 60)
@@ -722,6 +770,8 @@ class LocalNetwork:
         self.audit(channel.peer, 'connection_authenticated')
         if self.service.notes is not None:
             self.service.notes.channel_ready(channel.peer)  # Non-blocking: starts a pump thread.
+        if getattr(self.service, 'draw', None) is not None:
+            self.service.draw.channel_ready(channel.peer)   # Non-blocking: probe and/or pump thread.
 
     def allow_message(self, peer):
         with self.lock:
@@ -739,6 +789,14 @@ class LocalNetwork:
                     return False
                 self.notes_rates[peer] = Budget(3000, 60)
             return self.notes_rates[peer].take()
+
+    def allow_draw_message(self, peer):
+        with self.lock:
+            if peer not in self.draw_rates:
+                if len(self.draw_rates) >= 256:
+                    return False
+                self.draw_rates[peer] = Budget(6000, 60)
+            return self.draw_rates[peer].take()
 
     def allow_file_message(self, peer):
         with self.lock:
@@ -768,6 +826,8 @@ class LocalNetwork:
                 self.service.files.invalidate(peer, 'connection_closed')
         if affected and self.service.notes is not None:
             self.service.notes.channel_closed(peer)
+        if affected and getattr(self.service, 'draw', None) is not None:
+            self.service.draw.channel_closed(peer)
         self.audit(peer, 'connection_closed' if channel.peer else 'connection_failed')
 
     def status(self, peer):

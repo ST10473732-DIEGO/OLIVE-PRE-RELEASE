@@ -1,5 +1,8 @@
 import { BrowserWindow, dialog, shell } from "electron";
-import { writeFile } from "node:fs/promises";
+import { open as openFile, rename, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { IMPORT_LIMITS, exportFileName, imageInfo } from "../draw-contracts";
 import { fileActionSchema } from "../file-actions";
 import type { Backend } from "./backend";
 
@@ -78,6 +81,57 @@ export async function fileAction(
     const chosen=await dialog.showOpenDialog(window,{title:"Import a text file as a note",properties:["openFile"],filters:[{name:"Text",extensions:["txt","md","markdown","text"]}]});
     if(chosen.canceled || chosen.filePaths.length!==1)return null;
     return backend.request("notes.import",{path:chosen.filePaths[0]});
+  }
+  if(value.action === "draw-import-image") {
+    // The person picks the file; this process reads it (bounded), decides the
+    // type from the bytes (never the name) and checks the header size before
+    // any decoder runs. The renderer receives bytes only, never a path.
+    const chosen=await dialog.showOpenDialog(window,{title:"Import an image into this drawing",properties:["openFile"],
+      filters:[{name:"PNG or JPEG image",extensions:["png","jpg","jpeg"]}]});
+    if(chosen.canceled || chosen.filePaths.length!==1) return null;
+    const handle=await openFile(chosen.filePaths[0],"r");
+    let data:Uint8Array;
+    try {
+      const stats=await handle.stat();
+      if(!stats.isFile()) throw new Error("Could not import image: choose an image file.");
+      if(stats.size>IMPORT_LIMITS.bytes) throw new Error("Could not import image: the file is larger than 40 MB.");
+      const buffer=Buffer.alloc(stats.size);
+      const { bytesRead }=await handle.read(buffer,0,stats.size,0);
+      data=new Uint8Array(buffer.buffer,buffer.byteOffset,bytesRead);
+    } finally {
+      await handle.close();
+    }
+    const info=imageInfo(data);
+    if(!info) throw new Error("Could not import image: only PNG and JPEG images can be imported.");
+    if(info.width<1||info.height<1||info.width>IMPORT_LIMITS.side||info.height>IMPORT_LIMITS.side||info.width*info.height>IMPORT_LIMITS.pixels)
+      throw new Error("Could not import image: its dimensions are too large.");
+    return {name:basename(chosen.filePaths[0]).slice(0,200),mime:info.mime,width:info.width,height:info.height,data:new Uint8Array(data)};
+  }
+  if(value.action === "draw-export") {
+    // The renderer supplies flattened bytes for one drawing; this process
+    // checks them against the stored drawing, chooses the path with the
+    // system dialog, and writes a new file. The renderer never names a path.
+    const info=imageInfo(value.data);
+    const mime=value.format==="png"?"image/png":"image/jpeg";
+    if(!info || info.mime!==mime) throw new Error("Could not export image: the rendered data was not a valid "+(value.format==="png"?"PNG":"JPEG")+".");
+    const drawing=await backend.request("draw.get",{drawing_id:value.drawing_id}) as {width:number;height:number};
+    if(info.width!==drawing.width || info.height!==drawing.height) throw new Error("Could not export image: the rendered size did not match the drawing.");
+    const extension=value.format==="png"?"png":"jpg";
+    const chosen=await dialog.showSaveDialog(window,{title:value.format==="png"?"Export drawing as PNG":"Export drawing as JPEG",defaultPath:exportFileName(value.name,value.format),
+      filters:[value.format==="png"?{name:"PNG image",extensions:["png"]}:{name:"JPEG image",extensions:["jpg","jpeg"]}]});
+    if(chosen.canceled || !chosen.filePath) return null;
+    let target=chosen.filePath;
+    const suffix=extname(target).toLowerCase();
+    if(value.format==="png" ? suffix!==".png" : suffix!==".jpg" && suffix!==".jpeg") target=`${target}.${extension}`;
+    const temporary=join(dirname(target),`.olive-export-${randomUUID()}.tmp`);
+    try {
+      await writeFile(temporary,value.data,{flag:"wx",mode:0o644});
+      await rename(temporary,target);
+    } catch(failure) {
+      await unlink(temporary).catch(()=>undefined);
+      throw new Error("Could not export image: the file could not be written.", { cause: failure });
+    }
+    return {exported:true,name:basename(target),width:info.width,height:info.height,bytes:value.data.byteLength};
   }
   if(value.action === "desktop-launch") {
     const chosen = await dialog.showOpenDialog(window, {

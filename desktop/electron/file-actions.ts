@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_EXPORT_BYTES } from "./draw-contracts";
 const id = z.string().min(1).max(4096);
 export const fileActionSchema = z.discriminatedUnion("action", [
   z.object({action:z.literal('connect-file-select'),device_id:z.string().uuid()}).strict(),
@@ -16,6 +17,9 @@ export const fileActionSchema = z.discriminatedUnion("action", [
   z.object({action:z.literal("profile-avatar")}).strict(),
   z.object({action:z.literal("notes-export"),note_id:z.string().uuid(),format:z.enum(["txt","md"]),name:z.string().max(120).optional()}).strict(),
   z.object({action:z.literal("notes-import")}).strict(),
+  // Flattened drawing bytes rendered at document size; the main process picks the path.
+  z.object({action:z.literal("draw-import-image"),drawing_id:z.string().uuid()}).strict(),
+  z.object({action:z.literal("draw-export"),drawing_id:z.string().uuid(),format:z.enum(["png","jpeg"]),name:z.string().max(400).optional(),data:z.instanceof(Uint8Array).refine((d)=>d.byteLength>0&&d.byteLength<=MAX_EXPORT_BYTES)}).strict(),
   z.object({action:z.literal("desktop-launch"),kind:z.enum(["executable","python"])}).strict(),
   z
     .object({

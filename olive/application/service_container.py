@@ -226,6 +226,25 @@ class ServiceContainer:
         remote_notes.on_status = notes_status_changed
         from ..notes.chat import register_tools as register_notes_tools
         register_notes_tools(self)
+        # OLIVE Draw: desktop-local drawings (no sync, no model dependency).
+        from ..draw.service import DrawService
+        self.draw = DrawService(data / "drawings.sqlite3", device_id=self.connect.local_id,
+                                publish=self._publish_from_thread)
+        remote_draw = self.connect.attach_draw(self.draw)
+        draw_status = {'timer': None}
+        def draw_status_changed():
+            # Coalesced like Notes: the Devices view re-reads status; no content.
+            with status_lock:
+                if draw_status['timer'] is not None:
+                    return
+                def fire():
+                    with status_lock:
+                        draw_status['timer'] = None
+                    self._publish_from_thread('draw.sync', {})
+                draw_status['timer'] = _threading.Timer(0.25, fire)
+                draw_status['timer'].daemon = True
+                draw_status['timer'].start()
+        remote_draw.on_status = draw_status_changed
         from ..personal.controller import PersonalController
         self.personal = PersonalController(self)
         self.connect.attach_sync(self.personal.records)

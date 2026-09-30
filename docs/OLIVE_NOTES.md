@@ -14,7 +14,8 @@ local network. The iOS Simulator was not used.
 
 ## 1. Product behaviour
 
-- **Desktop:** navigation space **OLIVE Notes** (between Chat and Plan). Note
+- **Desktop:** the **Notes** view of the **OLIVE DrawNote** navigation space
+  (between Chat and Plan; see `docs/OLIVE_DRAWNOTE.md`). Note
   list with search, pinned notes first, then most recently edited. Editor with
   a title field and a plain-text body. Toolbar: pin, history, duplicate,
   export as `.txt`, delete. Import `.txt`/`.md`. **Recently Deleted** view with
@@ -348,7 +349,7 @@ no remote wipe).
 Literal requests are handled by a deterministic grammar (`olive/notes/chat.py`)
 before research and desktop routing, with or without a model:
 
-- "Open OLIVE Notes" / "Open my notes" → opens the Notes space (never an app
+- "Open OLIVE Notes" / "Open my notes" → opens OLIVE DrawNote › Notes (never an app
   launch; "Open Kate" stays desktop navigation);
 - "Open my Shopping note", "Read my Shopping note";
 - "Create a note called Ideas and add 'OLIVE Notes'";

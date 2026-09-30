@@ -8,6 +8,7 @@ from ..personal.contracts import SPEC as PERSONAL_SPEC, MAIN_ONLY as PERSONAL_MA
 from ..mail.contracts import SPEC as MAIL_SPEC, MAIN_ONLY as MAIL_MAIN, validate as validate_mail
 from ..studio_tooling.contracts import SPEC as TOOLING_SPEC, validate as validate_tooling
 from ..notes.contracts import SPEC as NOTES_SPEC, MAIN_ONLY as NOTES_MAIN, validate as validate_notes
+from ..draw.contracts import SPEC as DRAW_SPEC, validate as validate_draw
 
 VERSION = 1
 MAX_FRAME = 1_048_576
@@ -84,6 +85,9 @@ def validate(value):
         raise ValueError('Invalid request identity')
     if isinstance(value['method'], str) and (value['method'] in NOTES_SPEC or value['method'] in NOTES_MAIN):
         validate_notes(value['method'], value['args'])
+        return value
+    if isinstance(value['method'], str) and value['method'] in DRAW_SPEC:
+        validate_draw(value['method'], value['args'])
         return value
     if not isinstance(value['method'], str) or value['method'] not in METHODS and value['method'] not in SPEC and value['method'] not in MAIN_ONLY and value['method'] not in PERSONAL_SPEC and value['method'] not in PERSONAL_MAIN and value['method'] not in MAIL_SPEC and value['method'] not in MAIL_MAIN and value['method'] not in TOOLING_SPEC:
         raise ValueError('Unsupported method')

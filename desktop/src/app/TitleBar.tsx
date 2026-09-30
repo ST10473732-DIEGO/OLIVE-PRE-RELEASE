@@ -74,7 +74,7 @@ export function TitleBar({
   developer?: boolean;
 }) {
   const space = spaceOf(route);
-  const view = space.routes.length > 1 ? featureById(route)?.label : undefined;
+  const view = space.routes.length > 1 ? (featureById(route)?.view ?? featureById(route)?.label) : undefined;
   const working = runtime.tone === "working";
   return (
     <header className="titlebar" data-route={route}>

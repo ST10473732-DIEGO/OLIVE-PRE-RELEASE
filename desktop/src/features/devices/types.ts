@@ -5,7 +5,8 @@ export type SafeCapability =
   | "files.receive"
   | "models.remote"
   | "files.send"
-  | "sync.notes";
+  | "sync.notes"
+  | "sync.draw";
 export interface NetworkInterface {
   name: string;
   address: string;
@@ -32,6 +33,8 @@ export interface Device {
   sync?: DevicesState["sync"];
   /** OLIVE Notes live sync with this device (null when Notes is unavailable). */
   notes_sync?: { state: string; pending: number | null; last_sync?: string | null; refused?: number; error?: string } | null;
+  /** OLIVE Draw live sync with this device: completed edits and images (null when Draw is unavailable). */
+  draw_sync?: { state: string; pending: number | null; pending_assets?: number; last_sync?: string | null; refused?: number; error?: string } | null;
   device_id: string;
   display_name: string;
   platform: string;
@@ -140,6 +143,7 @@ export const permissionGroups = [
       ["reminders", "Reminders"],
       ["notifications", "Notifications"],
       ["sync.notes", "Notes sync"],
+      ["sync.draw", "Draw sync"],
     ],
   ],
   [

@@ -19,11 +19,18 @@ FILE_REQUEST, FILE_RESPONSE = 7, 8
 INFERENCE_REQUEST, INFERENCE_RESPONSE = 9, 10
 STUDIO_REQUEST, STUDIO_RESPONSE = 11, 12
 NOTES_REQUEST, NOTES_RESPONSE = 13, 14  # olive-notes/1; bound shared with olive/notes/protocol_v1.json
+# olive-draw/1; bound shared with olive/draw/protocol_v1.json. Sent only to peers
+# that have shown they speak it (see olive/connect/draw.py).
+DRAW_REQUEST, DRAW_RESPONSE = 15, 16
 KINDS = (REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST, SYNC_RESPONSE, FILE_REQUEST, FILE_RESPONSE,
-         INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE, NOTES_REQUEST, NOTES_RESPONSE)
+         INFERENCE_REQUEST, INFERENCE_RESPONSE, STUDIO_REQUEST, STUDIO_RESPONSE, NOTES_REQUEST, NOTES_RESPONSE,
+         DRAW_REQUEST, DRAW_RESPONSE)
 
 
 def limit(kind):
+    if kind in (DRAW_REQUEST, DRAW_RESPONSE):
+        from ..draw.protocol import LIMITS as DRAW_LIMITS
+        return DRAW_LIMITS['max_frame_bytes']
     if kind in (NOTES_REQUEST, NOTES_RESPONSE):
         from ..notes.limits import LIMITS
         return LIMITS['max_frame_bytes']

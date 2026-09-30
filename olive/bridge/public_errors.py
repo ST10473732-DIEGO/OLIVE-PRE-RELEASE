@@ -77,6 +77,8 @@ def public_error(error):
  if isinstance(error,PlatformUnavailable):return {'code':'PlatformUnavailable','message':str(error)}
  from ..notes.service import NotesError
  if isinstance(error,NotesError):return {'code':'NotesError','message':str(error)[:300]}
+ from ..draw.service import DrawError
+ if isinstance(error,DrawError):return {'code':'DrawError','message':str(error)[:300]}
  from ..personal.errors import PersonalOperationError
  from ..studio_tooling.errors import StudioToolingError
  if isinstance(error,PersonalOperationError):return {'code':'PersonalOperationError','message':str(error)}

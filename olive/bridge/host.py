@@ -127,7 +127,8 @@ class Host:
     async def handle(self, request):
         validate(request)
         from ..notes.contracts import UNLEDGERED as notes_unledgered
-        if request['method'] in notes_unledgered:
+        from ..draw.contracts import UNLEDGERED as draw_unledgered
+        if request['method'] in notes_unledgered or request['method'] in draw_unledgered:
             if self.closed:
                 raise RuntimeError('Runtime is shutting down')
             return await self.execute(request['method'], request['args'])
@@ -192,6 +193,9 @@ class Host:
         if method.startswith('notes.'):
             from .notes_routes import call as notes_call
             return await notes_call(s, method, args)
+        if method.startswith('draw.'):
+            from .draw_routes import call as draw_call
+            return await draw_call(s, method, args)
         if method in connect_spec:
             return await connect_call(self, method, args)
         if method in tooling_spec:

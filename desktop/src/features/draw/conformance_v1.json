@@ -1,0 +1,693 @@
+{
+ "about": "OLIVE Draw replica conformance: every implementation (Python store, renderer replica.ts, a future phone engine) must produce `expect` from `records` in any arrival order.",
+ "scenarios": [
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "00000000000000000000000000000002",
+     "00000000000000000000000000000003",
+     "00000000000000000000000000000004"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [
+     "00000000000000000000000000000002",
+     "00000000000000000000000000000003",
+     "00000000000000000000000000000004"
+    ],
+    "width": 320
+   },
+   "name": "concurrent strokes tie-break by device then id",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#1e63e9",
+      "id": "00000000000000000000000000000003",
+      "opacity": 1,
+      "points": [
+       1,
+       5,
+       100,
+       5
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000003"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#43a047",
+      "id": "00000000000000000000000000000004",
+      "opacity": 1,
+      "points": [
+       1,
+       9,
+       100,
+       9
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "cccccccc-0000-4000-8000-000000000003",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000004"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#e53935",
+      "id": "00000000000000000000000000000002",
+      "opacity": 1,
+      "points": [
+       1,
+       1,
+       100,
+       1
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000002"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "00000000000000000000000000000002",
+     "00000000000000000000000000000005"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [
+     "00000000000000000000000000000002",
+     "00000000000000000000000000000005"
+    ],
+    "width": 320
+   },
+   "name": "causal order follows lamport",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#e53935",
+      "id": "00000000000000000000000000000002",
+      "opacity": 1,
+      "points": [
+       1,
+       1,
+       100,
+       1
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000002"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#000000",
+      "id": "00000000000000000000000000000005",
+      "opacity": 1,
+      "points": [
+       5,
+       5,
+       6,
+       6
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 3,
+     "record_id": "00000000000000000000000000000005"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "00000000000000000000000000000006"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [],
+    "width": 320
+   },
+   "name": "own undo, visibility before its operation",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "hidden": true,
+      "target": "00000000000000000000000000000006"
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "visibility",
+     "lamport": 3,
+     "record_id": "00000000000000000000000000000007"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#e53935",
+      "id": "00000000000000000000000000000006",
+      "opacity": 1,
+      "points": [
+       1,
+       1,
+       2,
+       2
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000006"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "00000000000000000000000000000008"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [
+     "00000000000000000000000000000008"
+    ],
+    "width": 320
+   },
+   "name": "visibility from another device is ignored",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#e53935",
+      "id": "00000000000000000000000000000008",
+      "opacity": 1,
+      "points": [
+       1,
+       1,
+       2,
+       2
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000008"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "hidden": true,
+      "target": "00000000000000000000000000000008"
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "visibility",
+     "lamport": 3,
+     "record_id": "00000000000000000000000000000009"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "0000000000000000000000000000000a"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [
+     "0000000000000000000000000000000a"
+    ],
+    "width": 320
+   },
+   "name": "undo then redo",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "hidden": false,
+      "target": "0000000000000000000000000000000a"
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "visibility",
+     "lamport": 4,
+     "record_id": "0000000000000000000000000000000c"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#e53935",
+      "id": "0000000000000000000000000000000a",
+      "opacity": 1,
+      "points": [
+       1,
+       1,
+       2,
+       2
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "0000000000000000000000000000000a"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "hidden": true,
+      "target": "0000000000000000000000000000000a"
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "visibility",
+     "lamport": 3,
+     "record_id": "0000000000000000000000000000000b"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [],
+    "title": "From B",
+    "trashed": true,
+    "visible": [],
+    "width": 320
+   },
+   "name": "concurrent rename and trash/restore",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "field": "title",
+      "value": "From B"
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "meta",
+     "lamport": 5,
+     "record_id": "0000000000000000000000000000000e"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "field": "trashed",
+      "value": true
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "meta",
+     "lamport": 6,
+     "record_id": "00000000000000000000000000000010"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "field": "title",
+      "value": "From A"
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "meta",
+     "lamport": 5,
+     "record_id": "0000000000000000000000000000000d"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "field": "trashed",
+      "value": false
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "meta",
+     "lamport": 6,
+     "record_id": "00000000000000000000000000000011"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "field": "title",
+      "value": "Older"
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "meta",
+     "lamport": 4,
+     "record_id": "0000000000000000000000000000000f"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "00000000000000000000000000000012",
+     "00000000000000000000000000000014",
+     "00000000000000000000000000000013",
+     "00000000000000000000000000000015",
+     "00000000000000000000000000000016"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [
+     "00000000000000000000000000000012",
+     "00000000000000000000000000000014",
+     "00000000000000000000000000000013",
+     "00000000000000000000000000000015",
+     "00000000000000000000000000000016"
+    ],
+    "width": 320
+   },
+   "name": "clear versus stroke, background conflict",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "id": "00000000000000000000000000000016",
+      "type": "background",
+      "value": "#ffffff"
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 4,
+     "record_id": "00000000000000000000000000000016"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#e53935",
+      "id": "00000000000000000000000000000014",
+      "opacity": 1,
+      "points": [
+       0,
+       50,
+       50,
+       0
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 3,
+     "record_id": "00000000000000000000000000000014"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "id": "00000000000000000000000000000013",
+      "type": "clear"
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 3,
+     "record_id": "00000000000000000000000000000013"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "color": "#000000",
+      "id": "00000000000000000000000000000012",
+      "opacity": 1,
+      "points": [
+       0,
+       0,
+       50,
+       50
+      ],
+      "pressure": false,
+      "tool": "pen",
+      "type": "stroke",
+      "width": 4
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000012"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "id": "00000000000000000000000000000015",
+      "type": "background",
+      "value": "transparent"
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 4,
+     "record_id": "00000000000000000000000000000015"
+    }
+   ]
+  },
+  {
+   "expect": {
+    "background": "#ffffff",
+    "height": 200,
+    "order": [
+     "00000000000000000000000000000017",
+     "00000000000000000000000000000018"
+    ],
+    "title": "Shared",
+    "trashed": false,
+    "visible": [
+     "00000000000000000000000000000017",
+     "00000000000000000000000000000018"
+    ],
+    "width": 320
+   },
+   "name": "image versus erase",
+   "records": [
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "background": "#ffffff",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "height": 200,
+      "title": "Shared",
+      "width": 320
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "create",
+     "lamport": 1,
+     "record_id": "00000000000000000000000000000001"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "id": "00000000000000000000000000000018",
+      "points": [
+       0,
+       0,
+       100,
+       100
+      ],
+      "type": "erase",
+      "width": 20
+     },
+     "device": "bbbbbbbb-0000-4000-8000-000000000002",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000018"
+    },
+    {
+     "at": "2026-09-30T10:00:00.000Z",
+     "body": {
+      "asset_id": "abababababababababababababababababababababababababababababababab",
+      "height": 48,
+      "id": "00000000000000000000000000000017",
+      "opacity": 1,
+      "type": "image",
+      "width": 64,
+      "x": 10,
+      "y": 10
+     },
+     "device": "aaaaaaaa-0000-4000-8000-000000000001",
+     "drawing_id": "d0d0d0d0-0000-4000-8000-00000000000d",
+     "kind": "op",
+     "lamport": 2,
+     "record_id": "00000000000000000000000000000017"
+    }
+   ]
+  }
+ ],
+ "version": 1
+}

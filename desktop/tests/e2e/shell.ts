@@ -12,6 +12,12 @@ export const SPACE_OF: Record<string, string> = {
   Knowledge: "Library", Memory: "Library", Projects: "Library",
   Agent: "Build", Studio: "Build",
   "OLIVE GO": "Web",
+  "OLIVE Notes": "OLIVE DrawNote", "OLIVE Draw": "OLIVE DrawNote",
+};
+/** Views whose tab name differs from their feature name. */
+const VIEW_TAB: Record<string, { tab: string; route: string }> = {
+  "OLIVE Notes": { tab: "Notes", route: "notes" },
+  "OLIVE Draw": { tab: "Draw", route: "draw" },
 };
 
 /** Open a feature by its visible label: a space in the navigation, or a view
@@ -39,7 +45,8 @@ export async function openSpace(page: Page, name: string) {
     // Views are tabs under the space header; Studio takes the whole window and
     // keeps a title-bar switcher (hidden on narrow windows), so the palette is
     // the last resort. Arrival is checked by route, which every path shares.
-    const tab = page.getByRole("tablist", { name: `${space} views` }).getByRole("tab", { name, exact: true });
+    const view = VIEW_TAB[name];
+    const tab = page.getByRole("tablist", { name: `${space} views` }).getByRole("tab", { name: view?.tab ?? name, exact: true });
     const toggle = page.getByRole("group", { name: `${space} views` }).getByRole("button", { name, exact: true });
     if (await tab.isVisible().catch(() => false)) await tab.click();
     else if (await toggle.isVisible().catch(() => false)) await toggle.click();
@@ -47,7 +54,7 @@ export async function openSpace(page: Page, name: string) {
       await page.getByRole("button", { name: "Find anything", exact: true }).click();
       await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
     }
-    await expect(page.locator(".shell")).toHaveAttribute("data-route", name.toLowerCase());
+    await expect(page.locator(".shell")).toHaveAttribute("data-route", view?.route ?? name.toLowerCase());
   }
 }
 

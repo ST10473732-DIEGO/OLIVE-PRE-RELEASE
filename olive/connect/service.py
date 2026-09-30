@@ -29,6 +29,7 @@ class DesktopDeviceService:
         self.inference = None
         self.studio = None
         self.notes = None
+        self.draw = None
         platform = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform, 'unknown')
         os_name = host_platform.system() or 'Unknown'
         if sys.platform == 'linux':
@@ -53,6 +54,12 @@ class DesktopDeviceService:
         from ..sync.service import RecordSyncService
         self.sync = RecordSyncService(self, personal)
         return self.sync
+
+    def attach_draw(self, draw_service):
+        """Draw stays a local app; this only adds the Connect sync adapter."""
+        from .draw import RemoteDrawService
+        self.draw = RemoteDrawService(self, draw_service)
+        return self.draw
 
     def attach_notes(self, notes_service):
         """Notes stays a local app; this only adds the Connect sync adapter."""
@@ -141,6 +148,9 @@ class DesktopDeviceService:
         if self.notes is not None:
             values = [v for v in values if v['capability'] != 'sync.notes'] + [
                 dict(capability='sync.notes', supported=True, policy_disabled=policies.get('sync.notes', False))]
+        if self.draw is not None:
+            values = [v for v in values if v['capability'] != 'sync.draw'] + [
+                dict(capability='sync.draw', supported=True, policy_disabled=policies.get('sync.draw', False))]
         if self.inference is not None:
             values = [v for v in values if v['capability'] != 'models.remote'] + [
                 dict(capability='models.remote', supported=True, policy_disabled=policies.get('models.remote', False))]
@@ -184,6 +194,8 @@ class DesktopDeviceService:
             self.approvals.invalidate(device_id)
         if self.notes is not None and capability == 'sync.notes':
             self.notes.permission_changed(device_id)
+        if self.draw is not None and capability == 'sync.draw':
+            self.draw.permission_changed(device_id)
 
     def permission(self, device_id, capability, *, scope=None):
         if capability not in CAPABILITIES:
@@ -215,6 +227,8 @@ class DesktopDeviceService:
             self.network.disconnect(device_id, revoked=True)
         if self.notes is not None:
             self.notes.permission_changed(device_id)  # Stops Notes delivery; local notes stay.
+        if self.draw is not None:
+            self.draw.permission_changed(device_id)   # Stops Draw delivery; local drawings stay.
         return record
 
     def remove(self, device_id):
@@ -282,6 +296,31 @@ class DesktopDeviceService:
             return {'content_access': False, 'inference_access': False}
         raise ConnectError('capability_unavailable')
 
+    def _protocols(self, request, peer, public, database_timeout):
+        """Read-only probe: which optional protocols this desktop speaks. Needs a
+        paired, authenticated peer; grants nothing; leaves no replay record."""
+        try:
+            with self.repository.transaction(timeout=database_timeout, read_only=True) as db:
+                if self.closed or (public is None and not self.fixture_mode):
+                    raise ConnectError('fixtures_disabled')
+                if peer != request.source_device_id:
+                    raise ConnectError('source_mismatch')
+                record = self.repository.get(db, peer)
+                if not record or record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
+                    raise ConnectError('device_not_paired')
+                if public is not None and record.get('public_identity') != public:
+                    raise ConnectError('identity_mismatch')
+                if request.target_device_id != self.local_id:
+                    raise ConnectError('wrong_target')
+                now = int(self.clock())
+                if request.timestamp > now + 5 or request.expires_at <= now:
+                    raise ConnectError('expired_request')
+        except ConnectError as error:
+            return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='rejected', error=str(error))
+        spoken = [p for p, attached in (('olive-notes/1', self.notes), ('olive-draw/1', self.draw)) if attached is not None]
+        return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='completed',
+                    result={'pong': True, 'protocols': spoken})
+
     def receive_fixture(self, raw, *, peer_device_id):
         """Only InProcessFixtureTransport calls this; not a public/authenticated endpoint."""
         return self._receive(raw, peer_device_id=peer_device_id)
@@ -294,6 +333,8 @@ class DesktopDeviceService:
         try:
             peer = identifier(peer_device_id)
             request = RequestEnvelope.decode(raw)
+            if request.is_protocol_probe:
+                return self._protocols(request, peer, public, database_timeout)
             with self.repository.transaction(timeout=database_timeout) as db:
                 self._authorize(db, request, peer, public)
                 row = db.execute('SELECT fingerprint,response FROM requests WHERE source=? AND request_id=?',
@@ -443,6 +484,8 @@ class DesktopDeviceService:
         with self._network_lock:
             if self.notes is not None:
                 self.notes.close()
+            if self.draw is not None:
+                self.draw.close()
             self.disable_network()
             if self.approvals is not None:
                 self.approvals.close()

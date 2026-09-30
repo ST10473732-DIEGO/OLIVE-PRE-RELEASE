@@ -1,0 +1,186 @@
+/* OLIVE Draw. Chrome uses Grove tokens (theme and accent follow OLIVE); the
+   canvas page itself is drawing-specific, so a white page stays white in dark mode. */
+.draw-page .draw-rail { width: 288px; }
+.draw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.draw-card {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  color: var(--text-primary);
+}
+.draw-card:hover:not(:disabled) { background: var(--bg-hover); }
+.draw-card.selected { background: var(--bg-selected); }
+.draw-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.draw-thumb {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 44px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #ffffff;
+  color: #8a8f80;
+  box-shadow: 0 0 0 1px var(--border-default);
+}
+.draw-thumb.transparent {
+  background: repeating-conic-gradient(#d9d9d9 0% 25%, #ffffff 0% 50%) 0 0 / 8px 8px;
+}
+.draw-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.draw-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.draw-card-title { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draw-card-meta { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.draw-empty-line { padding: 6px 10px; }
+.draw-rail .ws-rail-foot .ws-seg { width: 100%; box-sizing: border-box; }
+/* Both switch labels stay on one line inside the pill. */
+.draw-rail .ws-rail-foot .ws-seg button { white-space: nowrap; }
+
+.draw-main { position: relative; display: flex; flex-direction: column; min-width: 0; container: draw-main / inline-size; }
+.draw-titlebar, .draw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  min-height: 40px;
+}
+.draw-toolbar { flex-wrap: wrap; row-gap: 4px; }
+.draw-titlebar-spacer, .draw-toolbar-spacer, .draw-status-spacer { flex: 1; }
+.draw-back { display: none; }
+.draw-titlebar button.danger { color: var(--status-error); }
+.draw-title-input {
+  min-width: 120px;
+  max-width: 420px;
+  flex: 1 1 220px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: 650 15px/1.3 var(--font-display, inherit);
+  padding: 4px 6px;
+}
+.draw-title-input:hover:not(:disabled) { border-color: var(--border-subtle); }
+.draw-title-input:focus-visible { outline: none; border-color: var(--focus-ring); background: var(--bg-field); }
+.draw-group { display: flex; align-items: center; gap: 2px; padding: 0 4px; border-right: 1px solid var(--border-subtle); }
+.draw-group:last-child { border-right: 0; }
+.draw-toolbar .icon-button { width: 30px; height: 30px; }
+.draw-toolbar .icon-button[aria-pressed="true"] { background: var(--accent-blue-soft); color: var(--accent-blue); box-shadow: inset 0 0 0 1px var(--border-active); }
+.draw-label { font-size: 12px; color: var(--text-muted); margin-right: 4px; }
+.draw-value { font-size: 12px; color: var(--text-secondary); min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+.draw-color { position: relative; width: 30px; height: 30px; display: inline-grid; place-items: center; cursor: pointer; }
+.draw-color input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  inline-size: 24px;
+  block-size: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.draw-color input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.draw-color input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.draw-color input[type="color"]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.draw-swatches { display: flex; gap: 2px; margin-left: 2px; }
+.draw-swatch {
+  width: 17px;
+  height: 17px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(128, 128, 128, 0.55);
+}
+.draw-swatch:hover:not(:disabled) { border-color: var(--border-strong); transform: scale(1.08); }
+.draw-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--border-active); }
+.draw-size input[type="range"], .draw-opacity input[type="range"] { width: 96px; accent-color: var(--accent-blue); }
+.draw-number {
+  width: 52px;
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  background: var(--bg-field);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.draw-zoom { min-width: 58px; font-variant-numeric: tabular-nums; background: transparent; border-color: transparent; }
+
+.draw-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  /* Workspace around the page; the page colour is drawn by the canvas. */
+  background: color-mix(in srgb, var(--bg-base) 82%, #808080 18%);
+}
+.draw-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  cursor: crosshair;
+}
+.draw-canvas:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 70%, transparent); }
+.draw-canvas[data-cursor="pan"] { cursor: grab; }
+.draw-canvas[data-cursor="panning"] { cursor: grabbing; }
+.draw-canvas[data-cursor="erase"] { cursor: cell; }
+
+.draw-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-height: 26px;
+}
+.draw-save[data-tone="error"] { color: var(--status-error); font-weight: 600; }
+.draw-save[data-tone="success"] { color: var(--text-secondary); }
+.draw-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 8px 6px 12px;
+  border-radius: var(--r-md);
+  background: var(--status-warning-soft);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.draw-notice button { margin-left: auto; }
+.draw-size-dialog form { display: flex; flex-direction: column; gap: 12px; }
+.draw-size-fields { display: flex; align-items: flex-end; gap: 8px; }
+.draw-size-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+.draw-size-fields input { width: 110px; }
+
+/* The tool row stays on one line: labels go first, then the quick palette,
+   then opacity (the colour picker and size field always remain). */
+@container draw-main (max-width: 1150px) {
+  .draw-label { display: none; }
+  .draw-size input[type="range"], .draw-opacity input[type="range"] { width: 80px; }
+}
+@container draw-main (max-width: 880px) { .draw-swatches { display: none; } }
+@container draw-main (max-width: 760px) { .draw-opacity { display: none; } }
+/* Narrow windows: the list becomes a drawer-like first screen. */
+@media (max-width: 900px) {
+  .draw-page .draw-rail { width: 100%; border-right: 0; }
+  .draw-page.narrow-editor .draw-rail { display: none; }
+  .draw-page.narrow-list .draw-main { display: none; }
+  .draw-back { display: inline-flex; }
+}

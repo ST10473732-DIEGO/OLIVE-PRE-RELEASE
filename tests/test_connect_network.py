@@ -1038,8 +1038,9 @@ class NetworkTests(unittest.TestCase):
 
 class WireTests(unittest.TestCase):
     def test_header_bounds(self):
-        # C8 assigns 11/12 to Studio and Notes assigns 13/14; 15 remains unknown.
-        for values in ((16385, 1, 1), (0, 2, 1), (0, 1, 15), (1, 1, 3), (512001, 1, 13), (512001, 1, 14)):
+        # C8 assigns 11/12 to Studio, Notes 13/14 and Draw 15/16; 17 remains unknown.
+        for values in ((16385, 1, 1), (0, 2, 1), (0, 1, 17), (1, 1, 3), (512001, 1, 13), (512001, 1, 14),
+                       (512001, 1, 15), (512001, 1, 16)):
             with self.assertRaises(ConnectError):
                 header(HEADER.pack(*values))
         with self.assertRaises(ConnectError):

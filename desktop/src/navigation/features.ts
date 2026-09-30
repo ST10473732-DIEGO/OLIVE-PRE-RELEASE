@@ -13,6 +13,7 @@ import {
   Home,
   Mail,
   MessageSquare,
+  Palette,
   Monitor,
   NotebookPen,
   Globe,
@@ -38,6 +39,8 @@ export interface Feature {
   primary?: boolean;
   /** Reached through another feature's page rather than its own nav row. */
   within?: string;
+  /** Short tab name inside a multi-view space (OLIVE DrawNote › Notes). */
+  view?: string;
 }
 
 export const features: Feature[] = [
@@ -62,7 +65,8 @@ export const features: Feature[] = [
     primary: true,
     aliases: ["conversation", "ask", "talk", "prompt", "research", "sources", "investigate"],
   },
-  {id:"notes", label:"OLIVE Notes", description:"Plain-text notes that sync with your phone.", icon:NotebookPen, category:"Work", availability:"ready", primary:true, aliases:["notes","note","notepad","memo","jot","scratchpad","shopping list"]},
+  {id:"notes", label:"OLIVE Notes", view:"Notes", description:"Plain-text notes that sync with your phone.", icon:NotebookPen, category:"Work", availability:"ready", primary:true, aliases:["notes","note","notepad","memo","jot","scratchpad","shopping list","drawnote","olive drawnote"]},
+  {id:"draw", label:"OLIVE Draw", view:"Draw", description:"Freehand drawings; export PNG or JPEG.", icon:Palette, category:"Work", availability:"ready", primary:true, aliases:["draw","drawing","sketch","paint","canvas","doodle","pen","drawnote","olive drawnote"]},
   {id:'browser', label:'OLIVE GO', description:'Browse the web in your own browser.', icon:Globe, category:'Work', availability:'ready', primary:true, aliases:['browser','web','Google','tabs','favourites','bookmarks','downloads','history']},
   {
     id: "studio",
@@ -237,7 +241,9 @@ export interface Space {
 export const spaces: Space[] = [
   { id: "home", label: "Home", icon: Home, routes: ["home"] },
   { id: "chat", label: "Chat", icon: MessageSquare, routes: ["chat"], also: ["research", "desktop"] },
-  { id: "notes", label: "OLIVE Notes", icon: NotebookPen, routes: ["notes"] },
+  // OLIVE DrawNote: two sub-applications. The routes stay "notes" and "draw",
+  // so every existing Notes link, handoff and test keeps working unchanged.
+  { id: "drawnote", label: "OLIVE DrawNote", icon: NotebookPen, routes: ["notes", "draw"] },
   { id: "plan", label: "Plan", icon: CalendarDays, routes: ["calendar", "tasks", "reminders"] },
   { id: "mail", label: "Mail", icon: Mail, routes: ["mail"] },
   { id: "library", label: "Library", icon: BookOpen, routes: ["knowledge", "memory", "projects"] },
@@ -255,3 +261,10 @@ export function spaceOf(route: string): Space {
 
 /** Old navigation targets remain safe without a standalone Research page. */
 export const chatCompatibleRoute = (id: string) => id === "research" || id === "desktop" ? "chat" : id;
+
+/** Where a "drawnote.navigate" request lands: an explicit Notes or Draw
+ *  request wins; otherwise the DrawNote section last used on this device. */
+export function drawNoteRoute(section: unknown, remembered: string | undefined): "notes" | "draw" {
+  if (section === "draw" || section === "notes") return section;
+  return remembered === "draw" ? "draw" : "notes";
+}
