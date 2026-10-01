@@ -66,7 +66,13 @@ Opt-in physical test-host acceptance (`WorldTestHostTests`, Mac):
 TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testProvisionOverDirect test
 TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testConnectedThroughWorld test
 TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testRelaunchReconnectsThroughWorld test
+TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testSettingsAndDetailsShowStatesOnly test
 ```
+
+`TEST_RUNNER_OLIVE_WORLD_FORCE=1` runs the Chat test-host classes through forced World; Notes live
+steps take the same launch flags via `TEST_RUNNER_OLIVE_NOTES_LIVE_ARGS`, Draw via
+`TEST_RUNNER_OLIVE_DRAW_LIVE_ARGS`. An older computer: start the host with `--world-legacy`
+(not `--world`) and run `testOlderComputerStaysDirect` with `TEST_RUNNER_OLIVE_WORLD_LEGACY_HOST=1`.
 
 DEBUG-only switches: `--olive-world-force` (no Direct attempts) and
 `--olive-world-test-lan` (allow the test host's plaintext `ws://` relay on a private LAN

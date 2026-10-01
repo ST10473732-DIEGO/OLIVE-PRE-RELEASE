@@ -141,8 +141,14 @@ actor ConnectTransport: InferenceTransport {
                     continue
                 }
                 if frame.kind == 13 {
-                    // A desktop only sends Notes frames after this phone spoke olive-notes/1.
-                    guard let notesInbound else { throw ConnectFailure.capabilityUnavailable }
+                    // A desktop only sends Notes frames after this phone spoke olive-notes/1. It does so
+                    // as soon as it adopts a new channel, which can be before this phone has bound Notes to
+                    // it (that happens after the status probes). Answer the transient "busy" (the desktop
+                    // retries with backoff) instead of dropping the whole channel and reconnecting.
+                    guard let notesInbound else {
+                        try await write(ConnectFrame(kind: 14, payload: Self.notesBusy(frame.payload)).encode())
+                        continue
+                    }
                     let reply = try await notesInbound(frame)
                     guard reply.kind == 14 else { throw ConnectFailure.responseMalformed }
                     try await write(reply.encode())
@@ -235,6 +241,12 @@ actor ConnectTransport: InferenceTransport {
                 }
             }
         }
+    }
+    /// olive-notes/1 rejection "busy" correlated to the request (a spec'd transient code).
+    static func notesBusy(_ request: Data) -> Data {
+        let id = (try? ConnectJSON.decode(request, limit: 512_000))?["request_id"].string.flatMap { UUID(uuidString: $0) != nil ? $0 : nil }
+        return ConnectJSON.object(["protocol_version": .string("olive-notes/1"), "request_id": id.map { .string($0) } ?? .null,
+                                   "state": .string("rejected"), "error": .string("busy")]).canonical
     }
     func close() async {
         #if DEBUG

@@ -21,6 +21,9 @@ on this Mac's LAN address in the TEST-ONLY plaintext LAN mode, World enabled on 
 test desktop, and commands to rotate routes, restart the relay or block Direct. The
 phone (DEBUG build, ``--olive-world-test-lan``) is provisioned over Direct once, then
 runs with ``--olive-world-force``. ``--world-relay-url`` uses an existing relay instead.
+``--world-legacy`` is an older computer without Connect World. ``channel_events`` lists recent
+channel adoptions/closes (paths and categories only); ``notes``/``note_create``/``note_append``
+drive the host's Notes with synthetic text.
 
 Control: JSON lines on 127.0.0.1 (``--port``); ``python draw_phone_test_host.py --send '{"cmd": "status"}'``.
 """
@@ -94,10 +97,11 @@ class TestRelay:
 
 class Host:
     def __init__(self, profile, chat=False, video=None, animate=False, slow_seconds=8.0, world=False,
-                 world_relay_url=None, world_port=48765):
+                 world_relay_url=None, world_port=48765, world_legacy=False):
         import asyncio
         self.profile = Path(profile)
         self.world_enabled, self.world_relay_url = world or bool(world_relay_url), world_relay_url
+        self.world_legacy = world_legacy
         self.relay = None
         self.chat_enabled, self.video = chat, video
         self.animate, self.slow_seconds = animate, slow_seconds
@@ -128,6 +132,8 @@ class Host:
                 self.chat_runtime.slow_seconds = self.slow_seconds
             self.service.attach_chat(self.chat_runtime, self.loop)
         self.network = None
+        if self.world_legacy:
+            self._pretend_pre_world()
         if self.world_enabled:
             import os
             os.environ['OLIVE_WORLD_TEST_LAN'] = '1'          # TEST-ONLY plaintext LAN relay policy.
@@ -138,6 +144,20 @@ class Host:
             self.service.world.set_relay_url(self.world_relay_url or self.relay.url)
             self.service.world.set_enabled(True)
         self.network_on()
+
+    def _pretend_pre_world(self):
+        """An OLIVE computer from before Connect World: the probe omits olive-world/1 and a
+        `world` request is refused as an unknown operation (the channel stays open)."""
+        service, protocols = self.service, self.service._protocols
+
+        def older_protocols(*args, **kwargs):
+            reply = protocols(*args, **kwargs)
+            if reply.get('state') == 'completed':
+                reply['result']['protocols'] = [p for p in reply['result']['protocols'] if p != 'olive-world/1']
+            return reply
+        service._protocols = older_protocols
+        service._world_request = lambda request, *args, **kwargs: dict(
+            protocol_version='olive-connect/1', request_id=request.request_id, state='rejected', error='unknown_operation')
 
     def world(self):
         """World status (states and counters only) plus relay health; never route secrets."""
@@ -228,6 +248,12 @@ class Host:
                 if d['title'] == title:
                     return d['drawing_id']
         return None
+
+    def note(self, title):
+        for n in self.notes.run(self.notes.list_notes)['notes']:
+            if n['title'] == title or n['display_title'] == title:
+                return n['note_id']
+        raise ValueError(f'no note {title!r}')
 
     def create(self, title, width=800, height=600, background='#ffffff'):
         return self.draw.create(title, width, height, background)['drawing_id']
@@ -350,6 +376,16 @@ class Host:
                         channel.close('local_disconnect'); drops += 1
                     time.sleep(.2)
                 return drops
+            if cmd == 'channel_events':
+                return CHANNEL_EVENTS[-args.get('last', 40):]
+            if cmd == 'notes':
+                # Titles and text of the host's notes (synthetic test content only).
+                notes = self.notes.run(self.notes.list_notes)['notes']
+                return [dict(title=n['display_title'], text=self.notes.run(self.notes.read_text, n['note_id'])['text']) for n in notes]
+            if cmd == 'note_create':
+                return self.notes.run(self.notes.create, args['title'], args.get('body', ''))['note_id']
+            if cmd == 'note_append':
+                return self.notes.run(self.notes.append_text, self.note(args['title']), args['text'])['note_id']
             if cmd == 'network_off':
                 return self.network_off()
             if cmd == 'network_on':
@@ -411,6 +447,40 @@ def send(port, message):
         return json.loads(sock.makefile('r', encoding='utf-8').readline())
 
 
+CHANNEL_EVENTS = []
+
+
+def record_channel_events():
+    """TEST HOST diagnostics: each Connect channel's adoption and terminal category (no content)."""
+    from olive.connect.network_diagnostics import ChannelDiagnostics
+    original = ChannelDiagnostics.closed
+
+    def closed(self, category, error=None):
+        first = self.terminal is None
+        original(self, category, error)
+        if first and self.terminal is not None:
+            CHANNEL_EVENTS.append(dict(at=time.strftime('%H:%M:%S'), event='close', channel=id(self) % 100000, **{k: self.terminal.get(k) for k in ('category', 'phase', 'error_kind')}))
+            del CHANNEL_EVENTS[:-200]
+    ChannelDiagnostics.closed = closed
+
+    from olive.connect.network import LocalNetwork
+    adopt = LocalNetwork.adopt
+
+    def adopted(self, channel):
+        existing = self.channels.get(channel.peer)
+        entry = dict(at=time.strftime('%H:%M:%S'), event='adopt', channel=id(channel.diagnostics) % 100000, path=channel.path,
+                     outbound=channel.outbound, existing=None if existing is None or existing.stop.is_set()
+                     else '%s/%d' % (existing.path, id(existing.diagnostics) % 100000))
+        try:
+            adopt(self, channel)
+        except Exception as failure:
+            entry['refused'] = str(failure)
+            raise
+        finally:
+            CHANNEL_EVENTS.append(entry)
+    LocalNetwork.adopt = adopted
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=48731)
@@ -426,6 +496,8 @@ def main():
     parser.add_argument('--world', action='store_true',
                         help='OLIVE Connect World: run a TEST relay on this LAN address and enable World')
     parser.add_argument('--world-relay-url', help='Use an existing relay (wss://, or ws:// on a private LAN address)')
+    parser.add_argument('--world-legacy', action='store_true',
+                        help='An older computer: no olive-world/1 in the protocol probe, `world` refused')
     parser.add_argument('--world-port', type=int, default=48765, help='Port of the embedded TEST relay')
     args = parser.parse_args()
     if args.send:
@@ -439,8 +511,12 @@ def main():
             parser.error('--chat-legacy and --chat-animate describe different computers')
         from olive.connect import chat_protocol
         chat_protocol.OPTIONAL.clear()  # No `accept` / `options`: the pre-extension protocol, as shipped before.
+    if args.world_legacy and (args.world or args.world_relay_url):
+        parser.error('--world-legacy describes a computer without Connect World')
+    record_channel_events()
     host = Host(profile, chat=args.chat, video=args.chat_video, animate=args.chat_animate, slow_seconds=args.chat_slow_seconds,
-                world=args.world, world_relay_url=args.world_relay_url, world_port=args.world_port)
+                world=args.world, world_relay_url=args.world_relay_url, world_port=args.world_port,
+                world_legacy=args.world_legacy)
     ready = {'ready': True, 'profile': str(profile), 'local_id': host.service.local_id, **host.network_on()}
     if host.relay is not None:
         ready['world_relay'] = host.relay.url

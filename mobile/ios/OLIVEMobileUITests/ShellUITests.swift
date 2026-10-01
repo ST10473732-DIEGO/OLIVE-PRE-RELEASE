@@ -555,7 +555,10 @@ final class NotesLiveAcceptanceTests: XCTestCase {
         let wait = TimeInterval(ProcessInfo.processInfo.environment["OLIVE_NOTES_LIVE_TIMEOUT"] ?? "") ?? 180
         let app = XCUIApplication()
         let ui = NotesUI(app: app)
-        app.activate()   // Keep the running app and its open editor; launch only if needed.
+        // OLIVE_NOTES_LIVE_ARGS (e.g. the acceptance identity through forced World): a fresh launch with them.
+        let arguments = (ProcessInfo.processInfo.environment["OLIVE_NOTES_LIVE_ARGS"] ?? "").split(separator: " ").map(String.init)
+        if arguments.isEmpty { app.activate() }   // Keep the running app and its open editor; launch only if needed.
+        else { app.launchArguments = arguments; app.launch() }
         for step in steps.components(separatedBy: "|") {
             let parts = step.split(separator: ":", maxSplits: 1).map(String.init)
             let value = (parts.count > 1 ? parts[1] : "").replacingOccurrences(of: "\\n", with: "\n")
@@ -606,7 +609,7 @@ final class NotesLiveAcceptanceTests: XCTestCase {
                 let gone = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: ui.row(value))], timeout: wait) == .completed
                 app.buttons["Show notes"].tap(); XCTAssertTrue(gone, "\(value) still in Recently Deleted")
             case "search": ui.openNotes(); XCTAssertTrue(ui.search(value), "Search found nothing for \(value)"); ui.cancelSearch()
-            case "relaunch": app.terminate(); app.launchArguments = []; app.launch()
+            case "relaunch": app.terminate(); app.launchArguments = arguments; app.launch()
             case "relaunchtext":
                 // This launch only: a Dynamic Type size (no system setting changes).
                 app.terminate(); app.launchArguments = ["-UIPreferredContentSizeCategoryName", value]; app.launch()

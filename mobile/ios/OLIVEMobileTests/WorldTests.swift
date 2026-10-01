@@ -9,6 +9,9 @@ private actor MemorySecretStore: SecretStore {
     func remove(account: String) throws { values[account] = nil }
 }
 
+/// Set synchronously from an Observation onChange callback (same thread as the mutation).
+private final class ObservedFlag: @unchecked Sendable { var value = false }
+
 /// OLIVE Connect World on the iPhone. Vectors: tests/fixtures/world_vectors_v1.json
 /// (the Python suite checks these exact strings appear here).
 final class WorldWireTests: XCTestCase {
@@ -118,6 +121,25 @@ final class WorldWireTests: XCTestCase {
         preferences.setUnavailable(nil, peerID: peer)
         XCTAssertNil(preferences.unavailable(peerID: peer))
     }
+
+    /// Settings reads `worldEnabled` (UserDefaults) and shows "Off" without reading `worldStatus`;
+    /// turning World back On must still invalidate that view (found on the physical iPhone).
+    @MainActor func testWorldSwitchIsObservable() throws {
+        let suite = "olive.world.tests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let session = ConnectSession(repository: ConnectTrustRepository(directory: directory),
+                                     worldCredentials: WorldCredentialStore(secrets: MemorySecretStore()),
+                                     worldPreferences: WorldPreferences(defaults: defaults))
+        for value in [false, true] {
+            let changed = ObservedFlag()
+            withObservationTracking { _ = session.worldEnabled } onChange: { changed.value = true }
+            session.worldEnabled = value
+            XCTAssertTrue(changed.value, "worldEnabled = \(value) not observed")
+            XCTAssertEqual(session.worldEnabled, value)
+        }
+    }
 }
 
 /// Mirrors tests/test_world_wire.py PathSelectorTests and BackoffTests.
@@ -184,5 +206,22 @@ final class WorldPathTests: XCTestCase {
         XCTAssertGreaterThan(backoff.next(random: 0), 20)
         backoff.settled(lived: 31)
         XCTAssertLessThan(backoff.next(random: 0), 1)
+    }
+}
+
+/// A desktop starts olive-notes/1 as soon as it adopts a channel; World reconnects make that race
+/// frequent. Before Notes is bound the phone answers the spec'd transient "busy" instead of
+/// dropping the channel (found on the physical iPhone: repeated authenticated-then-closed channels).
+final class ConnectEarlyNotesTests: XCTestCase {
+    func testEarlyNotesRequestGetsTransientBusy() throws {
+        let id = "8a3c1a7e-6f53-4d0b-9a59-6c1f2f9e4b10"
+        let request = ConnectJSON.object(["protocol_version": .string("olive-notes/1"), "request_id": .string(id),
+                                          "operation": .string("hello"), "arguments": .object([:])]).canonical
+        let reply = try ConnectJSON.decode(ConnectTransport.notesBusy(request), limit: 4096)
+        XCTAssertEqual(reply, .object(["protocol_version": .string("olive-notes/1"), "request_id": .string(id),
+                                       "state": .string("rejected"), "error": .string("busy")]))
+        let garbled = try ConnectJSON.decode(ConnectTransport.notesBusy(Data("{".utf8)), limit: 4096)
+        XCTAssertEqual(garbled["request_id"], .null)
+        XCTAssertEqual(garbled["error"], .string("busy"))
     }
 }

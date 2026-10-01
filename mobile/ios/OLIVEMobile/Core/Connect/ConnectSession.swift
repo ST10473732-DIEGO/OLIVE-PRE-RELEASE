@@ -137,9 +137,14 @@ final class ConnectSession: ChatRemoteSession {
     @ObservationIgnored private var pendingUpgrade: ConnectTransport?
     @ObservationIgnored private var upgradeWaiter: CheckedContinuation<Void, Never>?
     /// Settings toggle. Off keeps Direct (local network) only.
+    /// Stored in UserDefaults, so it is registered with Observation explicitly: views that
+    /// read it (Settings shows "Off" without reading `worldStatus`) must update when it changes.
     var worldEnabled: Bool {
-        get { worldPreferences.enabled }
-        set { worldPreferences.enabled = newValue; Task { await refreshWorldStatus() }; if foreground && !connected { kick() } }
+        get { access(keyPath: \.worldEnabled); return worldPreferences.enabled }
+        set {
+            withMutation(keyPath: \.worldEnabled) { worldPreferences.enabled = newValue }
+            Task { await refreshWorldStatus() }; if foreground && !connected { kick() }
+        }
     }
 
     init(repository: ConnectTrustRepository = ConnectTrustRepository(), identities: ConnectIdentityStore = ConnectIdentityStore(),

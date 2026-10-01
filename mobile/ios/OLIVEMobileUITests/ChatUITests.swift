@@ -357,7 +357,7 @@ final class ChatTestHostTests: XCTestCase {
 
     private func launch() -> ChatUI {
         let app = XCUIApplication()
-        app.launchArguments = ["--c92-pairing-check", "--ui-test-synthetic-pickers", "--ui-test-seed-drawnote"]
+        app.launchArguments = ["--c92-pairing-check", "--ui-test-synthetic-pickers", "--ui-test-seed-drawnote"] + WorldLaunch.arguments
         app.launch()
         let ui = ChatUI(app: app); ui.openChat()
         let mode = app.buttons["chat.mode"]
@@ -458,7 +458,7 @@ final class ChatTestHostTests: XCTestCase {
         try XCTSkipUnless(enabled && ProcessInfo.processInfo.environment["OLIVE_CHAT_DISCONNECT"] == "1", "Explicit disconnect acceptance only")
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--c92-pairing-check", "--ui-test-synthetic-pickers", "--ui-test-large-attachment"]
+        app.launchArguments = ["--c92-pairing-check", "--ui-test-synthetic-pickers", "--ui-test-large-attachment"] + WorldLaunch.arguments
         app.launch()
         let ui = ChatUI(app: app); ui.openChat()
         XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: app.buttons["chat.attach"])], timeout: 60)
