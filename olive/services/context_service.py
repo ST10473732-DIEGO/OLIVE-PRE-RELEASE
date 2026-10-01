@@ -16,6 +16,15 @@ def estimate_tokens(text: str) -> int:
     return max(1, (len(text) + 3) // 4)
 
 
+def reserve_ceiling(context_window: int) -> int:
+    """The most of a model window an answer may reserve; the request keeps the rest.
+
+    Shared by desktop Chat planning and Remote AI so the same preset has the
+    same input budget on every path.
+    """
+    return max(256, int(context_window) // 2)
+
+
 @dataclass(slots=True)
 class ContextPlan:
     history: list[Message]
@@ -43,7 +52,7 @@ class ContextService:
         summarizer: SummaryFunction | None = None,
     ) -> ContextPlan:
         window = max(1024, int(context_window))
-        reserve = min(max(256, int(response_reserve)), max(256, window // 2))
+        reserve = min(max(256, int(response_reserve)), reserve_ceiling(window))
         input_budget = window - reserve
         fixed_tokens = sum(estimate_tokens(part) for part in fixed_context) + max(0, fixed_token_overhead)
         summary = existing_summary.strip()

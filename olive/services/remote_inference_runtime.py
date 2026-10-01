@@ -9,7 +9,7 @@ from ..config import DEFAULT_SYSTEM_PROMPT
 from ..connect.contracts import ConnectError
 from ..connect.inference_protocol import PRESETS
 from .model_policy import REQUEST_ROLE
-from .context_service import estimate_tokens
+from .context_service import estimate_tokens, reserve_ceiling
 from .ollama_service import GenerationOutputLimit
 
 SYSTEM = DEFAULT_SYSTEM_PROMPT + ('\nYou are providing text inference for a paired device. '
@@ -86,10 +86,13 @@ class RemoteInferenceRuntime:
         stream = None
         try:
             window = await self.ollama.effective_context_length(model)
-            messages = fit_messages(messages, window, max_tokens)
+            # Desktop Chat's rule: an answer reserves at most half the window, so
+            # FAST's 4K role window is not consumed whole by a 4K answer cap.
+            reserve = min(max_tokens, reserve_ceiling(window))
+            messages = fit_messages(messages, window, reserve)
             stream = self.ollama.chat_stream(model,
                 [{'role': 'system', 'content': SYSTEM}] + messages,
-                options={'temperature': temperature, 'num_predict': max_tokens},
+                options={'temperature': temperature, 'num_predict': reserve},
                 think=thinking)
             async for text in stream:
                 yield text  # OllamaService exposes content only, never thinking/tool calls.
