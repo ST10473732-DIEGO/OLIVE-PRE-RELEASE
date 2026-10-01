@@ -17,7 +17,9 @@ import { StudioShares } from "./StudioShares";
 import { RemoteAI } from "./RemoteAI";
 import { SyncPanel } from "./SyncPanel";
 import { Pairing } from "./Pairing";
+import { WorldDeviceFacts, WorldPanel } from "./WorldPanel";
 import {
+  connectionPath,
   deviceStatus,
   permissionGroups,
   OFFERED,
@@ -57,6 +59,8 @@ const EVENT_LABELS: Record<string, string> = {
   revoked_connection_closed: "Connection closed after revoke",
   pairing_completed: "Paired",
   connection_authenticated: "Connected securely",
+  connection_authenticated_world: "Connected via OLIVE Connect World",
+  world_provisioned: "Set up for OLIVE Connect World",
   connection_started: "Connecting",
   connection_closed: "Disconnected",
   connection_failed: "Connection failed",
@@ -482,6 +486,7 @@ export function Devices() {
                             Connect port {data.network.port}. Pairing port {data.network.pairing_port} opens only during pairing.
                           </p>}
                         </section>
+                        <WorldPanel data={data} act={(work) => void act(work)} />
                         <section className="devices-card" aria-label="Display name">
                           {editing ? (
                             <form
@@ -660,10 +665,20 @@ export function Devices() {
                                       </dd>
                                     </div>
                                     <div>
+                                      <dt>Connection</dt>
+                                      <dd>
+                                        {connectionPath(remote) ?? "—"}
+                                        {connectionPath(remote) === "Direct" && remote.live?.latency_ms != null
+                                          ? ` · ${remote.live.latency_ms.toFixed(1)} ms`
+                                          : ""}
+                                      </dd>
+                                    </div>
+                                    <div>
                                       <dt>Identity</dt>
                                       <dd>Verified at pairing</dd>
                                     </div>
                                   </dl>
+                                  <WorldDeviceFacts device={remote} data={data} act={(work) => void act(work)} />
                                   {remote.live?.error && (
                                     <p className="devices-inline-error" role="alert">
                                       {sentence(remote.live.error)}. Check Connect

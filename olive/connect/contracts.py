@@ -139,6 +139,13 @@ class RequestEnvelope:
         # the channel open, so it is safe to ask any desktop.
         return self.capability == 'connect.ping' and self.operation == 'protocols'
 
+    @property
+    def is_world_request(self):
+        # OLIVE Connect World provisioning (olive-world/1). Sent only to computers
+        # whose protocol probe lists olive-world/1; older ones refuse it with
+        # "unknown_operation" and keep the channel open.
+        return self.capability == 'connect.ping' and self.operation == 'world'
+
     def validate_operation(self):
         if self.is_protocol_probe:
             if self.arguments:

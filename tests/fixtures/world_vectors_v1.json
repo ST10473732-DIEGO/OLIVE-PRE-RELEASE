@@ -1,0 +1,15 @@
+{
+  "protocol": "olive-world/1",
+  "context": "olive-connect-world/v1",
+  "master": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "local_device_id": "11111111-1111-4111-8111-111111111111",
+  "peer_device_id": "22222222-2222-4222-8222-222222222222",
+  "identity": "C2/1:00:11:22",
+  "generation": 1,
+  "route_secret": "769500f30dc44572ffe5d2de92dfcf5e90e4321a024988af7d8cd5f7545cd4b2",
+  "route_id": "19115ed1205d644e5ed4108e9b49f629",
+  "relay_credential": "1c235c6834e18abfc5ff6f60c8cbd6fb5c0ce03f170e136347088b12cba5bc4b",
+  "rendezvous": "528b949876a1708f6b7f4a6299b1020435c3fb24999e22e28480c70d26df2f5f",
+  "route_secret_generation_2": "5a3c49d3de6c2061e18824e9bbf4aa59a65a2947d4651b1f02b77fc6f7710dad",
+  "phone_hello": "{\"credential\":\"1c235c6834e18abfc5ff6f60c8cbd6fb5c0ce03f170e136347088b12cba5bc4b\",\"role\":\"phone\",\"route\":\"19115ed1205d644e5ed4108e9b49f629\",\"v\":1}"
+}

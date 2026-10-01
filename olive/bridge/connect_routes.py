@@ -39,6 +39,9 @@ SPEC = {
     'connect.pair_status': ({'session_id': str}, {}),
     'connect.pair_confirm': ({'session_id': str, 'compared_value': str}, {}),
     'connect.pair_cancel': ({'session_id': str}, {}),
+    'connect.world_set': ({'enabled': bool}, {}),
+    'connect.world_relay': ({}, {'url': str}),
+    'connect.world_rotate': ({'device_id': str}, {}),
 }
 
 
@@ -78,6 +81,8 @@ def validate_arguments(method, args):
         identifier(args['conflict_id'])
         if args['choice'] not in ('local', 'incoming'):
             raise ValueError('Invalid conflict choice')
+    if method == 'connect.world_relay' and 'url' in args and not (1 <= len(args['url']) <= 256 and args['url'].isascii()):
+        raise ValueError('Invalid relay URL')
     if 'compared_value' in args and not (1 <= len(args['compared_value']) <= 256 and args['compared_value'].isascii()):
         raise ValueError('Invalid comparison value')
 
@@ -138,6 +143,9 @@ async def call(host, method, args):
         'connect.pair_status': workspace.pairing_status,
         'connect.pair_confirm': workspace.confirm_pairing,
         'connect.pair_cancel': lambda session_id: service.pairing_transport.cancel(session_id),
+        'connect.world_set': workspace.world_set,
+        'connect.world_relay': workspace.world_relay,
+        'connect.world_rotate': workspace.world_rotate,
     }
     result = await asyncio.to_thread(routes[method], **args)
     if method == 'connect.disable' and service.studio is not None:

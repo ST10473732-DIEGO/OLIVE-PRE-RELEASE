@@ -1,0 +1,5 @@
+# BuildKit uses this file for world-relay/Dockerfile. Allow-list: only the relay sources
+# enter the build context; never profiles, chats, models, keys or the desktop app.
+*
+!olive/world/*.py
+!olive/world_relay/*.py

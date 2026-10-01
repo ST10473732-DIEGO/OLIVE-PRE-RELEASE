@@ -26,7 +26,7 @@ class CredentialVault:
             raise PlatformUnavailable(UNAVAILABLE)
 
     def _target(self, reference):
-        if reference not in {'discord-bot', 'connect-identity-v1'} and not (isinstance(reference, str) and re.fullmatch(r'mail-[a-f0-9]{32}', reference)):
+        if reference not in {'discord-bot', 'connect-identity-v1', 'connect-world-v1'} and not (isinstance(reference, str) and re.fullmatch(r'mail-[a-f0-9]{32}', reference)):
             raise ValueError('Unknown credential reference')
         return self.namespace + '/' + reference
 

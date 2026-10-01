@@ -15,7 +15,7 @@ class ChannelDiagnostics:
     CATEGORIES = {'peer_eof', 'peer_close', 'local_disconnect', 'device_revoked', 'protocol_violation',
         'write_failure', 'read_failure', 'tls_failure', 'idle_timeout', 'frame_timeout', 'request_timeout',
         'retirement_replaced', 'socket_terminal', 'worker_exception', 'storage_unavailable',
-        'authority_denied', 'shutdown', 'rate_limited'}
+        'authority_denied', 'shutdown', 'rate_limited', 'retirement_direct_preferred'}
 
     def __init__(self):
         self._generation = uuid.uuid4().hex
@@ -64,6 +64,7 @@ class ChannelDiagnostics:
         elif isinstance(error, ConnectError):
             category = {'device_not_paired': 'authority_denied', 'identity_mismatch': 'authority_denied',
                 'certificate_expired_or_not_yet_valid': 'authority_denied', 'connection_collision': 'retirement_replaced',
+                'direct_preferred': 'retirement_direct_preferred',
                 'rate_limited': 'rate_limited', 'connection_closed': 'worker_exception',
                 'connection_timeout': 'tls_failure'}.get(str(error), 'protocol_violation')
         elif isinstance(error, SSL.Error):

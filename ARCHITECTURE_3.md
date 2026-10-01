@@ -1,5 +1,16 @@
 # OLIVE 3 agent platform architecture
 
+## OLIVE Connect World (transport)
+
+Paired devices can also meet through an outbound-only relay when they are not on one
+network. World sits *below* OLIVE Connect: the relay (`olive/world_relay`, standard
+library only) joins a pair's two WebSockets and forwards the devices' own pinned TLS 1.3
+bytes, which it cannot read. `olive/world` holds the wire protocol, WebSocket codec,
+client bridge and the Direct/World path policy; `olive/connect/world.py` holds desktop
+provisioning, vault-backed route keys and relay presence. Direct is always preferred and
+both paths share one logical peer (`LocalNetwork.adopt`). Application protocols and
+permissions are unchanged. See [docs/OLIVE_CONNECT_WORLD.md](docs/OLIVE_CONNECT_WORLD.md).
+
 ## 3.5.1 presentation migration
 
 Electron main and a sandboxed React renderer connect to the existing Python ServiceContainer through a private versioned pipe protocol. No hidden Qt GUI initializes the backend. Qt remains a temporary fallback with shared profile ownership. See [the concrete boundary and limits](docs/releases/3.5.1/ARCHITECTURE.md). The historical Qt sections below describe the retained fallback.

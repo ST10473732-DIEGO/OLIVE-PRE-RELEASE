@@ -49,6 +49,29 @@ Python desktop engine). Opt-in Draw UI tests: `TEST_RUNNER_OLIVE_DRAW_UI_ACCEPTA
 profile) for pairing the phone's separate acceptance identity
 (`--c92-pairing-check`) when the real desktop cannot be driven.
 
+**OLIVE Connect World** lets this iPhone reach its paired computer from any network
+(cellular, other Wi-Fi) through an outbound `wss://` relay that only forwards the
+existing pinned TLS 1.3 session (`Core/Connect/World`). Direct (local network) stays
+preferred; World starts 1.5 s later, or at once without Wi-Fi, and Direct takes over
+again when it returns. A computer that speaks `olive-world/1` provisions this iPhone
+automatically the first time they connect on the same network; the route lives in the
+Keychain (`world-route-v1.<computer id>`). Devices shows **Connected · Direct** or
+**Connected · World**; Settings › OLIVE Connect World turns it off (Direct only).
+See `docs/OLIVE_CONNECT_WORLD.md`. Unit tests: `WorldWireTests`, `WorldPathTests`.
+Opt-in physical test-host acceptance (`WorldTestHostTests`, Mac):
+
+```sh
+.venv/bin/python tests/fixtures/draw_phone_test_host.py --chat --world   # prints its LAN relay URL
+# Pair the acceptance identity first (ChatTestHostTests.testPairAcceptanceIdentityWithChatTestHost), then:
+TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testProvisionOverDirect test
+TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testConnectedThroughWorld test
+TEST_RUNNER_OLIVE_WORLD_TEST_HOST=1 xcodebuild ... -only-testing:OLIVEMobileUITests/WorldTestHostTests/testRelaunchReconnectsThroughWorld test
+```
+
+DEBUG-only switches: `--olive-world-force` (no Direct attempts) and
+`--olive-world-test-lan` (allow the test host's plaintext `ws://` relay on a private LAN
+address). Release builds ignore both and accept only `wss://` with system trust.
+
 Open `OLIVEMobile.xcodeproj`; select the shared **OLIVEMobile** scheme.
 The app supports iPhone on **iOS 17+**, in portrait and landscape.
 All three targets use Swift 6. The product name on the phone is **OLIVE**.

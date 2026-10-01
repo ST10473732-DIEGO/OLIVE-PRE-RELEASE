@@ -133,5 +133,28 @@ class ConnectNotesTests(unittest.TestCase):
             DevicesWorkspace(self.b).permission(self.a.local_id, 'sync.notes', 'ask')
 
 
+    def test_off_during_a_running_pump_stops_delivery(self):
+        # A pump that already passed its permission check must not send an edit made after Off.
+        self.connect()
+        self.allow()
+        nid = self.notes_a.run(self.notes_a.create, 'Race', 'shared')['note_id']
+        until(lambda: self.text(self.notes_b, nid) == 'shared', 6)
+        engine = self.a.notes.engine
+        original = engine.pump
+        raced = []
+
+        def pump(peer, send, **kwargs):
+            if not raced:
+                raced.append(True)
+                self.a.set_permission(self.b.local_id, 'sync.notes', 'deny')
+                self.notes_a.run(self.notes_a.append_text, nid, 'after off')
+            return original(peer, send, **kwargs)
+        engine.pump = pump
+        self.notes_a.run(self.notes_a.append_text, nid, 'trigger')
+        until(lambda: raced, 6)
+        time.sleep(.8)
+        self.assertNotIn('after off', self.text(self.notes_b, nid))
+        self.assertEqual(self.a.notes.status(self.b.local_id)['state'], 'off')
+
 if __name__ == '__main__':
     unittest.main()

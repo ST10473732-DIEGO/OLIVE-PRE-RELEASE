@@ -88,4 +88,10 @@ export const connectSchemas = {
     .object({ session_id: id, compared_value: z.string().min(1).max(256) })
     .strict(),
   "connect.pair_cancel": z.object({ session_id: id }).strict(),
+  // OLIVE Connect World: On/Off, an optional self-hosted relay and per-device route rotation.
+  "connect.world_set": z.object({ enabled: z.boolean() }).strict(),
+  "connect.world_relay": z
+    .object({ url: z.string().min(1).max(256).regex(/^wss?:\/\/[\x21-\x7e]+$/).optional() })
+    .strict(),
+  "connect.world_rotate": z.object({ device_id: id }).strict(),
 };

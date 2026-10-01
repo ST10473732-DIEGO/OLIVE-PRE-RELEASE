@@ -76,7 +76,8 @@ struct DevicesView: View {
 
     private func peerCard(_ peer: TrustedConnectPeer, session: ConnectSession) -> some View {
         let selected = peer.id == session.selectedID
-        let status = selected ? session.status : "Offline"
+        // "Connected · Direct" or "Connected · World" only once OLIVE authenticated the computer.
+        let status = selected ? (session.connected ? session.path.map { "Connected · " + $0.rawValue } ?? session.status : session.status) : "Offline"
         let online = selected && session.connected
         return OliveCard(padding: 0) {
             VStack(alignment: .leading, spacing: 0) {
@@ -153,6 +154,10 @@ struct DevicesView: View {
                     }
                     detailGroup("Connection") {
                         OliveDetailRow(symbol: "lock.shield", title: "Security", value: "Connect 1 · TLS 1.3")
+                        OliveDetailRow(symbol: session.path == .world ? "globe" : "wifi", title: "Path",
+                                       value: session.connected ? session.path?.rawValue ?? "—" : "—")
+                        OliveDetailRow(symbol: "globe", title: "OLIVE Connect World", value: session.worldStatus)
+                            .accessibilityIdentifier("devices.world")
                         OliveDetailRow(symbol: "waveform.path.ecg", title: "State", value: lifecycleTitle(session.lifecycle))
                         if let work = state.background?.active {
                             OliveDetailRow(symbol: "arrow.triangle.2.circlepath", title: "Active", value: work.label)

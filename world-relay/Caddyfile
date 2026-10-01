@@ -1,0 +1,16 @@
+# TLS termination for the OLIVE Connect World relay (certificates are automatic).
+{$OLIVE_WORLD_DOMAIN} {
+	@world path /olive-world/1
+	handle @world {
+		# WebSocket upgrade is proxied as-is; Caddy sets X-Forwarded-For to the client address.
+		reverse_proxy relay:8765
+	}
+	@health path /healthz /readiness
+	handle @health {
+		reverse_proxy relay:8765
+	}
+	handle {
+		respond 404
+	}
+	# No access log: the relay logs only anonymous connection events itself.
+}

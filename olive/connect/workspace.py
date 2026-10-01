@@ -39,6 +39,7 @@ class DevicesWorkspace:
         local['fingerprint'] = fingerprint(json.loads(row[0])) if row and row[1] == 'ready' else None
         local['core_available'] = True
         devices = []
+        world = s.world.status()   # OLIVE Connect World: states and counters only, never route secrets.
         removed = s.repository.removed()
         for record in s.listed_devices():
             value = {k: v for k, v in record.items() if k != 'public_identity'}
@@ -51,6 +52,7 @@ class DevicesWorkspace:
             value['sync'] = s.sync.status(record['device_id']) if s.sync else None
             value['notes_sync'] = s.notes.status(record['device_id']) if s.notes else None
             value['draw_sync'] = s.draw.status(record['device_id']) if getattr(s, 'draw', None) else None
+            value['world'] = world['peers'].get(record['device_id'])
             devices.append(value)
         capabilities = s.capabilities()
         from .mobile_capabilities import PROVIDED_BY, unavailable_controls
@@ -67,6 +69,7 @@ class DevicesWorkspace:
                 port=network.port if network else None, discovery=bool(network and network.discovery),
                 persistent=s.persistent_network, pairing_port=s.pairing_port or None),
             nearby=[{k: v for k, v in entry.items() if k != 'seen'} for entry in network.discovery.nearby()] if network and network.discovery else [],
+            world={k: v for k, v in world.items() if k != 'peers'},
             sync=s.sync.status() if s.sync else None, activity=[a for a in s.repository.activity() if a['source_device_id'] not in removed][-200:], pairing_recovery=recovery[-32:])
 
     def enable(self, address, discovery, persistent=False):
@@ -86,6 +89,19 @@ class DevicesWorkspace:
             self.network_state, self.network_error = 'off', None
             self.pings.clear()
             return self.snapshot()
+
+    def world_set(self, enabled):
+        self.service.world.set_enabled(enabled)
+        return self.snapshot()
+
+    def world_relay(self, url=None):
+        """Advanced: a self-hosted relay (wss://). Omitted clears it (managed default, if any)."""
+        self.service.world.set_relay_url(url)
+        return self.snapshot()
+
+    def world_rotate(self, device_id):
+        self.service.world.rotate(device_id)
+        return self.snapshot()
 
     def permission(self, device_id, capability, decision):
         metadata = next((c for c in self.service.capabilities() if c['capability'] == capability), None)

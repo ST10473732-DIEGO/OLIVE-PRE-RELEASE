@@ -77,7 +77,7 @@ describe("Devices contracts and truthful presentation", () => {
       }).success,
     ).toBe(false);
   });
-  it("reports latency only for an authenticated online local channel", () => {
+  it("reports the path only for an authenticated online channel", () => {
     const d: Device = {
       device_id: "test",
       display_name: "Peer",
@@ -93,7 +93,10 @@ describe("Devices contracts and truthful presentation", () => {
       connection: "local",
       latency_ms: 0,
     };
-    expect(deviceStatus(d)).toBe("Online · Local · 0.0 ms");
+    expect(deviceStatus(d)).toBe("Connected · Direct");
+    d.live.encrypted = false;
+    expect(deviceStatus(d)).toBe("Offline");
+    d.live.encrypted = true;
     d.live.state = "failed";
     expect(deviceStatus(d)).toBe("Connection failed");
     d.trust_state = "revoked";

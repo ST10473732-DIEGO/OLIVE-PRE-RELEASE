@@ -26,7 +26,10 @@ struct OLIVEMobileApp: App {
         if args.contains("--c92-pairing-check") {
             let directory = URL.applicationSupportDirectory.appendingPathComponent("C92PairingAcceptance")
             let identities = ConnectIdentityStore(secrets: KeychainSecretStore(service: "olive.c92.pairing-acceptance"))
-            let session = ConnectSession(repository: ConnectTrustRepository(directory: directory.appendingPathComponent("Connect")), identities: identities)
+            // World routes for the acceptance identity stay in its own Keychain service and defaults.
+            let session = ConnectSession(repository: ConnectTrustRepository(directory: directory.appendingPathComponent("Connect")), identities: identities,
+                worldCredentials: WorldCredentialStore(secrets: KeychainSecretStore(service: "olive.c92.pairing-acceptance")),
+                worldPreferences: WorldPreferences(defaults: UserDefaults(suiteName: "olive.c92.pairing-acceptance")!))
             let acceptance = AppState(store: LocalShellStore(defaults: UserDefaults(suiteName: "olive.c92.pairing-acceptance")!, directory: directory), session: session)
             ChatUIFixture.seedDrawNote(acceptance)
             _state = State(initialValue: acceptance)
@@ -38,6 +41,9 @@ struct OLIVEMobileApp: App {
                 try? await secrets.remove(account: "mobile-identity-v1")
                 try? await secrets.remove(account: "mobile-identity-reservation-v1")
                 let directory = URL.applicationSupportDirectory.appendingPathComponent("C92PairingAcceptance")
+                for peer in ConnectTrustRepository(directory: directory.appendingPathComponent("Connect")).peers {
+                    try? await secrets.remove(account: WorldCredentialStore.account(peer.id))
+                }
                 try? FileManager.default.removeItem(at: directory)
                 UserDefaults.standard.removePersistentDomain(forName: "olive.c92.pairing-acceptance")
             }

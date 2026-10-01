@@ -51,6 +51,9 @@ class DesktopDeviceService:
         self.pairing_transport = DesktopPairingTransport(self)
         from .files import FileTransferService
         self.files = FileTransferService(self, profile)
+        # OLIVE Connect World: an outbound relay path for already-paired devices.
+        from .world import WorldService
+        self.world = WorldService(self)
 
     def attach_sync(self, personal):
         from ..sync.service import RecordSyncService
@@ -237,6 +240,8 @@ class DesktopDeviceService:
             self.chat.invalidate(device_id, 'device_revoked')
         if self.approvals is not None:
             self.approvals.invalidate(device_id)
+        # World first: the route is retired so no new tunnel can reach this computer.
+        self.world.revoke(device_id)
         if self.network is not None:
             self.network.disconnect(device_id, revoked=True)
         if self.notes is not None:
@@ -335,8 +340,49 @@ class DesktopDeviceService:
             return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='rejected', error=str(error))
         spoken = [p for p, attached in (('olive-notes/1', self.notes), ('olive-draw/1', self.draw),
                                          ('olive-chat/1', self.chat)) if attached is not None]
+        # Additive list entry: older phones only test membership of their own names.
+        spoken.append('olive-world/1')
         return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='completed',
                     result={'pong': True, 'protocols': spoken})
+
+    def _world_request(self, request, peer, public, database_timeout):
+        """World provisioning for an authenticated, paired, unrevoked peer only.
+
+        Grants no capability: it returns this pair's relay route so the same
+        pinned TLS session can also reach this computer through the relay.
+        Not available to fixtures (no authenticated transport) and leaves no
+        replay record; it is idempotent by design.
+        """
+        try:
+            if public is None:
+                raise ConnectError('unauthenticated_transport')
+            with self.repository.transaction(timeout=database_timeout, read_only=True) as db:
+                if self.closed:
+                    raise ConnectError('service_closed')
+                if peer != request.source_device_id:
+                    raise ConnectError('source_mismatch')
+                record = self.repository.get(db, peer)
+                if not record or record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
+                    raise ConnectError('device_not_paired')
+                if record.get('public_identity') != public:
+                    raise ConnectError('identity_mismatch')
+                if request.target_device_id != self.local_id:
+                    raise ConnectError('wrong_target')
+                now = int(self.clock())
+                if request.timestamp > now + 5 or request.expires_at <= now:
+                    raise ConnectError('expired_request')
+            result = self.world.provision(peer, request.arguments)
+        except ConnectError as error:
+            return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='rejected', error=str(error))
+        except Exception:
+            return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='rejected', error='internal_error')
+        if result.get('state') == 'provisioned':
+            try:
+                with self.repository.transaction(timeout=database_timeout) as db:
+                    self.repository.audit(db, peer, None, None, int(self.clock()), 'world_provisioned')
+            except Exception:
+                pass  # Audit contention never blocks provisioning or leaks provider text.
+        return dict(protocol_version=PROTOCOL, request_id=request.request_id, state='completed', result=result)
 
     def receive_fixture(self, raw, *, peer_device_id):
         """Only InProcessFixtureTransport calls this; not a public/authenticated endpoint."""
@@ -352,6 +398,8 @@ class DesktopDeviceService:
             request = RequestEnvelope.decode(raw)
             if request.is_protocol_probe:
                 return self._protocols(request, peer, public, database_timeout)
+            if request.is_world_request:
+                return self._world_request(request, peer, public, database_timeout)
             with self.repository.transaction(timeout=database_timeout) as db:
                 self._authorize(db, request, peer, public)
                 row = db.execute('SELECT fingerprint,response FROM requests WHERE source=? AND request_id=?',
@@ -481,10 +529,12 @@ class DesktopDeviceService:
                 self.inference.activate()
             if self.chat is not None:
                 self.chat.activate()
+            self.world.refresh()   # Outbound relay presence for provisioned pairs, if World is On.
             return network
 
     def disable_network(self):
         with self._network_lock:
+            self.world.presence.stop()
             self.pairing_transport.close()
             self.files.close()
             if self.studio is not None:
@@ -508,6 +558,7 @@ class DesktopDeviceService:
             if self.draw is not None:
                 self.draw.close()
             self.disable_network()
+            self.world.close()
             if self.approvals is not None:
                 self.approvals.close()
             self.pairing.close()

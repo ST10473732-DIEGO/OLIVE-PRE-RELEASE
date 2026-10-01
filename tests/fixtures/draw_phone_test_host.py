@@ -16,6 +16,12 @@ The host stands in for the human at the desktop: ``pair`` confirms the
 comparison value this host itself displays, and permissions/edits are driven
 by commands. Never point it at a real profile; it refuses an existing one.
 
+With ``--world`` it also runs OLIVE Connect World: a real relay (``olive.world_relay``)
+on this Mac's LAN address in the TEST-ONLY plaintext LAN mode, World enabled on this
+test desktop, and commands to rotate routes, restart the relay or block Direct. The
+phone (DEBUG build, ``--olive-world-test-lan``) is provisioned over Direct once, then
+runs with ``--olive-world-force``. ``--world-relay-url`` uses an existing relay instead.
+
 Control: JSON lines on 127.0.0.1 (``--port``); ``python draw_phone_test_host.py --send '{"cmd": "status"}'``.
 """
 import argparse
@@ -60,15 +66,45 @@ class NoModels:
         return False
 
 
+class TestRelay:
+    """TEST-ONLY World relay on the LAN address (plaintext; the inner Connect TLS is unchanged)."""
+    def __init__(self, loop, address, port):
+        self.loop, self.address, self.port, self.relay = loop, address, port, None
+
+    def start(self):
+        import asyncio
+        from olive.world_relay.server import Relay
+        self.relay = Relay()
+        self.port = asyncio.run_coroutine_threadsafe(self.relay.start(self.address, self.port), self.loop).result(10)
+        return self.url
+
+    @property
+    def url(self):
+        return 'ws://%s:%d' % (self.address, self.port)
+
+    def stop(self):
+        import asyncio
+        if self.relay is not None:
+            asyncio.run_coroutine_threadsafe(self.relay.shutdown(grace=2), self.loop).result(10)
+            self.relay = None
+
+    def health(self):
+        return self.relay.health() if self.relay else None
+
+
 class Host:
-    def __init__(self, profile, chat=False, video=None, animate=False, slow_seconds=8.0):
+    def __init__(self, profile, chat=False, video=None, animate=False, slow_seconds=8.0, world=False,
+                 world_relay_url=None, world_port=48765):
         import asyncio
         self.profile = Path(profile)
+        self.world_enabled, self.world_relay_url = world or bool(world_relay_url), world_relay_url
+        self.relay = None
         self.chat_enabled, self.video = chat, video
         self.animate, self.slow_seconds = animate, slow_seconds
         self.chat_runtime = None
         self.loop = asyncio.new_event_loop()
         threading.Thread(target=self.loop.run_forever, daemon=True, name='test-host-loop').start()
+        self.world_port = world_port
         self.vault = MemoryVault()
         self.lock = threading.RLock()
         self.log = []
@@ -92,7 +128,25 @@ class Host:
                 self.chat_runtime.slow_seconds = self.slow_seconds
             self.service.attach_chat(self.chat_runtime, self.loop)
         self.network = None
+        if self.world_enabled:
+            import os
+            os.environ['OLIVE_WORLD_TEST_LAN'] = '1'          # TEST-ONLY plaintext LAN relay policy.
+            self.service.world.test_lan = True
+            if self.world_relay_url is None and self.relay is None:
+                self.relay = TestRelay(self.loop, lan_address(), self.world_port)
+                self.relay.start()
+            self.service.world.set_relay_url(self.world_relay_url or self.relay.url)
+            self.service.world.set_enabled(True)
         self.network_on()
+
+    def world(self):
+        """World status (states and counters only) plus relay health; never route secrets."""
+        status = self.service.world.status()
+        try:
+            path = self.network.status(self.phone()).get('connection') if self.network else None
+        except RuntimeError:
+            path = None   # No paired phone yet.
+        return {'world': status, 'relay': self.relay.health() if self.relay else 'external', 'path': path}
 
     def network_on(self):
         if self.network is None:
@@ -276,6 +330,26 @@ class Host:
                         self.service.network.disconnect(self.phone(), wait=False); drops += 1
                     time.sleep(.2)
                 return drops
+            if cmd == 'world':
+                return self.world()
+            if cmd == 'world_rotate':
+                return self.service.world.rotate(self.phone())['peers'].get(self.phone())
+            if cmd in ('world_on', 'world_off'):
+                return self.service.world.set_enabled(cmd == 'world_on')['relay']
+            if cmd == 'relay_restart':
+                # The relay process restarts; it held no job or content state.
+                self.relay.stop(); time.sleep(args.get('seconds', 2)); return self.relay.start()
+            if cmd == 'drop_direct':
+                # Direct unusable for `seconds`: Direct channels close (World ones stay), so the phone
+                # falls back to World while both stay on one Wi-Fi.
+                end = time.time() + args.get('seconds', 30)
+                drops = 0
+                while time.time() < end:
+                    channel = self.service.network.channels.get(self.phone())
+                    if channel is not None and channel.path == 'direct':
+                        channel.close('local_disconnect'); drops += 1
+                    time.sleep(.2)
+                return drops
             if cmd == 'network_off':
                 return self.network_off()
             if cmd == 'network_on':
@@ -349,6 +423,10 @@ def main():
     parser.add_argument('--chat-legacy', action='store_true',
                         help='An older computer: olive-chat/1 without the mode_options/1 extension (text-only VIDEO)')
     parser.add_argument('--chat-slow-seconds', type=float, default=8.0, help='How long a "slow" media request runs')
+    parser.add_argument('--world', action='store_true',
+                        help='OLIVE Connect World: run a TEST relay on this LAN address and enable World')
+    parser.add_argument('--world-relay-url', help='Use an existing relay (wss://, or ws:// on a private LAN address)')
+    parser.add_argument('--world-port', type=int, default=48765, help='Port of the embedded TEST relay')
     args = parser.parse_args()
     if args.send:
         print(json.dumps(send(args.port, json.loads(args.send)), indent=1))
@@ -361,8 +439,12 @@ def main():
             parser.error('--chat-legacy and --chat-animate describe different computers')
         from olive.connect import chat_protocol
         chat_protocol.OPTIONAL.clear()  # No `accept` / `options`: the pre-extension protocol, as shipped before.
-    host = Host(profile, chat=args.chat, video=args.chat_video, animate=args.chat_animate, slow_seconds=args.chat_slow_seconds)
-    print(json.dumps({'ready': True, 'profile': str(profile), 'local_id': host.service.local_id, **host.network_on()}), flush=True)
+    host = Host(profile, chat=args.chat, video=args.chat_video, animate=args.chat_animate, slow_seconds=args.chat_slow_seconds,
+                world=args.world, world_relay_url=args.world_relay_url, world_port=args.world_port)
+    ready = {'ready': True, 'profile': str(profile), 'local_id': host.service.local_id, **host.network_on()}
+    if host.relay is not None:
+        ready['world_relay'] = host.relay.url
+    print(json.dumps(ready), flush=True)
     serve(host, args.port)
 
 

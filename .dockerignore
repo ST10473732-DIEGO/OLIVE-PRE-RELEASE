@@ -1,0 +1,5 @@
+# Repository-wide default build context (classic builder). The only image in this
+# repository is the OLIVE Connect World relay (world-relay/Dockerfile).
+*
+!olive/world/*.py
+!olive/world_relay/*.py

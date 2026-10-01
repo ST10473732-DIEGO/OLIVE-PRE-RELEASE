@@ -213,6 +213,10 @@ class RemoteNotesService:
 
     def _send(self, channel, peer, operation, arguments):
         s = self.connect
+        # Re-checked per request, after the batch was read: turning sync Off stops a pump that
+        # is already running, so an edit made after Off is never sent (Direct or World alike).
+        if not self.permitted(peer):
+            raise NotesSyncError('permission_off')
         raw = protocol.encode_request(str(uuid.uuid4()), s.local_id, peer, operation, arguments, int(s.clock()))
         response = channel.notes_request(raw)
         if response['state'] != 'completed':

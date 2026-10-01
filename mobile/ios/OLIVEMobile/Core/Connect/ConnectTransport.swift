@@ -2,7 +2,11 @@ import Foundation
 import Network
 
 actor ConnectTransport: InferenceTransport {
-    private let socket: ConnectSocket
+    private let socket: any ConnectByteStream
+    /// Direct (Wi-Fi TCP) or World (relay WebSocket). The TLS session above is the same.
+    nonisolated let path: ConnectPath
+    /// World crosses the internet: per-frame and handshake deadlines are relaxed (never removed).
+    private var scale: Double { path == .world ? 5 : 1 }
     private var tls: ConnectTLS?
     private var reader: Task<Void, Never>?
     private var pending: [String: (UInt8, UUID, CheckedContinuation<Data, Error>)] = [:]
@@ -43,24 +47,25 @@ actor ConnectTransport: InferenceTransport {
         try? store.save(AcceptanceTrace(id: acceptanceTraceID, incomingInferenceReplies: incomingInferenceReplies, events: acceptanceEvents))
     }
     #endif
-    init(endpoint: NWEndpoint) { socket = ConnectSocket(endpoint: endpoint) }
+    init(endpoint: NWEndpoint) { socket = ConnectSocket(endpoint: endpoint); path = .direct }
+    init(stream: any ConnectByteStream, path: ConnectPath) { socket = stream; self.path = path }
     func connect(identity: ConnectIdentity, peer: ConnectPublicIdentity) async throws {
         do {
             tls = try identity.makeTLS(peer: peer)
             try await socket.open()
-            let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+            let deadline = ContinuousClock.now.advanced(by: .seconds(3 * scale))
             var budget = 0
             while true {
                 guard !closed, ContinuousClock.now < deadline, let tls else { throw ConnectFailure.requestTimeout }
                 let done = try tls.handshake()
                 try await flush()
                 if done { break }
-                let data = try await socket.receive()
+                let data = try await socket.receive(max: 32768, timeout: 3 * scale)
                 budget += data.count; guard budget <= 131072 else { throw ConnectFailure.responseMalformed }
                 try tls.feed(data)
             }
             try await write(ConnectFrame(kind: 4, payload: Data()).encode())
-            let hello = try await readFrame(timeout: 3)
+            let hello = try await readFrame(timeout: 3 * scale)
             guard hello.kind == 4, hello.payload.isEmpty, !closed else { throw ConnectFailure.protocolVersionUnsupported }
             authenticatedIDs = (identity.publicIdentity.deviceID, peer.deviceID)
             ready = true
@@ -73,7 +78,7 @@ actor ConnectTransport: InferenceTransport {
     private func flush() async throws {
         guard !closed, let tls else { throw ConnectFailure.connectionLost }
         let out = try tls.drain()
-        if !out.isEmpty { try await socket.send(out) }
+        if !out.isEmpty { try await socket.send(out, timeout: 2 * scale) }
     }
     private func write(_ data: Data) async throws {
         let previous = sender
@@ -93,7 +98,7 @@ actor ConnectTransport: InferenceTransport {
         }
     }
     private func readFrame(timeout: Double) async throws -> ConnectFrame {
-        var frameDeadline: ContinuousClock.Instant? = plaintext.isEmpty ? nil : .now.advanced(by: .seconds(3))
+        var frameDeadline: ContinuousClock.Instant? = plaintext.isEmpty ? nil : .now.advanced(by: .seconds(3 * scale))
         while !closed {
             if plaintext.count >= 6 {
                 let (size, kind) = try ConnectFrame.header(Data(plaintext.prefix(6)))
@@ -107,13 +112,13 @@ actor ConnectTransport: InferenceTransport {
             guard let tls else { throw ConnectFailure.connectionLost }
             let decoded = try tls.read()
             if !decoded.isEmpty {
-                if plaintext.isEmpty { frameDeadline = .now.advanced(by: .seconds(3)) }
+                if plaintext.isEmpty { frameDeadline = .now.advanced(by: .seconds(3 * scale)) }
                 plaintext.append(decoded)
                 guard plaintext.count <= 528390 else { throw ConnectFailure.responseMalformed } // 512,000-byte Notes frame + one TLS record
                 continue
             }
             try await flush()
-            let data = try await socket.receive(timeout: plaintext.isEmpty ? timeout : 3)
+            let data = try await socket.receive(max: 32768, timeout: plaintext.isEmpty ? timeout : 3 * scale)
             guard !closed else { throw ConnectFailure.connectionLost }
             try tls.feed(data)
         }

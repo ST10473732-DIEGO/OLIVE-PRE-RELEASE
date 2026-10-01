@@ -30,6 +30,18 @@ struct SettingsView: View {
                 Text("Paired devices: \(state.session?.peers.count ?? 0)")
             } header: { Text("OLIVE Connect") }
                 .listRowBackground(OliveTheme.raised)
+            if let session = state.session {
+                Section {
+                    Toggle("OLIVE Connect World", isOn: Binding(get: { session.worldEnabled }, set: { session.worldEnabled = $0 }))
+                        .accessibilityIdentifier("settings.world")
+                    LabeledContent("Status", value: session.worldEnabled ? session.worldStatus : "Off")
+                        .accessibilityElement(children: .ignore).accessibilityLabel("Connect World status")
+                        .accessibilityValue(session.worldEnabled ? session.worldStatus : "Off").accessibilityIdentifier("settings.worldStatus")
+                    Text("Uses a secure relay when your computer isn’t reachable directly. Your computer still runs everything; the relay can’t read your chats, notes, drawings or files. Each computer sets this up the first time this iPhone connects to it on your local network.")
+                        .font(.footnote).foregroundStyle(OliveTheme.secondary)
+                } header: { Text("OLIVE Connect World") }
+                    .listRowBackground(OliveTheme.raised)
+            }
             Section {
                 Toggle("Sync notes with your computer", isOn: Binding(get: { state.notes.sync.enabled }, set: { state.notes.sync.enabled = $0 }))
                     .accessibilityIdentifier("settings.notesSync")
@@ -57,6 +69,12 @@ struct SettingsView: View {
                 DisclosureGroup("Advanced connection diagnostics") {
                     Text("Connect 1 · Pairing TLS13/2 · Inference 1" + (state.chatCapabilities != nil ? " · Chat 1" : ""))
                     Text(state.session?.diagnostic ?? "idle").font(.caption.monospaced())
+                    if let session = state.session {
+                        // World diagnostics: states only. Never the route, its secret or any key.
+                        Text("World: " + (session.worldSupported.map { $0 ? "supported" : "not supported" } ?? "unknown")
+                             + " · " + (session.worldProvisioned ? "provisioned" : "not provisioned")
+                             + " · path " + (session.path?.rawValue ?? "none")).font(.caption.monospaced())
+                    }
                     Text(state.session?.pairing.diagnostic ?? "idle").font(.caption.monospaced()).textSelection(.enabled)
                     if let id = state.lastRequestID { Text("Request: \(id)").font(.caption.monospaced()).textSelection(.enabled) }
                     if let seconds = state.firstResponseSeconds { Text("First visible response: \(seconds, specifier: "%.2f") s") }
@@ -93,7 +111,7 @@ struct SettingsView: View {
                 .listRowBackground(OliveTheme.raised)
             Section {
                 Label("Your draft stays on this iPhone", systemImage: "iphone")
-                Text("OLIVE saves your draft locally. Paired computers provide answers over your local network.")
+                Text("OLIVE saves your draft locally. Paired computers provide answers over your local network or OLIVE Connect World.")
                     .foregroundStyle(OliveTheme.secondary)
             } header: { Text("Local storage") }
                 .listRowBackground(OliveTheme.raised)

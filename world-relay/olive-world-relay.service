@@ -1,0 +1,27 @@
+# systemd alternative to Docker: /etc/systemd/system/olive-world-relay.service
+# Requires the repository (or just olive/__init__.py, olive/world, olive/world_relay) at /opt/olive.
+[Unit]
+Description=OLIVE Connect World relay (blind, stateless)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+DynamicUser=yes
+WorkingDirectory=/opt/olive
+ExecStart=/usr/bin/python3 -m olive.world_relay --host 127.0.0.1 --port 8765 --behind-proxy --trusted-proxy 127.0.0.1
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=256M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

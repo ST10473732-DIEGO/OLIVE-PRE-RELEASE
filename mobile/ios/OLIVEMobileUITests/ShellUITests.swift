@@ -35,7 +35,7 @@ final class RealStudioBackgroundAcceptanceTests: XCTestCase {
         // Reacquire navigation after the active-work card has disappeared and
         // foreground reconnect has settled; do not reuse its old hit snapshot.
         app.tabBars.buttons["Devices"].tap()
-        XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 25))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch.waitForExistence(timeout: 25))
         app.tabBars.buttons["Home"].tap()
         let returnToFiles = app.buttons.matching(identifier: "Files").firstMatch
         for _ in 0..<5 { if returnToFiles.isHittable { break }; app.swipeUp() }

@@ -23,10 +23,14 @@ from .network_wire import (HEADER, REQUEST, RESPONSE, CLOSE, HELLO, SYNC_REQUEST
                            NOTES_REQUEST, NOTES_RESPONSE, DRAW_REQUEST, DRAW_RESPONSE,
                            CHAT_REQUEST, CHAT_RESPONSE)
 
+DIRECT, WORLD = 'direct', 'world'
 CONNECT_TIMEOUT = 3.0
 HANDSHAKE_TIMEOUT = 3.0
 FRAME_TIMEOUT = 3.0
 WRITE_TIMEOUT = 2.0
+# World paths cross the internet (cellular uplinks included). Only their per-frame,
+# handshake and write deadlines are relaxed; limits and the idle timeout are not.
+WORLD_TIME_SCALE = 5
 REQUEST_TIMEOUT = 5.0
 IDLE_TIMEOUT = 60.0
 MAX_CONNECTIONS = 8
@@ -52,10 +56,16 @@ class Budget:
 
 
 class Channel:
-    def __init__(self, owner, sock, expected=None, endpoint=None):
+    def __init__(self, owner, sock, expected=None, endpoint=None, *, path=DIRECT, route_peer=None):
         self.owner, self.sock, self.expected = owner, sock, expected
         self.outbound = expected is not None
         self.endpoint = endpoint
+        # Connect World: the same TLS session over a relay byte stream. The path
+        # never changes authority; route_peer pins the only identity this
+        # World route may authenticate as (a route belongs to one pair).
+        self.path = path
+        self.route_peer = route_peer
+        self.scale = WORLD_TIME_SCALE if path == WORLD else 1
         self.peer = None
         self.public = None
         self.tls = None
@@ -120,7 +130,7 @@ class Channel:
                               min(.05, max(0, deadline - time.monotonic())))
 
     def write(self, raw):
-        deadline = time.monotonic() + WRITE_TIMEOUT
+        deadline = time.monotonic() + WRITE_TIMEOUT * self.scale
         offset = 0
         while offset < len(raw):
             sent = self.io(lambda: self.tls.send(raw[offset:]), deadline)
@@ -261,6 +271,34 @@ class Channel:
             with self.lock:
                 self.pending.pop(request['request_id'], None)
 
+    def chat_request(self, raw, timeout=20.0):
+        """Client side of one olive-chat/1 exchange (a phone's role). Send only to a
+        computer that listed olive-chat/1 in its protocol probe."""
+        from . import chat_protocol as cp
+        value, _ = cp.unpack(raw)
+        if value.get('source_device_id') != self.owner.service.local_id or value.get('target_device_id') != self.peer:
+            raise ConnectError('source_mismatch')
+        self.check()
+        future = Future()
+        future.sync_protocol = cp.PROTOCOL
+        request_id = value['request_id']
+        with self.lock:
+            if len(self.pending) >= MAX_PENDING or request_id in self.pending:
+                raise ConnectError('backpressure')
+            self.pending[request_id] = future
+            try:
+                self.writes.put_nowait(frame(CHAT_REQUEST, raw))
+            except queue.Full:
+                self.pending.pop(request_id)
+                raise ConnectError('backpressure') from None
+        try:
+            return future.result(timeout=timeout)
+        except TimeoutError:
+            raise ConnectError('chat_request_timeout') from None
+        finally:
+            with self.lock:
+                self.pending.pop(request_id, None)
+
     def request(self, raw, timeout=REQUEST_TIMEOUT, *, _sync=False, _admission=None):
         if _sync:
             from ..sync.records import SyncRequest
@@ -318,7 +356,18 @@ class Channel:
             chat.receive(payload, self, lambda raw: self.write(frame(CHAT_RESPONSE, raw)))
             return
         if kind == CHAT_RESPONSE:
-            raise ConnectError('invalid_response')  # This desktop never sends olive-chat/1 requests.
+            # Only a correlated answer to our own chat_request; anything else closes the channel.
+            from . import chat_protocol as cp
+            try:
+                request_id = cp.unpack(payload)[0]['request_id']
+            except Exception:
+                raise ConnectError('invalid_response') from None
+            with self.lock:
+                future = self.pending.get(request_id) if type(request_id) is str else None
+                if future is None or future.done() or getattr(future, 'sync_protocol', '') != cp.PROTOCOL:
+                    raise ConnectError('invalid_response')
+                future.set_result(payload)
+            return
         if kind == NOTES_REQUEST:
             notes = self.owner.service.notes
             if notes is None:
@@ -438,26 +487,30 @@ class Channel:
         try:
             self.check()
             if self.outbound:
-                self.diagnostics.at('connect')
-                self.sock.settimeout(CONNECT_TIMEOUT)
-                self.sock.bind((self.owner.interface.address, 0))
-                self.sock.connect(self.endpoint)
+                if self.path == DIRECT:
+                    self.diagnostics.at('connect')
+                    self.sock.settimeout(CONNECT_TIMEOUT)
+                    self.sock.bind((self.owner.interface.address, 0))
+                    self.sock.connect(self.endpoint)
                 self.check()
                 with self.owner.lock:
                     self.check()
                     self.owner.states[self.expected] = dict(state='authenticating', error=None)
                 self.owner.audit(self.expected, 'connection_started')
             self.diagnostics.at('tls')
-            ctx, peers = tls_context(self.owner.service, self.expected, local=self.owner.local_identity)
+            ctx, peers = tls_context(self.owner.service, self.expected or self.route_peer,
+                                     local=self.owner.local_identity)
             self.sock.setblocking(False)
             self.tls = SSL.Connection(ctx, self.sock)
             (self.tls.set_connect_state if self.outbound else self.tls.set_accept_state)()
-            self.io(self.tls.do_handshake, time.monotonic() + HANDSHAKE_TIMEOUT)
+            self.io(self.tls.do_handshake, time.monotonic() + HANDSHAKE_TIMEOUT * self.scale)
             cert = self.tls.get_peer_certificate().to_cryptography().public_bytes(serialization.Encoding.DER)
             self.public = peers.get(cert)
             if self.public is None or self.tls.get_protocol_version_name() != 'TLSv1.3':
                 raise ConnectError('identity_mismatch')
             self.peer = self.public['device_id']
+            if self.route_peer is not None and self.peer != self.route_peer:
+                raise ConnectError('identity_mismatch')  # Another pair's route: never accepted.
             self.check()
             # TLS 1.3 clients may finish locally before the server rejects their
             # certificate. An encrypted fixed hello proves both verifiers finished.
@@ -465,7 +518,7 @@ class Channel:
             self.diagnostics.at('hello')
             self.write(hello)
             received = bytearray()
-            deadline = time.monotonic() + HANDSHAKE_TIMEOUT
+            deadline = time.monotonic() + HANDSHAKE_TIMEOUT * self.scale
             while len(received) < len(hello):
                 part = self.io(lambda: self.tls.recv(len(hello) - len(received)), deadline)
                 if not part:
@@ -488,7 +541,7 @@ class Channel:
                 except queue.Empty:
                     pass
                 now = time.monotonic()
-                if now - last >= IDLE_TIMEOUT or (started is not None and now - started >= FRAME_TIMEOUT):
+                if now - last >= IDLE_TIMEOUT or (started is not None and now - started >= FRAME_TIMEOUT * self.scale):
                     self.diagnostics.closed('idle_timeout' if now - last >= IDLE_TIMEOUT else 'frame_timeout')
                     raise ConnectError('connection_timeout')
                 try:
@@ -622,6 +675,7 @@ class LocalNetwork:
         self.chat_rates = {}
         self.targets = {}
         self.attempts = Budget(12, 60)
+        self.world_attempts = Budget(30, 60)
         self.audit_budget = Budget(30, 60)
         self.discovery = None
         from .listener import listener_socket
@@ -686,7 +740,8 @@ class LocalNetwork:
             self.service.require_paired_identity(record.get('public_identity'), timeout=.25)
             require_current(record['public_identity'])
             with self.lock:
-                if peer in self.channels and not self.channels[peer].stop.is_set():
+                if (peer in self.channels and not self.channels[peer].stop.is_set()
+                        and self.channels[peer].path == DIRECT):
                     return self.channels[peer]
                 if self.stopping.is_set() or (_automatic and peer not in self.targets):
                     raise ConnectError('connection_closed')
@@ -695,7 +750,7 @@ class LocalNetwork:
                 # two same-direction sockets can otherwise win in opposite order
                 # at the endpoints and retire each other's selected channel.
                 pending = [candidate for candidate in self.workers if candidate.outbound
-                           and candidate.expected == peer and not candidate.stop.is_set()
+                           and candidate.path == DIRECT and candidate.expected == peer and not candidate.stop.is_set()
                            and not candidate.ready.done()]
                 if pending:
                     if len(pending) != 1 or pending[0].endpoint != (address, port):
@@ -729,7 +784,7 @@ class LocalNetwork:
                     if channel.locally_disconnected or self.stopping.is_set():
                         raise ConnectError('connection_closed') from None
                     current = self.channels.get(peer)
-                    if current is not None and not current.stop.is_set():
+                    if current is not None and not current.stop.is_set() and current.path == DIRECT:
                         return current
                 if attempt == retries:
                     raise ConnectError('connection_failed_check_pairing_certificate_and_firewall') from None
@@ -764,21 +819,72 @@ class LocalNetwork:
             raise ConnectError('discovery_expired')
         return self.connect(peer, entry['address'], entry['port'], retries=retries)
 
+    def attach_world(self, sock, peer):
+        """A relay tunnel reached this computer for ``peer``'s World route.
+
+        The bytes are the peer's TLS client handshake; this side is the TLS
+        server pinned to that peer's certificate only. Returns the Channel.
+        """
+        with self.lock:
+            if self.stopping.is_set() or len(self.workers) >= MAX_CONNECTIONS or not self.world_attempts.take():
+                sock.close()
+                raise ConnectError('backpressure')
+            channel = Channel(self, sock, path=WORLD, route_peer=peer)
+            self.workers.add(channel)
+            try:
+                channel.thread.start()
+            except Exception:
+                self.workers.discard(channel)
+                sock.close()
+                raise
+        return channel
+
+    def connect_world(self, peer, sock, *, timeout=None):
+        """The client (phone) role over an already-joined World route."""
+        record = self.service.device(peer, timeout=.25)
+        self.service.require_paired_identity(record.get('public_identity'), timeout=.25)
+        with self.lock:
+            if self.stopping.is_set() or len(self.workers) >= MAX_CONNECTIONS or not self.world_attempts.take():
+                sock.close()
+                raise ConnectError('backpressure')
+            if not (peer in self.channels and not self.channels[peer].stop.is_set()):
+                self.states[peer] = dict(state='connecting', error=None)
+            channel = Channel(self, sock, peer, None, path=WORLD)
+            self.workers.add(channel)
+            try:
+                channel.thread.start()
+            except Exception:
+                self.workers.discard(channel)
+                sock.close()
+                raise
+        try:
+            return channel.ready.result(timeout=timeout or 2 * HANDSHAKE_TIMEOUT * WORLD_TIME_SCALE + 1)
+        except Exception as error:
+            channel.close()
+            raise ConnectError(str(error) if isinstance(error, ConnectError) else 'connection_failed') from None
+
     def adopt(self, channel):
         # File admission uses files.lock -> network.lock. Keep that order and
         # finish old transfer invalidation before publishing a replacement.
         with self.service.files.lock, self.lock:
             channel.check()
             existing = self.channels.get(channel.peer)
-            # Both sides prefer the socket initiated by the lower stable C2 UUID.
+            # One logical peer. Direct always beats World (both ends apply the same
+            # rule); within one path both sides prefer the socket initiated by the
+            # lower stable C2 UUID.
             preferred = channel.outbound == (self.service.local_id < channel.peer)
             if existing is not None and not existing.stop.is_set():
-                if not preferred or existing.outbound == channel.outbound:
+                if existing.path != channel.path:
+                    if channel.path == WORLD:
+                        raise ConnectError('direct_preferred')
+                    existing.close('retirement_direct_preferred')
+                elif not preferred or existing.outbound == channel.outbound:
                     raise ConnectError('connection_collision')
-                existing.close('retirement_replaced')
+                else:
+                    existing.close('retirement_replaced')
             self.channels[channel.peer] = channel
             self.states[channel.peer] = dict(state='online', error=None)
-        self.audit(channel.peer, 'connection_authenticated')
+        self.audit(channel.peer, 'connection_authenticated_world' if channel.path == WORLD else 'connection_authenticated')
         if self.service.notes is not None:
             self.service.notes.channel_ready(channel.peer)  # Non-blocking: starts a pump thread.
         if getattr(self.service, 'draw', None) is not None:
@@ -858,7 +964,9 @@ class LocalNetwork:
             if channel is not None and channel.stop.is_set():
                 channel = None
                 state['state'] = 'offline'
-            state.update(connection='local' if channel else None, encrypted=bool(channel),
+            # 'local' is the established Direct value older UIs already understand.
+            state.update(connection=('world' if channel.path == WORLD else 'local') if channel else None,
+                         encrypted=bool(channel),
                          latency_ms=channel.last_latency_ms if channel else None)
             return state
 

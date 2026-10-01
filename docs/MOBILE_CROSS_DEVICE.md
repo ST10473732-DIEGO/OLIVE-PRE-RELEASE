@@ -95,3 +95,11 @@ missing attachments, unavailable AI host, cancelled streams, device-specific too
 and proof that syncing/restarting cannot submit an external action. Test vault
 exclusion and backups independently. Laptop/PC portability uses the same contracts
 with installed toolchains and hardware measured per device.
+
+## Later: OLIVE Connect World
+
+Since this milestone, paired devices can also connect from different networks
+through **OLIVE Connect World**: an outbound relay that forwards the devices' own
+end-to-end TLS 1.3 session without being able to read it. Direct LAN Connect stays
+preferred. No public relay is deployed by OLIVE itself; see
+[OLIVE_CONNECT_WORLD.md](OLIVE_CONNECT_WORLD.md) and `world-relay/README.md`.

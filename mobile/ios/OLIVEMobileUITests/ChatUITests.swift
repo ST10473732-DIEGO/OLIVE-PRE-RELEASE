@@ -395,7 +395,7 @@ final class ChatTestHostTests: XCTestCase {
         app.buttons["Values match"].tap()
         XCTAssertTrue(app.staticTexts["Paired"].waitForExistence(timeout: 60), "pairing did not complete")
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 60), "not connected to the test host")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch.waitForExistence(timeout: 60), "not connected to the test host")
     }
 
     @MainActor func testAllNineModesOverConnect() throws {

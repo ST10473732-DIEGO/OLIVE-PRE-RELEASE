@@ -56,9 +56,36 @@ export interface Device {
     state: string;
     error: string | null;
     encrypted: boolean;
+    /** "local" = Direct (LAN); "world" = OLIVE Connect World relay. */
     connection: string | null;
     latency_ms: number | null;
   };
+  /** OLIVE Connect World for this pair: states and counters only, never route secrets. */
+  world?: WorldPeer | null;
+}
+export interface WorldPeer {
+  provisioned: boolean;
+  confirmed: boolean;
+  revoked: boolean;
+  route: string;
+  error: string | null;
+  connected: boolean;
+  last_connected_at: number | null;
+  reconnects: number;
+  bytes_in: number;
+  bytes_out: number;
+}
+export interface WorldStatus {
+  name: string;
+  protocol: string;
+  enabled: boolean;
+  /** off | not_configured | connect_off | idle | connecting | connected | unavailable | conflict */
+  relay: string;
+  relay_host: string | null;
+  relay_custom: boolean;
+  managed: boolean;
+  error: string | null;
+  dev: boolean;
 }
 /** This computer's olive-chat/1 matrix, exactly what a paired phone is offered. */
 export interface RemoteChatSummary {
@@ -97,6 +124,8 @@ export interface DevicesState {
     pairing_port?: number | null;
   };
   nearby: { instance: string; address: string; port: number; state: string }[];
+  /** Absent from an older backend: the World card is then not shown. */
+  world?: WorldStatus;
   pairing_recovery?: { session_id: string; state: string }[];
   activity: {
     id: number;
@@ -120,11 +149,17 @@ export interface PairingState {
   error?: string;
   device_id?: string;
 }
+/** The path an authenticated peer uses. Computation always stays on this computer. */
+export function connectionPath(device: Device): "Direct" | "World" | null {
+  const live = device.live;
+  if (live?.state !== "online" || !live.encrypted) return null;
+  return live.connection === "world" ? "World" : live.connection === "local" ? "Direct" : null;
+}
 export function deviceStatus(device: Device): string {
   if (device.trust_state === "revoked") return "Revoked";
+  const path = connectionPath(device);
+  if (path) return `Connected · ${path}`;
   const live = device.live;
-  if (live?.state === "online" && live.encrypted && live.connection === "local")
-    return `Online · Local${live.latency_ms !== null ? ` · ${live.latency_ms.toFixed(1)} ms` : ""}`;
   return (
     (
       {
@@ -197,3 +232,40 @@ export function unavailableControls(data: Pick<DevicesState, "mobile_controls" |
 
 /** Capabilities this version offers as controls; everything else is listed as unavailable. */
 export const OFFERED = ["files.send", "models.remote", "files.receive", "connect.ping", "device.status", "chat.metadata.read", "sync.notes", "sync.draw"];
+
+/** OLIVE Connect World, in plain words. Relay presence is never phone presence. */
+export function worldSummary(world: WorldStatus): { label: string; detail: string; tone?: "online" | "warning" | "error" } {
+  switch (world.relay) {
+    case "off":
+      return { label: "Off", detail: "Paired devices connect on your local network only." };
+    case "not_configured":
+      return { label: "Relay not configured", detail: "Add a relay in Advanced to use World.", tone: "warning" };
+    case "connect_off":
+      return { label: "Waiting for Connect", detail: "Turn on OLIVE Connect to use World.", tone: "warning" };
+    case "idle":
+      return { label: "Ready", detail: "A phone sets itself up the next time it connects on your local network.", tone: "online" };
+    case "connected":
+      return { label: "Ready", detail: "World relay connected.", tone: "online" };
+    case "connecting":
+      return { label: "Connecting…", detail: "Reaching the World relay." };
+    case "conflict":
+      return { label: "In use elsewhere", detail: "Another copy of this OLIVE profile is using Connect World.", tone: "error" };
+    default:
+      return { label: "Relay unavailable", detail: "World relay is unreachable. Local connections still work.", tone: "error" };
+  }
+}
+/** This device's World state; "Connected · World" only after OLIVE authenticated it. */
+export function worldDeviceLabel(world: WorldPeer | null | undefined, status?: WorldStatus): string {
+  if (!world) return status && status.relay !== "off" && status.relay !== "not_configured" ? "Not set up yet" : "Not set up";
+  if (world.revoked) return "Revoked";
+  if (world.connected) return "Connected · World";
+  if (!world.provisioned) return "Not set up yet";
+  if (!world.confirmed) return "Setting up this device…";
+  return status?.relay === "connected" ? "Ready" : status ? worldSummary(status).label : "Ready";
+}
+export function byteLabel(value: number): string {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+  return `${(value / 1024 ** 3).toFixed(2)} GB`;
+}
