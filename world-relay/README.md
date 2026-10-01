@@ -70,6 +70,16 @@ Caddy obtains and renews the certificate automatically. The relay container:
 * runs as an unprivileged user with a read-only filesystem, no capabilities,
   256 MB memory and 128 processes
 
+### Production reference deployment
+
+OLIVE's public relay `wss://world-relay.getolive.si` runs exactly this Compose and
+Caddy setup on a VPS. It passed production acceptance on 2026-10-01: health and
+readiness return 200, the container is healthy, it comes back on its own after a full
+VPS reboot, and a physical iPhone on cellular reached a desktop on home Wi-Fi with no
+VPN or port forwarding. Host hardening used there: a configured firewall, and
+key-only SSH with password login disabled. See
+[`docs/OLIVE_CONNECT_WORLD.md`](../docs/OLIVE_CONNECT_WORLD.md) §14.
+
 ### Alternatives
 
 * **Existing nginx:** see `nginx.conf.example`. Run the relay on 127.0.0.1

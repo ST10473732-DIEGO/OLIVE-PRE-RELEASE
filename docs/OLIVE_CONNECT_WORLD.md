@@ -11,6 +11,11 @@ attachments and media are exactly the same protocols whether the bytes went
 Direct or through World. The computer still does all the work. World never
 means cloud AI.
 
+**Status: complete.** Public relay deployment and cellular ↔ home Wi-Fi
+acceptance both passed on 2026-10-01 over the production relay
+`wss://world-relay.getolive.si`. See
+[§14 Production acceptance](#14-production-acceptance-2026-10-01).
+
 ```
 SAME LAN (preferred):
 
@@ -420,8 +425,8 @@ These are clearly named, and none of them weakens production:
 
 ## 13. Limitations
 
-* **Public relay.** Public deployment and cellular ↔ home Wi-Fi acceptance
-  need a real relay host. None was configured in this repository.
+* **Relay metadata.** The relay is blind to content but not to transport
+  metadata: IP addresses, connection timing and byte counts (§4).
 * **iOS background.** iOS suspends background sockets. World is active
   while OLIVE Mobile is in the foreground, plus the existing continued
   processing for user-started work.
@@ -432,3 +437,52 @@ These are clearly named, and none of them weakens production:
   World offline for that phone until it next connects on the LAN. This is
   intentional for suspected compromise.
 * **Single relay.** One relay URL at a time. No multi-relay failover.
+
+## 14. Production acceptance (2026-10-01)
+
+Public relay deployment: **PASS**. Cellular ↔ home Wi-Fi acceptance: **PASS**.
+Nothing in Connect World is waiting on the user.
+
+| | |
+| --- | --- |
+| Relay | `world-relay.getolive.si` |
+| Production transport | `wss://world-relay.getolive.si` (WSS/TLS on 443) |
+| Deployment | `world-relay/` Docker Compose with Caddy, on a VPS |
+| Topology | Desktop on home Wi-Fi; physical iPhone on cellular, a separate network |
+| Observed on the iPhone | **Connected · World** |
+
+Confirmed on the real topology:
+
+* Remote Chat over the public relay with **FAST**, **NORMAL** and **NOW**.
+  FAST works from a brand-new mobile chat (after the fix below).
+* Relay `/healthz` and `/readiness` both return HTTP 200. The relay
+  container is healthy and Caddy serves TLS.
+* Automatic reconnect.
+* VPS reboot recovery: the relay comes back on its own after a full reboot.
+* Direct/World behaviour: the phone uses World away from home, and returns
+  to Direct (local networking) when it is back on the LAN.
+* No VPN and no router port forwarding. Both devices only dial out.
+* The VPS has a firewall, and SSH accepts keys only (password login is off).
+
+**What the relay sees.** The production relay is the same blind
+byte-forwarding service described in §3 and §4. It cannot read prompts,
+replies, Notes, Draw, attachments or device identities. It can see the
+unavoidable transport metadata: IP addresses, connection timing and byte
+counts.
+
+**FAST context regression found during acceptance.** iPhone FAST
+(`olive-chat/1`) failed with `input_too_large` on every request, even "hi" in
+a new chat. It was not a World fault: the same budget applied over Direct.
+It dated from 159a301 (mobile Chat parity). FAST's role window is 4,096 tokens and
+Remote AI reserved its whole 4,096-token answer cap inside it, leaving no room
+for input. Desktop Chat already caps the answer reserve at half the window.
+The fix (5c413d2) shares that rule as `reserve_ceiling()` in
+`olive/services/context_service.py`; `RemoteInferenceRuntime` uses it for
+both the context budget and `num_predict`. NORMAL, MAX and v1 budgets are
+unchanged, and a genuinely oversized request is still refused.
+`tests/test_remote_fast_context.py` covers it, including a new FAST chat
+over Direct and over forced World.
+
+Not observed in this acceptance: the TLS group negotiated with a physical
+iPhone (§2). No route ids, credentials, keys, device identifiers or logs are
+recorded here.

@@ -101,5 +101,7 @@ with installed toolchains and hardware measured per device.
 Since this milestone, paired devices can also connect from different networks
 through **OLIVE Connect World**: an outbound relay that forwards the devices' own
 end-to-end TLS 1.3 session without being able to read it. Direct LAN Connect stays
-preferred. No public relay is deployed by OLIVE itself; see
-[OLIVE_CONNECT_WORLD.md](OLIVE_CONNECT_WORLD.md) and `world-relay/README.md`.
+preferred. The public relay `wss://world-relay.getolive.si` passed production
+acceptance on 2026-10-01 (desktop on home Wi-Fi, iPhone on cellular); the relay
+URL stays configurable and self-hosting remains supported. See
+[OLIVE_CONNECT_WORLD.md](OLIVE_CONNECT_WORLD.md) §14 and `world-relay/README.md`.

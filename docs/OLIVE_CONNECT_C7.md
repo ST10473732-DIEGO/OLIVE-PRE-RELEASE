@@ -470,3 +470,13 @@ limits, request fingerprints, permissions and receipt semantics are unchanged;
 no target-private context, fallback model or extra request is introduced.
 Regression retains the oversized-single-question rejection and adds accumulated
 history followed by another request on the same channel.
+
+### C9.3 remote FAST answer-reserve correction
+
+A brand-new iPhone FAST chat failed with `input_too_large`, even for "hi". Remote AI
+reserved the full 4,096-token answer cap inside FAST's 4,096-token role window. The
+remote runtime now applies Desktop Chat's rule through the shared
+`reserve_ceiling()` (an answer reserves at most half the window), for both the
+context budget and `num_predict`. NORMAL/MAX budgets, wire limits and the
+oversized-request rejection are unchanged. Regression: `tests/test_remote_fast_context.py`
+(Direct and forced World). See `docs/OLIVE_CONNECT_WORLD.md` §14.

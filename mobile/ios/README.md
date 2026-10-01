@@ -57,7 +57,9 @@ again when it returns. A computer that speaks `olive-world/1` provisions this iP
 automatically the first time they connect on the same network; the route lives in the
 Keychain (`world-route-v1.<computer id>`). Devices shows **Connected · Direct** or
 **Connected · World**; Settings › OLIVE Connect World turns it off (Direct only).
-See `docs/OLIVE_CONNECT_WORLD.md`. Unit tests: `WorldWireTests`, `WorldPathTests`.
+Production acceptance passed on 2026-10-01: on cellular, against a desktop on home Wi-Fi,
+through `wss://world-relay.getolive.si` (Chat FAST/NORMAL/NOW, reconnect, return to Direct).
+See `docs/OLIVE_CONNECT_WORLD.md` §14. Unit tests: `WorldWireTests`, `WorldPathTests`.
 Opt-in physical test-host acceptance (`WorldTestHostTests`, Mac):
 
 ```sh
