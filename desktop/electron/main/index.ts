@@ -31,6 +31,11 @@ const root = app.isPackaged
 normalizeEnvironment(process.env);
 const profile = resolveProfile(process.env);
 app.setName(identity.name);
+
+if (process.platform === "linux") {
+  app.setDesktopName("olive.desktop");
+}
+
 app.setPath("userData", path.join(profile, identity.shell_directory));
 app.setPath("sessionData", path.join(profile, identity.shell_directory));
 app.setAppUserModelId(identity.app_id);
