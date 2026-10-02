@@ -119,6 +119,9 @@ final class ConnectSession: ChatRemoteSession {
     func finishBackgroundWork() { if !foreground { suspend() } }
     private var discoveryRetry: Task<Void, Never>?
     private var nextDiscoveryRetry = ContinuousClock.now
+    /// Bonjour instances that authenticated as a paired computer (pinned TLS); never listed as Nearby.
+    private(set) var verifiedNearby = Set<String>()
+    var unverifiedNearby: [NearbyConnectPeer] { ConnectDiscoveryService.unverified(discovery.nearby, verified: verifiedNearby) }
     var selected: TrustedConnectPeer? { peers.first { $0.id == selectedID } }
 
     // MARK: OLIVE Connect World
@@ -283,7 +286,11 @@ final class ConnectSession: ChatRemoteSession {
         if kind == .direct {
             for endpoint in endpoints {
                 let channel = ConnectTransport(endpoint: endpoint.endpoint)
-                do { try await channel.connect(identity: identity, peer: peer.identity); return channel }
+                do {
+                    try await channel.connect(identity: identity, peer: peer.identity)
+                    if verifiedNearby.count < 64 { verifiedNearby.insert(endpoint.id) }
+                    return channel
+                }
                 catch { await channel.close(); if generation != token { return nil } }
             }
             return nil

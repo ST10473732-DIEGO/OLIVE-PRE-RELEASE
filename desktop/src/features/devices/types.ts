@@ -67,9 +67,12 @@ export interface WorldPeer {
   provisioned: boolean;
   confirmed: boolean;
   revoked: boolean;
+  /** connecting | registered (waiting at the relay) | tunnel (paired, authenticating) | connected */
   route: string;
   error: string | null;
   connected: boolean;
+  /** The path this device uses right now; Direct is preferred while it is healthy. */
+  path?: "direct" | "world" | null;
   last_connected_at: number | null;
   reconnects: number;
   bytes_in: number;
@@ -79,7 +82,8 @@ export interface WorldStatus {
   name: string;
   protocol: string;
   enabled: boolean;
-  /** off | not_configured | connect_off | idle | connecting | connected | unavailable | conflict */
+  /** off | not_configured | connect_off | idle | connecting | connected (relay reachable) | unavailable | conflict.
+   * Relay reachability only: a peer's absence or a retired tunnel is per-device state. */
   relay: string;
   relay_host: string | null;
   relay_custom: boolean;
@@ -261,6 +265,7 @@ export function worldDeviceLabel(world: WorldPeer | null | undefined, status?: W
   if (world.connected) return "Connected · World";
   if (!world.provisioned) return "Not set up yet";
   if (!world.confirmed) return "Setting up this device…";
+  if (world.path === "direct") return "Standby · Direct in use";
   return status?.relay === "connected" ? "Ready" : status ? worldSummary(status).label : "Ready";
 }
 export function byteLabel(value: number): string {

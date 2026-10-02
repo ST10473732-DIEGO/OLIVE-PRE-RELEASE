@@ -88,6 +88,11 @@ describe("OLIVE Connect World on the desktop", () => {
     expect(worldDeviceLabel(peer({ revoked: true }), status)).toBe("Revoked");
     expect(worldDeviceLabel(peer(), world("unavailable"))).toBe("Relay unavailable");
   });
+  it("says Direct is in use instead of blaming the relay", () => {
+    expect(worldDeviceLabel(peer({ path: "direct" }), world("connected"))).toBe("Standby · Direct in use");
+    expect(worldDeviceLabel(peer({ path: "world", connected: true }), world("connected"))).toBe("Connected · World");
+    expect(worldDeviceLabel(peer({ path: null }), world("connected"))).toBe("Ready");
+  });
   it("never displays route secrets, tokens or raw keys", () => {
     const leaky = { ...peer(), route_secret: ROUTE_SECRET } as unknown as WorldPeer;
     const d = device("world", { world: leaky });

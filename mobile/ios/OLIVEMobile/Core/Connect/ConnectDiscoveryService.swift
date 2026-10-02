@@ -58,6 +58,12 @@ final class ConnectDiscoveryService {
         }
         browser.start(queue: DispatchQueue(label: "olive.connect.discovery"))
     }
+    /// Nearby entries not already proven to be a paired computer. The advertisement is
+    /// deliberately opaque (a random instance per start, no identity), so only an exact
+    /// pinned-TLS success on an endpoint can show it belongs to a paired computer.
+    static func unverified(_ peers: [NearbyConnectPeer], verified: Set<String>) -> [NearbyConnectPeer] {
+        peers.filter { !verified.contains($0.id) }
+    }
     static func bounded(_ peers: [NearbyConnectPeer]) -> [NearbyConnectPeer] {
         var unique: [String: NearbyConnectPeer] = [:]
         for peer in peers where unique.count < 64 { unique[peer.id] = peer }

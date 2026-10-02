@@ -15,7 +15,8 @@ class ChannelDiagnostics:
     CATEGORIES = {'peer_eof', 'peer_close', 'local_disconnect', 'device_revoked', 'protocol_violation',
         'write_failure', 'read_failure', 'tls_failure', 'idle_timeout', 'frame_timeout', 'request_timeout',
         'retirement_replaced', 'socket_terminal', 'worker_exception', 'storage_unavailable',
-        'authority_denied', 'shutdown', 'rate_limited', 'retirement_direct_preferred'}
+        'authority_denied', 'shutdown', 'rate_limited', 'retirement_direct_preferred',
+        'retirement_stale'}
 
     def __init__(self):
         self._generation = uuid.uuid4().hex

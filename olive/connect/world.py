@@ -16,6 +16,7 @@ import asyncio
 from collections import deque
 import base64
 import json
+import logging
 import os
 import socket
 import tempfile
@@ -33,6 +34,13 @@ UNAVAILABLE_REASONS = ('disabled', 'relay_not_configured', 'secure_storage_unava
 CONFLICT_REPLACEMENTS = 3       # 'replaced' this often within the window -> another copy of this profile.
 CONFLICT_WINDOW = 120.0
 CONFLICT_BACKOFF = 300.0
+# The computer kept a healthy Direct channel instead of this tunnel. That is a
+# path decision, not a relay or tunnel failure: be reachable again soon, without
+# escalating backoff or reporting an error.
+DIRECT_PREFERRED_DELAY = 1.0
+# Per-tunnel outcomes. They describe one pair's tunnel, never the relay itself.
+TUNNEL_ERRORS = frozenset({'tunnel_failed'})
+logger = logging.getLogger('olive.connect.paths')
 
 
 class WorldSettingsStore:
@@ -135,7 +143,8 @@ class WorldService:
         self.managed_url = environ.get('OLIVE_WORLD_RELAY_URL') or None
         self.lock = threading.RLock()
         self.routes = {}            # peer -> live route state (never secrets)
-        self.relay_error = None
+        self.relay_error = None     # Relay-level failures only (unreachable, TLS, refused).
+        self.relay_reached = False  # This computer registered at the relay since its last relay failure.
         self.presence = WorldPresence(self)
 
     # ------------------------------------------------------------------ settings
@@ -308,10 +317,10 @@ class WorldService:
                 if key in changes:
                     state[key] += changes.pop(key)
             state.update(changes)
-            if 'error' in changes and changes['error'] is not None:
-                self.relay_error = changes['error']
-            elif changes.get('state') in ('registered', 'tunnel'):
-                self.relay_error = None
+            if changes.get('error') is not None and changes['error'] not in TUNNEL_ERRORS:
+                self.relay_error, self.relay_reached = changes['error'], False
+            elif changes.get('state') in ('registered', 'tunnel', 'connected'):
+                self.relay_error, self.relay_reached = None, True
 
     def drop_route(self, peer, generation):
         with self.lock:
@@ -333,12 +342,15 @@ class WorldService:
                     route['bytes_in'] += live.bytes_in
                     route['bytes_out'] += live.bytes_out
                 routes[peer] = route
-            relay_error = self.relay_error
+            relay_error, reached = self.relay_error, self.relay_reached
         peers = {}
         for peer, entry in value['peers'].items():
             live = routes.get(peer, {})
             channel = network.status(peer) if network else dict(state='offline', connection=None)
+            online = channel.get('state') == 'online'
             peers[peer] = dict(
+                # The path this peer uses right now: Direct is preferred while healthy.
+                path={'local': 'direct', 'world': 'world'}.get(channel.get('connection')) if online else None,
                 provisioned=entry['state'] == 'active' and entry['issued_at'] is not None,
                 confirmed=entry['confirmed'], revoked=entry['state'] == 'revoked',
                 route=live.get('state', 'idle'), error=live.get('error'),
@@ -353,7 +365,9 @@ class WorldService:
             relay = 'connect_off'
         elif not routes:
             relay = 'idle'
-        elif any(r['state'] in ('registered', 'tunnel', 'connected') for r in routes.values()):
+        elif (any(r['state'] in ('registered', 'tunnel', 'connected') for r in routes.values())
+              or (reached and relay_error is None)):
+            # The relay is reachable. Whether a peer is present is per-route state.
             relay = 'connected'
         elif any(r['state'] == 'conflict' for r in routes.values()):
             relay = 'conflict'
@@ -458,6 +472,7 @@ class WorldPresence:
             try:
                 ws = await open_relay(url, dev=world.dev, test_lan=world.test_lan)
                 await rendezvous(ws, 'desktop', route, credential, on_waiting=lambda: event(state='registered', error=None))
+                logger.info('world relay peer=%s paired', peer[:8])
                 event(state='tunnel', error=None, live=ws)   # Live counters while the tunnel runs.
                 ours, theirs = socket.socketpair()
                 try:
@@ -479,10 +494,13 @@ class WorldPresence:
                 waiter = asyncio.ensure_future(ready.wait())
                 await asyncio.wait([bridged, waiter], return_when=asyncio.FIRST_COMPLETED)
                 waiter.cancel()
-                backoff_reset_after = channel.ready.done() and channel.ready.exception() is None
+                outcome = _outcome(channel)
+                backoff_reset_after = outcome == 'authenticated'
                 if backoff_reset_after:
                     event(state='connected', last_connected_at=int(world.service.clock()), error=None)
                 reason = await bridged
+                logger.info('world tunnel peer=%s gen=%s outcome=%s bridge=%s lived=%.1fs',
+                    peer[:8], channel.generation[:8], outcome, reason, loop.time() - started)
                 event(bytes_in=ws.bytes_in, bytes_out=ws.bytes_out, reconnects=1, live=None,
                       state='registered' if backoff_reset_after else 'connecting')
                 ws = None
@@ -491,6 +509,9 @@ class WorldPresence:
                     # tunnels (wrong identity, stolen route) keep backing off instead.
                     backoff.settled(loop.time() - started)
                     delay = 0.05
+                elif outcome == 'direct_preferred':
+                    event(error=None)
+                    delay = DIRECT_PREFERRED_DELAY
                 else:
                     event(error='tunnel_failed' if reason not in ('peer_left',) else None)
             except asyncio.CancelledError:
@@ -512,8 +533,10 @@ class WorldPresence:
                         delay = CONFLICT_BACKOFF
                 if delay is None:
                     event(state='connecting', error=refused.category)
+                logger.info('world relay peer=%s refused=%s', peer[:8], refused.category)
             except Exception as error:
                 event(state='connecting', error=category_for(error))
+                logger.info('world relay peer=%s failed=%s', peer[:8], category_for(error))
             finally:
                 if ws is not None:
                     ws.abort()
@@ -539,6 +562,16 @@ class WorldPresence:
         with self.lock:
             if self.thread is thread:
                 self.thread, self.loop = None, None
+
+
+def _outcome(channel):
+    """Fixed word for how a tunnelled channel ended its handshake (never exception text)."""
+    if not channel.ready.done():
+        return 'pending'
+    error = channel.ready.exception()
+    if error is None:
+        return 'authenticated'
+    return str(error) if isinstance(error, ConnectError) else 'tunnel_failed'
 
 
 def provisioning_request(source, target, *, have=None, now=None):

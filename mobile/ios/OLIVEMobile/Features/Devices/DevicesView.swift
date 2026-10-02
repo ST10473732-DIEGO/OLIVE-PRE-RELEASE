@@ -58,7 +58,7 @@ struct DevicesView: View {
                         .accessibilityIdentifier("devices.empty").oliveAppear()
                 }
             }.olivePage().animation(OliveTheme.Motion.settle, value: state.session?.peers.count)
-                .animation(OliveTheme.Motion.settle, value: state.session?.discovery.nearby.count)
+                .animation(OliveTheme.Motion.settle, value: state.session?.unverifiedNearby.count)
         }.background(OliveTheme.surface).navigationTitle("Devices").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
             .sheet(isPresented: $pairingPresented) {
@@ -208,7 +208,7 @@ struct DevicesView: View {
                 OliveSectionHeader(title: "Nearby", detail: session.discovery.status)
                 if session.discovery.status.hasPrefix("Looking") { ProgressView().controlSize(.small).tint(OliveTheme.muted) }
             }
-            ForEach(session.discovery.nearby) { peer in
+            ForEach(session.unverifiedNearby) { peer in
                 OliveCard {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 14) { nearbyLabel(peer); Spacer(minLength: 8); pairNearby(session) }

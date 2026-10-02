@@ -1,4 +1,5 @@
 import XCTest
+import Network
 @testable import OLIVEMobile
 
 /// In-memory SecretStore double; production uses the device-only Keychain.
@@ -223,5 +224,16 @@ final class ConnectEarlyNotesTests: XCTestCase {
         let garbled = try ConnectJSON.decode(ConnectTransport.notesBusy(Data("{".utf8)), limit: 4096)
         XCTAssertEqual(garbled["request_id"], .null)
         XCTAssertEqual(garbled["error"], .string("busy"))
+    }
+}
+
+final class NearbyDedupTests: XCTestCase {
+    func testVerifiedPairedComputerIsNotListedAsNearby() {
+        func peer(_ name: String) -> NearbyConnectPeer {
+            NearbyConnectPeer(id: name, endpoint: .service(name: name, type: "_olive-connect._tcp", domain: "local.", interface: nil))
+        }
+        let nearby = [peer("a1"), peer("b2")]
+        XCTAssertEqual(ConnectDiscoveryService.unverified(nearby, verified: ["a1"]).map(\.id), ["b2"])
+        XCTAssertEqual(ConnectDiscoveryService.unverified(nearby, verified: []).map(\.id), ["a1", "b2"])
     }
 }

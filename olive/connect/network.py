@@ -5,6 +5,7 @@ from concurrent.futures import Future
 import errno
 import ipaddress
 import json
+import logging
 import queue
 import select
 import socket
@@ -33,11 +34,21 @@ WRITE_TIMEOUT = 2.0
 WORLD_TIME_SCALE = 5
 REQUEST_TIMEOUT = 5.0
 IDLE_TIMEOUT = 60.0
+# A peer that lost a path silently (Wi-Fi off: its FIN never arrives) leaves a
+# channel that looks current until IDLE_TIMEOUT. Before such a channel may block
+# a newly authenticated one, it must answer one heartbeat within this window.
+LIVENESS_TIMEOUT = 2.0
 MAX_CONNECTIONS = 8
 MAX_PENDING = 8
 PEER_CLOSED_ERRNOS = frozenset(getattr(errno, name) for name in (
     'ECONNRESET', 'ECONNABORTED', 'ENOTCONN', 'EPIPE',
     'WSAECONNRESET', 'WSAECONNABORTED', 'WSAENOTCONN') if hasattr(errno, name))
+# Path ownership decisions: fixed words, device-ID prefixes and generations only.
+paths_log = logging.getLogger('olive.connect.paths')
+
+
+def _short(value):
+    return (value or '-')[:8]
 
 
 class Budget:
@@ -80,6 +91,7 @@ class Channel:
         self.lock = threading.Lock()
         self.thread = threading.Thread(target=self.run, name='olive-connect-channel', daemon=True)
         self.last_latency_ms = None
+        self.last_inbound = None  # Monotonic time of the last bytes read on this socket.
         self.failure_category = None  # Transient diagnostics, never provider text.
         self.diagnostics = ChannelDiagnostics()
         self.authority = threading.local()
@@ -167,7 +179,7 @@ class Channel:
     def sync_request(self, raw, *, admission=None):
         return self.request(raw, _sync=True, _admission=admission)
 
-    def inference_request(self, raw):
+    def inference_request(self, raw, timeout=REQUEST_TIMEOUT):
         from .inference_protocol import InferenceRequest, PROTOCOL
         request = InferenceRequest.decode(raw)
         if request.source_device_id != self.owner.service.local_id or request.target_device_id != self.peer:
@@ -186,12 +198,32 @@ class Channel:
                 self.pending.pop(request.request_id)
                 raise ConnectError('busy') from None
         try:
-            return future.result(timeout=REQUEST_TIMEOUT)
+            return future.result(timeout=min(timeout, REQUEST_TIMEOUT))
         except TimeoutError:
             raise ConnectError('connection_lost') from None
         finally:
             with self.lock:
                 self.pending.pop(request.request_id, None)
+
+    def alive(self, timeout=LIVENESS_TIMEOUT):
+        """True when this authenticated channel still reaches its peer now.
+
+        One read-only olive-inference/1 ``status`` exchange: the C7 heartbeat
+        every Connect peer answers (a phone with its fixed non-host reply), with
+        no permission and no job. Any bytes read meanwhile also prove it.
+        """
+        from .inference_protocol import request
+        if self.stop.is_set() or self.peer is None:
+            return False
+        since = time.monotonic()
+        try:
+            probe = request(self.owner.service.local_id, self.peer, 'status', now=int(self.owner.service.clock()))
+            self.inference_request(probe.encode(), timeout=timeout)
+            return not self.stop.is_set()
+        except ConnectError:
+            pass
+        inbound = self.last_inbound
+        return not self.stop.is_set() and inbound is not None and inbound > since
 
     def studio_request(self, raw):
         from .studio_protocol import StudioRequest, PROTOCOL
@@ -427,7 +459,13 @@ class Channel:
         elif kind == INFERENCE_REQUEST:
             inference = self.owner.service.inference
             if inference is None:
-                raise ConnectError('capability_unavailable')
+                # Like a phone, a computer without Remote AI still answers, so a
+                # peer's heartbeat never drops the channel. Malformed still closes.
+                from .inference_protocol import InferenceRequest, PROTOCOL
+                request = InferenceRequest.decode(payload)
+                self.write(frame(INFERENCE_RESPONSE, canonical(dict(protocol_version=PROTOCOL,
+                    request_id=request.request_id, job_id=request.job_id, result=None, error='device_unavailable'))))
+                return
             inference.receive(payload, self, lambda raw: self.write(frame(INFERENCE_RESPONSE, raw)))
         elif kind == INFERENCE_RESPONSE:
             from .inference_protocol import response as decode_response, PROTOCOL
@@ -553,7 +591,7 @@ class Channel:
                 if not data:
                     self.peer_closed = True
                     raise ConnectError('connection_closed')
-                last = now
+                last = self.last_inbound = now
                 if not buffer:
                     started = now
                 buffer.extend(data)
@@ -593,6 +631,10 @@ class Channel:
                         if not future.done():
                             future.set_exception(ConnectError('connection_closed'))
                 self.owner.finished(self, reason)
+                if self.peer is not None:
+                    paths_log.info('channel closed peer=%s path=%s gen=%s reason=%s category=%s',
+                        _short(self.peer), self.path, self.generation[:8], reason,
+                        (self.diagnostics.snapshot()['terminal'] or {}).get('category'))
                 if self.graceful_disconnect and not self.peer_closed:
                     self.peer_closed = self.drain_disconnect()
             finally:
@@ -863,25 +905,60 @@ class LocalNetwork:
             channel.close()
             raise ConnectError(str(error) if isinstance(error, ConnectError) else 'connection_failed') from None
 
+    def _blocking(self, existing, channel):
+        """The rule that would reject ``channel`` in favour of a live ``existing``, else None."""
+        if existing is None or existing is channel or existing.stop.is_set():
+            return None
+        if existing.path != channel.path:
+            return 'direct_preferred' if channel.path == WORLD else None
+        preferred = channel.outbound == (self.service.local_id < channel.peer)
+        return 'connection_collision' if not preferred or existing.outbound == channel.outbound else None
+
+    def _stale_blocker(self, channel):
+        """The current channel that would reject ``channel`` but no longer reaches its peer.
+
+        Only a peer that has given up a path dials a new one over the same path
+        or over World, so the old channel must prove itself with one heartbeat.
+        The probe runs on the new channel's worker with no lock held.
+        """
+        with self.lock:
+            existing = self.channels.get(channel.peer)
+            rule = self._blocking(existing, channel)
+        if rule is None:
+            return None
+        alive = existing.alive()
+        paths_log.info('liveness peer=%s current=%s/%s incoming=%s/%s rule=%s alive=%s',
+            _short(channel.peer), existing.path, existing.generation[:8], channel.path,
+            channel.generation[:8], rule, alive)
+        return None if alive else existing
+
     def adopt(self, channel):
+        stale = self._stale_blocker(channel)
         # File admission uses files.lock -> network.lock. Keep that order and
         # finish old transfer invalidation before publishing a replacement.
         with self.service.files.lock, self.lock:
             channel.check()
             existing = self.channels.get(channel.peer)
-            # One logical peer. Direct always beats World (both ends apply the same
-            # rule); within one path both sides prefer the socket initiated by the
-            # lower stable C2 UUID.
-            preferred = channel.outbound == (self.service.local_id < channel.peer)
-            if existing is not None and not existing.stop.is_set():
-                if existing.path != channel.path:
-                    if channel.path == WORLD:
-                        raise ConnectError('direct_preferred')
-                    existing.close('retirement_direct_preferred')
-                elif not preferred or existing.outbound == channel.outbound:
-                    raise ConnectError('connection_collision')
-                else:
-                    existing.close('retirement_replaced')
+            # One logical peer. A healthy Direct always beats World (both ends apply
+            # the same rule); within one path both sides prefer the socket initiated
+            # by the lower stable C2 UUID. A channel that failed its liveness probe
+            # never blocks: its peer already left it.
+            rule = self._blocking(existing, channel)
+            current = (existing.path, existing.generation[:8]) if existing is not None else (None, None)
+            if existing is not None and existing is stale and rule is not None:
+                existing.close('retirement_stale')
+                decision = 'replaced_stale'
+            elif rule is not None:
+                paths_log.info('adopt peer=%s incoming=%s/%s current=%s/%s decision=rejected reason=%s',
+                    _short(channel.peer), channel.path, channel.generation[:8], *current, rule)
+                raise ConnectError(rule)
+            elif existing is not None and not existing.stop.is_set():
+                existing.close('retirement_direct_preferred' if existing.path != channel.path else 'retirement_replaced')
+                decision = 'replaced'
+            else:
+                decision = 'adopted'
+            paths_log.info('adopt peer=%s incoming=%s/%s current=%s/%s decision=%s',
+                _short(channel.peer), channel.path, channel.generation[:8], *current, decision)
             self.channels[channel.peer] = channel
             self.states[channel.peer] = dict(state='online', error=None)
         self.audit(channel.peer, 'connection_authenticated_world' if channel.path == WORLD else 'connection_authenticated')
