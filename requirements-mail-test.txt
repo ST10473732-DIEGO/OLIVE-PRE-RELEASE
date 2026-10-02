@@ -1,4 +1,5 @@
-# Isolated loopback protocol acceptance only; not a production mail server.
+# Test-only: isolated loopback SMTP acceptance (tests/mail_fixture.py); not a production mail server.
+# Never declared in pyproject.toml and never packaged.
 aiosmtpd==1.4.6
 atpublic==7.0.0
 attrs==26.1.0

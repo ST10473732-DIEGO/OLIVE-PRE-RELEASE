@@ -56,8 +56,24 @@ class LinuxFoundationTests(unittest.TestCase):
             self.assertEqual(service.sessions, {})
         asyncio.run(run())
         # The shared Agent tool boundary wraps unsuccessful runs in PermissionError.
-        message = 'Studio interactive terminal for Linux is not available in this build yet.'
+        message = 'Studio interactive terminal is not available on Linux in this build yet.'
         self.assertEqual(public_error(PermissionError(message))['message'], message)
+
+    def test_windows_only_message_names_the_actual_platform(self):
+        for platform, label in (('linux', 'Linux'), ('darwin', 'macOS')):
+            with patch('sys.platform', platform), self.assertRaises(PlatformUnavailable) as raised:
+                require_windows('Native application control')
+            message = str(raised.exception)
+            self.assertEqual(message, f'Native application control is not available on {label} in this build yet.')
+            self.assertEqual(public_error(raised.exception)['message'], message)
+            # Tool boundaries re-wrap it; the allowlisted text must survive unchanged.
+            self.assertEqual(public_error(PermissionError(message))['message'], message)
+            with patch('sys.platform', platform), self.assertRaises(PlatformUnavailable) as raised:
+                require_windows('Windows command shells')
+            self.assertIn(f'not available on {label}. The bounded Python command runner',
+                          public_error(PermissionError(str(raised.exception)))['message'])
+            if platform == 'darwin':
+                self.assertNotIn('Linux', message)
 
     def test_local_path_uses_argument_array_and_missing_opener_is_explicit(self):
         with patch('sys.platform', 'linux'), patch('shutil.which', return_value='/usr/bin/xdg-open'), patch('subprocess.run') as run:
@@ -66,6 +82,9 @@ class LinuxFoundationTests(unittest.TestCase):
             self.assertTrue(run.call_args.kwargs['check'])
         with patch('sys.platform', 'linux'), patch('shutil.which', return_value=None):
             with self.assertRaisesRegex(PlatformUnavailable, 'xdg-open'):
+                open_path(Path('/tmp/example'))
+        with patch('sys.platform', 'darwin'), patch('shutil.which', return_value=None):
+            with self.assertRaisesRegex(PlatformUnavailable, '^Opening files and folders is not available on macOS'):
                 open_path(Path('/tmp/example'))
 
 

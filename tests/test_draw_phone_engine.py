@@ -10,7 +10,7 @@ new one on the same store.
 
 Skipped unless OLIVE_DRAW_SWIFT_HARNESS names that tool (macOS with Xcode).
 This verifies the Swift implementation and protocol interop; it does NOT
-verify UIKit, touch input or a physical phone (see docs/OLIVE_DRAWNOTE.md).
+verify UIKit, touch input or a physical phone (see docs/features/draw.md).
 """
 import base64
 import hashlib

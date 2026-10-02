@@ -1,13 +1,23 @@
-# OLIVE for iPhone — C9.3 companion
+# OLIVE for iPhone
 
-Native SwiftUI Connect client, preserving the C9.1 Home, Chat, Devices and
-Settings foundation. C9.2 implements Bonjour discovery, Keychain identity,
-existing C2/C4 pairing, C3 transport and C7 incremental remote Chat with Stop.
-C9.2 real-device pairing/Chat acceptance is complete. C9.3 adds Home links to
+Native SwiftUI companion for OLIVE 1.0: the paired computer does the work, the
+phone is a Connect client. C9.1 built the Home, Chat, Devices and Settings
+foundation. C9.2 added Bonjour discovery, Keychain identity, existing C2/C4
+pairing, C3 transport and C7 incremental remote Chat with Stop. C9.3 added
 Today/agenda, selected Chat, C6 Files and C8 Remote Studio, with protected local
 stores and Apple continued-processing support for user-started work on iOS 26+.
-Real C9.3 acceptance remains partial; see the evidence report before sign-off.
 No Python runtime or cloud service is embedded.
+
+Acceptance status: C9.2 real-device pairing/Chat acceptance is complete. C9.3 is
+complete under the owner-revised acceptance gate of 2026-09-27, with one item
+(independent scheduler-selected C7 expiration) recorded as platform-limited
+([archived C9.3 checklist](../../docs/archive/mobile-c9/OLIVE_MOBILE_C9_3_ACCEPTANCE_CHECKLIST.md)).
+Later physical-iPhone acceptance is recorded per feature: Notes
+(`docs/features/notes.md` §28), Draw (`docs/features/draw.md`) and Connect World
+production acceptance on 2026-10-01 (`docs/connect-world/protocol.md` §14).
+Distribution is still developer installs through Xcode; TestFlight/App Store
+release, the final bundle ID and version 1.0.0 are deferred to the dedicated iOS
+release phase.
 
 **OLIVE Chat** offers every desktop mode: FAST, NORMAL, MAX, UNCENSORED, NOW,
 DEEP, REIMAGINE, AUDIO and VIDEO, run by the paired computer (never on the phone,
@@ -17,12 +27,12 @@ types they support; older computers keep FAST/NORMAL/MAX over C7. The composer's
 **+** attaches Photo Library, camera, Files, OLIVE Notes snapshots and OLIVE Draw
 PNG snapshots (content-addressed, resumable, verified before use). Results include
 structured sources and verified image/speech/video files with native players.
-See `docs/OLIVE_MOBILE_CHAT.md`. Deterministic Chat UI tests run with an in-process
+See `docs/connect/protocol/olive-chat-1.md`. Deterministic Chat UI tests run with an in-process
 fixture computer; opt-in: `TEST_RUNNER_OLIVE_CHAT_TEST_HOST=1` (Mac test host,
 `tests/fixtures/draw_phone_test_host.py --chat`) and
 `TEST_RUNNER_OLIVE_CHAT_REAL_DESKTOP=1` (the real paired computer, synthetic prompts);
 VIDEO length / image-to-video on the real computer: `TEST_RUNNER_OLIVE_CHAT_REAL_VIDEO_STEP`
-(one step per run; see `docs/OLIVE_MOBILE_CHAT.md`). On a physical iPhone, run the UI
+(one step per run; see `docs/connect/protocol/olive-chat-1.md`). On a physical iPhone, run the UI
 test classes one at a time rather than the whole target in one invocation.
 
 **OLIVE Notes** (tab *Notes*) is a local-first notepad that syncs with the
@@ -30,7 +40,7 @@ paired computer over Connect frames 13/14 (`olive-notes/1`). Its engine is
 `OLIVEMobile/Resources/NotesEngine.js`, generated from
 `desktop/src/features/notes/engine/` by `node desktop/scripts/build-notes-engine.mjs`
 (do not edit the bundle by hand), run in JavaScriptCore with a SQLite store.
-See `docs/OLIVE_NOTES.md` (§28 records the physical iPhone ↔ Linux desktop
+See `docs/features/notes.md` (§28 records the physical iPhone ↔ Linux desktop
 acceptance). Opt-in Notes UI tests: `TEST_RUNNER_OLIVE_NOTES_UI_ACCEPTANCE=1`
 (isolated profile) and `TEST_RUNNER_OLIVE_NOTES_LIVE_ACCEPTANCE=1` with
 `TEST_RUNNER_OLIVE_NOTES_LIVE_STEPS` (real pairing, synthetic notes only).
@@ -40,7 +50,7 @@ is the OLIVE Notes above (unchanged). **Draw** is a native OLIVE Draw canvas
 (`OLIVEMobile/Core/Draw`, `OLIVEMobile/Features/Draw`): the desktop's replicated
 record model and `olive-draw/1` (Connect frames 15/16, `sync.draw`) implemented in
 Swift over its own SQLite store, a CoreGraphics renderer and native touch input.
-See `docs/OLIVE_DRAWNOTE.md` › *OLIVE Draw on iPhone*. `check-connect-interop.sh`
+See `docs/features/draw.md` › *OLIVE Draw on iPhone*. `check-connect-interop.sh`
 also runs `tests/test_draw_phone_engine.py` (the Swift Draw engine against the
 Python desktop engine). Opt-in Draw UI tests: `TEST_RUNNER_OLIVE_DRAW_UI_ACCEPTANCE=1`
 (isolated profile) and `TEST_RUNNER_OLIVE_DRAW_LIVE_ACCEPTANCE=1` with
@@ -59,7 +69,7 @@ Keychain (`world-route-v1.<computer id>`). Devices shows **Connected · Direct**
 **Connected · World**; Settings › OLIVE Connect World turns it off (Direct only).
 Production acceptance passed on 2026-10-01: on cellular, against a desktop on home Wi-Fi,
 through `wss://world-relay.getolive.si` (Chat FAST/NORMAL/NOW, reconnect, return to Direct).
-See `docs/OLIVE_CONNECT_WORLD.md` §14. Unit tests: `WorldWireTests`, `WorldPathTests`.
+See `docs/connect-world/protocol.md` §14. Unit tests: `WorldWireTests`, `WorldPathTests`.
 Opt-in physical test-host acceptance (`WorldTestHostTests`, Mac):
 
 ```sh
@@ -182,11 +192,11 @@ swift mobile/ios/scripts/render-icon.swift assets/branding/olive-source.png \
   mobile/ios/OLIVEMobile/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 ```
 
-See [the unchanged C9.1 foundation report](../../../docs/OLIVE_MOBILE_C9_1_FOUNDATION.md)
-and [C9.2 protocol mapping and acceptance](../../../docs/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md).
+See [the unchanged C9.1 foundation report](../../docs/archive/mobile-c9/OLIVE_MOBILE_C9_1_FOUNDATION.md)
+and [C9.2 protocol mapping and acceptance](../../docs/archive/mobile-c9/OLIVE_MOBILE_C9_2_CONNECT_CHAT.md).
 
 
-See [C9.3 implementation and acceptance](../../../docs/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md)
+See [C9.3 implementation and acceptance](../../docs/archive/mobile-c9/OLIVE_MOBILE_C9_3_FEATURES_BACKGROUND.md)
 for background/force-quit semantics, the 64 MiB C6 limit, Swift/Python fixtures,
 explicit Sync/retry behavior and the remaining real CachyOS acceptance matrix.
 `check-connect-interop.sh` also checks canonical calendar validation/occurrences

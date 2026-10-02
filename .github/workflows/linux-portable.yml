@@ -42,5 +42,5 @@ jobs:
         working-directory: desktop
       - run: npm run typecheck && npm run lint && npm test && npm run build
         working-directory: desktop
-      # Native KDE/Wayland and GPU acceptance: see docs/LINUX_L3_REPORT.md.
+      # Native KDE/Wayland and GPU acceptance: see docs/archive/linux/LINUX_L3_REPORT.md.
       # Headless CI does not certify native dialogs, compositor behavior or Win32.

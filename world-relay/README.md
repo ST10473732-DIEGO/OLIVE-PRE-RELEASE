@@ -12,7 +12,7 @@ reach its OLIVE computer from any network.
 
 Code: `olive/world_relay/`. It uses the Python standard library only, plus
 `olive/world/` for the wire protocol and WebSocket. Design and security
-details: [`docs/OLIVE_CONNECT_WORLD.md`](../docs/OLIVE_CONNECT_WORLD.md).
+details: [`docs/connect-world/protocol.md`](../docs/connect-world/protocol.md).
 
 ## Quick local run (development)
 
@@ -78,7 +78,7 @@ readiness return 200, the container is healthy, it comes back on its own after a
 VPS reboot, and a physical iPhone on cellular reached a desktop on home Wi-Fi with no
 VPN or port forwarding. Host hardening used there: a configured firewall, and
 key-only SSH with password login disabled. See
-[`docs/OLIVE_CONNECT_WORLD.md`](../docs/OLIVE_CONNECT_WORLD.md) §14.
+[`docs/connect-world/protocol.md`](../docs/connect-world/protocol.md) §14.
 
 ### Alternatives
 

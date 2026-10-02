@@ -5,7 +5,7 @@
 implemented* below. The implementation changed no backend contract, security
 model, IPC name, persistence format or architecture. Implementation details,
 deviations and regression evidence:
-[`../OLIVE_DESIGN_V2_IMPLEMENTATION.md`](../OLIVE_DESIGN_V2_IMPLEMENTATION.md).
+[`../archive/design/OLIVE_DESIGN_V2_IMPLEMENTATION.md`](../archive/design/OLIVE_DESIGN_V2_IMPLEMENTATION.md).
 
 | Part | Design | Implementation |
 | --- | --- | --- |
@@ -195,7 +195,7 @@ read them). Introduce the V2 names alongside them. Values change only where mark
 | `--fast` 140 / `--page` 160 | `dur.fast` 120 / `dur.panel` 160 / `dur.sheet` 200 | hover faster |
 | `--mono` | mono stack | adds JetBrains Mono, Fira Code, DejaVu Sans Mono before `monospace` |
 
-The pre-entry Welcome keeps its pinned presentation (as documented in `DESIGN_SYSTEM.md`).
+The pre-entry Welcome keeps its pinned presentation (as documented in `docs/archive/design/DESIGN_SYSTEM.md`).
 
 ## 5. Typography
 

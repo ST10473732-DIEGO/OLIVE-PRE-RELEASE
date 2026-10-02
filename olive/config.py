@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 
 from .identity import APP_NAME, APP_VERSION, resolve_profile
+from .services.model_policy import DEFAULT_EMBEDDING_MODEL
 
 DATA_DIR = resolve_profile()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,7 @@ TASK_CHECKPOINTS_DIR = DATA_DIR / "task_checkpoints"
 LEGACY_DATA_DIR = Path.home() / ".aether"
 
 OLLAMA_HOST = os.getenv("OLIVE_OLLAMA_HOST", "http://localhost:11434")
-EMBEDDING_MODEL = os.getenv("OLIVE_EMBEDDING_MODEL", "nomic-embed-text")
+EMBEDDING_MODEL = os.getenv("OLIVE_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
 
 DEFAULT_SYSTEM_PROMPT = """You are OLIVE, a private local AI assistant.
 

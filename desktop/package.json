@@ -1,6 +1,6 @@
 {
   "name": "olive-desktop",
-  "version": "3.5.1-dev.1",
+  "version": "1.0.0",
   "private": true,
   "overrides": {
     "dompurify": "3.4.15"

@@ -12,9 +12,6 @@ _MESSAGES = {
 
  'The configured local ComfyUI runtime is missing': 'The configured local ComfyUI runtime is missing. Check the local media installation.',
  'The configured local ComfyUI runtime exited during startup': 'The local ComfyUI runtime could not start. Check its Python/CUDA dependencies and local model setup.',
- 'Studio interactive terminal for Linux is not available in this build yet.': 'Studio interactive terminal for Linux is not available in this build yet.',
- 'Windows command shells for Linux is not available in this build yet.': 'Windows command shells are not available on Linux. The bounded Python command runner remains available.',
- 'Native application control for Linux is not available in this build yet.': 'Native application control for Linux is not available in this build yet.',
  'File changed since it was read': 'That file changed since OLIVE last read it. Reload it before applying the edit.',
  'Google authorization did not complete. Check desktop-client setup and permissions; credentials were not exposed.': 'Google authorization did not complete. Check the Google desktop-client setup checklist and permissions, then retry.',
  "This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.": "This OLIVE preset's local model is unavailable. Wait for Models to finish checking, or inspect Advanced Settings.",
@@ -33,6 +30,13 @@ _MESSAGES = {
  'The run has no supported loopback preview origin': 'This run has no supported local web preview. Its output is still available in Studio.',
  'Stop the current request before changing its objective or context.': 'Stop the current request before changing its objective or context.',
 }
+from ..platform_support import PLATFORM_LABELS as _PLATFORMS, unavailable_message as _unavailable
+for _label in _PLATFORMS.values():
+ # Same text require_windows raises when a tool boundary re-wraps it.
+ for _feature in ('Studio interactive terminal', 'Native application control'):
+  _MESSAGES[_unavailable(_feature, _label)] = _unavailable(_feature, _label)
+ _MESSAGES[_unavailable('Windows command shells', _label)] = (
+  f'Windows command shells are not available on {_label}. The bounded Python command runner remains available.')
 from ..connect.inference_client import MESSAGES as _REMOTE_AI_MESSAGES
 _MESSAGES.update({message: message for message in _REMOTE_AI_MESSAGES.values()})
 for _message in (

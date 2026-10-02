@@ -4,7 +4,7 @@ OLIVE was formerly named DMDO. M3 remains complete; M4 Mail action mappings are
 in [M4_PARITY.md](M4_PARITY.md), with classified results in
 [M4_COMPLETION.md](M4_COMPLETION.md). All 125 original M2 mappings remain below.
 No existing feature or security gate is removed. Earlier checkpoint notices are
-historical; current identity compatibility is in [the rebrand map](../../OLIVE_REBRAND.md).
+historical; current identity compatibility is in [the rebrand map](../../architecture/legacy-dmdo-compatibility.md).
 
 # Action parity ledger
 

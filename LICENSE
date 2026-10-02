@@ -1,0 +1,99 @@
+OLIVE Proprietary Source Code Licence
+
+Copyright © 2026 Diego De Oliveira. All rights reserved.
+
+1. Definitions
+
+   "OLIVE Materials" means the source code, object code, build and packaging
+   scripts, tests, documentation, designs, artwork, logos and other assets in
+   this repository that are authored by or for the copyright holder, in any
+   form, including compiled builds made from them. OLIVE was formerly named
+   DMDO; materials published under that name are included.
+
+   "Third-Party Components" means software, libraries, fonts, notices, machine
+   learning models, model weights, data and any other material authored by
+   someone other than the copyright holder, whether stored in this repository,
+   fetched during a build, bundled into a build, or installed separately.
+
+2. Proprietary source
+
+   The OLIVE Materials are proprietary and confidential. This repository is
+   private. No licence or other right in the OLIVE Materials is granted by
+   implication, estoppel or otherwise, except as expressly stated in this
+   licence or in a separate written agreement signed by the copyright holder.
+
+3. Restrictions
+
+   Unless the copyright holder has given prior written permission, you may not:
+
+   (a) copy, modify, adapt, translate or create derivative works of the OLIVE
+       Materials;
+   (b) distribute, publish, sublicense, sell, rent, lend, disclose or otherwise
+       make the OLIVE Materials available to anyone, in source or compiled form;
+   (c) build, publish or distribute modified versions of OLIVE, or any product
+       derived from the OLIVE Materials;
+   (d) redistribute OLIVE, in whole or in part, commercially or otherwise;
+   (e) remove, obscure or alter any copyright, licence or attribution notice.
+
+4. Authorised access
+
+   A person given access to this repository by the copyright holder may use the
+   OLIVE Materials only for the purpose for which access was given, and only
+   while that access lasts. Access does not grant any right listed in section 3.
+
+5. Official builds
+
+   Official OLIVE builds distributed by the copyright holder may be used under
+   the separate OLIVE end-user licence that accompanies them. That end-user
+   licence governs the use of those builds only and grants no right in the
+   source code.
+
+6. Third-Party Components
+
+   Third-Party Components are licensed under their own terms, not under this
+   licence. The copyright holder claims no ownership of them. Nothing in this
+   licence limits any right you have under a third-party licence, and where a
+   third-party licence applies to a component, that licence governs that
+   component. Machine learning models and model weights used with OLIVE are
+   Third-Party Components unless the copyright holder states otherwise in
+   writing. Known components and their notices are listed in
+   THIRD_PARTY_NOTICES.md and in the notice files kept alongside them.
+
+   A file or directory in this repository that carries its own licence notice
+   is governed by that notice to the extent the notice applies.
+
+7. Names and marks
+
+   This licence grants no right to use the names OLIVE or DMDO, or the OLIVE
+   logos and icons, except as needed to describe the origin of an official
+   build accurately.
+
+8. Termination
+
+   Any permission given under this licence ends automatically if you breach it.
+   On termination you must stop using the OLIVE Materials and delete any copies
+   in your possession, except as required by law.
+
+9. Disclaimer of warranty
+
+   THE OLIVE MATERIALS ARE PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT
+   WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND
+   NON-INFRINGEMENT. THE ENTIRE RISK AS TO THEIR QUALITY AND PERFORMANCE IS
+   WITH YOU.
+
+10. Limitation of liability
+
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE
+   COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   INCLUDING ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY OR
+   CONSEQUENTIAL DAMAGES, OR LOSS OF DATA, PROFITS OR USE, WHETHER IN AN ACTION
+   OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+   THE OLIVE MATERIALS OR THEIR USE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+   DAMAGES.
+
+11. Permissions
+
+   Requests for any permission not granted here must be made in writing to the
+   copyright holder. Only a written permission signed by the copyright holder
+   is effective.

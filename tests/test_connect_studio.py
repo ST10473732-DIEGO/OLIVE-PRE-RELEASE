@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 import uuid
 
@@ -246,14 +247,16 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
         raw = self.make('save', {'path': 'main.py', 'expected_hash': read['revision'], 'text': 'unauthorized'})
         transaction = self.b.repository.transaction
         claim = self.b.studio.store.claim
-        injected = [False, False]
+        claimer, injected = [], [False]
         def claimed(db, req):
-            claim(db, req); injected[0] = True
+            claim(db, req); claimer.append(threading.get_ident())
         @contextmanager
         def boundary(**kwargs):
             with transaction(**kwargs) as db: yield db
-            if injected[0] and not injected[1]:
-                injected[1] = True
+            # Only the request's own claim transaction ends at the boundary under
+            # test; other channel threads' transactions must not trigger it early.
+            if claimer and threading.get_ident() == claimer[0] and not injected[0]:
+                injected[0] = True
                 self.b.set_permission(self.a.local_id, 'studio.edit', 'deny', scope=self.share['workspace_id'])
         with patch.object(self.b.repository, 'transaction', boundary), patch.object(self.b.studio.store, 'claim', claimed):
             result = await self.send(raw)

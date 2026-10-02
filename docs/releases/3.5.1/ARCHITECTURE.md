@@ -1,7 +1,7 @@
 # OLIVE 3.5.1 - current identity
 
 OLIVE was formerly named DMDO. M3 remains complete; M4 native Mail is implemented.
-See [the rebrand map](../../OLIVE_REBRAND.md). Historical checkpoint text below
+See [the rebrand map](../../architecture/legacy-dmdo-compatibility.md). Historical checkpoint text below
 retains its original scope. New code uses `olive`, `OLIVE_*` and `window.olive`.
 
 ## M4 native Mail boundary

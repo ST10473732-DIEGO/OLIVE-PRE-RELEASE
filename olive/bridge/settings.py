@@ -2,6 +2,8 @@
 from copy import deepcopy
 import math
 
+from ..services.model_policy import DEFAULT_EMBEDDING_MODEL
+
 
 def field(key, label, category, kind, default, minimum=None, maximum=None, choices=None, target='settings'):
     return dict(key=key, label=label, category=category, kind=kind, default=default,
@@ -11,7 +13,7 @@ def field(key, label, category, kind, default, minimum=None, maximum=None, choic
 FIELDS = [
     field('owner_mode', 'Owner Mode — ordinary explicit local tasks', 'Permissions', 'bool', False),
     field('preferred_name', 'Preferred name', 'General', 'text', 'Diego'),
-    field('embedding_model', 'Embedding model', 'Models', 'text', 'nomic-embed-text'),
+    field('embedding_model', 'Embedding model', 'Models', 'text', DEFAULT_EMBEDDING_MODEL),
     field('auto_rag', 'Retrieve relevant documents automatically', 'Knowledge', 'bool', True),
     field('rag_semantic_weight', 'Semantic retrieval weight', 'Knowledge', 'number', .65, 0, 1),
     field('rag_lexical_weight', 'Lexical retrieval weight', 'Knowledge', 'number', .35, 0, 1),

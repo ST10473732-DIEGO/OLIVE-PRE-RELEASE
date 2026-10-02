@@ -29,7 +29,7 @@ PRESETS = {
 MEDIA_PRESETS = ("reimagine", "audio", "video")
 
 # Rollback: the MAX mapping before the 2026-09-25 promotion (see
-# docs/OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md). Restoring it is a one-line revert.
+# docs/archive/agent/OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md). Restoring it is a one-line revert.
 PREVIOUS_MAX = {"model": "qwen3-coder:30b", "pinned_digest": ""}
 
 

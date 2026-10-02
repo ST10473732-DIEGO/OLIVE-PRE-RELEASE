@@ -1,0 +1,60 @@
+# Python dependencies
+
+## Source of truth
+
+`pyproject.toml` is the canonical declaration.
+
+| Declaration | Contents | Used by |
+| --- | --- | --- |
+| `[project] dependencies` | Exactly the backend runtime that `python -m olive.bridge` needs, with platform markers | The future self-contained backend artifact (`pip install .` into a relocatable Python) |
+| extra `browser` | `playwright` | Optional Playwright research provider. HTTP research works without it; browsers are a separate download |
+| extra `qt` | `PySide6` | Legacy Qt fallback (`main.py`, `olive/ui_qt`) and its tests. **Never** part of the Electron backend |
+| extra `studio` | `debugpy`, `python-lsp-server`, `pyflakes`, `autopep8`, `pywinpty` (Windows) | Studio diagnostics, formatting, debugging and ConPTY terminals |
+
+The requirements files are install lists for the source launchers and CI. They
+mirror `pyproject.toml` and add nothing of their own except two transitive pins:
+
+| File | Mirrors | Consumers |
+| --- | --- | --- |
+| `requirements.txt` (+ `-r requirements-personal.txt`) | `dependencies` + `qt` + `browser` | `run_olive.sh`, `setup_windows.bat`, CI |
+| `requirements-personal.txt` | Personal Core part of `dependencies`, plus pins of `pytz` and `six` (pulled in by `vobject`/`python-dateutil`) for reproducible installs | included by `requirements.txt` |
+| `requirements-studio.txt` | `studio` | CI, `scripts/provision_studio_tooling.py` |
+| `requirements-mail-test.txt` | nothing: test-only (`aiosmtpd` loopback SMTP sink) | CI. Never declared in `pyproject.toml`, never packaged |
+
+`tests/test_dependency_declarations.py` fails when the lists drift apart, when
+PySide6, Playwright or a test-only package enters the core list, or when a
+platform-specific package loses its marker. The check is static: nothing is
+installed or resolved.
+
+`.github/workflows/connect-portable.yml` installs a deliberately minimal subset to
+run the Connect tests on Ubuntu and Windows; it is not a full declaration.
+
+## Platform-specific packages
+
+| Package | Marker | Why |
+| --- | --- | --- |
+| `SecretStorage` | Linux | Secret Service credential vault |
+| `pywin32`, `pywinauto`, `comtypes` | Windows | Credential Manager, UI Automation desktop control, clipboard, shortcuts |
+| `winrt-Windows.*` | Windows | Media session control |
+| `pywinpty` (studio) | Windows | ConPTY terminals |
+
+macOS has no platform-specific packages yet; the macOS credential backend is open
+OLIVE 1.0 work.
+
+## Provided by the operating system (not pip)
+
+| Need | Source |
+| --- | --- |
+| PyGObject (`gi`), AT-SPI, xdg-desktop-portal, PipeWire, libei | Linux desktop control helpers run under the distribution's `/usr/bin/python3` |
+| Secret Service provider (KWallet, GNOME Keyring) | Linux desktop |
+| `xdg-open` | Opening files on Linux |
+| Tesseract | Optional OCR |
+| FFmpeg / ffprobe | Long-form VIDEO assembly |
+| Ollama, ComfyUI, VoiceStudio, .NET SDK, JDK | Separate runtimes; never pip dependencies |
+
+## Changing dependencies
+
+Edit `pyproject.toml` first, mirror the change in the matching requirements file,
+and run `python -m unittest tests.test_dependency_declarations`. Changing
+`requirements.txt` or `requirements-personal.txt` makes `run_olive.sh` re-run
+`pip install` on its next start.

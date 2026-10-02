@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 from urllib.parse import quote, unquote, urlparse
 
+from ..identity import APP_VERSION
 from .toolchain import PINNED, python_executable
 from .transport import ProcessTransport
 
@@ -93,7 +94,7 @@ class LanguageSession:
         try:
             result = await self.request("initialize", {
                 "processId": None, "rootUri": path_to_uri(self.root), "rootPath": self.root,
-                "capabilities": CLIENT_CAPABILITIES, "clientInfo": {"name": "OLIVE Studio", "version": "3.5.1"},
+                "capabilities": CLIENT_CAPABILITIES, "clientInfo": {"name": "OLIVE Studio", "version": APP_VERSION},
                 "workspaceFolders": [{"uri": path_to_uri(self.root), "name": Path(self.root).name}],
                 "initializationOptions": {},
             }, timeout=45)
