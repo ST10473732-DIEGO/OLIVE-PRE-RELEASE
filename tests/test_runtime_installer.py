@@ -13,7 +13,7 @@ from olive.services.runtime_discovery import RuntimeDiscovery
 from olive.services.runtime_installer import MARKER, InstallError, RuntimeInstaller
 from olive.storage.runtime_config_repository import RuntimeConfigRepository
 from olive.storage.setup_state_repository import SetupStateRepository
-from tests.setup_installer_fixture import FakeOllama, FileServer, fixture_manifest, tar_bytes, zip_bytes
+from tests.setup_installer_fixture import FakeOllama, FileServer, approve, fixture_manifest, tar_bytes, zip_bytes
 
 OLLAMA_SCRIPT = b'#!/bin/sh\necho fixture\n'
 TARGET = 'linux-x86_64'
@@ -168,6 +168,7 @@ class InstallTests(InstallerTestCase):
 
     async def test_archive_checksum_mismatch_installs_nothing(self):
         self.manifest_value['entries'][0]['sha256'] = '0' * 64
+        approve(self.manifest_value, ['fixture-ollama'])  # Changed pins need a fresh fixture approval.
         self.manifest_path.write_text(json.dumps(self.manifest_value))
         self.installer = self.make()
         job = await self.run_job(entries=['fixture-ollama'])
@@ -180,12 +181,13 @@ class InstallTests(InstallerTestCase):
         evil = tar_bytes({'bin/ollama': OLLAMA_SCRIPT}, links={'lib': '../../../../etc'})
         self.manifest_value['entries'][0].update(sha256=__import__('hashlib').sha256(evil).hexdigest(), size_bytes=len(evil))
         self.files.files['/ollama-fixture.tar.gz'] = evil
+        approve(self.manifest_value, ['fixture-ollama'])  # Changed pins need a fresh fixture approval.
         self.manifest_path.write_text(json.dumps(self.manifest_value))
         self.installer = self.make()
         job = await self.run_job(entries=['fixture-ollama'])
         self.assertEqual(job['items'][0]['error'], 'unsafe_archive')
         self.assertFalse((self.data_root / 'runtime/ollama').exists())
-        self.assertEqual(list((self.data_root / 'temp/staging').iterdir()), [])
+        self.assertEqual([p.name for p in (self.data_root / 'runtime').iterdir()], [])  # No staging left behind.
 
     async def test_never_replaces_a_folder_it_did_not_create(self):
         existing = self.data_root / 'runtime/ollama'
@@ -210,6 +212,7 @@ class InstallTests(InstallerTestCase):
         packed = gzip.compress(archive, compresslevel=0)
         self.manifest_value['entries'][0].update(sha256=__import__('hashlib').sha256(packed).hexdigest(), size_bytes=len(packed))
         self.files.files['/ollama-fixture.tar.gz'] = packed
+        approve(self.manifest_value, ['fixture-ollama'])  # Changed pins need a fresh fixture approval.
         self.manifest_path.write_text(json.dumps(self.manifest_value))
         self.installer = self.make()
         self.files.slow = 0.01
@@ -346,6 +349,241 @@ class ComponentTests(InstallerTestCase):
     async def test_uninstall_refuses_what_setup_did_not_install(self):
         with self.assertRaises(InstallError):
             await self.installer.uninstall('fixture-ollama')
+
+
+class ReleaseGateTests(InstallerTestCase):
+    """identified + engineering_reviewed + no release approval => never in an install plan."""
+
+    async def test_unapproved_entry_never_enters_the_plan(self):
+        self.manifest_value['release_approvals'] = [r for r in self.manifest_value['release_approvals']
+                                                    if r['id'] != 'fixture-model-fast']
+        self.manifest_path.write_text(json.dumps(self.manifest_value))
+        self.installer = self.make()
+        entry = self.installer.entry('fixture-model-fast')
+        self.assertTrue(entry['licence']['identified'] and entry['licence']['engineering_reviewed'])
+        plan = await self.installer.plan('core')
+        row = next(r for r in plan['items'] if r['slot'] == 'model-fast')
+        self.assertEqual((row['action'], row['detail']), ('unavailable', runtime_manifest.AWAITING_APPROVAL))
+        self.assertEqual(row['entry']['release_state'], 'engineering_reviewed')
+        self.assertFalse(row['entry']['installable'])
+        self.assertNotIn('fixture-model-fast', plan['offered'] + plan['default'])
+        self.assertEqual({f['id']: f['state'] for f in plan['features']}['fast'], 'not_in_build')
+        with self.assertRaises(InstallError) as caught:
+            await self.installer.start('core', ['fixture-model-fast'])
+        self.assertEqual(caught.exception.code, 'not_installable')
+        self.assertEqual(self.ollama.pulls, [])
+
+    async def test_a_changed_pin_voids_the_approval(self):
+        self.manifest_value['entries'][0]['sha256'] = 'a' * 64  # Approved for other bytes.
+        self.manifest_path.write_text(json.dumps(self.manifest_value))
+        self.installer = self.make()
+        plan = await self.installer.plan('core')
+        self.assertNotIn('fixture-ollama', plan['offered'])
+        self.assertEqual(self.files.requests, [])
+
+    async def test_hand_pointed_test_manifest_cannot_approve_itself(self):
+        unflagged = dict(self.manifest_value)
+        unflagged.pop('fixture')
+        self.manifest_path.write_text(json.dumps(unflagged))
+        with self.assertRaises(ValueError):
+            self.make()
+        unflagged.pop('release_approvals')
+        self.manifest_path.write_text(json.dumps({**unflagged, 'entries': [
+            e for e in unflagged['entries'] if not e['source'].get('url', '') or not e['source']['url'].startswith('http://')]
+            + [dict(e, enabled=False, reason='fixture') for e in unflagged['entries']
+               if (e['source'].get('url') or '').startswith('http://')]}))
+        self.installer = self.make()
+        self.assertEqual((await self.installer.plan('core'))['offered'], [])
+
+
+def model_entry(files: FileServer, data: dict[str, bytes], identifier='fixture-image-model') -> dict:
+    listed = [{'name': name.rsplit('/', 1)[-1], 'path': name, 'url': files.add('/m/' + name, body),
+               'sha256': __import__('hashlib').sha256(body).hexdigest(), 'size_bytes': len(body)}
+              for name, body in data.items()]
+    return {'id': identifier, 'kind': 'file', 'provides': 'image-model', 'name': 'Fixture image model', 'version': '0',
+            'platforms': [TARGET], 'validated_platforms': [], 'enabled': True,
+            'source': {'publisher': 'fixture', 'url': None, 'hosts': ['127.0.0.1']}, 'sha256': None, 'size_bytes': None,
+            'files': {'any': listed},
+            'install': {'destination': 'models/comfy', 'format': 'file', 'installed_bytes': sum(map(len, data.values()))},
+            'licence': {'spdx': 'Apache-2.0', 'name': 'Apache-2.0', 'url': None, 'acceptance_required': False,
+                        'distribution': 'download-at-first-run', 'identified': True, 'engineering_reviewed': True},
+            'reason': None}
+
+
+class ModelFileTests(InstallerTestCase):
+    DATA = {'diffusion_models/fixture-unet.safetensors': os.urandom(4096), 'vae/fixture-vae.safetensors': b'v' * 1000}
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.manifest_value['entries'] = [e for e in self.manifest_value['entries'] if e['provides'] != 'image-model']
+        self.manifest_value['entries'].append(model_entry(self.files, self.DATA))
+        approve(self.manifest_value, ['fixture-image-model'])
+        self.manifest_path.write_text(json.dumps(self.manifest_value))
+        self.installer = self.make()
+
+    async def test_a_model_is_not_preselected_without_an_installable_engine(self):
+        plan = await self.installer.plan('creator')
+        self.assertIn('fixture-image-model', plan['offered'])
+        self.assertNotIn('fixture-image-model', plan['default'])  # REIMAGINE's engine is not in this build.
+        self.assertEqual({f['id']: f['state'] for f in plan['features']}['reimagine'], 'not_in_build')
+
+    async def test_install_places_verified_files_and_uninstall_removes_only_them(self):
+        job = await self.run_job('creator', ['fixture-image-model'])
+        self.assertEqual(job['items'][0]['state'], 'done', job)
+        for name, body in self.DATA.items():
+            path = self.data_root / 'models/comfy' / name
+            self.assertEqual(path.read_bytes(), body)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
+        self.assertEqual([p.name for p in (self.data_root / 'models/comfy/vae').iterdir()], ['fixture-vae.safetensors'])
+        record = SetupStateRepository(self.profile).load()[0]['installed']['fixture-image-model']
+        self.assertEqual(len(record['files']), 2)
+        row = next(r for r in (await self.installer.plan('creator'))['items'] if r['slot'] == 'image-model')
+        self.assertEqual(row['action'], 'present')
+        # A file changed after installation is the person's now: kept on uninstall.
+        (self.data_root / 'models/comfy/vae/fixture-vae.safetensors').write_bytes(b'edited')
+        await self.installer.uninstall('fixture-image-model')
+        self.assertFalse((self.data_root / 'models/comfy/diffusion_models/fixture-unet.safetensors').exists())
+        self.assertEqual((self.data_root / 'models/comfy/vae/fixture-vae.safetensors').read_bytes(), b'edited')
+
+    async def test_an_existing_different_file_is_never_replaced(self):
+        mine = self.data_root / 'models/comfy/vae/fixture-vae.safetensors'
+        mine.parent.mkdir(parents=True)
+        mine.write_bytes(b'my own vae')
+        job = await self.run_job('creator', ['fixture-image-model'])
+        self.assertEqual((job['items'][0]['state'], job['items'][0]['error']), ('failed', 'destination_exists'))
+        self.assertEqual(mine.read_bytes(), b'my own vae')
+        self.assertFalse((self.data_root / 'models/comfy/diffusion_models/fixture-unet.safetensors').exists())
+        self.assertEqual(self.files.requests, [])  # Refused before downloading anything.
+
+    async def test_identical_existing_files_are_kept_not_downloaded(self):
+        for name, body in self.DATA.items():
+            path = self.data_root / 'models/comfy' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(body)
+        plan = await self.installer.plan('creator')
+        row = next(r for r in plan['items'] if r['slot'] == 'image-model')
+        self.assertEqual(row['action'], 'present')
+        self.assertNotIn('fixture-image-model', plan['offered'])
+        self.assertEqual(self.files.requests, [])
+        self.assertNotIn('fixture-image-model', SetupStateRepository(self.profile).load()[0]['installed'])
+        # Even when started directly (a stale plan), identical files are kept and nothing is fetched.
+        item = __import__('olive.services.runtime_installer', fromlist=['Item']).Item('fixture-image-model', 'x', 'file', 0)
+        self.assertIsNone(await asyncio.to_thread(self.installer._install_model_files,
+                                                  self.installer.entry('fixture-image-model'), item, None))
+        self.assertEqual(item.state, 'present')
+        self.assertEqual(self.files.requests, [])
+
+    async def test_checksum_mismatch_places_nothing(self):
+        self.files.files['/m/vae/fixture-vae.safetensors'] = b'x' * 1000
+        job = await self.run_job('creator', ['fixture-image-model'])
+        self.assertEqual(job['items'][0]['error'], 'checksum_mismatch')
+        self.assertFalse((self.data_root / 'models/comfy/diffusion_models/fixture-unet.safetensors').exists())
+
+
+class StorageVolumeTests(InstallerTestCase):
+    """Runtime, models, downloads and the profile may live on different filesystems."""
+
+    def volumes(self, mounts, free):
+        """mounts: {folder: filesystem id}; free: {filesystem id: free bytes}."""
+        table = sorted(((os.path.realpath(path), device) for path, device in mounts.items()),
+                       key=lambda row: len(row[0]), reverse=True)
+        for path in mounts:
+            Path(path).mkdir(parents=True, exist_ok=True)
+        self.installer.mounts = lambda: table
+        owner = {os.path.realpath(p): d for p, d in mounts.items()}
+
+        def usage(path):
+            real = os.path.realpath(path)
+            device = next(d for point, d in table if real == point or real.startswith(point + '/'))
+            return type('Usage', (), {'free': free[device]})()
+        self.installer.disk_usage = usage
+        return owner
+
+    async def test_each_byte_is_charged_to_the_filesystem_it_lands_on(self):
+        root = str(self.root)
+        self.volumes({root: 'root', str(self.data_root / 'runtime'): 'data', str(self.home / '.ollama/models'): 'models'},
+                     {'root': 10 ** 12, 'data': 10 ** 12, 'models': 10 ** 12})
+        space = self.installer.space(['fixture-ollama', 'fixture-model-fast'])
+        rows = {r['label']: r for r in space['volumes']}
+        self.assertEqual(set(rows), {'Downloads', 'OLIVE runtimes', 'Ollama models'})
+        margin = __import__('olive.services.runtime_installer', fromlist=['MARGIN']).MARGIN
+        self.assertEqual(rows['Downloads']['required_bytes'], margin + len(self.archive))
+        self.assertEqual(rows['OLIVE runtimes']['required_bytes'], margin + 4096)
+        self.assertEqual(rows['Ollama models']['required_bytes'], margin + 500)
+
+    async def test_a_full_model_volume_refuses_even_when_root_has_room(self):
+        root = str(self.root)
+        self.volumes({root: 'root', str(self.home / '.ollama/models'): 'models'}, {'root': 10 ** 12, 'models': 100})
+        plan = await self.installer.plan('core')
+        short = [v for v in plan['totals']['volumes'] if not v['enough']]
+        self.assertEqual([v['label'] for v in short], ['Ollama models'])
+        with self.assertRaises(InstallError) as caught:
+            await self.installer.start('core', plan['default'])
+        self.assertIn('Ollama models', str(caught.exception))
+        self.assertEqual(self.ollama.pulls, [])
+
+    async def test_bind_mounts_and_subvolumes_of_one_filesystem_are_one_volume(self):
+        root = str(self.root)
+        # The runtime folder and the Ollama store are two bind mounts of the same filesystem.
+        self.volumes({root: 'root', str(self.data_root / 'runtime'): 'olive-data', str(self.home / '.ollama/models'): 'olive-data'},
+                     {'root': 10 ** 12, 'olive-data': 10 ** 12})
+        space = self.installer.space(['fixture-ollama', 'fixture-model-fast'])
+        shared = [v for v in space['volumes'] if 'Ollama models' in v['label']]
+        self.assertEqual(len(shared), 1)
+        self.assertEqual(shared[0]['label'], 'OLIVE runtimes and Ollama models')  # One volume, both needs summed.
+        margin = __import__('olive.services.runtime_installer', fromlist=['MARGIN']).MARGIN
+        self.assertEqual(shared[0]['required_bytes'], margin + 4096 + 500)
+        self.volumes({root: 'root', str(self.data_root / 'runtime'): 'olive-data', str(self.home / '.ollama/models'): 'olive-data'},
+                     {'root': 10 ** 12, 'olive-data': margin + 4096 + 499})
+        self.assertFalse(self.installer.space(['fixture-ollama', 'fixture-model-fast'])['enough_space'])
+
+    async def test_real_mountinfo_parsing(self):
+        from olive.services.runtime_installer import mount_table
+        text = ('24 1 0:21 / / rw - ext4 /dev/sda1 rw\n'
+                '234 60 0:55 /olive/models /home/u/.local/share/olive/models rw - btrfs /dev/nvme1n1p4 rw,subvolid=5\n'
+                '239 60 0:55 /olive/runtime /home/u/.local/share/olive/runtime rw - btrfs /dev/nvme1n1p4 rw\n'
+                '240 60 0:56 / /mnt/My\\040Disk rw - btrfs /dev/sdb1 rw\n')
+        table = mount_table(text)
+        self.assertEqual(table[0][0], '/home/u/.local/share/olive/runtime')
+        self.assertIn(('/mnt/My Disk', '0:56'), table)
+        from olive.services.runtime_installer import filesystem
+        runtime = filesystem('/home/u/.local/share/olive/runtime/comfy', table)[0]
+        self.assertEqual(runtime, filesystem('/home/u/.local/share/olive/models/comfy', table)[0])  # Same superblock.
+        self.assertEqual(filesystem('/home/u/.local/share/olive/profile', table)[0], 'fs:0:21')
+        self.assertEqual(mount_table(''), [])
+
+    def test_system_check_reports_free_space_per_filesystem(self):
+        from olive.services import system_check
+        data = self.data_root
+        mounts = {str(self.root): 'root', str(data / 'runtime'): 'olive-data', str(data / 'models'): 'olive-data'}
+        for path in mounts:
+            Path(path).mkdir(parents=True, exist_ok=True)
+        table = sorted(((os.path.realpath(p), d) for p, d in mounts.items()), key=lambda r: len(r[0]), reverse=True)
+        free = {'root': 400, 'olive-data': 80}
+
+        def usage(path):
+            real = os.path.realpath(path)
+            return type('Usage', (), {'free': free[next(d for pt, d in table if real == pt or real.startswith(pt + '/'))]})()
+        with mock.patch('olive.services.runtime_installer.mount_table', lambda: table), \
+                mock.patch('olive.services.system_check.shutil.disk_usage', usage):
+            rows = system_check.snapshot(environ=self.env, platform='linux', models_path=str(data / 'models/ollama'))['storage']
+        self.assertEqual([(r['label'], r['free_bytes']) for r in rows],
+                         [('OLIVE data', 400), ('OLIVE runtimes, Creator models and Ollama models', 80)])
+
+    async def test_runtime_is_staged_on_its_own_filesystem(self):
+        renames = []
+        real_rename = os.rename
+
+        def rename(source, destination):
+            renames.append((Path(source), Path(destination)))
+            return real_rename(source, destination)
+        with mock.patch('olive.services.runtime_installer.os.rename', rename):
+            job = await self.run_job('core', ['fixture-ollama'])
+        self.assertEqual(job['items'][0]['state'], 'done')
+        moved = [(s, d) for s, d in renames if d == self.data_root / 'runtime/ollama']
+        self.assertEqual(len(moved), 1)
+        self.assertEqual(moved[0][0].parent, moved[0][1].parent)  # Never a cross-filesystem rename from temp.
+        self.assertTrue(moved[0][0].name.startswith('.ollama.olive-staging-'))
 
 
 if __name__ == '__main__':

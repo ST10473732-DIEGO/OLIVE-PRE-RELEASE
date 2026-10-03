@@ -219,7 +219,11 @@ class FirstRunService:
             else:
                 fast['detail'] = smoke['detail']
         media = {'state': 'not_run', 'detail': 'Optional; try REIMAGINE, AUDIO or VIDEO in Chat'} if media_smoke else None
-        blocking = [r for r in results if r['state'] in ('missing', 'failed', 'needs_you')]
+        # Something only the person can install (the macOS Ollama app, VoiceStudio) blocks completion
+        # only when a Core feature needs it; Creator and Complete extras are reported, not blocking.
+        core = {f['id'] for f in plan['features'] if f['profile'] == 'core'}
+        blocking = [r for r in results if r['state'] in ('missing', 'failed')
+                    or (r['state'] == 'needs_you' and r['id'] in core)]
         ok = not blocking
         state, readable = self.repository.load()
         if readable:

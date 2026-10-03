@@ -11,7 +11,7 @@
   "description": "OLIVE - local-first desktop AI assistant",
   "author": "Diego De Oliveira",
   "scripts": {
-    "build": "vite build && node scripts/build-electron.mjs",
+    "build": "vite build && node scripts/build-electron.mjs && node scripts/npm-notices.cjs",
     "start": "electron .",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src electron",
@@ -105,6 +105,18 @@
       {
         "from": "backend-artifact/THIRD_PARTY-backend.txt",
         "to": "legal/THIRD_PARTY-backend.txt"
+      },
+      {
+        "from": "out/legal/THIRD_PARTY-npm.txt",
+        "to": "legal/THIRD_PARTY-npm.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSE",
+        "to": "legal/LICENSE.electron.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "legal/LICENSES.chromium.html"
       }
     ],
     "linux": {

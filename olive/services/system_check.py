@@ -171,6 +171,10 @@ def gpus(platform=None) -> list[dict]:
     return found
 
 
+def joined_labels(labels) -> str:
+    return labels[0] if len(labels) == 1 else ', '.join(labels[:-1]) + ' and ' + labels[-1]
+
+
 def free_bytes(path) -> int | None:
     path = Path(path)
     while not path.exists() and path.parent != path:
@@ -199,9 +203,23 @@ def snapshot(environ=None, platform=None, models_path=None) -> dict:
     target = platform_target(platform)
     gpu_list = gpus(platform)
     data_root = app_paths.user_data_root(environ, platform)
-    storage = [{'label': 'OLIVE data', 'path': str(data_root), 'free_bytes': free_bytes(data_root)}]
-    if models_path:
-        storage.append({'label': 'Ollama models', 'path': str(models_path), 'free_bytes': free_bytes(models_path)})
+    storage = []
+    # Runtimes and models may be bind mounts or other volumes than the profile: one row per
+    # filesystem, never the root filesystem's free space standing in for another volume's.
+    from .runtime_installer import filesystem, mount_table
+    table, seen = mount_table(), {}
+    for label, path in (('OLIVE data', data_root), ('OLIVE runtimes', app_paths.runtime_root(environ, platform)),
+                        ('Creator models', app_paths.media_models_root(environ, platform)),
+                        ('Ollama models', models_path)):
+        if not path:
+            continue
+        key = filesystem(path, table)[0]
+        if key in seen:
+            seen[key]['labels'].append(label)
+            continue
+        seen[key] = {'labels': [label], 'path': str(path), 'free_bytes': free_bytes(path)}
+        storage.append(seen[key])
+    storage = [{'label': joined_labels(row.pop('labels')), **row} for row in storage]
     manifest = app_paths.backend_manifest() or {}
     return {
         'os': operating_system(platform), 'target': target, 'cpu': cpu(platform), 'memory_bytes': memory(),

@@ -1,9 +1,9 @@
 {
-  "schema": "olive-runtime-manifest/2",
+  "schema": "olive-runtime-manifest/3",
   "manifest_version": "1.0.0",
   "product_version": "1.0.0",
   "recorded": "2026-10-03",
-  "note": "What OLIVE 1.0 first-run setup may download. An entry is installable only when it is enabled AND its source, checksum or registry digest, size, destination and reviewed licence are recorded (olive.services.runtime_manifest enforces this). Every value comes from primary evidence listed in the entry; nothing was guessed. Disabled entries say why. Licence fields are engineering evidence, not legal advice: owner/legal sign-off is tracked separately.",
+  "note": "What OLIVE 1.0 first-run setup may download. Three separate gates decide what setup may offer: the licence is identified; release engineering reviewed the source, integrity, size, destination and licence evidence (enabled entries must pass both, and olive.services.runtime_manifest enforces it); and the owner approved exactly those pins for the public release in release-approvals-1.0.0.json. Engineering evidence alone never makes anything installable. Every value comes from primary evidence listed in the entry; nothing was guessed. Disabled entries say why. Licence fields are engineering evidence, not legal advice or legal approval.",
   "profiles": {
     "core": {"label": "OLIVE Core", "includes": [], "summary": "Everyday local AI: chat, live answers, documents, the Agent Workspace, Notes, Draw and OLIVE Connect."},
     "creator": {"label": "OLIVE Creator", "includes": ["core"], "summary": "Core plus local image, speech and video generation."},
@@ -64,7 +64,7 @@
         "acceptance_required": false,
         "distribution": "download-at-first-run",
         "attribution": "Keep the licence files shipped inside the archive.",
-        "reviewed": true
+        "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -101,7 +101,7 @@
         "acceptance_required": false,
         "distribution": "download-at-first-run",
         "attribution": "Keep the licence files shipped inside the archive.",
-        "reviewed": true
+        "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -118,7 +118,7 @@
       "sha256": null,
       "size_bytes": null,
       "install": {"destination": null, "format": null},
-      "licence": {"spdx": "MIT", "name": "MIT License", "url": "https://github.com/ollama/ollama/blob/main/LICENSE", "acceptance_required": false, "distribution": "user-installed", "reviewed": true},
+      "licence": {"spdx": "MIT", "name": "MIT License", "url": "https://github.com/ollama/ollama/blob/main/LICENSE", "acceptance_required": false, "distribution": "user-installed", "identified": true, "engineering_reviewed": true},
       "reason": "On macOS, install the Ollama app yourself; OLIVE finds it in /Applications or Homebrew. A bundled install is not offered until it is validated on a Mac."
     },
     {
@@ -145,7 +145,7 @@
         "url": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/LICENSE",
         "evidence": "Licence layer sha256:d18a5cc7... in the registry manifest is the Apache-2.0 text; the upstream Hugging Face card (Qwen/Qwen3-8B) declares apache-2.0.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Apache-2.0 text travels with the model as its licence layer.", "reviewed": true
+        "attribution": "Apache-2.0 text travels with the model as its licence layer.", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -173,7 +173,7 @@
         "url": "https://huggingface.co/openai/gpt-oss-20b",
         "evidence": "Licence layer sha256:f6035677... is the Apache-2.0 text; the Hugging Face card (openai/gpt-oss-20b) declares apache-2.0 and links OpenAI's gpt-oss usage policy.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Apache-2.0 text travels with the model; flag the usage policy in release notices.", "reviewed": true
+        "attribution": "Apache-2.0 text travels with the model; flag the usage policy in release notices.", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -201,7 +201,7 @@
         "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE",
         "evidence": "Licence layer sha256:7339fa41... is the Apache-2.0 text; the Hugging Face card (Qwen/Qwen3.5-9B) declares apache-2.0.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Apache-2.0 text travels with the model.", "reviewed": true
+        "attribution": "Apache-2.0 text travels with the model.", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -229,7 +229,7 @@
         "url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
         "evidence": "The Hugging Face card (Qwen/Qwen3-Embedding-0.6B) declares apache-2.0. The Ollama registry manifest carries no licence layer, so release notices must include the Apache-2.0 text themselves.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Include Apache-2.0 in release notices (no licence layer in the registry).", "reviewed": true
+        "attribution": "Include Apache-2.0 in release notices (no licence layer in the registry).", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -257,7 +257,7 @@
         "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct",
         "evidence": "Licence layer sha256:7339fa41... is the Apache-2.0 text; the Hugging Face card (Qwen/Qwen3-VL-8B-Instruct) declares apache-2.0.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Apache-2.0 text travels with the model.", "reviewed": true
+        "attribution": "Apache-2.0 text travels with the model.", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -285,7 +285,7 @@
         "url": "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct/blob/main/LICENSE",
         "evidence": "Licence layer sha256:d18a5cc7... is the Apache-2.0 text; the Hugging Face card declares apache-2.0.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Apache-2.0 text travels with the model.", "reviewed": true
+        "attribution": "Apache-2.0 text travels with the model.", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -335,7 +335,7 @@
         "url": "https://github.com/microsoft/playwright-python/blob/main/LICENSE",
         "evidence": "PyPI license expressions (playwright Apache-2.0, greenlet MIT AND PSF-2.0, pyee MIT); GitHub licence API for microsoft/playwright-python reports Apache-2.0.",
         "acceptance_required": false, "distribution": "download-at-first-run",
-        "attribution": "Wheel licence files are kept in the installed component.", "reviewed": true
+        "attribution": "Wheel licence files are kept in the installed component.", "identified": true, "engineering_reviewed": true
       },
       "reason": null
     },
@@ -343,33 +343,33 @@
       "id": "comfyui-0.35.0-image-linux",
       "kind": "archive",
       "provides": "image-engine",
-      "name": "ComfyUI v0.35.0 image engine (Linux)",
-      "version": "v0.35.0 (40c4fcdf513a4523e39d54a9d391908af8df8171)",
+      "name": "Image engine (ComfyUI 0.35.0)",
+      "version": "creator-image-comfyui-0.35.0-linux-x86_64 (ComfyUI v0.35.0 40c4fcdf, torch 2.14.0 CUDA 13.0)",
       "platforms": ["linux-x86_64"],
-      "validated_platforms": ["linux-x86_64"],
+      "validated_platforms": [],
       "enabled": false,
-      "source": {"publisher": "Comfy-Org", "url": null, "hosts": [], "evidence": "The reference machine's runtime/comfy/ComfyUI is git origin https://github.com/Comfy-Org/ComfyUI.git at tag v0.35.0, commit 40c4fcdf513a4523e39d54a9d391908af8df8171."},
+      "source": {"publisher": "OLIVE release engineering (built from Comfy-Org/ComfyUI v0.35.0)", "url": null, "hosts": [], "release": "packaging/creator/definitions/creator-image-comfyui-0.35.0-linux-x86_64.json", "evidence": "Definition creator-image-comfyui-0.35.0-linux-x86_64: python-build-standalone CPython 3.14.8 (the backend's pin), ComfyUI tag v0.35.0 commit 40c4fcdf513a4523e39d54a9d391908af8df8171, hash-locked wheels in packaging/creator/locks/creator-image-comfyui-0.35.0-linux-x86_64.txt generated from the exact distributions of the reference machine's validated image environment (pins/comfyui-0.35.0-image.txt). The reference environment itself is validated on Linux; this archive has not been built yet. Release status: Defined and hash-locked in packaging/creator, built only by private release CI. No archive has been built, verified or published, so there is no URL or checksum yet. Shipping NVIDIA's CUDA wheels inside an OLIVE-hosted archive needs an owner/legal decision. Until then: install ComfyUI yourself and choose it under Runtimes."},
       "sha256": null,
       "size_bytes": null,
-      "install": {"destination": "runtime/comfy", "format": null},
-      "licence": {"spdx": "GPL-3.0-only", "name": "GNU GPL v3", "url": "https://github.com/Comfy-Org/ComfyUI/blob/master/LICENSE", "acceptance_required": false, "distribution": "download-at-first-run", "reviewed": false},
-      "reason": "ComfyUI needs a Python environment with PyTorch and CUDA wheels (several GB). No hash-locked, verified environment exists yet, and OLIVE setup does not run pip. Install it yourself and choose it under Runtimes."
+      "install": {"destination": "runtime/comfy", "format": "tar.zst", "register": {"runtime": "comfy", "paths": {"root": "ComfyUI", "python": "python/bin/python3"}}},
+      "licence": {"spdx": "GPL-3.0-only AND LicenseRef-NVIDIA-Proprietary AND BSD-3-Clause AND PSF-2.0", "name": "Bundle: ComfyUI (GPL-3.0-only), CPython (PSF-2.0 plus bundled-library notices), PyTorch (BSD-3-Clause), NVIDIA CUDA/cuDNN/NCCL wheels (NVIDIA proprietary terms) and the other locked wheels under their own licences; THIRD_PARTY-creator.txt inside the archive lists them all", "url": "https://github.com/Comfy-Org/ComfyUI/blob/v0.35.0/LICENSE", "acceptance_required": false, "distribution": "olive-hosted-archive", "identified": true, "engineering_reviewed": false},
+      "reason": "If you already have ComfyUI, choose it under Runtimes."
     },
     {
       "id": "comfyui-0.35.0-video-linux",
       "kind": "archive",
       "provides": "video-engine",
-      "name": "ComfyUI v0.35.0 video engine (Linux, isolated from the image engine)",
-      "version": "v0.35.0 (40c4fcdf513a4523e39d54a9d391908af8df8171)",
+      "name": "Video engine (ComfyUI 0.35.0)",
+      "version": "creator-video-comfyui-0.35.0-linux-x86_64 (ComfyUI v0.35.0 40c4fcdf, torch 2.14.0 CUDA 13.0, ComfyUI-GGUF-Loader ba92ceb8)",
       "platforms": ["linux-x86_64"],
-      "validated_platforms": ["linux-x86_64"],
+      "validated_platforms": [],
       "enabled": false,
-      "source": {"publisher": "Comfy-Org", "url": null, "hosts": [], "evidence": "The reference machine's runtime/video-comfy/ComfyUI is a separate checkout of the same tag and commit."},
+      "source": {"publisher": "OLIVE release engineering (built from Comfy-Org/ComfyUI v0.35.0)", "url": null, "hosts": [], "release": "packaging/creator/definitions/creator-video-comfyui-0.35.0-linux-x86_64.json", "evidence": "Definition creator-video-comfyui-0.35.0-linux-x86_64: python-build-standalone CPython 3.14.8 (the backend's pin), ComfyUI tag v0.35.0 commit 40c4fcdf513a4523e39d54a9d391908af8df8171, hash-locked wheels in packaging/creator/locks/creator-video-comfyui-0.35.0-linux-x86_64.txt generated from the exact distributions of the reference machine's validated video environment (pins/comfyui-0.35.0-video.txt). The reference environment itself is validated on Linux; this archive has not been built yet. Release status: Defined and hash-locked in packaging/creator, built only by private release CI. No archive has been built, verified or published, so there is no URL or checksum yet. Shipping NVIDIA's CUDA wheels inside an OLIVE-hosted archive needs an owner/legal decision. Until then: install ComfyUI yourself and choose it under Runtimes."},
       "sha256": null,
       "size_bytes": null,
-      "install": {"destination": "runtime/video-comfy", "format": null},
-      "licence": {"spdx": "GPL-3.0-only", "name": "GNU GPL v3", "url": "https://github.com/Comfy-Org/ComfyUI/blob/master/LICENSE", "acceptance_required": false, "distribution": "download-at-first-run", "reviewed": false},
-      "reason": "Same as the image engine: needs a verified PyTorch environment that does not exist yet."
+      "install": {"destination": "runtime/video-comfy", "format": "tar.zst", "register": {"runtime": "video_comfy", "paths": {"root": "ComfyUI", "python": "python/bin/python3"}}},
+      "licence": {"spdx": "GPL-3.0-only AND LicenseRef-NVIDIA-Proprietary AND BSD-3-Clause AND PSF-2.0", "name": "Bundle: ComfyUI (GPL-3.0-only), CPython (PSF-2.0 plus bundled-library notices), PyTorch (BSD-3-Clause), NVIDIA CUDA/cuDNN/NCCL wheels (NVIDIA proprietary terms) and the other locked wheels under their own licences; THIRD_PARTY-creator.txt inside the archive lists them all", "url": "https://github.com/Comfy-Org/ComfyUI/blob/v0.35.0/LICENSE", "acceptance_required": false, "distribution": "olive-hosted-archive", "identified": true, "engineering_reviewed": false},
+      "reason": "If you already have ComfyUI, choose it under Runtimes."
     },
     {
       "id": "comfyui-windows-portable-0.35.0",
@@ -380,12 +380,12 @@
       "platforms": ["windows-x86_64"],
       "validated_platforms": [],
       "enabled": false,
-      "source": {"publisher": "Comfy-Org", "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.35.0/ComfyUI_windows_portable_nvidia.7z", "hosts": ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"], "evidence": "Recorded in scripts/install_approved_media.py."},
+      "source": {"publisher": "Comfy-Org", "url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.35.0/ComfyUI_windows_portable_nvidia.7z", "hosts": ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"], "evidence": "Recorded in scripts/install_approved_media.py (URL, size, SHA-256). Upstream now also publishes v0.36.0 to v0.38.0; OLIVE workflows are validated on 0.35.0 only. Release status: A 7z bundle the packaged backend cannot unpack, with unreviewed mixed licences, unvalidated on Windows. The Windows Creator runtime needs its own definition (PyTorch CUDA wheels come from download.pytorch.org there) built on Windows CI."},
       "sha256": "6fb005a8269c6f5972a8fb76d7a4fc251578ccc7906671a801b382591c791dd2",
       "size_bytes": 1910039517,
       "install": {"destination": "runtime/comfy", "format": "7z"},
-      "licence": {"spdx": "GPL-3.0-only", "name": "GNU GPL v3 (ComfyUI); the bundle also contains Python, PyTorch and NVIDIA CUDA libraries under their own terms", "url": "https://github.com/Comfy-Org/ComfyUI/blob/master/LICENSE", "acceptance_required": false, "distribution": "download-at-first-run", "reviewed": false},
-      "reason": "The 7z bundle needs an extractor the packaged backend does not include, the bundle's mixed licences (CUDA, PyTorch) are not reviewed, and it is unvalidated on Windows."
+      "licence": {"spdx": "GPL-3.0-only AND LicenseRef-NVIDIA-Proprietary AND BSD-3-Clause AND PSF-2.0", "name": "GNU GPL v3 (ComfyUI); the bundle also contains Python, PyTorch and NVIDIA CUDA libraries under their own terms", "url": "https://github.com/Comfy-Org/ComfyUI/blob/v0.35.0/LICENSE", "acceptance_required": false, "distribution": "download-at-first-run", "identified": true, "engineering_reviewed": false},
+      "reason": "Windows support comes later."
     },
     {
       "id": "comfyui-gguf-loader",
@@ -396,92 +396,135 @@
       "platforms": ["linux-x86_64", "windows-x86_64"],
       "validated_platforms": ["linux-x86_64"],
       "enabled": false,
-      "source": {"publisher": "ChrisColeTech", "url": null, "hosts": [], "evidence": "The reference video engine's custom_nodes/ComfyUI-GGUF-Loader is git origin https://github.com/ChrisColeTech/ComfyUI-GGUF-Loader.git at commit ba92ceb82615cb9c0f8023b5505d8ae4a44b7f27."},
+      "source": {"publisher": "ChrisColeTech", "url": null, "hosts": [], "release": "packaging/creator/definitions/creator-video-comfyui-0.35.0-linux-x86_64.json", "evidence": "The reference video engine's custom_nodes/ComfyUI-GGUF-Loader is git origin https://github.com/ChrisColeTech/ComfyUI-GGUF-Loader.git at commit ba92ceb82615cb9c0f8023b5505d8ae4a44b7f27 (no local modifications); GitHub licence API: Apache-2.0. The video runtime definition pins the same commit. Release status: Ships inside the video runtime archive (the definition pins this commit); there is no separate download."},
       "sha256": null,
       "size_bytes": null,
       "install": {"destination": "runtime/video-comfy/ComfyUI/custom_nodes/ComfyUI-GGUF-Loader", "format": null},
-      "licence": {"spdx": "Apache-2.0 AND MIT", "name": "Apache-2.0 (LICENSE) and MIT (LICENSE-ClipProj)", "url": "https://github.com/ChrisColeTech/ComfyUI-GGUF-Loader", "acceptance_required": false, "distribution": "download-at-first-run", "reviewed": false},
-      "reason": "Only useful inside the video engine, which is not installable yet. No archive checksum is recorded."
+      "licence": {"spdx": "Apache-2.0 AND MIT", "name": "Apache-2.0 (LICENSE) and MIT (LICENSE-ClipProj)", "url": "https://github.com/ChrisColeTech/ComfyUI-GGUF-Loader/blob/ba92ceb82615cb9c0f8023b5505d8ae4a44b7f27/LICENSE", "acceptance_required": false, "distribution": "inside-video-runtime", "identified": true, "engineering_reviewed": true},
+      "reason": "Comes with the video engine."
+    },
+    {
+      "id": "flux2-klein-4b",
+      "kind": "file",
+      "provides": "image-model",
+      "name": "FLUX.2 [klein] 4B (REIMAGINE)",
+      "version": "FLUX.2-klein-4b-fp8@5b4408e5 + Qwen3 4B text encoder + FLUX.2 VAE",
+      "platforms": ["linux-x86_64", "windows-x86_64"],
+      "validated_platforms": [],
+      "enabled": true,
+      "source": {"publisher": "Black Forest Labs (diffusion model); Comfy-Org repackaging of the Apache-2.0 klein 4B text encoder and VAE", "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8", "hosts": ["huggingface.co", "us.aws.cdn.hf.co", "cas-bridge.xethub.hf.co", "cdn-lfs.hf.co"], "release": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B", "evidence": "Hugging Face API (2026-10-03): black-forest-labs/FLUX.2-klein-4b-fp8 rev 5b4408e5, licence apache-2.0, not gated; Comfy-Org/vae-text-encorder-for-flux-klein-4b rev 5f526678, licence apache-2.0, base_model FLUX.2-klein-4B. File SHA-256 values are the Hugging Face LFS digests; the VAE digest equals the flux2-vae.safetensors the reference machine already runs. ComfyUI 0.35.0's bundled template 'Image Edit (Flux.2 Klein 4B Distilled)' uses exactly these three file names with the same node graph as OLIVE's validated klein 9B workflow. BFL card: ~13 GB VRAM. Not yet run on the reference machine."},
+      "sha256": null,
+      "size_bytes": null,
+      "files": {"any": [
+        {"name": "flux-2-klein-4b-fp8.safetensors", "path": "diffusion_models/flux-2-klein-4b-fp8.safetensors", "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/5b4408e59397a4a37ccb46afe426d8ed86379441/flux-2-klein-4b-fp8.safetensors", "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6", "size_bytes": 4070624520},
+        {"name": "qwen_3_4b.safetensors", "path": "text_encoders/qwen_3_4b.safetensors", "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/5f526678002e43af5551dadb73ce2e8c91b43afe/split_files/text_encoders/qwen_3_4b.safetensors", "sha256": "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a", "size_bytes": 8044982048},
+        {"name": "flux2-vae.safetensors", "path": "vae/flux2-vae.safetensors", "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/5f526678002e43af5551dadb73ce2e8c91b43afe/split_files/vae/flux2-vae.safetensors", "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3", "size_bytes": 336211292}
+      ]},
+      "install": {"destination": "models/comfy", "format": "file", "installed_bytes": 12451817860},
+      "licence": {"spdx": "Apache-2.0", "name": "Apache License 2.0 (all three files)", "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/blob/main/LICENSE.md", "evidence": "BFL model card: 'Open weights available for commercial use under the Apache 2.0 license'; LICENSE.md is the Apache-2.0 text. The text encoder and VAE come from a Comfy-Org repackaging repository tagged apache-2.0 (a repackager, not BFL itself). BFL encourages deployers of klein 4B to use input/output filters.", "acceptance_required": false, "distribution": "download-at-first-run", "attribution": "Keep the Apache-2.0 text and BFL attribution in release notices; the files are fetched from Hugging Face, not hosted by OLIVE.", "identified": true, "engineering_reviewed": true},
+      "reason": null
     },
     {
       "id": "flux2-klein-9b",
       "kind": "file",
       "provides": "image-model",
       "name": "FLUX.2 [klein] 9B (REIMAGINE)",
-      "version": null,
+      "version": "FLUX.2-klein-9b-fp8@902d9d51",
       "platforms": ["linux-x86_64", "windows-x86_64", "macos-arm64"],
       "validated_platforms": ["linux-x86_64"],
       "enabled": false,
-      "source": {"publisher": "Black Forest Labs", "url": null, "hosts": [], "evidence": "Hugging Face API for black-forest-labs/FLUX.2-klein-9B: licence 'flux-non-commercial-license', gated (automatic acceptance)."},
+      "source": {"publisher": "Black Forest Labs", "url": null, "hosts": [], "evidence": "Reference machine: flux-2-klein-9b-fp8.safetensors (HF black-forest-labs/FLUX.2-klein-9b-fp8 rev 902d9d51, LFS sha256 865ba09f…655cee), qwen_3_8b_fp4mixed.safetensors and flux2-vae.safetensors (Comfy-Org/vae-text-encorder-for-flux-klein-9b rev 3f62d9d8). HF API: flux-non-commercial-license, gated (auto). The validated REIMAGINE workflow keeps routing to these files when present. Release status: Non-commercial licence behind a Hugging Face acceptance gate: OLIVE never downloads it, but an existing copy keeps working and is preferred when present. New installs use FLUX.2 [klein] 4B (Apache-2.0)."},
       "sha256": null,
       "size_bytes": null,
       "install": {"destination": "models/comfy/flux2", "format": "file"},
-      "licence": {"spdx": "LicenseRef-FLUX-Non-Commercial", "name": "FLUX Non-Commercial License", "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9B", "acceptance_required": true, "distribution": "not-distributable", "reviewed": false},
-      "reason": "Non-commercial licence behind a Hugging Face acceptance gate. OLIVE setup cannot accept it for the user or redistribute it."
+      "licence": {"spdx": "LicenseRef-FLUX-Non-Commercial", "name": "FLUX Non-Commercial License", "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9B/blob/main/LICENSE.md", "acceptance_required": true, "distribution": "user-supplied", "identified": true, "engineering_reviewed": false},
+      "reason": "OLIVE does not download this model (non-commercial licence). A copy you already have keeps working."
     },
     {
       "id": "sdxl-base-1.0",
       "kind": "file",
       "provides": "image-model",
       "name": "Stable Diffusion XL base 1.0 (compatibility only)",
-      "version": "1.0",
+      "version": "1.0 (rev 46216598)",
       "platforms": ["linux-x86_64", "windows-x86_64", "macos-arm64"],
-      "validated_platforms": [],
+      "validated_platforms": ["linux-x86_64"],
       "enabled": false,
-      "source": {"publisher": "Stability AI", "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors", "hosts": ["huggingface.co"], "evidence": "Recorded in scripts/install_approved_media.py; Hugging Face card declares openrail++."},
+      "source": {"publisher": "Stability AI", "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/462165984030d82259a11f4367a4eed129e94a7b/sd_xl_base_1.0.safetensors", "hosts": ["huggingface.co", "us.aws.cdn.hf.co", "cas-bridge.xethub.hf.co", "cdn-lfs.hf.co"], "evidence": "Recorded in scripts/install_approved_media.py; equals the Hugging Face LFS digest at rev 46216598 (2026-10-03). The SDXL workflow is validated on ComfyUI 0.35.0. Release status: Compatibility only (text-to-image, no editing). Its use-based restrictions must be passed on to users, which needs an owner decision and an in-app acceptance step that setup does not have. FLUX.2 [klein] 4B is the default path."},
       "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b",
       "size_bytes": 6938078334,
       "install": {"destination": "models/comfy/checkpoints", "format": "file"},
-      "licence": {"spdx": "LicenseRef-CreativeML-OpenRAIL-M-plus-plus", "name": "CreativeML Open RAIL++-M", "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md", "acceptance_required": true, "distribution": "download-at-first-run", "reviewed": false},
-      "reason": "Needs the image engine, which is not installable yet, and its use-restricted licence needs owner review and an in-app acceptance step."
+      "licence": {"spdx": "LicenseRef-CreativeML-OpenRAIL-M-plus-plus", "name": "CreativeML Open RAIL++-M", "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md", "acceptance_required": true, "distribution": "download-at-first-run", "identified": true, "engineering_reviewed": true},
+      "reason": "Not offered in this build: its licence needs an acceptance step."
+    },
+    {
+      "id": "ltx-2.3-official-fp8",
+      "kind": "file",
+      "provides": "video-model",
+      "name": "LTX-2.3 22B (VIDEO)",
+      "version": "LTX-2.3-fp8@1d756cd2 + distilled LoRA 1.1 + Gemma 3 12B fp4 + spatial upscaler x2 1.1",
+      "platforms": ["linux-x86_64", "windows-x86_64"],
+      "validated_platforms": [],
+      "enabled": false,
+      "source": {"publisher": "Lightricks (checkpoint, upscaler); Comfy-Org repackaging (distilled LoRA, Gemma 3 text encoder)", "url": "https://huggingface.co/Lightricks/LTX-2.3-fp8", "hosts": ["huggingface.co", "us.aws.cdn.hf.co", "cas-bridge.xethub.hf.co", "cdn-lfs.hf.co"], "evidence": "ComfyUI 0.35.0's bundled 'Text to Video (LTX-2.3)' and image-to-video templates name these files with these URLs; digests are the Hugging Face LFS digests at the pinned revisions. The templates also load gemma-3-12b-it-abliterated_lora (a community abliteration), which this set deliberately excludes. The upscaler digest equals the one the reference machine runs. Release status: No OLIVE workflow is validated for the official checkpoint layout (OLIVE's validated VIDEO graph uses the GGUF loader), the 22B fp8 set (about 42 GB) is unmeasured on a 16 GiB GPU, and both licences need an owner decision and an in-app acceptance step."},
+      "sha256": null,
+      "size_bytes": null,
+      "files": {"any": [
+        {"name": "ltx-2.3-22b-dev-fp8.safetensors", "path": "checkpoints/ltx-2.3-22b-dev-fp8.safetensors", "url": "https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/1d756cd27fa11c0896c4dfee093cd1bf36c7f7a1/ltx-2.3-22b-dev-fp8.safetensors", "sha256": "28606c5b5a06ce56f896d4dfcb20f212739e07a68fbe48e53638188449d26450", "size_bytes": 29145431166},
+        {"name": "ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors", "path": "loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors", "url": "https://huggingface.co/Comfy-Org/ltx-2.3/resolve/f20f3a54378001e5e6d642acc84719cc78addf4b/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors", "sha256": "31e0c0195fb841bf31af78e8b60858f489e87ddcea4a5239abc80943da65e3ac", "size_bytes": 2741024390},
+        {"name": "gemma_3_12B_it_fp4_mixed.safetensors", "path": "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors", "url": "https://huggingface.co/Comfy-Org/ltx-2/resolve/ccde4ba417d7900669fd56dd292a883cee11ff37/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors", "sha256": "aaca463d11e6d8d2a4bdb0d6299214c15ef78a3f73e0ef8113d5a9d0219b3f6d", "size_bytes": 9447702218},
+        {"name": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors", "path": "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors", "url": "https://huggingface.co/Lightricks/LTX-2.3/resolve/3c6a4e66e5d0a684231950b9c74dd4ded7b6fadc/ltx-2.3-spatial-upscaler-x2-1.1.safetensors", "sha256": "5f416311fa8172b65af67530758964708d29a317b830d689a51143b7f91913ed", "size_bytes": 995743560}
+      ]},
+      "install": {"destination": "models/video/ltx23-official", "format": "file", "installed_bytes": 42329901334},
+      "licence": {"spdx": "LicenseRef-LTX-2-Community AND LicenseRef-Gemma", "name": "LTX-2 Community License Agreement; Gemma Terms of Use for the text encoder", "url": "https://huggingface.co/Lightricks/LTX-2.3/blob/main/LICENSE", "evidence": "LTX-2 licence: use or distribution means acceptance; entities with annual revenue of at least USD 10,000,000 need a paid commercial licence; redistribution must pass on Attachment A use restrictions. Gemma Terms (last modified 2026-04-01): use restrictions must be an enforceable part of any distribution agreement, plus the Gemma notice and Prohibited Use Policy.", "acceptance_required": true, "distribution": "download-at-first-run", "identified": true, "engineering_reviewed": true},
+      "reason": "Needs the video engine and a licence acceptance step."
     },
     {
       "id": "ltx-2.3-video",
       "kind": "file",
       "provides": "video-model",
-      "name": "LTX 2.3 video model set (VIDEO)",
-      "version": null,
+      "name": "LTX 2.3 community set (VIDEO)",
+      "version": "ChrisColeTech/LTX-2.3-uncensored-v1.4-FP8@46bdc7b4",
       "platforms": ["linux-x86_64", "windows-x86_64"],
       "validated_platforms": ["linux-x86_64"],
       "enabled": false,
-      "source": {"publisher": "Lightricks (base); community finetunes", "url": null, "hosts": [], "evidence": "The validated workflow uses ltxv23_uncensored_v1.4 (Hugging Face ChrisColeTech/LTX-2.3-uncensored-v1.4-*) and a Gemma-3-derived abliterated encoder. Lightricks/LTX-2.3 declares the LTX-2 Community License Agreement."},
+      "source": {"publisher": "Community finetune (ChrisColeTech) of Lightricks LTX-2.3; abliterated Gemma 3 12B encoder", "url": null, "hosts": [], "evidence": "Reference machine Hugging Face metadata: ChrisColeTech/LTX-2.3-uncensored-v1.4-FP8 rev 46bdc7b4 (HF licence tag 'unknown'): ltxv23_uncensored_v1.4_Q4_K_M.gguf 83f116fa…, gemma-3-12b-it-ablit-norms-biproj-Q4_K_M.gguf 0f1e9cb5…, ltxv23_uncensored_v1.4_projections 61502031…, video VAE 3d0b59f2…, audio VAE a984974f…; the spatial upscaler is the official Lightricks/LTX-2.3 file (5f416311…, rev 5948be4c). Release status: Community 'uncensored' finetune and an abliterated Gemma encoder with no declared licence or training provenance: never downloaded by OLIVE. An existing copy keeps working and is detected."},
       "sha256": null,
       "size_bytes": null,
       "install": {"destination": "models/video/ltx23", "format": "file"},
-      "licence": {"spdx": "LicenseRef-LTX-2-Community", "name": "LTX-2 Community License Agreement (+ Gemma terms for the encoder)", "url": "https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2", "acceptance_required": true, "distribution": "not-distributable", "reviewed": false},
-      "reason": "The validated files are community 'uncensored' finetunes and an abliterated Gemma encoder; provenance and licence terms are not cleared for distribution."
+      "licence": {"spdx": "LicenseRef-LTX-2-Community AND LicenseRef-Gemma", "name": "LTX-2 Community License Agreement (derivative) and Gemma terms (abliterated encoder); the uploader declares no licence", "url": "https://huggingface.co/ChrisColeTech/LTX-2.3-uncensored-v1.4-FP8", "acceptance_required": true, "distribution": "not-distributable", "identified": true, "engineering_reviewed": false},
+      "reason": "OLIVE does not download this model. A copy you already have keeps working."
     },
     {
       "id": "voicestudio",
-      "kind": "archive",
+      "kind": "external",
       "provides": "audio-engine",
-      "name": "VoiceStudio (AUDIO engine)",
-      "version": "08a1592e3cb9b4c36beef5fa3185ec2313bb1fea (v0.5.6-141)",
+      "name": "VoiceStudio (speech)",
+      "version": "v0.5.6 (release; reference machine runs 08a1592e = v0.5.6-141)",
       "platforms": ["linux-x86_64", "windows-x86_64"],
       "validated_platforms": ["linux-x86_64"],
       "enabled": false,
-      "source": {"publisher": "debpalash/VoiceStudio", "url": null, "hosts": [], "evidence": "The reference runtime/voicestudio is git origin https://github.com/debpalash/VoiceStudio.git at 08a1592e (141 commits after v0.5.6)."},
+      "source": {"publisher": "debpalash/VoiceStudio", "url": "https://github.com/debpalash/VoiceStudio/releases/tag/v0.5.6", "hosts": [], "evidence": "GitHub: v0.5.6 released 2026-09-23 (tag commit e99127fb) with SHA256SUMS.txt (Linux AppImage b44d286a…, Windows exe 3d7ac1d6…); repository licence AGPL-3.0. The reference machine runs an unreleased source checkout (08a1592e) with its own Python 3.11 / torch 2.8.0+cu128 environment. OLIVE uses only its loopback HTTP API. Release status: Install VoiceStudio yourself and keep it listening on 127.0.0.1:3900 only; OLIVE finds it, never redistributes it and refuses a service that listens on the network. An existing installation keeps working."},
       "sha256": null,
       "size_bytes": null,
-      "install": {"destination": "runtime/voicestudio", "format": null},
-      "licence": {"spdx": "AGPL-3.0-only", "name": "GNU AGPL v3", "url": "https://github.com/debpalash/VoiceStudio/blob/main/LICENSE", "acceptance_required": false, "distribution": "download-at-first-run", "reviewed": false},
-      "reason": "Runs from an unreleased commit and needs its own Python environment and build tools; no pinned release artefact or checksum exists. AGPL-3.0 needs owner review."
+      "install": {"destination": null, "format": null},
+      "licence": {"spdx": "AGPL-3.0-only", "name": "GNU AGPL v3", "url": "https://github.com/debpalash/VoiceStudio/blob/main/LICENSE", "acceptance_required": false, "distribution": "user-installed", "identified": true, "engineering_reviewed": false},
+      "reason": "Install VoiceStudio yourself. OLIVE uses it on this computer only (127.0.0.1:3900)."
     },
     {
       "id": "omnivoice",
-      "kind": "file",
+      "kind": "external",
       "provides": "audio-model",
-      "name": "OmniVoice speech model (AUDIO)",
-      "version": "c5fdb5cc",
+      "name": "OmniVoice (speech model)",
+      "version": "k2-fsa/OmniVoice@c5fdb5cc",
       "platforms": ["linux-x86_64", "windows-x86_64"],
       "validated_platforms": ["linux-x86_64"],
       "enabled": false,
-      "source": {"publisher": "k2-fsa", "url": null, "hosts": [], "evidence": "Hugging Face cache models--k2-fsa--OmniVoice at revision c5fdb5cc on the reference machine."},
+      "source": {"publisher": "k2-fsa", "url": "https://huggingface.co/k2-fsa/OmniVoice", "hosts": [], "evidence": "Reference machine HF cache rev c5fdb5cc: model.safetensors 73083931…, audio_tokenizer/model.safetensors fe7c5e87…. The model card body (README 'License') says: code Apache 2.0, 'The pre-trained model is licensed under the CC-BY-NC due to constraints from its training data (e.g., Emilia)'. audio_tokenizer/LICENSE is the Boson Higgs Audio 2 Community License (Llama 3 based). The card metadata declares no licence tag. Release status: Non-commercial: OLIVE never downloads it. VoiceStudio manages its own engine models; choose one whose licence suits you (OLIVE checks that the active one is installed before speaking)."},
       "sha256": null,
       "size_bytes": null,
-      "install": {"destination": "runtime/voicestudio", "format": "file"},
-      "licence": {"spdx": null, "name": null, "url": "https://huggingface.co/k2-fsa/OmniVoice", "acceptance_required": false, "distribution": "unknown", "reviewed": false},
-      "reason": "The model card declares no licence."
+      "install": {"destination": null, "format": null},
+      "licence": {"spdx": "LicenseRef-CC-BY-NC AND LicenseRef-Boson-Higgs-Audio-2-Community", "name": "CC-BY-NC (non-commercial; version not stated) and the Boson Higgs Audio 2 Community License", "url": "https://huggingface.co/k2-fsa/OmniVoice", "acceptance_required": true, "distribution": "not-distributable", "identified": true, "engineering_reviewed": false},
+      "reason": "Choose a speech model inside VoiceStudio. OLIVE does not download one."
     },
     {
       "id": "ffmpeg-system",
@@ -496,7 +539,7 @@
       "sha256": null,
       "size_bytes": null,
       "install": {"destination": null, "format": null},
-      "licence": {"spdx": "LGPL-2.1-or-later OR GPL-2.0-or-later", "name": "Depends on the build", "url": "https://ffmpeg.org/legal.html", "acceptance_required": false, "distribution": "user-installed", "reviewed": false},
+      "licence": {"spdx": "LGPL-2.1-or-later OR GPL-2.0-or-later", "name": "Depends on the build", "url": "https://ffmpeg.org/legal.html", "acceptance_required": false, "distribution": "user-installed", "identified": true, "engineering_reviewed": false},
       "reason": "OLIVE uses the ffmpeg and ffprobe already on this computer. Install them from your package manager."
     },
     {
@@ -513,7 +556,7 @@
       "sha256": null,
       "size_bytes": 14431883146,
       "install": {"destination": "ollama", "format": "ollama"},
-      "licence": {"spdx": "Apache-2.0", "name": "Apache-2.0 (as declared by the uploader only)", "url": null, "acceptance_required": false, "distribution": "download-at-first-run", "reviewed": false},
+      "licence": {"spdx": "Apache-2.0", "name": "Apache-2.0 (as declared by the uploader only)", "url": null, "acceptance_required": false, "distribution": "download-at-first-run", "identified": true, "engineering_reviewed": false},
       "reason": "A community re-upload of a modified Qwen3.8 27B. Its licence layer is a bare 'Apache-2.0' string, and the finetune's upstream weights and training provenance are not recorded."
     },
     {
@@ -530,14 +573,16 @@
       "sha256": null,
       "size_bytes": null,
       "install": {"destination": "ollama", "format": "ollama"},
-      "licence": {"spdx": null, "name": null, "url": null, "acceptance_required": false, "distribution": "not-distributable", "reviewed": false},
+      "licence": {"spdx": null, "name": null, "url": null, "acceptance_required": false, "distribution": "not-distributable", "identified": false, "engineering_reviewed": false},
       "reason": "The routing set is private local builds and community abliterated models whose Modelfiles, upstream weights and licences are not recovered."
     }
   ],
   "not_distributable": [
     {"name": "olive-uncensored-* and olive-eval-* Ollama tags", "reason": "Private local builds; never part of a downloadable profile."},
     {"name": "Qwen-Image 2.1", "reason": "Blocked on ComfyUI 0.35.0, and its recorded licence is research/evaluation only."},
-    {"name": "FLUX.2 [klein] 9B", "reason": "FLUX Non-Commercial License behind an acceptance gate."},
-    {"name": "LTX 2.3 community finetunes and the abliterated Gemma encoder", "reason": "Provenance and licence not cleared."}
+    {"name": "LTX 2.3 community finetunes and the abliterated Gemma encoder", "reason": "Provenance and licence not cleared."},
+    {"name": "FLUX.2 [klein] 9B", "reason": "FLUX Non-Commercial License behind an acceptance gate; supported only as a user-supplied model."},
+    {"name": "OmniVoice (k2-fsa/OmniVoice)", "reason": "Model card: CC-BY-NC (non-commercial); audio tokenizer under the Boson Higgs Audio 2 Community License."},
+    {"name": "gemma-3-12b-it-abliterated LoRA (Comfy-Org/ltx-2)", "reason": "A community abliteration that ComfyUI's LTX-2.3 templates load; excluded from OLIVE's official LTX set."}
   ]
 }

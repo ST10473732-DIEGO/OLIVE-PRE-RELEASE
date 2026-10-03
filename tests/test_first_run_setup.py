@@ -200,6 +200,7 @@ class FirstRunServiceTests(unittest.IsolatedAsyncioTestCase):
         result = await services.first_run.verify('creator', media_smoke=True)
         states = {f['id']: f['state'] for f in result['features']}
         self.assertEqual(states['reimagine'], 'not_in_build')
+        self.assertEqual(states['audio'], 'needs_you')  # VoiceStudio is user-installed, never bundled.
         self.assertTrue(result['some_unavailable'])
         self.assertEqual(result['media']['state'], 'not_run')
         self.assertTrue(result['ok'])  # Everything this build can provide works.

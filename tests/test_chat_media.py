@@ -590,6 +590,25 @@ class WorkflowAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def inventory(self, workflows, version='0.35.0'):
         return wf.engine_inventory(version, object_info(workflows), wf.IMAGE_WORKFLOWS + wf.VIDEO_WORKFLOWS)
 
+    def test_distributable_klein_4b_routes_only_once_validated(self):
+        klein4 = self.inventory((wf.KLEIN4,))
+        workflow, _, reasons = wf.route('image', 'A cinematic city', [], klein4)
+        self.assertIsNone(workflow)  # Installed but never run for real on 0.35.0: not offered.
+        self.assertEqual(reasons['flux2-klein-4b'], 'not validated on ComfyUI 0.35.0')
+        validated = wf.Workflow(**{**wf.KLEIN4.__dict__, 'validated': frozenset({'0.35.0'})})
+        with patch.dict(wf.WORKFLOWS, {'flux2-klein-4b': validated}):
+            self.assertEqual(wf.route('image', 'A cinematic city', [], klein4)[0].key, 'flux2-klein-4b')
+            self.assertEqual(wf.route('image', 'Make it night', [('a', b'')], klein4)[0].key, 'flux2-klein-4b')
+            # A user-supplied 9B still outranks it when both are ready.
+            both = self.inventory(wf.IMAGE_WORKFLOWS)
+            self.assertEqual(wf.route('image', 'A cinematic city', [], both)[0].key, 'flux2-klein-9b')
+        graph = wf.image_graph(validated, 'a fox', 7, 'olive', reference='in.png')
+        self.assertEqual(graph['unet']['inputs']['unet_name'], 'flux-2-klein-4b-fp8.safetensors')
+        self.assertEqual(graph['clip']['inputs']['clip_name'], 'qwen_3_4b.safetensors')
+        self.assertEqual(graph['scaled']['inputs']['upscale_method'], 'nearest-exact')
+        self.assertEqual(wf.image_graph(wf.KLEIN, 'a fox', 7, 'olive', reference='in.png')['scaled']['inputs']['upscale_method'],
+                         'lanczos')
+
     def test_routing_is_deterministic_single_and_validated(self):
         engine = self.inventory(wf.IMAGE_WORKFLOWS)
         # Qwen-Image 2.1 is installed but blocked on ComfyUI 0.35.0; Klein serves both.

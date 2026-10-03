@@ -103,7 +103,7 @@ class ChatMediaService:
                 'not installed': 'Needs setup', 'needs setup': 'Needs setup · model or workflow missing',
                 'failed': 'Engine failed · retry to restart'}.get(state, 'Checking')
         capabilities = []
-        if 'flux2-klein-9b' in info['ready_workflows'] or 'qwen-image-2.1' in info['ready_workflows']:
+        if {'flux2-klein-9b', 'flux2-klein-4b', 'qwen-image-2.1'} & set(info['ready_workflows']):
             capabilities = ['text-to-image', 'image-edit']
         elif 'sdxl-base' in info['ready_workflows']:
             capabilities = ['text-to-image']

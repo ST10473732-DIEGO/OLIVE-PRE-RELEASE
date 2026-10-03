@@ -78,6 +78,7 @@ class RAGService:
                 if len(vectors) == len(rows):
                     for row, vector in zip(rows, vectors):
                         row["embedding"] = vector
+                        row["embedding_model"] = self.embedding_model
                     embedded = True
         except InterruptedError:
             raise
@@ -105,14 +106,15 @@ class RAGService:
 
         query_vector: list[float] | None = None
         try:
-            has_vectors = self.store.has_embedded_chunks(chat_id)
+            # Only vectors this embedding model made (or untagged legacy ones) are comparable.
+            has_vectors = self.store.has_embedded_chunks(chat_id, model=self.embedding_model)
             if has_vectors and await self.ollama.is_model_available(self.embedding_model):
                 vectors = await self.ollama.embed(self.embedding_model, [query])
                 query_vector = vectors[0] if vectors else None
                 if query_vector:
                     candidate_limit = max(limit * 3, 18)
                     heap: list[tuple[float, int, StoredChunk]] = []
-                    for chunk in self.store.iter_embedded_chunks(chat_id):
+                    for chunk in self.store.iter_embedded_chunks(chat_id, model=self.embedding_model):
                         score = cosine_similarity(query_vector, chunk.embedding or [])
                         item = (score, chunk.id, chunk)
                         if len(heap) < candidate_limit:
@@ -171,7 +173,8 @@ class RAGService:
 
     async def reembed_missing(self, progress: Callable[[int, int], None] | None = None,
                               cancel_event: asyncio.Event | None = None, batch_size: int = 24) -> tuple[int, int]:
-        chunks = self.store.chunks_without_embeddings()
+        # The person-started index upgrade also re-embeds vectors another model made.
+        chunks = self.store.chunks_without_embeddings(model=self.embedding_model or None)
         total = len(chunks)
         completed = 0
         if not chunks or not self.embedding_model:
@@ -189,7 +192,8 @@ class RAGService:
             vectors = await self.ollama.embed(self.embedding_model, [chunk.content for chunk in batch])
             if len(vectors) != len(batch):
                 raise RuntimeError("Embedding model returned an unexpected vector count")
-            self.store.update_embeddings({chunk.id: vector for chunk, vector in zip(batch, vectors)})
+            self.store.update_embeddings({chunk.id: vector for chunk, vector in zip(batch, vectors)},
+                                         model=self.embedding_model)
             completed += len(batch)
             if progress:
                 progress(completed, total)

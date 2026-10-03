@@ -39,7 +39,20 @@ KLEIN = Workflow(
                    'GetImageSize', 'VAEEncode', 'ReferenceLatent'), BUILTIN),
     frozenset({'0.35.0'}), max_references=1,
     # From ComfyUI's bundled "Image Edit (Flux.2 Klein 9B Distilled)" template.
-    defaults={'width': 1024, 'height': 1024, 'steps': 4, 'cfg': 1.0, 'sampler': 'euler', 'megapixels': 1.0})
+    defaults={'width': 1024, 'height': 1024, 'steps': 4, 'cfg': 1.0, 'sampler': 'euler', 'megapixels': 1.0,
+              'upscale_method': 'lanczos'})
+
+# The distributable REIMAGINE path (Apache-2.0). ComfyUI 0.35.0's bundled "Image Edit
+# (Flux.2 Klein 4B Distilled)" template uses the same node graph as KLEIN with these three
+# files (installed by setup from runtime_manifest entry flux2-klein-4b) and nearest-exact
+# reference scaling. It stays unrouted until a real local run passes on 0.35.0.
+KLEIN4 = Workflow(
+    'flux2-klein-4b', 'image', 'FLUX.2 Klein', frozenset({'generate', 'edit'}),
+    {('UNETLoader', 'unet_name'): 'flux-2-klein-4b-fp8.safetensors',
+     ('CLIPLoader', 'clip_name'): 'qwen_3_4b.safetensors',
+     ('VAELoader', 'vae_name'): 'flux2-vae.safetensors'},
+    dict(KLEIN.nodes), validated=frozenset(), max_references=1,
+    defaults={**KLEIN.defaults, 'upscale_method': 'nearest-exact'})
 
 QWEN = Workflow(
     'qwen-image-2.1', 'image', 'Qwen-Image', frozenset({'generate', 'edit', 'text'}),
@@ -91,16 +104,17 @@ LTX_I2V = Workflow(
     'ltx-2.3-i2av', 'video', 'LTX', frozenset({'animate'}), dict(LTX.files),
     {**LTX.nodes, 'LoadImage': BUILTIN}, frozenset({'0.35.0'}), max_references=1, defaults=dict(LTX.defaults))
 
-IMAGE_WORKFLOWS = (QWEN, KLEIN, SDXL)
+IMAGE_WORKFLOWS = (QWEN, KLEIN, KLEIN4, SDXL)
 VIDEO_WORKFLOWS = (LTX, LTX_I2V)
 WORKFLOWS = {w.key: w for w in IMAGE_WORKFLOWS + VIDEO_WORKFLOWS}
 
 # Preference order per request shape. SDXL is compatibility only: it is never
 # an instruction editor and never outranks a validated newer engine.
+# An existing (user-supplied) klein 9B outranks the distributable 4B.
 ROUTES = {
-    'edit': ('qwen-image-2.1', 'flux2-klein-9b'),
-    'text': ('qwen-image-2.1', 'flux2-klein-9b', 'sdxl-base'),
-    'generate': ('flux2-klein-9b', 'qwen-image-2.1', 'sdxl-base'),
+    'edit': ('qwen-image-2.1', 'flux2-klein-9b', 'flux2-klein-4b'),
+    'text': ('qwen-image-2.1', 'flux2-klein-9b', 'flux2-klein-4b', 'sdxl-base'),
+    'generate': ('flux2-klein-9b', 'flux2-klein-4b', 'qwen-image-2.1', 'sdxl-base'),
 }
 TEXT_RENDERING = re.compile(
     r'''(?:\b(?:that|which) (?:says|reads)\b|\bwith (?:the )?(?:text|words?|title|caption|headline|slogan)\b|'''
@@ -155,7 +169,7 @@ def ltx_frames(length):
 
 
 def image_graph(workflow, prompt, seed, prefix, reference=None):
-    if workflow.key == 'flux2-klein-9b':
+    if workflow.key in ('flux2-klein-9b', 'flux2-klein-4b'):
         d = workflow.defaults
         g = {
             'unet': {'class_type': 'UNETLoader', 'inputs': {'unet_name': workflow.files[('UNETLoader', 'unet_name')], 'weight_dtype': 'default'}},
@@ -174,7 +188,7 @@ def image_graph(workflow, prompt, seed, prefix, reference=None):
         }
         if reference:
             g['reference'] = {'class_type': 'LoadImage', 'inputs': {'image': reference}}
-            g['scaled'] = {'class_type': 'ImageScaleToTotalPixels', 'inputs': {'image': ['reference', 0], 'upscale_method': 'lanczos', 'megapixels': d['megapixels'], 'resolution_steps': 16}}
+            g['scaled'] = {'class_type': 'ImageScaleToTotalPixels', 'inputs': {'image': ['reference', 0], 'upscale_method': d['upscale_method'], 'megapixels': d['megapixels'], 'resolution_steps': 16}}
             g['size'] = {'class_type': 'GetImageSize', 'inputs': {'image': ['scaled', 0]}}
             g['encoded'] = {'class_type': 'VAEEncode', 'inputs': {'pixels': ['scaled', 0], 'vae': ['vae', 0]}}
             g['positive_ref'] = {'class_type': 'ReferenceLatent', 'inputs': {'conditioning': ['positive', 0], 'latent': ['encoded', 0]}}

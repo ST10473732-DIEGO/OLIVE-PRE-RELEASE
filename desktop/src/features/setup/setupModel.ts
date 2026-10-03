@@ -74,6 +74,8 @@ export interface PublicEntry {
   provides: string;
   version: string | null;
   installable: boolean;
+  /** unidentified | license_identified | engineering_reviewed | release_approved (owner gate). */
+  release_state?: "unidentified" | "license_identified" | "engineering_reviewed" | "release_approved";
   validated: boolean;
   download_bytes: number;
   installed_bytes: number;

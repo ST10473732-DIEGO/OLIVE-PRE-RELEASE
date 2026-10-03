@@ -30,6 +30,7 @@ desktop/backend-artifact.staging/
 desktop/backend-artifact.previous/
 # Verified python-build-standalone downloads (packaging/backend/build_backend.py)
 packaging/backend/.cache/
+packaging/creator/.cache/
 # Local evidence captures (screenshots, videos, acceptance runs) never belong in Git.
 artifacts/
 

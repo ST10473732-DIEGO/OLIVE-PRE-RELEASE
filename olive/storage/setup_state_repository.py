@@ -41,6 +41,12 @@ def _clean_installed(value) -> dict:
                        if k in {'kind', 'version', 'path', 'sha256', 'digest', 'model', 'installed_at', 'installed_by_olive',
                                 'runtime'}
                        and isinstance(v, (str, int, float, bool))}
+        # Model sets (kind "file") record each placed file; additive, older readers ignore it.
+        files = record.get('files')
+        if isinstance(files, list):
+            result[key]['files'] = [{'path': f['path'], 'sha256': f['sha256'], 'size_bytes': f['size_bytes']}
+                                    for f in files[:64] if isinstance(f, dict) and isinstance(f.get('path'), str)
+                                    and isinstance(f.get('sha256'), str) and type(f.get('size_bytes')) is int]
     return result
 
 

@@ -72,3 +72,24 @@ export function sandboxPolicy(options: { platform: string; noSandboxSwitch: bool
   if (options.env[UNSAFE_NO_SANDBOX_VARIABLE] === "1") return { allowed: true, developerOverride: true };
   return { allowed: false, developerOverride: false, title: SANDBOX_UNAVAILABLE_TITLE, message: SANDBOX_UNAVAILABLE_MESSAGE };
 }
+
+/** Exit status when OLIVE refuses to run without the Chromium sandbox (EX_CONFIG). */
+export const SANDBOX_REFUSED_EXIT_CODE = 78;
+
+/**
+ * Apply a sandbox policy before anything else starts. A refusal logs, shows the modal error
+ * (which blocks until the person dismisses it) and only then exits with 78; true means stop.
+ */
+export function enforceSandboxPolicy(
+  policy: ReturnType<typeof sandboxPolicy>,
+  effects: { showError(title: string, message: string): void; exit(code: number): void; error(text: string): void; warn(text: string): void },
+): boolean {
+  if (!policy.allowed) {
+    effects.error(`${policy.title}\n${policy.message}`);
+    effects.showError(policy.title ?? "", policy.message ?? "");
+    effects.exit(SANDBOX_REFUSED_EXIT_CODE);
+    return true;
+  }
+  if (policy.developerOverride) effects.warn(`${UNSAFE_NO_SANDBOX_VARIABLE}=1: running WITHOUT the Chromium sandbox (developer only).`);
+  return false;
+}

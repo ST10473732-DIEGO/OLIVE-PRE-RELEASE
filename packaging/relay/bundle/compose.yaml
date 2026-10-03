@@ -1,0 +1,48 @@
+# OLIVE Connect World: relay + automatic HTTPS (Caddy, Let's Encrypt) on one small server.
+#   cp relay.env.example relay.env        # set OLIVE_WORLD_DOMAIN
+#   docker compose --env-file relay.env up -d
+# By default the relay image is built from this bundle (no OLIVE source checkout needed).
+# When OLIVE publishes a signed image, set OLIVE_WORLD_RELAY_IMAGE in relay.env to its exact
+# digest (name@sha256:...) and run with --no-build. NOTHING IS PUBLISHED YET (OLIVE 1.0 RC).
+name: olive-world
+services:
+  relay:
+    build:
+      context: .
+    image: ${OLIVE_WORLD_RELAY_IMAGE:-olive-world-relay:1.0.0}
+    restart: unless-stopped
+    env_file: relay.env
+    expose: ["8765"]                 # Not published: only Caddy reaches it.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 128
+    networks:
+      world:
+        ipv4_address: 172.30.57.3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [relay]
+    ports: ["80:80", "443:443"]
+    environment:
+      OLIVE_WORLD_DOMAIN: ${OLIVE_WORLD_DOMAIN:?set OLIVE_WORLD_DOMAIN in relay.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      world:
+        ipv4_address: 172.30.57.2
+networks:
+  world:
+    ipam:
+      config:
+        - subnet: 172.30.57.0/24
+volumes:
+  caddy_data: {}
+  caddy_config: {}

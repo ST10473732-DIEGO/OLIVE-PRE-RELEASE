@@ -62,6 +62,30 @@ are still being prepared on `release/olive-1.0`.
   bundled Python distribution and CPython, also copied to `resources/legal/`.
 - A draft end-user licence for official builds (`docs/legal/EULA-DRAFT.md`), marked
   for owner and legal review; it is not in force or shipped.
+- **Release gate:** the runtime manifest (schema 3) separates *licence identified*,
+  *engineering reviewed* and *release approved*. Setup offers a component only when the
+  owner has approved its exact pins in `olive/runtime_manifest/release-approvals-1.0.0.json`;
+  a changed pin voids the approval. No component is approved yet, so this build's setup offers
+  nothing to download until the owner records approvals (`packaging/release/release_gate.py`).
+- **Creator distribution groundwork:** reproducible, hash-locked ComfyUI runtime definitions
+  for the image and video engines (`packaging/creator/`, built only in private CI, not yet
+  published); FLUX.2 [klein] 4B (Apache-2.0) as the distributable REIMAGINE model, pinned by
+  revision and SHA-256 (not yet validated in a real run, so it is not routed yet); an existing
+  FLUX.2 [klein] 9B, community LTX set or VoiceStudio keeps working.
+- Setup installs multi-file models (each file verified and renamed into place, never over an
+  existing file) and checks free space per filesystem, so runtimes or models on another volume
+  or bind mount are planned correctly.
+- **Connect World relay release bundle:** `packaging/relay/build_relay.py` builds a standalone,
+  deterministic `olive-world-relay-1.0.0.tar.gz` (relay only, no source checkout needed, no
+  secrets). Not published yet; the beginner guide describes it.
+- **Release CI (build only):** `.github/workflows/release-build.yml` builds unsigned desktop
+  packages for Linux, Windows and macOS, the relay bundle and image, optional Creator
+  runtimes and SHA256SUMS as private artefacts. It never publishes or signs.
+- Packaged notices now include every runtime npm package's licence texts (with the fonts'
+  OFL), Electron/Chromium notices in `resources/legal/`, and the licences of the libraries
+  compiled into the bundled CPython.
+- `packaging/release/check_ollama_pins.py` reports Ollama registry digest drift for review
+  without ever changing a pin.
 
 ### Changed
 
@@ -78,6 +102,16 @@ are still being prepared on `release/olive-1.0`.
   `docs/archive/`.
 - Windows-only features now say which platform they are unavailable on, instead
   of always naming Linux.
+- Document vectors now record the embedding model that made them (`rag.sqlite3` schema 3,
+  an added nullable column). Vectors from another model are no longer compared with the
+  current model's queries; the index upgrade re-embeds them. Existing vectors are left
+  exactly as they were.
+- OLIVE Connect no longer offers loopback as a pairing network in Devices or setup (it
+  cannot reach an iPhone). Developers can list it with `OLIVE_CONNECT_DEVELOPER_LOOPBACK=1`.
+- Setup verification no longer blocks on Creator or Complete parts only you can install
+  (such as VoiceStudio); Core still does.
+- The Linux sandbox refusal is a tested function: the error dialog is shown first, and OLIVE
+  exits with status 78 only after it is dismissed.
 - New profiles no longer default the preferred name to the developer's name. It
   stays empty until you set it. Profiles that already store a name keep it.
 - `run_olive.sh` no longer exports runtime paths; the backend discovers them, as a

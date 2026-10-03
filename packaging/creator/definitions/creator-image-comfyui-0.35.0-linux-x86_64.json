@@ -1,0 +1,16 @@
+{
+  "schema": "olive-creator-runtime/1",
+  "id": "creator-image-comfyui-0.35.0-linux-x86_64",
+  "version": "1.0.0+comfyui.0.35.0.torch.2.14.0.cu130",
+  "target": "linux-x86_64",
+  "role": "image",
+  "note": "The REIMAGINE engine: ComfyUI only, no custom nodes. Wheel set = the validated reference image environment (pins/comfyui-0.35.0-image.txt). Interpreter = the backend's pinned python-build-standalone 3.14.8 (the reference venv runs system CPython 3.14.7).",
+  "comfyui": {"repository": "https://github.com/Comfy-Org/ComfyUI.git", "tag": "v0.35.0",
+              "commit": "40c4fcdf513a4523e39d54a9d391908af8df8171", "licence": "GPL-3.0-only"},
+  "custom_nodes": [],
+  "pins": "pins/comfyui-0.35.0-image.txt",
+  "lock": "locks/creator-image-comfyui-0.35.0-linux-x86_64.txt",
+  "layout": {"comfyui": "ComfyUI", "python": "python"},
+  "destination": "runtime/comfy",
+  "register": {"runtime": "comfy", "paths": {"root": "ComfyUI", "python": "python/bin/python3"}}
+}

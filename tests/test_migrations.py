@@ -13,7 +13,7 @@ class MigrationTests(unittest.TestCase):
             first = RAGStore(path)
             first.upsert_document("doc", "chat", "old.txt", "text", None, None)
             second = RAGStore(path)
-            self.assertEqual(second.schema_version(), 2)
+            self.assertEqual(second.schema_version(), 3)  # 3: vectors record their embedding model.
             self.assertEqual(second.document_stats("chat")[0]["name"], "old.txt")
             self.assertTrue(second.integrity_check()["ok"])
 

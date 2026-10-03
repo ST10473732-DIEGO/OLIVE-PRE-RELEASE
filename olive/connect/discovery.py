@@ -1,6 +1,7 @@
 """Untrusted DNS-SD directory. No discovery value can write a pairing record."""
 from dataclasses import dataclass
 import ipaddress
+import os
 import socket
 import threading
 import time
@@ -52,6 +53,18 @@ def interfaces():
             network = ipaddress.ip_network(f'{ip}/{bits.count("1")}', strict=False)
             result.append(Interface(name, str(ip), str(network)))
     return result
+
+
+DEVELOPER_LOOPBACK = 'OLIVE_CONNECT_DEVELOPER_LOOPBACK'
+
+
+def pairing_interfaces(environ=None):
+    """The networks Devices and first-run setup offer for pairing. Loopback cannot reach an
+    iPhone, so it is not a normal choice; it stays available to tests and developer tooling
+    (enable_network still accepts it) and is listed only when the developer variable is 1."""
+    environ = os.environ if environ is None else environ
+    developer = environ.get(DEVELOPER_LOOPBACK) == '1'
+    return [i for i in interfaces() if developer or not ipaddress.ip_address(i.address).is_loopback]
 
 
 class LocalDiscovery:

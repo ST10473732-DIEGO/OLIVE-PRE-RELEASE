@@ -1,4 +1,5 @@
-"""runtime_manifest/1.0.0.json: real, verified entries only; everything else disabled with a reason."""
+"""runtime_manifest/1.0.0.json: real, verified entries only; everything else disabled with a reason.
+Nothing is offered without an owner release approval bound to the entry's exact pins."""
 import copy
 import importlib.util
 import json
@@ -19,23 +20,101 @@ class RuntimeManifestTests(unittest.TestCase):
     def by_id(self, identifier, manifest=None):
         return next(e for e in (manifest or self.manifest)['entries'] if e['id'] == identifier)
 
+    def approved(self, *ids, manifest=None):
+        """A copy of the manifest with owner approvals for ids, as the approvals file would record them."""
+        manifest = copy.deepcopy(manifest or self.manifest)
+        manifest['_approvals'] = {i: {'id': i, 'fingerprint': runtime_manifest.fingerprint(self.by_id(i, manifest)),
+                                      'scope': 'public-release', 'approved_by': 'test', 'date': '2026-10-03',
+                                      'product_version': manifest['product_version']} for i in ids}
+        return manifest
+
+    def engineering_ready(self, target):
+        return {e['id'] for e in self.manifest['entries']
+                if e['enabled'] and target in e['platforms'] and runtime_manifest.complete(e, target)}
+
     def test_installable_entries_per_platform(self):
         models = {'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b', 'qwen3-embedding-0.6b', 'qwen3-vl-8b', 'qwen3-coder-30b',
                   'playwright-1.63.0'}
-        self.assertEqual({e['id'] for e in runtime_manifest.installable('linux-x86_64', environ={})},
-                         models | {'ollama-0.34.2-linux-x86_64'})
-        self.assertEqual({e['id'] for e in runtime_manifest.installable('windows-x86_64', environ={})},
-                         models | {'ollama-0.34.2-windows-x86_64'})
+        creator = {'flux2-klein-4b'}
+        self.assertEqual(self.engineering_ready('linux-x86_64'), models | creator | {'ollama-0.34.2-linux-x86_64'})
+        self.assertEqual(self.engineering_ready('windows-x86_64'), models | creator | {'ollama-0.34.2-windows-x86_64'})
         # macOS: no bundled Ollama until validated on a Mac; the official app is used instead.
-        self.assertEqual({e['id'] for e in runtime_manifest.installable('macos-arm64', environ={})}, models)
+        self.assertEqual(self.engineering_ready('macos-arm64'), models)
         self.assertEqual(self.by_id('ollama-macos-app')['kind'], 'external')
+        # The shipped build records no owner release approval yet, so setup offers nothing.
+        for target in runtime_manifest.TARGETS:
+            self.assertEqual(runtime_manifest.installable(target, environ={}), [], target)
+        everything = self.approved(*self.engineering_ready('linux-x86_64'))
+        self.assertEqual({e['id'] for e in runtime_manifest.installable('linux-x86_64', manifest=everything)},
+                         self.engineering_ready('linux-x86_64'))
+
+    def test_engineering_evidence_alone_never_enters_an_install_plan(self):
+        entry = self.by_id('qwen3-8b')
+        self.assertTrue(entry['licence']['identified'] and entry['licence']['engineering_reviewed'])
+        self.assertEqual(runtime_manifest.release_state(entry, self.manifest), 'engineering_reviewed')
+        self.assertFalse(runtime_manifest.offerable(entry, 'linux-x86_64', self.manifest))
+        self.assertNotIn('qwen3-8b', {e['id'] for e in runtime_manifest.installable('linux-x86_64', manifest=self.manifest)})
+        public = runtime_manifest.public_entry(entry, 'linux-x86_64', manifest=self.manifest)
+        self.assertFalse(public['installable'])
+        self.assertEqual(public['release_state'], 'engineering_reviewed')
+        self.assertEqual(public['reason'], runtime_manifest.AWAITING_APPROVAL)
+        approved = self.approved('qwen3-8b')
+        self.assertEqual(runtime_manifest.release_state(self.by_id('qwen3-8b', approved), approved), 'release_approved')
+        self.assertTrue(runtime_manifest.offerable(self.by_id('qwen3-8b', approved), 'linux-x86_64', approved))
+
+    def test_an_approval_is_bound_to_the_exact_pins(self):
+        approved = self.approved('qwen3-8b', 'flux2-klein-4b')
+        changed = copy.deepcopy(approved)
+        self.by_id('qwen3-8b', changed)['ollama']['manifest_digest'] = 'f' * 64
+        self.by_id('flux2-klein-4b', changed)['files']['any'][0]['sha256'] = 'e' * 64
+        for identifier in ('qwen3-8b', 'flux2-klein-4b'):
+            self.assertFalse(runtime_manifest.offerable(self.by_id(identifier, changed), 'linux-x86_64', changed), identifier)
+            self.assertEqual(runtime_manifest.release_state(self.by_id(identifier, changed), changed), 'engineering_reviewed')
+        relicensed = copy.deepcopy(approved)
+        self.by_id('qwen3-8b', relicensed)['licence']['spdx'] = 'LicenseRef-Other'
+        self.assertFalse(runtime_manifest.release_approved(self.by_id('qwen3-8b', relicensed), relicensed))
+        other_release = copy.deepcopy(approved)
+        other_release['_approvals']['qwen3-8b']['product_version'] = '1.0.1'
+        self.assertFalse(runtime_manifest.release_approved(self.by_id('qwen3-8b', other_release), other_release))
+
+    def test_an_approval_never_bypasses_missing_evidence(self):
+        for identifier in ('comfyui-0.35.0-image-linux', 'ltx-2.3-video', 'max-qwen3.8-27b-uncensored', 'omnivoice'):
+            approved = self.approved(identifier)
+            entry = self.by_id(identifier, approved)
+            self.assertFalse(runtime_manifest.offerable(entry, 'linux-x86_64', approved), identifier)
+        unreviewed = self.approved('qwen3-8b')
+        self.by_id('qwen3-8b', unreviewed)['licence']['engineering_reviewed'] = False
+        self.assertFalse(runtime_manifest.offerable(self.by_id('qwen3-8b', unreviewed), 'linux-x86_64', unreviewed))
+        self.assertTrue(runtime_manifest.validate(unreviewed))  # Enabled without engineering review is invalid.
+        unidentified = copy.deepcopy(self.manifest)
+        self.by_id('qwen3-8b', unidentified)['licence']['identified'] = False
+        self.assertIn('qwen3-8b is engineering-reviewed without an identified licence', runtime_manifest.validate(unidentified))
+        self.assertEqual(runtime_manifest.release_state(self.by_id('qwen3-8b', unidentified)), 'unidentified')
+
+    def test_approvals_live_outside_the_manifest(self):
+        approvals = json.loads(runtime_manifest.approvals_path('1.0.0').read_text())
+        self.assertEqual(runtime_manifest.validate_approvals(approvals), [])
+        self.assertEqual(approvals['approvals'], [])  # No owner approval has been recorded yet.
+        self.assertEqual(self.manifest['_approvals'], {})
+        raw = json.loads((runtime_manifest.DIRECTORY / '1.0.0.json').read_text())
+        raw['release_approvals'] = []
+        self.assertTrue(runtime_manifest.validate(raw, release=True))
+        self.assertIn('only fixture manifests may carry inline release approvals', runtime_manifest.validate(raw))
+        ambiguous = copy.deepcopy(raw)
+        del ambiguous['release_approvals']
+        ambiguous['entries'][0]['licence']['reviewed'] = True
+        self.assertTrue(any('ambiguous licence flag' in p for p in runtime_manifest.validate(ambiguous)))
+        bad = {'schema': runtime_manifest.APPROVALS_SCHEMA, 'approvals': [{'id': 'qwen3-8b', 'fingerprint': 'x'}]}
+        self.assertTrue(runtime_manifest.validate_approvals(bad))
 
     def test_every_enabled_entry_is_https_pinned_and_licence_reviewed(self):
         for entry in self.manifest['entries']:
+            self.assertNotIn('reviewed', entry['licence'], entry['id'])
             if not entry['enabled']:
                 self.assertTrue(entry['reason'], entry['id'])
                 continue
-            self.assertTrue(entry['licence']['reviewed'] and entry['licence']['spdx'], entry['id'])
+            licence = entry['licence']
+            self.assertTrue(licence['identified'] and licence['engineering_reviewed'] and licence['spdx'], entry['id'])
             self.assertFalse(entry['licence']['acceptance_required'], entry['id'])
             for target in entry['platforms']:
                 for item in runtime_manifest.files_for(entry, target):
@@ -75,8 +154,45 @@ class RuntimeManifestTests(unittest.TestCase):
         for slot in ('image-engine', 'video-engine', 'audio-engine', 'image-model', 'video-model', 'audio-model',
                      'video-gguf-loader', 'ffmpeg', 'model-max', 'model-uncensored'):
             for entry in runtime_manifest.providers(self.manifest, slot, None):
+                if entry['id'] == 'flux2-klein-4b':
+                    continue  # The one Creator model with complete evidence (still unapproved).
                 self.assertFalse(entry['enabled'], entry['id'])
                 self.assertTrue(entry['reason'], entry['id'])
+        # No engine is installable, so no Creator feature can be offered even with every approval.
+        everything = self.approved(*self.engineering_ready('linux-x86_64'))
+        for slot in ('image-engine', 'video-engine', 'audio-engine'):
+            self.assertFalse([e for e in runtime_manifest.providers(everything, slot, 'linux-x86_64')
+                              if runtime_manifest.offerable(e, 'linux-x86_64', everything)], slot)
+
+    def test_distributable_image_path_is_flux2_klein_4b(self):
+        from olive.services.media_workflows import WORKFLOWS
+        entry = self.by_id('flux2-klein-4b')
+        self.assertEqual(entry['licence']['spdx'], 'Apache-2.0')
+        self.assertFalse(entry['licence']['acceptance_required'])
+        files = entry['files']['any']
+        self.assertEqual(sum(f['size_bytes'] for f in files), entry['install']['installed_bytes'])
+        for item in files:
+            self.assertRegex(item['url'], r'^https://huggingface\.co/[^/]+/[^/]+/resolve/[0-9a-f]{40}/')
+            self.assertTrue(runtime_manifest.url_allowed(item['url'], entry['source']['hosts']))
+        workflow = WORKFLOWS['flux2-klein-4b']
+        # Each file lands in the ComfyUI folder its loader searches, under the exact name the workflow names.
+        self.assertEqual({f['path'] for f in files}, {'diffusion_models/' + workflow.files[('UNETLoader', 'unet_name')],
+                                                       'text_encoders/' + workflow.files[('CLIPLoader', 'clip_name')],
+                                                       'vae/' + workflow.files[('VAELoader', 'vae_name')]})
+        self.assertEqual(self.by_id('flux2-klein-9b')['licence']['distribution'], 'user-supplied')
+        self.assertFalse(self.by_id('flux2-klein-9b')['enabled'])
+
+    def test_non_commercial_and_community_creator_files_are_never_offered(self):
+        for identifier in ('flux2-klein-9b', 'ltx-2.3-video', 'omnivoice', 'voicestudio'):
+            entry = self.by_id(identifier)
+            approved = self.approved(identifier)
+            self.assertFalse(runtime_manifest.offerable(self.by_id(identifier, approved), 'linux-x86_64', approved), identifier)
+            self.assertTrue(entry['reason'], identifier)
+        self.assertIn('CC-BY-NC', self.by_id('omnivoice')['licence']['spdx'])
+        self.assertEqual(self.by_id('voicestudio')['kind'], 'external')
+        official = self.by_id('ltx-2.3-official-fp8')
+        self.assertTrue(official['licence']['acceptance_required'])
+        self.assertNotIn('abliterated', json.dumps(official['files']))
 
     def test_private_and_excluded_models_never_enter_a_profile(self):
         text = json.dumps([e for e in self.manifest['entries'] if e['enabled']])
@@ -88,7 +204,8 @@ class RuntimeManifestTests(unittest.TestCase):
         self.assertIn('qwen3-8b names a private olive-* Ollama tag', runtime_manifest.validate(bad))
 
     def test_enabling_an_unresolved_entry_is_rejected(self):
-        for identifier in ('sdxl-base-1.0', 'flux2-klein-9b', 'voicestudio', 'max-qwen3.8-27b-uncensored'):
+        for identifier in ('flux2-klein-9b', 'voicestudio', 'max-qwen3.8-27b-uncensored', 'comfyui-0.35.0-image-linux',
+                           'ltx-2.3-video'):
             broken = copy.deepcopy(self.manifest)
             self.by_id(identifier, broken)['enabled'] = True
             self.assertTrue(runtime_manifest.validate(broken), identifier)
@@ -130,7 +247,9 @@ class RuntimeManifestTests(unittest.TestCase):
 
     def test_windows_runtime_is_installable_but_not_claimed_validated(self):
         self.assertEqual(self.by_id('ollama-0.34.2-windows-x86_64')['validated_platforms'], [])
-        public = runtime_manifest.public_entry(self.by_id('ollama-0.34.2-windows-x86_64'), 'windows-x86_64')
+        approved = self.approved('ollama-0.34.2-windows-x86_64')
+        public = runtime_manifest.public_entry(self.by_id('ollama-0.34.2-windows-x86_64', approved), 'windows-x86_64',
+                                               manifest=approved)
         self.assertTrue(public['installable'])
         self.assertFalse(public['validated'])
 
@@ -138,11 +257,14 @@ class RuntimeManifestTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('install_approved_media', ROOT / 'scripts/install_approved_media.py')
         media = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(media)
-        recorded = {url: (size, sha) for _, size, sha, url in media.ARTIFACTS.values()}
+        recorded = {name: (size, sha) for name, size, sha, _ in media.ARTIFACTS.values()}
+        compared = 0
         for entry in self.manifest['entries']:
-            url = entry['source'].get('url')
-            if url in recorded:
-                self.assertEqual((entry['size_bytes'], entry['sha256']), recorded[url], entry['id'])
+            name = (entry['source'].get('url') or '').rsplit('/', 1)[-1]
+            if name in recorded and entry.get('sha256'):
+                self.assertEqual((entry['size_bytes'], entry['sha256']), recorded[name], entry['id'])
+                compared += 1
+        self.assertEqual(compared, 2)
 
     def test_platform_targets(self):
         self.assertEqual(runtime_manifest.platform_target('linux', 'x86_64'), 'linux-x86_64')

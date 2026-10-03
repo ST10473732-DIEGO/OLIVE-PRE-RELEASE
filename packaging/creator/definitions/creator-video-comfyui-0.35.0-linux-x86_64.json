@@ -1,0 +1,19 @@
+{
+  "schema": "olive-creator-runtime/1",
+  "id": "creator-video-comfyui-0.35.0-linux-x86_64",
+  "version": "1.0.0+comfyui.0.35.0.torch.2.14.0.cu130.gguf-loader.ba92ceb",
+  "target": "linux-x86_64",
+  "role": "video",
+  "note": "The VIDEO engine, kept isolated from the image engine as on the reference machine: ComfyUI plus the reviewed ComfyUI-GGUF-Loader node the validated LTX 2.3 workflow uses. Wheel set = the validated reference video environment (image set plus gguf and protobuf).",
+  "comfyui": {"repository": "https://github.com/Comfy-Org/ComfyUI.git", "tag": "v0.35.0",
+              "commit": "40c4fcdf513a4523e39d54a9d391908af8df8171", "licence": "GPL-3.0-only"},
+  "custom_nodes": [
+    {"name": "ComfyUI-GGUF-Loader", "repository": "https://github.com/ChrisColeTech/ComfyUI-GGUF-Loader.git",
+     "commit": "ba92ceb82615cb9c0f8023b5505d8ae4a44b7f27", "licence": "Apache-2.0 AND MIT"}
+  ],
+  "pins": "pins/comfyui-0.35.0-video.txt",
+  "lock": "locks/creator-video-comfyui-0.35.0-linux-x86_64.txt",
+  "layout": {"comfyui": "ComfyUI", "python": "python"},
+  "destination": "runtime/video-comfy",
+  "register": {"runtime": "video_comfy", "paths": {"root": "ComfyUI", "python": "python/bin/python3"}}
+}

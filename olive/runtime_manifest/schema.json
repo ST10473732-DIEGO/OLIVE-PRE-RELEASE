@@ -1,16 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "olive-runtime-manifest/2",
+  "$id": "olive-runtime-manifest/3",
   "title": "OLIVE runtime and model manifest",
-  "description": "What OLIVE first-run setup may download. An entry is installable only when enabled is true AND its HTTPS source on a listed host, SHA-256 (or Ollama registry manifest digest), size, destination and reviewed licence are recorded; olive.services.runtime_manifest enforces this and more (safe destinations, private-tag refusal, features naming provided slots). Disabled entries must give a reason.",
+  "description": "What OLIVE first-run setup may download. Setup offers an entry only when (1) its licence is identified, (2) release engineering reviewed its HTTPS source on a listed host, SHA-256 (or Ollama registry manifest digest), size, destination and licence (enabled entries must have both), and (3) the owner approved its exact pins in release-approvals-<version>.json. olive.services.runtime_manifest enforces this and more (safe destinations, private-tag refusal, features naming provided slots, no ambiguous 'reviewed' flag). Disabled entries must give a reason.",
   "type": "object",
   "required": ["schema", "manifest_version", "product_version", "profiles", "features", "entries", "not_distributable"],
   "properties": {
-    "schema": {"const": "olive-runtime-manifest/2"},
+    "schema": {"const": "olive-runtime-manifest/3"},
     "manifest_version": {"type": "string"},
     "product_version": {"type": "string"},
     "recorded": {"type": "string"},
     "fixture": {"type": "boolean", "description": "Test manifests only; enables loopback http:// with OLIVE_INSTALLER_ALLOW_LOOPBACK_HTTP=1."},
+    "release_approvals": {"type": "array", "description": "Fixture manifests only: inline approvals in the olive-release-approvals/1 record format."},
     "profiles": {
       "type": "object",
       "required": ["core", "creator", "complete"],
@@ -42,9 +43,9 @@
           "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
           "size_bytes": {"type": ["integer", "null"]},
           "ollama": {"type": ["object", "null"], "properties": {"model": {"type": "string"}, "manifest_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
-          "files": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["name", "url", "sha256", "size_bytes"]}}},
+          "files": {"type": "object", "description": "python-wheels: wheels per target. file: model files per target or under \"any\"; each may name a relative path under the destination.", "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["name", "url", "sha256", "size_bytes"], "properties": {"path": {"type": "string"}}}}},
           "install": {"type": "object", "properties": {"destination": {"type": ["string", "null"]}, "format": {"type": ["string", "null"]}, "installed_bytes": {"type": "integer"}, "executables": {"type": "array", "items": {"type": "string"}}, "register": {"type": "object"}}},
-          "licence": {"type": "object", "properties": {"spdx": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}, "url": {"type": ["string", "null"]}, "evidence": {"type": "string"}, "acceptance_required": {"type": "boolean"}, "distribution": {"type": "string"}, "attribution": {"type": "string"}, "reviewed": {"type": "boolean"}}},
+          "licence": {"type": "object", "properties": {"spdx": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}, "url": {"type": ["string", "null"]}, "evidence": {"type": "string"}, "acceptance_required": {"type": "boolean"}, "distribution": {"type": "string"}, "attribution": {"type": "string"}, "identified": {"type": "boolean", "description": "A licence and provenance source was located."}, "engineering_reviewed": {"type": "boolean", "description": "Release engineering verified source, integrity and licence metadata. Not release approval, not legal review."}}, "required": ["identified", "engineering_reviewed"]},
           "reason": {"type": ["string", "null"]}
         }
       }

@@ -8,16 +8,56 @@ environment variables or hand-made folders.
 | Piece | Where | Role |
 | --- | --- | --- |
 | Runtime manifest | `olive/runtime_manifest/1.0.0.json`, schema `schema.json` | The only list of what setup may install, with source, integrity, size, destination, licence and the evidence for each value. Features name the component slots they need; profiles are derived from features |
-| Manifest API | `olive/services/runtime_manifest.py` | Validation and the "installable" rule; platform targets |
+| Release approvals | `olive/runtime_manifest/release-approvals-1.0.0.json` | **Owner-controlled.** Which entries the owner allowed into the public release, each bound to the entry's release fingerprint. Empty until the owner decides |
+| Manifest API | `olive/services/runtime_manifest.py` | Validation, the three-gate "offerable" rule (below), fingerprints; platform targets |
+| Release tools | `packaging/release/release_gate.py`, `packaging/release/check_ollama_pins.py` | Show each entry's gate state and print (never write) a candidate approval; report registry digest drift (never rewrite pins) |
 | Downloader | `olive/services/secure_download.py` | HTTPS to manifest hosts (every redirect hop too), pinned size ceiling, SHA-256, bounded resumable ranges, cancellation |
 | Archive extractor | `olive/services/safe_archive.py` | Member validation (no traversal, absolute paths, link escape, hard links, devices), size and count limits, executable-bit normalisation |
-| Installer | `olive/services/runtime_installer.py` | Plans, disk preflight per volume, jobs (progress, cancel, retry), atomic placement, Ollama pulls with digest checks, registration, uninstall |
+| Installer | `olive/services/runtime_installer.py` | Plans, disk preflight per filesystem, jobs (progress, cancel, retry), atomic placement (archives and model files), Ollama pulls with digest checks, registration, uninstall |
 | Setup state | `olive/storage/setup_state_repository.py` → `<profile>/setup.json` | Persisted state, step, package, verified features and install records. No credentials |
 | First-run service | `olive/services/first_run.py` | Reported state (including repair), name, verification |
 | System check | `olive/services/system_check.py` | OS, CPU, RAM, GPU, VRAM, free space; "Verified" only for validated combinations |
 | Optional components | `olive/services/optional_components.py` | Puts an installed component (Playwright) on the import path at start |
 | Bridge | `olive/bridge/setup_routes.py`, `desktop/electron/setup-contracts.ts` | Strict `runtime.*` contracts |
 | Wizard | `desktop/src/features/setup/` | The renderer flow; manifest-driven, names no model or file |
+
+## Release gate
+
+An entry's licence and release state moves through three separate gates:
+
+| State | Meaning | Recorded by |
+| --- | --- | --- |
+| `license_identified` | A licence and provenance source was located (`licence.identified`) | Release engineering, in the manifest |
+| `engineering_reviewed` | Source, SHA-256 or registry digest, size, safe destination and licence metadata were verified (`licence.engineering_reviewed`, plus every pinned field the validator checks) | Release engineering, in the manifest |
+| `release_approved` | The owner intentionally allowed exactly these pins into the public release | The owner, in `release-approvals-<version>.json` |
+
+Setup offers an entry only when it is enabled, its engineering evidence is complete **and** it is
+release-approved. An approval names the entry's *release fingerprint*: a SHA-256 over its pinned
+URLs, digests, sizes, destination, platforms and licence. Changing any pin voids the approval.
+An approval never makes an entry with incomplete evidence installable. The shipped manifest
+cannot carry approvals; only a test manifest marked `"fixture": true` may approve its own
+fixtures. Unapproved entries are shown as "Not yet approved for the public OLIVE release". The
+old single `reviewed` flag is rejected by the validator. None of this is legal advice or legal
+approval.
+
+`python packaging/release/release_gate.py` lists every entry's state;
+`--record <id> --by <name>` prints a candidate approval for the owner to add by hand.
+
+## Model files and storage
+
+Creator models are kind `file`: a set of pinned files (`files.any` or per platform), each with
+its own relative `path` under the destination (for example `models/comfy/diffusion_models/…`),
+so each lands in the ComfyUI folder its loader searches. A file already in place with the pinned
+SHA-256 is kept; any other existing file stops the install before anything is downloaded.
+Uninstall removes only files setup recorded that still have the recorded bytes.
+
+Runtimes, models, downloads and the profile can live on different filesystems (separate
+volumes, bind mounts, Btrfs subvolumes). The plan charges each byte to the filesystem it will
+occupy (downloads to the temp folder's, unpacked runtimes and model files to their
+destination's, Ollama models to the model store's), identifies filesystems from Linux
+`mountinfo` (bind mounts of one filesystem count once), and never uses the root filesystem's
+free space for another volume. Archives are staged beside their destination so the final
+rename never crosses a filesystem. The system check reports free space per filesystem.
 
 ## States
 
@@ -62,8 +102,11 @@ None of these is a model tool: the assistant cannot download or install anything
   or OLIVE-owned Ollama is reused.
 - **Windows:** OLIVE-owned Ollama (zip) or the official Ollama install. Not validated on Windows.
 - **macOS:** the official Ollama app or Homebrew; no bundled install until validated on a Mac.
-- **Creator** engines and models stay disabled in the manifest until their provenance, checksum
-  and licence are proven; setup says "Some components are not yet available in this build".
+- **Creator:** the image and video engines are defined as checksum-pinned runtime archives
+  built by release CI (`packaging/creator/`) but are not built or published yet, so they stay
+  disabled. FLUX.2 [klein] 4B (Apache-2.0) is the one Creator model with complete evidence and
+  awaits owner approval. VoiceStudio is installed by the person (external). Setup says "Some
+  components are not yet available in this build" and never blocks completion on Creator extras.
 
 ## Testing without downloads
 

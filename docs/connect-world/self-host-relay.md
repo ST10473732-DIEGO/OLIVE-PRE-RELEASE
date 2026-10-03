@@ -8,9 +8,11 @@ This guide assumes you have never run a server before. It takes about an hour, a
 costs a few euros a month. Every example uses the placeholder name **`world-relay.example.com`**:
 replace it with your own name everywhere.
 
-> **Before you start.** The relay files (the `world-relay/` folder plus the `olive/world` and
-> `olive/world_relay` sources it builds from) are not yet published as a separate download. Ask
-> whoever gave you OLIVE for the relay bundle, and unpack it on the server in step 7.
+> **Before you start: the relay bundle is not published yet.** OLIVE 1.0 will offer one file,
+> `olive-world-relay-1.0.0.tar.gz`, with a `.sha256` checksum next to it. It holds only the relay
+> (Python standard library, no secrets, no data), its Docker Compose and Caddy files, a systemd
+> alternative, and its licence and notices. You will not need the OLIVE source code. Until it is
+> published, ask whoever gave you OLIVE for that file; this guide uses it from step 7.
 
 ## What the relay can and cannot see
 
@@ -136,10 +138,14 @@ firewall panel, allow the same three ports there too.
 
 ## 7. Configure and start the relay
 
-Copy the relay bundle to the server and unpack it (for example to `~/olive-relay`), then:
+Copy `olive-world-relay-1.0.0.tar.gz` and `olive-world-relay-1.0.0.tar.gz.sha256` to the server
+(for example with `scp`), check the file and unpack it:
 
 ```sh
-cd ~/olive-relay/world-relay
+sha256sum -c olive-world-relay-1.0.0.tar.gz.sha256    # must print: OK
+tar xzf olive-world-relay-1.0.0.tar.gz
+mv olive-world-relay-1.0.0 ~/olive-relay
+cd ~/olive-relay
 cp relay.env.example relay.env
 nano relay.env
 ```
@@ -157,6 +163,10 @@ Start it:
 ```sh
 docker compose --env-file relay.env up -d --build
 ```
+
+The relay image is built on your server from the bundle itself (from an official Python base
+image pinned by digest). If OLIVE later publishes a ready-made relay image, its notes will give an
+exact `OLIVE_WORLD_RELAY_IMAGE=...@sha256:...` line for `relay.env`; nothing like that exists yet.
 
 This starts two containers:
 
@@ -238,10 +248,11 @@ After a minute, run the health check from step 8 again. The containers restart o
 
 ## 14. Updating
 
-When you receive a new relay bundle, replace the files and run:
+When you receive a new relay bundle, check its `.sha256`, unpack it next to the old one, copy
+your `relay.env` into the new folder and run:
 
 ```sh
-cd ~/olive-relay/world-relay
+cd ~/olive-relay        # the new folder
 docker compose --env-file relay.env up -d --build
 ```
 
@@ -272,5 +283,5 @@ addresses, device identities, route credentials or content.
 
 ## Where to learn more
 
-- `world-relay/README.md`: ports, limits, nginx or systemd instead of Docker, resource use.
+- the bundle's `README.md` (and `world-relay/README.md` in the OLIVE source): ports, limits, nginx or systemd instead of Docker, resource use.
 - `docs/connect-world/protocol.md`: the protocol and security design.

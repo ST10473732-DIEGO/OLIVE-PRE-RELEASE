@@ -1,0 +1,8 @@
+#!/bin/sh
+# Run the OLIVE Connect World relay from this bundle with the system Python (3.11 or newer).
+#   ./olive-world-relay --host 127.0.0.1 --port 8765 --dev          # local test, ws:// on loopback
+#   ./olive-world-relay --host 127.0.0.1 --port 8765 --behind-proxy --trusted-proxy 127.0.0.1
+set -eu
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE"
+exec "${PYTHON:-python3}" -E -s -m olive.world_relay "$@"

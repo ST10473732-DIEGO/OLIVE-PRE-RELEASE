@@ -14,7 +14,7 @@ class FakeMemory:
     repository = type("Repo", (), {"schema_version": lambda self: 1})()
     def list_all(self): return [1, 2]
 class FakeStore:
-    def aggregate_counts(self, chat_id): return {"documents": 1, "chunks": 4, "missing_embeddings": 1}
+    def aggregate_counts(self, chat_id, model=None): return {"documents": 1, "chunks": 4, "missing_embeddings": 1, "untagged_embeddings": 0, "other_model_embeddings": 2}
     def schema_version(self): return 2
     def integrity_check(self): return {"ok": True}
 FakeRAG.store = FakeStore()
@@ -33,6 +33,7 @@ class DiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["document_count"], 1)
         self.assertNotIn("password", result)
         self.assertEqual(result["rag_schema_version"], 2)
+        self.assertEqual(result["chunks_needing_reembedding"], 2)
         self.assertEqual(result["queued_indexing_jobs"], 1)
         self.assertEqual(result["failed_indexing_jobs"], 1)
         self.assertEqual(result["indexed_chunk_count"], 4)

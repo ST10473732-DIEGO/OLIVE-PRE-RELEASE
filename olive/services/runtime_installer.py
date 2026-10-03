@@ -6,12 +6,17 @@ cannot download or install anything through it.
 
 What it will do, and nothing else:
 
-* offer only entries runtime_manifest marks installable for this platform;
-* check free space before starting, per volume;
+* offer only entries runtime_manifest marks offerable for this platform: enabled, with
+  complete engineering evidence AND an owner release approval bound to their pins;
+* check free space before starting, per filesystem (the download folder, each install
+  destination and the Ollama model store may live on different volumes or bind mounts);
 * download through secure_download (HTTPS to manifest hosts, pinned size and SHA-256,
   resumable partials under <user data>/temp);
-* unpack through safe_archive into a private staging folder, then move it into
-  <user data>/<destination> with one rename, never over an existing folder;
+* unpack through safe_archive into a private staging folder beside the destination (so the
+  final rename never crosses a filesystem), then move it into <user data>/<destination>
+  with one rename, never over an existing folder;
+* place verified model files (kind "file") beside their destination and rename them into
+  place, never over an existing file;
 * pull Ollama models through the local Ollama API after checking that the registry
   still serves the pinned manifest digest, and check the digest again afterwards;
 * register what it installed in runtimes.json and record it in setup.json;
@@ -31,6 +36,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import threading
 import time
@@ -56,6 +62,45 @@ RUNTIME_SLOTS = {'ollama-runtime': 'ollama', 'image-engine': 'comfy', 'video-eng
                  'audio-engine': 'voicestudio'}
 ORDER = {'archive': 0, 'python-wheels': 1, 'file': 2, 'ollama-model': 3}
 FINAL = {'done', 'present', 'different_build', 'failed', 'cancelled'}
+MOUNTINFO = '/proc/self/mountinfo'
+
+
+def _unescape_mount(path: str) -> str:
+    return re.sub(r'\\([0-7]{3})', lambda m: chr(int(m.group(1), 8)), path)
+
+
+def mount_table(text: str | None = None) -> list[tuple[str, str]]:
+    """[(mount point, filesystem id)] from Linux mountinfo, longest mount point first.
+
+    The id is the mount's major:minor, which is the filesystem (superblock) device: bind
+    mounts and Btrfs subvolumes of one filesystem share it, while stat().st_dev can differ
+    per Btrfs subvolume. Empty where mountinfo is unavailable (Windows, macOS)."""
+    if text is None:
+        try:
+            text = Path(MOUNTINFO).read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            return []
+    rows = []
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) > 4:
+            rows.append((_unescape_mount(fields[4]), fields[2]))
+    return sorted(rows, key=lambda row: len(row[0]), reverse=True)
+
+
+def filesystem(path, table) -> tuple[Any, Path]:
+    """(filesystem key, nearest existing path) for where `path` lives or will live."""
+    probe = Path(path)
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent
+    real = os.path.realpath(probe)
+    for point, device in table:
+        if point == '/' or real == point or real.startswith(point.rstrip('/') + '/'):
+            return 'fs:' + device, probe
+    try:
+        return os.stat(probe).st_dev, probe
+    except OSError:
+        return str(probe), probe
 
 
 class InstallError(Exception):
@@ -124,7 +169,7 @@ class RuntimeInstaller:
                  runtime_registered: Callable[[str, Any], Awaitable[None] | None] | None = None,
                  before_uninstall: Callable[[str, Path], Awaitable[None] | None] | None = None,
                  presence: dict[str, Callable[[], bool]] | None = None,
-                 on_change: Callable[[dict], None] | None = None):
+                 on_change: Callable[[dict], None] | None = None, mounts: Callable[[], list] = mount_table):
         self.profile = Path(profile)
         self.discovery = discovery
         self.state = SetupStateRepository(self.profile)
@@ -140,6 +185,7 @@ class RuntimeInstaller:
         self.async_client_factory = async_client_factory or (
             lambda **kw: httpx.AsyncClient(**{'trust_env': False, **kw, 'follow_redirects': False, 'verify': True}))
         self.disk_usage = disk_usage
+        self.mounts = mounts
         self.ensure_ollama = ensure_ollama
         self.runtime_registered = runtime_registered
         self.before_uninstall = before_uninstall
@@ -176,7 +222,7 @@ class RuntimeInstaller:
                           'includes': value.get('includes', [])} for key, value in manifest['profiles'].items()],
             'features': [{k: f.get(k) for k in ('id', 'label', 'profile', 'requires', 'optional', 'note', 'optional_component')}
                          for f in manifest['features']],
-            'entries': [manifests.public_entry(e, target, self.loopback) for e in manifest['entries']
+            'entries': [manifests.public_entry(e, target, self.loopback, manifest) for e in manifest['entries']
                         if target is None or target in e['platforms']],
         }
 
@@ -232,14 +278,18 @@ class RuntimeInstaller:
     def _slot(self, slot, located, tags) -> dict:
         """What setup can do about one component slot on this computer."""
         target = self.target
-        candidates = manifests.providers(self.manifest(), slot, target)
-        installable = [e for e in candidates if target and e['enabled'] and manifests.complete(e, target, self.loopback)]
+        manifest = self.manifest()
+        candidates = manifests.providers(manifest, slot, target)
+        installable = [e for e in candidates if manifests.offerable(e, target, manifest, self.loopback)]
+        # Complete engineering evidence but no owner release approval: shown, never offered.
+        awaiting = [e for e in candidates if target and e['enabled'] and not manifests.release_approved(e, manifest)
+                    and manifests.complete(e, target, self.loopback)]
         external = [e for e in candidates if e['kind'] == 'external']
         offer = installable[0] if installable else None
-        result = {'slot': slot, 'entry': manifests.public_entry(offer or (candidates[0] if candidates else
-                                                                           {'id': slot, 'kind': 'external', 'name': slot,
-                                                                            'platforms': [], 'source': {}, 'licence': {}}),
-                                                                target, self.loopback),
+        shown = offer or (awaiting[0] if awaiting else None) or (candidates[0] if candidates else
+                                                                  {'id': slot, 'kind': 'external', 'name': slot,
+                                                                   'platforms': [], 'source': {}, 'licence': {}})
+        result = {'slot': slot, 'entry': manifests.public_entry(shown, target, self.loopback, manifest),
                   'action': 'unavailable', 'detail': ''}
         if slot in RUNTIME_SLOTS:
             found = located.get(RUNTIME_SLOTS[slot])
@@ -267,6 +317,10 @@ class RuntimeInstaller:
         elif slot == 'ffmpeg':
             if shutil.which('ffmpeg') and shutil.which('ffprobe'):
                 return {**result, 'action': 'present', 'detail': 'Found on this computer'}
+        for each in candidates:
+            if each['kind'] == 'file' and target in each['platforms'] and self._files_present(each):
+                return {**result, 'entry': manifests.public_entry(each, target, self.loopback, manifest),
+                        'action': 'present', 'detail': 'Model files found'}
         detector = self.presence.get(slot)
         if detector is not None:
             try:
@@ -285,6 +339,8 @@ class RuntimeInstaller:
             return {**result, 'action': 'install'}
         if external:
             return {**result, 'action': 'external', 'detail': external[0].get('reason') or ''}
+        if awaiting:
+            return {**result, 'action': 'unavailable', 'detail': manifests.AWAITING_APPROVAL}
         reasons = [e.get('reason') for e in candidates if e.get('reason')]
         return {**result, 'action': 'unavailable',
                 'detail': reasons[0] if reasons else 'Not available for this computer in this build'}
@@ -323,7 +379,13 @@ class RuntimeInstaller:
                                  'optional_component': bool(feature.get('optional_component')),
                                  'missing': [s['slot'] for s in needed if s['action'] not in ('present', 'different_build')]})
         items = [{**row, 'optional': slot in extras or slot in components} for slot, row in slots.items()]
-        default = [row['entry']['id'] for row in items if row['action'] == 'install' and row['slot'] not in components]
+        # A slot is chosen by default only when some feature that needs it can actually become
+        # ready here: a model is never downloaded for an engine this build cannot install.
+        declared = {f['id']: f for f in features}
+        usable = {s for row in feature_rows if row['state'] != 'not_in_build'
+                  for s in declared[row['id']].get('requires', []) + declared[row['id']].get('optional', [])}
+        default = [row['entry']['id'] for row in items if row['action'] == 'install' and row['slot'] not in components
+                   and row['slot'] in usable]
         offered = [row['entry']['id'] for row in items if row['action'] == 'install']
         chosen = default if selected is None else [i for i in selected if i in offered]
         return {'profile': profile, 'target': self.target, 'source': manifest.get('_source', 'release'),
@@ -338,23 +400,29 @@ class RuntimeInstaller:
         home = Path(self.home) if self.home is not None else Path.home()
         return Path(configured) if configured else home / '.ollama' / 'models'
 
-    def _volume(self, path: Path):
-        probe = path
-        while not probe.exists() and probe.parent != probe:
-            probe = probe.parent
-        try:
-            return os.stat(probe).st_dev, probe
-        except OSError:
-            return str(probe), probe
+    def _volume(self, path: Path, table=None):
+        return filesystem(path, self.mounts() if table is None else table)
+
+    @staticmethod
+    def _role(entry) -> str:
+        root = entry['install']['destination'].split('/')[0]
+        return {'runtime': 'OLIVE runtimes', 'components': 'Optional components', 'models': 'Creator models'}.get(root, 'OLIVE data')
 
     def space(self, entry_ids) -> dict:
+        """Free space per filesystem. Each byte is charged to the filesystem it will occupy: downloads
+        to the temp folder's, unpacked runtimes and model files to their destination's, Ollama
+        models to the model store's. Bind mounts and Btrfs subvolumes of one filesystem are one
+        volume; separate filesystems are checked separately, never against the root filesystem."""
         target = self.target
+        table = self.mounts()
         volumes: dict[Any, dict] = {}
         download = installed = 0
 
         def need(path: Path, label: str, amount: int):
-            key, probe = self._volume(path)
-            volume = volumes.setdefault(key, {'label': label, 'path': str(path), 'probe': probe, 'required_bytes': MARGIN})
+            key, probe = self._volume(path, table)
+            volume = volumes.setdefault(key, {'labels': [], 'path': str(path), 'probe': probe, 'required_bytes': MARGIN})
+            if label not in volume['labels']:
+                volume['labels'].append(label)
             volume['required_bytes'] += amount
 
         for entry_id in entry_ids:
@@ -364,19 +432,29 @@ class RuntimeInstaller:
             if entry['kind'] == 'ollama-model':
                 installed += size
                 need(self.models_directory(), 'Ollama models', size)
-            else:
-                final = int(entry['install'].get('installed_bytes') or size)
-                installed += final
-                # The archive and its unpacked copy coexist until the archive is deleted.
-                need(self.data_root, 'OLIVE data', size + final)
+                continue
+            final = int(entry['install'].get('installed_bytes') or size)
+            installed += final
+            destination = self.data_root.joinpath(*entry['install']['destination'].split('/'))
+            same = self._volume(self.temp, table)[0] == self._volume(destination, table)[0]
+            if entry['kind'] == 'file' and same:
+                need(destination, self._role(entry), final)  # Renamed into place: the bytes exist once.
+                continue
+            # An archive and its unpacked copy coexist until the archive is deleted; a model file
+            # downloaded to another filesystem is copied once before the download is removed.
+            need(self.temp, 'Downloads', size)
+            need(destination, self._role(entry), final)
         rows = []
         for volume in volumes.values():
             try:
                 free = int(self.disk_usage(volume['probe']).free)
             except OSError:
                 free = None
-            rows.append({'label': volume['label'], 'path': volume['path'], 'required_bytes': volume['required_bytes'],
-                         'free_bytes': free, 'enough': free is not None and free >= volume['required_bytes']})
+            labels = volume['labels']
+            rows.append({'label': labels[0] if len(labels) == 1 else ', '.join(labels[:-1]) + ' and ' + labels[-1],
+                         'path': volume['path'],
+                         'required_bytes': volume['required_bytes'], 'free_bytes': free,
+                         'enough': free is not None and free >= volume['required_bytes']})
         return {'download_bytes': download, 'installed_bytes': installed, 'volumes': rows,
                 'enough_space': all(r['enough'] for r in rows)}
 
@@ -488,6 +566,8 @@ class RuntimeInstaller:
                 record = await job.pull
             finally:
                 job.pull = None
+        elif entry['kind'] == 'file':
+            record = await asyncio.to_thread(self._install_model_files, entry, item, job.cancel)
         elif entry['kind'] in ('archive', 'python-wheels'):
             destination, record = await asyncio.to_thread(self._install_files, entry, item, job.cancel)
             register = entry['install'].get('register')
@@ -548,9 +628,10 @@ class RuntimeInstaller:
         files = manifests.files_for(entry, self.target)
         downloaded = self._download(entry, files, item, cancel)
         item.state = 'extracting'
-        staging_root = self.temp / 'staging'
-        staging_root.mkdir(parents=True, exist_ok=True)
-        staging = staging_root / f"{entry['id']}-{uuid.uuid4().hex[:8]}"
+        # Staged beside the destination so the final rename stays on one filesystem (the runtime
+        # folder may be a bind mount or another volume than the temp folder).
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        staging = destination.parent / f".{destination.name}.olive-staging-{uuid.uuid4().hex[:8]}"
         expected = int(install.get('installed_bytes') or sum(f['size_bytes'] for f in files) * 4)
         limit = int(expected * 1.25) + 64 * 1024 ** 2
         executables = install.get('executables', [])
@@ -579,6 +660,77 @@ class RuntimeInstaller:
             path.unlink(missing_ok=True)  # Verified and unpacked; the archive itself is no longer needed.
         return destination, {'kind': entry['kind'], 'version': entry.get('version') or '', 'path': str(destination),
                              'sha256': files[0]['sha256'] if len(files) == 1 else ''}
+
+    # ------------------------------------------------------------------ model files
+    def _file_targets(self, entry, prepare=True) -> list[tuple[dict, Path]]:
+        relative = entry['install']['destination']
+        if not manifests.safe_relative(relative):
+            raise InstallError('bad_destination', 'The manifest names an unsafe destination')
+        # prepare=False only computes paths (plan and presence checks never create folders).
+        base = self._destination(relative) if prepare else self.data_root.joinpath(*relative.split('/'))
+        return [(item, base.joinpath(*(item.get('path') or item['name']).split('/')))
+                for item in manifests.files_for(entry, self.target)]
+
+    def _files_present(self, entry) -> bool:
+        """Every file of a model set is already in place with its pinned size (cheap; no hashing)."""
+        try:
+            targets = self._file_targets(entry, prepare=False)
+        except (InstallError, OSError):
+            return False
+        return bool(targets) and all(path.is_file() and not path.is_symlink() and path.stat().st_size == item['size_bytes']
+                                     for item, path in targets)
+
+    @staticmethod
+    def _same_file(path: Path, item: dict) -> bool:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size != item['size_bytes']:
+            return False
+        with open(path, 'rb') as stream:
+            return hashlib.file_digest(stream, 'sha256').hexdigest() == item['sha256']
+
+    def _install_model_files(self, entry, item: Item, cancel) -> dict | None:
+        """Download each pinned model file, verify it, and rename it into place. A file already
+        there with the pinned SHA-256 is kept; any other existing file stops the install."""
+        targets = self._file_targets(entry)
+        root = self.data_root.resolve()
+        for each, path in targets:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                path.parent.resolve().relative_to(root)
+            except ValueError:
+                raise InstallError('bad_destination', 'A model folder resolves outside the OLIVE data folder') from None
+            if (path.exists() or path.is_symlink()) and not self._same_file(path, each):
+                raise InstallError('destination_exists', f'{path} already exists and is not the pinned file; '
+                                                         'OLIVE does not replace files it did not install')
+        missing = [(each, path) for each, path in targets if not path.exists()]
+        if not missing:
+            item.state, item.message = 'present', 'Already installed'
+            return None
+        downloaded = self._download(entry, [each for each, _ in missing], item, cancel)
+        item.state = 'installing'
+        placed = []
+        try:
+            for (each, path), source in zip(missing, downloaded):
+                if path.exists() or path.is_symlink():
+                    raise InstallError('destination_exists', f'{path} appeared during installation; it was left untouched')
+                staging = path.parent / f'.{path.name}.olive-staging-{uuid.uuid4().hex[:8]}'
+                try:
+                    os.rename(source, staging)
+                except OSError:
+                    shutil.copyfile(source, staging)  # Different filesystem: copy, then verify the copy.
+                    if not self._same_file(staging, each):
+                        staging.unlink(missing_ok=True)
+                        raise InstallError('checksum_mismatch', f'The copy of {each["name"]} did not verify')
+                    source.unlink(missing_ok=True)
+                os.chmod(staging, 0o644)
+                os.rename(staging, path)
+                placed.append(path)
+        except BaseException:
+            for path in placed:
+                path.unlink(missing_ok=True)
+            raise
+        return {'kind': 'file', 'version': entry.get('version') or '',
+                'files': [{'path': str(path), 'sha256': each['sha256'], 'size_bytes': each['size_bytes']}
+                          for each, path in missing]}
 
     # ------------------------------------------------------------------ Ollama
     def _host(self) -> str:
@@ -675,6 +827,15 @@ class RuntimeInstaller:
                 response = await client.request('DELETE', self._host() + '/api/delete', json={'model': entry['ollama']['model']})
                 if response.status_code not in (200, 404):
                     raise InstallError('uninstall_failed', f'Ollama answered HTTP {response.status_code}')
+        elif entry['kind'] == 'file':
+            # Only files setup recorded, and only while they still have the recorded bytes
+            # (hashing multi-GB files happens off the event loop).
+            def remove_recorded():
+                for each in record.get('files', []):
+                    path = Path(each['path'])
+                    if self._same_file(path, each):
+                        path.unlink()
+            await asyncio.to_thread(remove_recorded)
         else:
             destination = self._destination(entry['install']['destination'])
             if not self._owned(destination, entry_id):

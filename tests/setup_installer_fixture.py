@@ -289,7 +289,7 @@ def fixture_manifest(files: FileServer, ollama: FakeOllama, runtime_archive: byt
     release = runtime_manifest.load()
     url = files.add('/ollama-fixture.tar.gz', runtime_archive)
     licence = {'spdx': 'MIT', 'name': 'MIT', 'url': None, 'acceptance_required': False,
-               'distribution': 'download-at-first-run', 'reviewed': True}
+               'distribution': 'download-at-first-run', 'identified': True, 'engineering_reviewed': True}
     entries = [{
         'id': 'fixture-ollama', 'kind': 'archive', 'provides': 'ollama-runtime', 'name': 'Fixture Ollama',
         'version': '0', 'platforms': [target], 'validated_platforms': [target], 'enabled': True,
@@ -321,6 +321,22 @@ def fixture_manifest(files: FileServer, ollama: FakeOllama, runtime_archive: byt
         if entry['provides'] not in provided:
             entries.append({**entry, 'id': 'release-' + entry['id'], 'enabled': False,
                             'reason': entry.get('reason') or 'Not part of the fixture'})
-    return {'schema': runtime_manifest.SCHEMA, 'manifest_version': 'fixture', 'product_version': '1.0.0',
-            'fixture': True, 'profiles': release['profiles'], 'features': release['features'], 'entries': entries,
-            'not_distributable': []}
+    manifest = {'schema': runtime_manifest.SCHEMA, 'manifest_version': 'fixture', 'product_version': '1.0.0',
+                'fixture': True, 'profiles': release['profiles'], 'features': release['features'], 'entries': entries,
+                'not_distributable': []}
+    return approve(manifest, [e['id'] for e in entries if e['enabled']])
+
+
+def approve(manifest: dict, ids, by='fixture owner') -> dict:
+    """Record fixture release approvals (inline approvals are accepted only in fixture manifests)."""
+    from olive.services import runtime_manifest
+    records = {r['id']: r for r in manifest.get('release_approvals', [])}
+    for entry in manifest['entries']:
+        if entry['id'] in ids:
+            records[entry['id']] = {'id': entry['id'], 'fingerprint': runtime_manifest.fingerprint(entry),
+                                    'scope': 'public-release', 'approved_by': by, 'date': '2026-10-03',
+                                    'product_version': manifest['product_version']}
+    manifest['release_approvals'] = list(records.values())
+    if '_approvals' in manifest:
+        manifest['_approvals'] = dict(records)
+    return manifest

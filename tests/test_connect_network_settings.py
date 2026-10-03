@@ -87,6 +87,21 @@ class PersistentNetworkTests(unittest.TestCase):
         self.service.restore_network()
         self.assertEqual(self.service.network.port, ports[0])
 
+    def test_pairing_choices_exclude_loopback_except_in_developer_mode(self):
+        from olive.connect import discovery
+        found = [Interface('lo', '127.0.0.1', '127.0.0.1/8'), Interface('lo', '::1', '::1/128'),
+                 Interface('wlan0', '192.168.1.20', '192.168.1.0/24')]
+        with patch('olive.connect.discovery.interfaces', return_value=found), patch.dict('os.environ', {}, clear=False):
+            import os
+            os.environ.pop(discovery.DEVELOPER_LOOPBACK, None)
+            offered = DevicesWorkspace(self.service).snapshot()['interfaces']  # What Devices and setup both show.
+            self.assertEqual([i['address'] for i in offered], ['192.168.1.20'])
+            self.assertEqual([i.address for i in discovery.pairing_interfaces({discovery.DEVELOPER_LOOPBACK: '1'})],
+                             ['127.0.0.1', '::1', '192.168.1.20'])
+        # Loopback stays an explicit developer/test choice for the listener itself.
+        self.enable()
+        self.assertEqual(self.service.network_settings.load()['interface']['address'], '127.0.0.1')
+
     def test_changed_interface_or_subnet_never_substitutes(self):
         self.enable()
         saved = self.service.network_settings.load()
