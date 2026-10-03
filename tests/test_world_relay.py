@@ -221,39 +221,69 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any('category=idle_timeout' in line for line in self.logs))
 
     # ------------------------------------------------------------------ backpressure
-    async def test_flood_is_bounded_by_backpressure_and_control_plane_stays_up(self):
-        route, credential = creds(8)
+    async def flood_session(self, seed, *, total=40 * 1024 * 1024):
+        """A paired desktop that floods a phone which is not reading yet."""
+        route, credential = creds(seed)
         desktop = await open_relay(self.url, dev=True)
         waiting = asyncio.ensure_future(rendezvous(desktop, 'desktop', route, credential))
         phone = await self.join('phone', route, credential)
         await waiting
         chunk = os.urandom(wire.CHUNK)
-        sent = 0
+        progress = {'sent': 0}
 
         async def flood():
-            nonlocal sent
-            while sent < 40 * 1024 * 1024:
+            while progress['sent'] < total:
                 await desktop.send_binary(chunk)
-                sent += len(chunk)
-        flooding = asyncio.ensure_future(flood())
-        await asyncio.sleep(1.0)            # The phone is not reading at all.
-        self.assertFalse(flooding.done())
-        self.assertLess(sent, 16 * 1024 * 1024, 'the sender is held back, not buffered without bound')
-        endpoint = next(e for slots in self.relay.routes.values() for e in slots.values() if e.role == 'phone')
-        self.assertLessEqual(endpoint.ws.writer.transport.get_write_buffer_size(),
-                             self.limits.write_buffer + self.limits.max_message + 64)
-        started = asyncio.get_running_loop().time()
-        self.assertIn(b'200', await self.http(b'GET /healthz HTTP/1.1\r\n\r\n'))
-        self.assertLess(asyncio.get_running_loop().time() - started, 1.0)
+                progress['sent'] += len(chunk)
+        return desktop, phone, chunk, progress, asyncio.ensure_future(flood())
+
+    async def drain_flood(self, phone, chunk, progress, flooding, total=40 * 1024 * 1024):
+        """Read the whole flood in order, then surface any sender error; the task is always retrieved."""
         received = 0
-        while received < sent or not flooding.done():  # Reading releases the flood, in order and complete.
-            opcode, payload = await asyncio.wait_for(phone.recv(), 5)
-            self.assertEqual(payload, chunk)
-            received += len(payload)
-            if received >= 40 * 1024 * 1024:
-                break
-        self.assertEqual(received, 40 * 1024 * 1024)
-        await desktop.close(); await phone.close()
+        try:
+            while received < total:  # Reading releases the flood, in order and complete.
+                opcode, payload = await asyncio.wait_for(phone.recv(), 5)
+                self.assertEqual(payload, chunk)
+                received += len(payload)
+            self.assertEqual(received, total)
+            await asyncio.wait_for(flooding, 5)
+            self.assertEqual(progress['sent'], total)
+        finally:
+            if not flooding.done():
+                flooding.cancel()
+            await asyncio.gather(flooding, return_exceptions=True)
+
+    async def test_flood_is_bounded_by_backpressure_and_control_plane_stays_up(self):
+        desktop, phone, chunk, progress, flooding = await self.flood_session(8)
+        try:
+            await asyncio.sleep(1.0)            # The phone is not reading at all.
+            self.assertFalse(flooding.done())
+            self.assertLess(progress['sent'], 16 * 1024 * 1024, 'the sender is held back, not buffered without bound')
+            endpoint = next(e for slots in self.relay.routes.values() for e in slots.values() if e.role == 'phone')
+            self.assertLessEqual(endpoint.ws.writer.transport.get_write_buffer_size(),
+                                 self.limits.write_buffer + self.limits.max_message + 64)
+            started = asyncio.get_running_loop().time()
+            self.assertIn(b'200', await self.http(b'GET /healthz HTTP/1.1\r\n\r\n'))
+            self.assertLess(asyncio.get_running_loop().time() - started, 1.0)
+            await self.drain_flood(phone, chunk, progress, flooding)
+        finally:
+            await desktop.close(); await phone.close()
+
+    async def test_sender_held_by_backpressure_is_not_closed_as_idle(self):
+        # The relay stops reading a sender while its partner's buffer is full. That pause is the
+        # relay's own backpressure (bounded by stall_timeout), not the sender going quiet, so the
+        # idle clock must not run out on it: here the hold outlasts idle_timeout but not stall_timeout.
+        self.assertLess(self.limits.idle_timeout + .6, self.limits.stall_timeout)
+        desktop, phone, chunk, progress, flooding = await self.flood_session(12)
+        try:
+            await asyncio.sleep(self.limits.idle_timeout + .6)
+            sender = next(e for slots in self.relay.routes.values() for e in slots.values() if e.role == 'desktop')
+            self.assertTrue(sender.held, 'the relay is holding the sender back')
+            self.assertEqual(self.relay.tunnels, 1)
+            await self.drain_flood(phone, chunk, progress, flooding)
+            self.assertFalse(any('category=idle_timeout' in line or 'category=stalled' in line for line in self.logs))
+        finally:
+            await desktop.close(); await phone.close()
 
     # ------------------------------------------------------------------ lifecycle & hygiene
     async def test_graceful_shutdown_closes_sessions_with_going_away(self):

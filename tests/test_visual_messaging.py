@@ -669,6 +669,14 @@ class DeclaredLayoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('appears once', outcome)
         self.assertTrue([c for c in client.calls if c[0] == 'visual_click' and c[1]['point'][1] < 590])
 
+    async def test_account_panel_name_is_verified_for_a_named_account(self):
+        client = Client(current=2, panel_beside_composer=True, account='someone-else')
+        with self.assertRaisesRegex(ValueError, 'ACCOUNT_UNVERIFIED'):
+            await self.run_task('Send "hi" to #general in Osprey Workshop in Visual Messenger using account fixture-owner',
+                                client, adapter=self.adapter(), highlight=lambda listed: None)
+        self.assertEqual(client.sent, [])
+        self.assertFalse(any(client.drafts.values()))
+
 
 class HighlightTests(unittest.TestCase):
     def frame(self, shades):
@@ -689,14 +697,6 @@ class HighlightTests(unittest.TestCase):
         self.assertEqual(highlighted_row(self.frame([(43, 45, 49), (64, 66, 72), (43, 45, 49)]), listed, 0, 400), 1)
         self.assertIsNone(highlighted_row(self.frame([(43, 45, 49), (44, 46, 50), (43, 45, 49)]), listed, 0, 400))
         self.assertIsNone(highlighted_row({'png': '', 'width': 400, 'height': 90}, listed, 0, 400))
-
-    async def test_account_panel_name_is_verified_for_a_named_account(self):
-        client = Client(current=2, panel_beside_composer=True, account='someone-else')
-        with self.assertRaisesRegex(ValueError, 'ACCOUNT_UNVERIFIED'):
-            await self.run_task('Send "hi" to #general in Osprey Workshop in Visual Messenger using account fixture-owner',
-                                client, adapter=self.adapter(), highlight=lambda listed: None)
-        self.assertEqual(client.sent, [])
-        self.assertFalse(any(client.drafts.values()))
 
 
 class ExactDraftTests(unittest.IsolatedAsyncioTestCase):

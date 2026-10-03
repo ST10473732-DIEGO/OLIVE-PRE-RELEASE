@@ -26,8 +26,11 @@ PySide6, Playwright or a test-only package enters the core list, or when a
 platform-specific package loses its marker. The check is static: nothing is
 installed or resolved.
 
-`.github/workflows/connect-portable.yml` installs a deliberately minimal subset to
-run the Connect tests on Ubuntu and Windows; it is not a full declaration.
+`.github/workflows/connect-portable.yml` runs the Connect tests on Ubuntu and Windows
+against exactly the packaged backend's Core dependencies: it installs the hash-locked
+`packaging/backend/locks/<target>.txt` for its platform, never a hand-kept subset, so no
+Qt, Playwright, Studio extras or Creator runtimes. The same test file checks that each
+lock covers every Core dependency for its platform and that the workflow uses it.
 
 ## Platform-specific packages
 

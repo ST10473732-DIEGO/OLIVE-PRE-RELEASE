@@ -1,5 +1,15 @@
 name: Linux portable foundation
-on: [push, pull_request]
+on:
+  # One portable run per commit. A release branch is validated by its pull request to main
+  # (every push re-runs it), so a push run there would only duplicate it. Other branches,
+  # main and tags keep their push runs; any ref can still be run by hand.
+  push:
+    branches-ignore: ['release/**']
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   portable:
     runs-on: ubuntu-latest

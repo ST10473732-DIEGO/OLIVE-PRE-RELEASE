@@ -1,18 +1,34 @@
 name: Connect portable security
-on: [push, pull_request]
+on:
+  # One portable run per commit. A release branch is validated by its pull request to main
+  # (every push re-runs it), so a push run there would only duplicate it. Other branches,
+  # main and tags keep their push runs; any ref can still be run by hand.
+  push:
+    branches-ignore: ['release/**']
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   connect:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - { os: ubuntu-latest, lock: linux-x86_64 }
+          - { os: windows-latest, lock: windows-x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - run: python -m pip install "cryptography>=50.0.1,<51" "pyOpenSSL>=26.0,<27" "psutil>=7,<8" "zeroconf>=0.151.3,<0.152" "python-dateutil>=2.9,<3" tzdata "ollama>=0.6" "httpx==0.28.1"
+      # Exactly the packaged backend's Core dependencies for this platform (pyproject
+      # `dependencies`, hash-locked; see docs/development/dependencies.md). No hand-kept subset
+      # to drift, and no Qt, Playwright, Studio extras, Creator runtimes or models.
+      - shell: bash
+        run: 'python -m pip install --require-hashes --only-binary=:all: --no-deps -r packaging/backend/locks/${{ matrix.lock }}.txt'
       - run: python -m unittest tests.test_connect tests.test_connect_pairing tests.test_connect_network tests.test_connect_process tests.test_connect_workspace tests.test_connect_desktop_pairing tests.test_connect_sync tests.test_connect_sync_process tests.test_connect_sync_security tests.test_connect_files tests.test_connect_files_process tests.test_connect_inference tests.test_connect_inference_process tests.test_connect_studio tests.test_connect_studio_process -v
       # Real sockets and independent synthetic profiles; no multicast requirement.
       # Actual mDNS acceptance is opt-in: python scripts/check_connect_lan.py.

@@ -1,4 +1,5 @@
 """Portable platform boundaries, tested against synthetic profiles only."""
+import os
 import sys
 import tempfile
 import unittest
@@ -80,12 +81,23 @@ class LinuxFoundationTests(unittest.TestCase):
             open_path(Path('/tmp/a file;literal.txt'))
             self.assertEqual(run.call_args.args[0], ['/usr/bin/xdg-open', '/tmp/a file;literal.txt'])
             self.assertTrue(run.call_args.kwargs['check'])
-        with patch('sys.platform', 'linux'), patch('shutil.which', return_value=None):
+        # Every opener candidate is mocked away and nothing may run: some Linux images ship an
+        # unrelated /usr/bin/open (openvt), which the macOS branch must never reach for real.
+        with patch('sys.platform', 'linux'), patch('shutil.which', return_value=None), \
+                patch('os.path.isfile', return_value=True), patch('subprocess.run') as run:
             with self.assertRaisesRegex(PlatformUnavailable, 'xdg-open'):
                 open_path(Path('/tmp/example'))
-        with patch('sys.platform', 'darwin'), patch('shutil.which', return_value=None):
+            run.assert_not_called()
+        with patch('sys.platform', 'darwin'), patch('shutil.which', return_value=None), \
+                patch('os.path.isfile', return_value=False), patch('subprocess.run') as run:
             with self.assertRaisesRegex(PlatformUnavailable, '^Opening files and folders is not available on macOS'):
                 open_path(Path('/tmp/example'))
+            run.assert_not_called()
+        with patch('sys.platform', 'darwin'), patch('shutil.which', return_value=None), \
+                patch('os.path.isfile', side_effect=lambda path: path == '/usr/bin/open'), patch('subprocess.run') as run:
+            open_path(Path('/tmp/a file;literal.txt'))
+            self.assertEqual(run.call_args.args[0], ['/usr/bin/open', os.path.abspath('/tmp/a file;literal.txt')])
+            self.assertTrue(run.call_args.kwargs['check'])
 
 
 class LinuxBridgeBoundaryTests(unittest.IsolatedAsyncioTestCase):

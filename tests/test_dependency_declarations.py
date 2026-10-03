@@ -89,6 +89,26 @@ class DependencyDeclarationTests(unittest.TestCase):
             self.assertNotIn('playwright', (locks / f'{target}.txt').read_text(encoding='utf-8'))
         self.assertNotIn('playwright', windows)
 
+    def test_backend_locks_cover_every_core_dependency_for_their_platform(self):
+        platforms = {'linux-x86_64': 'linux', 'windows-x86_64': 'win32', 'macos-arm64': 'darwin'}
+        for target, platform in platforms.items():
+            text = (ROOT / f'packaging/backend/locks/{target}.txt').read_text(encoding='utf-8')
+            locked = {name(line) for line in text.splitlines() if re.match(r'[A-Za-z0-9]', line)}
+            wanted = {name(r) for r in self.core
+                      if ';sys_platform' not in r or r.endswith(f";sys_platform=='{platform}'")}
+            self.assertEqual(wanted - locked, set(), target)
+            self.assertFalse(locked & (DEVELOPMENT_ONLY | TEST_ONLY), target)
+
+    def test_connect_ci_installs_the_backend_lock_not_a_hand_kept_subset(self):
+        workflow = (ROOT / '.github/workflows/connect-portable.yml').read_text(encoding='utf-8')
+        installs = [line.rstrip().rstrip("'") for line in workflow.splitlines() if 'pip install' in line]
+        self.assertEqual(len(installs), 1, installs)
+        self.assertIn('--require-hashes', installs[0])
+        self.assertIn('--no-deps', installs[0])
+        self.assertTrue(installs[0].endswith(' -r packaging/backend/locks/${{ matrix.lock }}.txt'), installs[0])
+        matrix = dict(re.findall(r'\{ os: ([\w-]+), lock: ([\w-]+) \}', workflow))
+        self.assertEqual(matrix, {'ubuntu-latest': 'linux-x86_64', 'windows-latest': 'windows-x86_64'})
+
 
 if __name__ == '__main__':
     unittest.main()
