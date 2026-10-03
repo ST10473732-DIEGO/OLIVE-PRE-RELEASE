@@ -11,6 +11,7 @@ You run the relay yourself. OLIVE does not require any particular relay host.
 
 | Page | Contents |
 | --- | --- |
+| [Beginner guide: run your own relay](self-host-relay.md) | Domain, VPS, SSH key, DNS, firewall, Docker, TLS, health, phone provisioning, cellular test, hardening, updates, troubleshooting |
 | [Relay deployment](../../world-relay/README.md) | Docker Compose with automatic TLS (Caddy), nginx or systemd alternatives, updates |
 | [Protocol and security](protocol.md) | What is unchanged, `olive-world/1`, what the relay sees, route credentials, Direct preference and failover, limitations |
 | [Production acceptance](protocol.md#14-production-acceptance-2026-10-01) | 2026-10-01: desktop on home Wi-Fi, physical iPhone on cellular, public relay |
@@ -26,5 +27,5 @@ You run the relay yourself. OLIVE does not require any particular relay host.
 4. Test away from home (Wi-Fi off on the phone), then back home: the phone returns
    to Direct.
 
-A step-by-step guide for first-time server owners is planned for the 1.0
-documentation.
+First time running a server? Follow the beginner guide:
+[Run your own Connect World relay](self-host-relay.md).

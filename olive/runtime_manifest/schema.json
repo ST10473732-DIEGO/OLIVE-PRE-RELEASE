@@ -1,35 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "olive-runtime-manifest/1",
+  "$id": "olive-runtime-manifest/2",
   "title": "OLIVE runtime and model manifest",
-  "description": "What a future OLIVE setup step may offer to download. Nothing is downloaded by OLIVE 1.0 PASS 2B. An entry is installable only when enabled is true AND source.url, sha256, size_bytes and licence (spdx + reviewed) are all recorded; olive.services.runtime_manifest enforces this.",
+  "description": "What OLIVE first-run setup may download. An entry is installable only when enabled is true AND its HTTPS source on a listed host, SHA-256 (or Ollama registry manifest digest), size, destination and reviewed licence are recorded; olive.services.runtime_manifest enforces this and more (safe destinations, private-tag refusal, features naming provided slots). Disabled entries must give a reason.",
   "type": "object",
-  "required": ["schema", "manifest_version", "product_version", "entries", "profiles", "not_distributable"],
+  "required": ["schema", "manifest_version", "product_version", "profiles", "features", "entries", "not_distributable"],
   "properties": {
-    "schema": {"const": "olive-runtime-manifest/1"},
+    "schema": {"const": "olive-runtime-manifest/2"},
     "manifest_version": {"type": "string"},
     "product_version": {"type": "string"},
+    "recorded": {"type": "string"},
+    "fixture": {"type": "boolean", "description": "Test manifests only; enables loopback http:// with OLIVE_INSTALLER_ALLOW_LOOPBACK_HTTP=1."},
+    "profiles": {
+      "type": "object",
+      "required": ["core", "creator", "complete"],
+      "additionalProperties": {"type": "object", "required": ["label", "includes"],
+        "properties": {"label": {"type": "string"}, "includes": {"type": "array", "items": {"type": "string"}}, "summary": {"type": "string"}}}
+    },
+    "features": {
+      "type": "array",
+      "items": {"type": "object", "required": ["id", "label", "profile", "requires"],
+        "properties": {"id": {"type": "string"}, "label": {"type": "string"}, "profile": {"enum": ["core", "creator", "complete"]},
+          "requires": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}},
+          "optional_component": {"type": "boolean"}, "smoke": {"type": "string"}, "note": {"type": "string"}}}
+    },
     "entries": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "kind", "name", "platforms", "enabled", "source", "sha256", "size_bytes", "licence", "install", "reason"],
+        "required": ["id", "kind", "provides", "name", "platforms", "validated_platforms", "enabled", "source", "sha256", "size_bytes", "install", "licence", "reason"],
         "properties": {
-          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$"},
-          "kind": {"enum": ["runtime", "model", "ollama-model"]},
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"},
+          "kind": {"enum": ["archive", "file", "ollama-model", "python-wheels", "external"]},
+          "provides": {"type": "string"},
           "name": {"type": "string"},
+          "version": {"type": ["string", "null"]},
           "platforms": {"type": "array", "items": {"enum": ["linux-x86_64", "windows-x86_64", "macos-arm64"]}},
+          "validated_platforms": {"type": "array", "items": {"enum": ["linux-x86_64", "windows-x86_64", "macos-arm64"]}},
           "enabled": {"type": "boolean"},
-          "source": {"type": "object", "properties": {"url": {"type": ["string", "null"]}, "publisher": {"type": ["string", "null"]}}},
+          "source": {"type": "object", "properties": {"url": {"type": ["string", "null"]}, "publisher": {"type": ["string", "null"]}, "hosts": {"type": "array", "items": {"type": "string"}}, "release": {"type": "string"}, "evidence": {"type": "string"}}},
           "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
           "size_bytes": {"type": ["integer", "null"]},
-          "licence": {"type": "object", "properties": {"spdx": {"type": ["string", "null"]}, "reviewed": {"type": "boolean"}}},
-          "install": {"type": "object", "properties": {"runtime": {"type": "string"}, "relative_path": {"type": "string"}}},
+          "ollama": {"type": ["object", "null"], "properties": {"model": {"type": "string"}, "manifest_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+          "files": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["name", "url", "sha256", "size_bytes"]}}},
+          "install": {"type": "object", "properties": {"destination": {"type": ["string", "null"]}, "format": {"type": ["string", "null"]}, "installed_bytes": {"type": "integer"}, "executables": {"type": "array", "items": {"type": "string"}}, "register": {"type": "object"}}},
+          "licence": {"type": "object", "properties": {"spdx": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}, "url": {"type": ["string", "null"]}, "evidence": {"type": "string"}, "acceptance_required": {"type": "boolean"}, "distribution": {"type": "string"}, "attribution": {"type": "string"}, "reviewed": {"type": "boolean"}}},
           "reason": {"type": ["string", "null"]}
         }
       }
     },
-    "profiles": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
     "not_distributable": {"type": "array", "items": {"type": "object", "required": ["name", "reason"]}}
   }
 }

@@ -36,9 +36,11 @@ class LocalOllamaRuntime:
         except (httpx.HTTPError, ValueError, AttributeError):
             return False
 
-    async def start(self):
+    async def start(self, explicit=False):
+        """Start an owned server. explicit=True is first-run setup's request after the person
+        chose to install the local AI engine; otherwise OLIVE_START_OLLAMA=1 opts in."""
         from ..runtime.processes import supported
-        if not supported() or os.environ.get('OLIVE_START_OLLAMA') != '1':
+        if not supported() or (os.environ.get('OLIVE_START_OLLAMA') != '1' and not explicit):
             return
         endpoint = urlsplit(self.host)
         # Only the ordinary local endpoint is auto-started. Explicit alternate

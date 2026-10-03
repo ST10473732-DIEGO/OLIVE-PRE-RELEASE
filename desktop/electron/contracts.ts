@@ -8,6 +8,7 @@ import { m4Schemas } from "./m4-contracts";
 import { studioSchemas } from "./studio-contracts";
 import { notesSchemas } from "./notes-contracts";
 import { drawSchemas } from "./draw-contracts";
+import { setupSchemas } from "./setup-contracts";
 const short = z
   .string()
   .max(4096)
@@ -33,6 +34,7 @@ export const schemas = {
   ...studioSchemas,
   ...notesSchemas,
   ...drawSchemas,
+  ...setupSchemas,
   "runtime.snapshot": empty,
   "runtime.runtimes": empty,
   'media.status': empty,

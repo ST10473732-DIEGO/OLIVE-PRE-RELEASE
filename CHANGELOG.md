@@ -46,6 +46,22 @@ are still being prepared on `release/olive-1.0`.
   Missing or moved runtimes show *Needs setup*.
 - macOS foundations: Keychain credential storage, opening files with `open`, and
   macOS runtime folders and process handling. None of this is validated on a Mac yet.
+- **First-run setup:** a wizard for new profiles (name, system check, OLIVE Core /
+  Creator / Complete, runtimes, models, verification, OLIVE Connect, Connect World).
+  It installs only what the pinned runtime manifest allows: the Ollama 0.34.2 runtime
+  (Linux, Windows), the FAST, NORMAL, NOW, embedding, vision and coding models from
+  the Ollama library (registry digests pinned), and optional Playwright. Downloads are
+  HTTPS-only, resumable and SHA-256 verified; archives are unpacked with path,
+  link and size checks. Setup completes only after verification, including a short
+  FAST answer. Existing profiles are never forced through it, and existing runtimes
+  and models are reused, never replaced. Creator engines and models, MAX and
+  UNCENSORED are shown as "not yet available in this build".
+- A beginner guide to running your own Connect World relay
+  (`docs/connect-world/self-host-relay.md`), also readable inside setup.
+- Packaged backends carry `THIRD_PARTY-backend.txt`, the licence texts of every
+  bundled Python distribution and CPython, also copied to `resources/legal/`.
+- A draft end-user licence for official builds (`docs/legal/EULA-DRAFT.md`), marked
+  for owner and legal review; it is not in force or shipped.
 
 ### Changed
 
@@ -68,6 +84,14 @@ are still being prepared on `release/olive-1.0`.
   packaged app does. The `OLIVE_*` runtime variables remain optional overrides.
 - On Linux, `scripts/install_linux_desktop_entry.py` now writes a visible
   `olive.desktop` and a hidden `local.dmdo.desktop.desktop`.
+- Linux: OLIVE refuses to start without the Chromium sandbox. When an AppImage
+  launcher falls back to `--no-sandbox` (no unprivileged user namespaces, for example
+  Ubuntu 24.04 with AppArmor), OLIVE explains how to fix it instead of running
+  unsandboxed. A clearly named developer-only override exists.
+- Windows: `pywinpty` is now a core dependency, so the Studio terminal works in the
+  packaged Windows backend (not yet validated on a Windows build).
+- Research with Playwright uses Chrome, Edge or Chromium already installed and never
+  downloads a browser; without them, research stays on HTTP pages.
 
 ### Fixed
 

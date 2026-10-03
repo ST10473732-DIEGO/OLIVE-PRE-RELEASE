@@ -42,8 +42,8 @@ come from the packaged Electron distribution and are not in this repository.
 | GUI-Owl tool-calling prompt text (`olive/desktop/gui_owl_prompt.txt`) | MIT, Copyright (c) 2022 mPLUG | `olive/desktop/gui_owl_prompt.LICENSE` |
 | pycrdt 0.14.6 | MIT (as recorded in `desktop/THIRD_PARTY.md`) | to be confirmed from the built backend's metadata |
 
-Runtime dependencies declared in `pyproject.toml` (licences **not yet aggregated**;
-see below): `cryptography`, `pyOpenSSL`, `httpx`, `ollama`, `zeroconf`, `psutil`, `pycrdt`, `Pillow`, `Send2Trash`, `beautifulsoup4`, `ddgs`, `pdfplumber`, `pypdf`, `python-docx`, `icalendar`, `python-dateutil`, `tzdata`, `vobject`, `SecretStorage` (Linux), `keyring` (macOS), `pywinauto` (Windows), `comtypes` (Windows), `pywin32` (Windows), `winrt-Windows.Media.Control` (Windows), `winrt-Windows.Media` (Windows), `winrt-Windows.Foundation` (Windows), `winrt-Windows.Foundation.Collections` (Windows). Optional extras `browser`, `qt` and `studio` are not part of the
+Runtime dependencies declared in `pyproject.toml` (licence texts aggregated per build into
+`THIRD_PARTY-backend.txt`; see [Packaged notices](#packaged-notices)): `cryptography`, `pyOpenSSL`, `httpx`, `ollama`, `zeroconf`, `psutil`, `pycrdt`, `Pillow`, `Send2Trash`, `beautifulsoup4`, `ddgs`, `pdfplumber`, `pypdf`, `python-docx`, `icalendar`, `python-dateutil`, `tzdata`, `vobject`, `SecretStorage` (Linux), `keyring` (macOS), `pywinauto` (Windows), `comtypes` (Windows), `pywin32` (Windows), `pywinpty` (Windows, MIT), `winrt-Windows.Media.Control` (Windows), `winrt-Windows.Media` (Windows), `winrt-Windows.Foundation` (Windows), `winrt-Windows.Foundation.Collections` (Windows). Optional extras `browser`, `qt` and `studio` are not part of the
 packaged backend.
 
 The packaged backend (`resources/backend`, built by `packaging/backend/build_backend.py`)
@@ -68,28 +68,50 @@ also contains:
 | --- | --- |
 | `assets/icons/` ("DMDO line icons", original artwork) | MIT-style permission notice, Copyright (c) 2026 DMDO contributors (`assets/icons/LICENSE.txt`) |
 
-## Separate runtimes and models (not part of OLIVE)
+## Downloaded at first run (not bundled)
 
-OLIVE talks to these over local interfaces; they are installed separately and keep
-their own licences. Their licences are **not recorded in this repository**, so none
-is asserted here.
+First-run setup downloads these from their publishers, only when the person chooses them. They
+are not part of the OLIVE package and keep their own licences. Source, integrity and licence
+evidence for each is in `olive/runtime_manifest/1.0.0.json`; licence identification there is
+engineering evidence, not legal advice.
 
-| Item | Source recorded in the repository | Status |
+| Component | Licence | Source | Notes |
+| --- | --- | --- | --- |
+| Ollama 0.34.2 (Linux, Windows) | MIT | GitHub release `ollama/ollama` v0.34.2, SHA-256 pinned | The archives carry third-party licence files under `lib/ollama`, including NVIDIA CUDA runtime libraries under NVIDIA's terms |
+| qwen3:8b, qwen3.5:9b, qwen3-vl:8b, qwen3-coder:30b | Apache-2.0 | Ollama library, registry manifest digest pinned | Licence layer in each model is the Apache-2.0 text |
+| gpt-oss:20b | Apache-2.0 | Ollama library, digest pinned | OpenAI's gpt-oss usage policy also applies |
+| qwen3-embedding:0.6b | Apache-2.0 | Ollama library, digest pinned | The registry manifest has no licence layer; this notice supplies it |
+| Playwright 1.63.0 + greenlet 3.5.6 + pyee 13.0.1 (optional) | Apache-2.0; MIT AND PSF-2.0; MIT | PyPI wheels, SHA-256 pinned | Playwright's wheel bundles a Node.js driver (MIT, with Node's own notices) |
+
+## Separate runtimes and models (not installable from setup)
+
+| Item | Licence evidence | Status |
 | --- | --- | --- |
-| Ollama | none | User-installed runtime |
-| ComfyUI 0.35.0 (Windows portable archive) | GitHub release URL, size and SHA-256 in `scripts/install_approved_media.py` | Licence to be recorded before any installer downloads it |
-| SDXL base 1.0 checkpoint | Hugging Face URL, size and SHA-256 in `scripts/install_approved_media.py` | Licence to be recorded and accepted per its terms before distribution |
-| Ollama models for FAST, NORMAL, NOW, DEEP, roles | Registry tags in `olive/services/presets.py`, `model_policy.py`; MAX pinned by digest | Licence per model to be recorded in the runtime manifest |
-| UNCENSORED `olive-*` local models | none (built locally) | **Not yet distributable** |
-| FLUX.2 Klein 9B, LTX 2.3 video, Gemma-derived text encoder, Qwen-Image 2.1 | file names only (`olive/services/media_workflows.py`) | **Not yet distributable**: source, checksum and licence unresolved (Qwen-Image 2.1's recorded licence is research/evaluation only) |
-| VoiceStudio and its engines | none | **Not yet distributable**: redistribution terms unresolved |
+| ComfyUI v0.35.0 (image and video engines) | GPL-3.0 (repository `LICENSE`) | Not installable: needs a verified PyTorch environment; the Windows portable bundle also mixes CUDA and PyTorch terms |
+| ComfyUI-GGUF-Loader (video engine) | Apache-2.0 and MIT | Not installable until the video engine is |
+| SDXL base 1.0 checkpoint | CreativeML Open RAIL++-M (use restrictions, acceptance) | Owner review and an acceptance step needed |
+| FLUX.2 [klein] 9B | FLUX Non-Commercial License, gated | **Not distributable** |
+| LTX 2.3 community finetunes, abliterated Gemma encoder | LTX-2 Community License; Gemma terms | **Not distributable** |
+| Qwen-Image 2.1 | research/evaluation only | **Not distributable** |
+| VoiceStudio | AGPL-3.0 | Not installable: no pinned release artefact; licence needs owner review |
+| OmniVoice | none declared | Not installable |
+| MAX (`orcarouter/Qwen3.8-27B-Uncensored`), UNCENSORED routing set, `olive-*` local tags | provenance not recovered | **Not distributable** |
+| FFmpeg | depends on the build (LGPL or GPL) | Used from the operating system |
+
+## Packaged notices
+
+Each packaged backend carries `THIRD_PARTY-backend.txt` (also copied to `resources/legal/`):
+the declared licence and the licence files of every bundled Python distribution, CPython's
+`LICENSE.txt`, and upstream licence texts for wheels that ship none (`packaging/legal/supplements/`).
+It is generated by `packaging/legal/collect_notices.py` during `build_backend.py`. It flags for
+owner/legal review: `zeroconf` (LGPL-2.1-or-later), `certifi` (MPL-2.0), `pypdfium2` and the PDFium
+binary it bundles, `cryptography` (statically linked OpenSSL) and CPython's bundled libraries.
 
 ## Remaining release work
 
-- Aggregate licence texts for every Python package in the packaged backend
-  (generate from the built artifact's installed metadata, not by hand).
-- Include Electron/Chromium/Node notices from the packaged Electron distribution.
+- Include Electron/Chromium/Node notices from the packaged Electron distribution
+  (`LICENSES.chromium.html` and `LICENSE.electron.txt` ship inside the package; reference them
+  from `resources/legal/`).
 - Ship each npm package's licence text with the renderer bundle.
-- Record source, checksum and licence for every model and runtime in the 1.0
-  runtime manifest; nothing without them enters an installer profile.
+- Owner/legal review of the flagged items above and of the model licences before public release.
 - Show the iPhone notices (OpenSSL, yjs, lib0) inside the app before App Store release.

@@ -45,3 +45,30 @@ export function iconName(platform = process.platform) {
 export function brandingAsset(name: string, packaged: boolean, root: string, resourcesPath: string) {
   return packaged ? path.join(resourcesPath, name) : path.join(root, "assets/branding", name);
 }
+
+/** The only way to run OLIVE without Chromium's sandbox: set explicitly by a developer, never by OLIVE. */
+export const UNSAFE_NO_SANDBOX_VARIABLE = "OLIVE_UNSAFE_ALLOW_NO_SANDBOX_DEVELOPER_ONLY";
+
+export const SANDBOX_UNAVAILABLE_TITLE = "OLIVE could not start safely";
+export const SANDBOX_UNAVAILABLE_MESSAGE = [
+  "This system does not allow the sandbox OLIVE uses to isolate web content (unprivileged user namespaces are unavailable), so OLIVE did not start. Nothing was changed.",
+  "",
+  "To fix it:",
+  "• Ubuntu 24.04 or later: AppArmor blocks user namespaces for apps without a profile. Extract OLIVE to a fixed folder and add an AppArmor profile that allows \"userns\" for its \"olive\" executable, as described in the OLIVE Linux install guide (\"Chromium sandbox\").",
+  "• Other distributions: enable unprivileged user namespaces (for example sysctl kernel.unprivileged_userns_clone=1, or user.max_user_namespaces greater than 0).",
+  "",
+  "OLIVE never turns the sandbox off by itself.",
+].join("\n");
+
+/**
+ * Linux sandbox policy. electron-builder's AppImage launcher appends --no-sandbox when
+ * `unshare -Ur true` fails; OLIVE refuses to continue in that case (fail closed) unless a
+ * developer set UNSAFE_NO_SANDBOX_VARIABLE=1 explicitly. Windows and macOS sandbox through
+ * the operating system and are unaffected.
+ */
+export function sandboxPolicy(options: { platform: string; noSandboxSwitch: boolean; env: NodeJS.ProcessEnv }) {
+  const unsandboxed = options.noSandboxSwitch || options.env.ELECTRON_DISABLE_SANDBOX === "1";
+  if (options.platform !== "linux" || !unsandboxed) return { allowed: true, developerOverride: false };
+  if (options.env[UNSAFE_NO_SANDBOX_VARIABLE] === "1") return { allowed: true, developerOverride: true };
+  return { allowed: false, developerOverride: false, title: SANDBOX_UNAVAILABLE_TITLE, message: SANDBOX_UNAVAILABLE_MESSAGE };
+}

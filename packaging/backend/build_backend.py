@@ -254,6 +254,11 @@ def build(target: str, output: Path, cache: Path, smoke: bool = True) -> dict:
     if forbidden or (stage / 'olive' / 'ui_qt').exists() or (stage / 'dmdo').exists():
         raise SystemExit(f'Excluded components reached the artefact: {forbidden or "olive/ui_qt or dmdo"}')
 
+    # Third-party notices from the artefact's own metadata (packaging/legal/collect_notices.py).
+    sys.path.insert(0, str(REPOSITORY / 'packaging' / 'legal'))
+    from collect_notices import NAME as NOTICES, notices
+    (stage / NOTICES).write_text(notices(stage), encoding='utf-8')
+
     manifest = {
         'schema': 'olive-backend/1',
         'product': identity['name'],
@@ -266,6 +271,7 @@ def build(target: str, output: Path, cache: Path, smoke: bool = True) -> dict:
         'dependencies': {'lock': f'packaging/backend/{spec["lock"]}', 'lock_sha256': sha256(lock),
                          'distributions': distributions},
         'source': {**source_revision(), 'olive_files': len(sources)},
+        'notices': NOTICES,
         'excluded': {'source': list(EXCLUDED_SOURCE) + ['dmdo/'],
                      'distributions': ['PySide6', 'shiboken6', 'playwright (and browser binaries)', 'pip'],
                      'interpreter': pruned},

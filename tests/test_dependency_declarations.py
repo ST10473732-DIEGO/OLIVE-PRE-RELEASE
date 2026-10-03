@@ -76,6 +76,19 @@ class DependencyDeclarationTests(unittest.TestCase):
             else:
                 self.assertNotIn('sys_platform', entry, entry)
 
+    def test_windows_backend_carries_pywinpty_and_other_targets_do_not(self):
+        self.assertIn("pywinpty==3.0.5;sys_platform=='win32'", self.core)
+        self.assertNotIn('pywinpty', {name(r) for r in self.extras['studio']})
+        locks = ROOT / 'packaging/backend/locks'
+        windows = (locks / 'windows-x86_64.txt').read_text(encoding='utf-8')
+        self.assertIn('pywinpty==3.0.5 \\', windows)
+        # The CPython 3.14 win_amd64 wheel the Windows artefact installs (PyPI digest).
+        self.assertIn('03bb3c16d691d9242267201830bcd0e64a9b663170e9042bc84b210da9de15ac', windows)
+        for target in ('linux-x86_64', 'macos-arm64'):
+            self.assertNotIn('pywinpty', (locks / f'{target}.txt').read_text(encoding='utf-8'))
+            self.assertNotIn('playwright', (locks / f'{target}.txt').read_text(encoding='utf-8'))
+        self.assertNotIn('playwright', windows)
+
 
 if __name__ == '__main__':
     unittest.main()

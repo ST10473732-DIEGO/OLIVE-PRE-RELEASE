@@ -37,7 +37,7 @@ function validateBackendArtifact(directory, platform, arch) {
   const python = PYTHON[platform];
   if (manifest.layout?.python !== python) problems.push(`Artefact interpreter is ${manifest.layout?.python}, expected ${python}`);
   if (!fs.existsSync(path.join(directory, python))) problems.push(`Missing interpreter ${python}`);
-  for (const file of ["olive/__init__.py", "olive/identity.json", "olive/bridge/__main__.py"])
+  for (const file of ["olive/__init__.py", "olive/identity.json", "olive/bridge/__main__.py", "THIRD_PARTY-backend.txt"])
     if (!fs.existsSync(path.join(directory, file))) problems.push(`Missing ${file}`);
   for (const item of FORBIDDEN) if (fs.existsSync(path.join(directory, item))) problems.push(`Excluded ${item} is present`);
   const site = sitePackages(directory, platform);

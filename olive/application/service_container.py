@@ -86,6 +86,10 @@ class ServiceContainer:
             data / "settings.json", data / "model_defaults.json", data / "model_aliases.json"
         )
         self.migration_actions = migrate_legacy_data() if migrate and data_dir is None else []
+        from ..services import first_run
+        # Decided once, before this start writes anything into the profile: a profile that
+        # already holds OLIVE data is an existing user, who is never forced through setup.
+        first_run.initialise(data)
 
         self.settings = self.settings_repo.load()
         # Unset until the user names themselves (first-run setup); a stored name is kept as is.
@@ -116,6 +120,22 @@ class ServiceContainer:
         self.local_ollama_runtime = LocalOllamaRuntime(
             self.ollama.host, executable=self.runtimes["ollama"].get("executable") or None,
             models=self.runtimes["ollama"].get("models") or None)
+        from ..services.optional_components import activate as activate_components
+        try:
+            activate_components(data)
+        except Exception:
+            logger.exception("Optional components could not be activated")
+        from ..services.runtime_installer import RuntimeInstaller
+        media_ready = lambda key: lambda: bool(getattr(self, "chat_media", None) and self.chat_media.status(key)["available"])
+        self.runtime_installer = RuntimeInstaller(
+            data, self.runtime_discovery, ollama_host=lambda: self.ollama.host,
+            ensure_ollama=self._ensure_ollama, runtime_registered=self._runtime_registered,
+            before_uninstall=self._before_runtime_uninstall,
+            presence={"image-model": media_ready("reimagine"), "audio-model": media_ready("audio"),
+                      "video-model": media_ready("video"), "video-gguf-loader": media_ready("video"),
+                      "model-uncensored": lambda: bool(self.uncensored_router.available_models())},
+            on_change=lambda job: self.publish("runtime.install", job))
+        self.first_run = first_run.FirstRunService(self, self.runtime_installer)
         self.model_registry = ModelCapabilityRegistry(self.ollama)
         self.rag_store = RAGStore(data / "rag.sqlite3")
         self.rag = RAGService(
@@ -444,6 +464,34 @@ class ServiceContainer:
         self.publish("desktop", self.desktop.status())
         await self.knowledge.resume_pending()
 
+    async def _ensure_ollama(self):
+        """First-run setup needs the local engine for model pulls: start an owned one if none answers."""
+        try:
+            await self.local_ollama_runtime.start(explicit=True)
+        except Exception:
+            logger.exception("Starting the local Ollama for setup failed")
+            return False
+        return await self.local_ollama_runtime.ready()
+
+    async def _runtime_registered(self, name, located):
+        self.runtimes[name] = located
+        if name == "ollama":
+            self.local_ollama_runtime.executable = located.get("executable") or None
+            if await self._ensure_ollama() and await self.refresh_model_inventory():
+                self.publish_model_state()
+
+    async def _before_runtime_uninstall(self, name, destination):
+        from ..services.runtime_installer import InstallError
+        if name != "ollama":
+            return
+        await self.local_ollama_runtime.close()  # Only ever stops OLIVE's own server.
+        import psutil
+        from .. import app_paths
+        for process in psutil.process_iter(["exe"]):
+            exe = process.info.get("exe")
+            if exe and app_paths.inside_installation(exe, destination):
+                raise InstallError("in_use", "Ollama from this folder is still running. Quit it, then try again.")
+
     async def refresh_model_inventory(self):
         """Re-read the local Ollama inventory into every derived model fact.
 
@@ -489,6 +537,7 @@ class ServiceContainer:
             if getattr(self.connect, 'chat', None) is not None:
                 await self.connect.chat.shutdown()
             await self.media.shutdown()
+            await self.runtime_installer.close()
             self.closing = True
             await self.personal.close()
             await self.mail.close()

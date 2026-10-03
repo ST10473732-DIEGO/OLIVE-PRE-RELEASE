@@ -24,7 +24,7 @@ Not in the artefact:
 - `olive/ui_qt`, `olive/__main__.py` (the Qt fallback);
 - `dmdo/`;
 - PySide6, Playwright and its browsers, and pip;
-- the `studio` extra (pylsp, debugpy, pywinpty);
+- the `studio` extra (pylsp, debugpy); `pywinpty` is a core Windows dependency since PASS 2C and is in the Windows lock;
 - Tcl/Tk, IDLE, the CPython test suite and headers;
 - on Linux, the unused `libpython` shared library (the interpreter is statically linked);
 - console-script launchers;

@@ -59,8 +59,44 @@ class HTTPBrowserProvider(ObservationBrowser):
         return self.remember(extract_page(body.decode("utf-8", errors="replace"), url, kind))
 
 
-UNAVAILABLE = ("The browser research provider (Playwright) is not part of this OLIVE build. "
-               "Research uses HTTP pages; choose Auto or HTTP in Research settings.")
+UNAVAILABLE = ("Browser automation (Playwright) is an optional OLIVE component and is not installed. "
+               "Research uses HTTP pages; install it from Setup (OLIVE Complete), or choose Auto or HTTP in Research settings.")
+NO_BROWSER = ("Browser automation needs Google Chrome, Microsoft Edge or Chromium on this computer. "
+              "OLIVE does not download a browser; research keeps using HTTP pages.")
+
+
+def system_browser(platform=None, environ=None, which=None):
+    """Launch options for a Chromium-based browser already installed here, or None.
+
+    Playwright's own browser download is never used: only Chrome, Edge or a
+    distribution Chromium that the person installed.
+    """
+    import shutil
+    import sys
+    platform = sys.platform if platform is None else platform
+    env = os.environ if environ is None else environ
+    which = shutil.which if which is None else which
+    if platform == "win32":
+        for channel, relative in (("msedge", "Microsoft/Edge/Application/msedge.exe"),
+                                  ("chrome", "Google/Chrome/Application/chrome.exe")):
+            if any((Path(env.get(key, "")) / relative).is_file()
+                   for key in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA") if env.get(key)):
+                return {"channel": channel}
+        return None
+    if platform == "darwin":
+        for channel, app in (("chrome", "/Applications/Google Chrome.app"), ("msedge", "/Applications/Microsoft Edge.app")):
+            if Path(app).is_dir():
+                return {"channel": channel}
+        return None
+    if Path("/opt/google/chrome/chrome").is_file():
+        return {"channel": "chrome"}
+    if Path("/opt/microsoft/msedge/msedge").is_file():
+        return {"channel": "msedge"}
+    for name in ("chromium", "chromium-browser"):
+        path = which(name)
+        if path:
+            return {"executable_path": path}
+    return None
 
 
 class PlaywrightBrowserProvider(ObservationBrowser):
@@ -81,12 +117,10 @@ class PlaywrightBrowserProvider(ObservationBrowser):
 
     @staticmethod
     def availability():
-        edge = any(
-            (Path(os.environ.get(key, "")) / "Microsoft/Edge/Application/msedge.exe").is_file()
-            for key in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA")
-        )
+        browser = system_browser()
+        edge = bool(browser and browser.get("channel") == "msedge")
         if not PlaywrightBrowserProvider.installed():
-            return {"driver": False, "installed_edge": edge, "installed": False, "setup": UNAVAILABLE}
+            return {"driver": False, "installed_edge": edge, "installed": False, "browser": browser, "setup": UNAVAILABLE}
         from playwright._impl._driver import compute_driver_executable
 
         driver, _ = compute_driver_executable()
@@ -94,7 +128,8 @@ class PlaywrightBrowserProvider(ObservationBrowser):
             "driver": Path(driver).is_file(),
             "installed_edge": edge,
             "installed": True,
-            "setup": "If Chromium/Edge is unavailable, run: python -m playwright install chromium",
+            "browser": browser,
+            "setup": "" if browser else NO_BROWSER,
         }
 
     async def ensure_started(self):
@@ -103,6 +138,9 @@ class PlaywrightBrowserProvider(ObservationBrowser):
                 return
             if not self.installed():
                 raise RuntimeError(UNAVAILABLE)
+            browser = system_browser()
+            if browser is None:
+                raise RuntimeError(NO_BROWSER)
             from playwright.async_api import async_playwright
 
             self.driver = await async_playwright().start()
@@ -126,7 +164,7 @@ class PlaywrightBrowserProvider(ObservationBrowser):
             }
             try:
                 self.browser = await self.driver.chromium.launch(
-                    channel="msedge" if self.availability()["installed_edge"] else None,
+                    **browser,
                     headless=True,
                     chromium_sandbox=True,
                     env=environment,
@@ -137,9 +175,7 @@ class PlaywrightBrowserProvider(ObservationBrowser):
                 await self.proxy.close()
                 await self.driver.stop()
                 self.proxy = self.driver = None
-                raise RuntimeError(
-                    "Research browser unavailable. Install Chromium manually with: python -m playwright install chromium"
-                ) from error
+                raise RuntimeError("The research browser could not start. " + NO_BROWSER) from error
 
     async def open(self, url):
         url = normalize_url(url)
@@ -218,8 +254,14 @@ class BrowserService(ObservationBrowser):
             page = await self.rendered.open(url)
         else:
             page = await self.http.open(url)
-            if self.provider == "auto" and len(page.text.strip()) < 200 and self.rendered.installed():
-                page = await self.rendered.open(url)
+            # Auto only upgrades a thin HTTP page when the optional component and a
+            # system browser are both present; otherwise the HTTP page stands.
+            if (self.provider == "auto" and len(page.text.strip()) < 200 and self.rendered.installed()
+                    and system_browser() is not None):
+                try:
+                    page = await self.rendered.open(url)
+                except RuntimeError:
+                    pass
         return self.remember(page)
 
     async def cancel(self):

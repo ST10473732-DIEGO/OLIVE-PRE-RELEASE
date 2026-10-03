@@ -24,6 +24,7 @@ function artefact(target: string, python: string, site: string, extra: (root: st
   put("olive/bridge/__main__.py");
   put("olive/identity.json", JSON.stringify({ version: identity.version }));
   put(`${site}/olive-backend.pth`, "../../..\n");
+  put("THIRD_PARTY-backend.txt", "notices");
   put("olive-backend.json", JSON.stringify({ schema: "olive-backend/1", target, version: identity.version, layout: { python } }));
   extra(root);
   return root;
@@ -40,6 +41,11 @@ it("refuses a backend built for another platform or architecture", () => {
   expect(validateBackendArtifact(linux, "win32", "x64")).toContain("Artefact is for linux-x86_64, packaging needs windows-x86_64");
   expect(validateBackendArtifact(linux, "darwin", "x64")).toEqual(["No OLIVE backend target for darwin/x64"]);
   expect(validateBackendArtifact(path.join(linux, "missing"), "linux", "x64")[0]).toMatch(/build_backend\.py/);
+});
+
+it("refuses an artefact without its third-party notices", () => {
+  const bare = artefact("linux-x86_64", "bin/python3", "lib/python3.14/site-packages", (root) => rmSync(path.join(root, "THIRD_PARTY-backend.txt")));
+  expect(validateBackendArtifact(bare, "linux", "x64")).toContain("Missing THIRD_PARTY-backend.txt");
 });
 
 it("refuses a development tree: no manifest, Qt, dmdo, Playwright or pip", () => {

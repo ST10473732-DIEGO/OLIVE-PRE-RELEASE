@@ -18,7 +18,7 @@ import { identity, normalizeEnvironment, resolveProfile } from "../identity";
 import { Preview } from "./preview";
 import { OliveBrowser } from "./browser";
 import { Backend } from "./backend";
-import { backendArguments, backendEnvironment, backendPython, brandingAsset, iconName } from "../platform";
+import { backendArguments, backendEnvironment, backendPython, brandingAsset, iconName, sandboxPolicy, UNSAFE_NO_SANDBOX_VARIABLE } from "../platform";
 import { validateCall } from "../contracts";
 import { fileAction } from "./file-actions";
 import { mediaId, mediaResponse } from "./media-protocol";
@@ -56,6 +56,16 @@ else {
     window?.focus();
   });
   void app.whenReady().then(async () => {
+    // Fail closed: never run web content unsandboxed because a launcher fell back to --no-sandbox.
+    const sandbox = sandboxPolicy({ platform: process.platform, noSandboxSwitch: app.commandLine.hasSwitch("no-sandbox"), env: process.env });
+    if (!sandbox.allowed) {
+      console.error(`${sandbox.title}\n${sandbox.message}`);
+      dialog.showErrorBox(sandbox.title ?? "", sandbox.message ?? "");
+      app.exit(78);
+      return;
+    }
+    if (sandbox.developerOverride)
+      console.warn(`${UNSAFE_NO_SANDBOX_VARIABLE}=1: running WITHOUT the Chromium sandbox (developer only).`);
     app.setAccessibilitySupportEnabled(true);
     const assets = app.isPackaged
       ? path.join(app.getAppPath(), "out/renderer")

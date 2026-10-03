@@ -268,7 +268,14 @@ class RuntimeDiscovery:
         return results
 
     def choose(self, name, paths) -> Located:
-        """Persist an explicit location (the future setup wizard's entry point)."""
+        """Persist an explicit location chosen by the person (setup's Runtimes step)."""
+        return self._persist(name, paths, 'configured')
+
+    def register(self, name, paths) -> Located:
+        """Persist a runtime OLIVE setup has just installed under the per-user runtime root."""
+        return self._persist(name, paths, 'olive-owned')
+
+    def _persist(self, name, paths, origin) -> Located:
         if name not in NAMES:
             raise ValueError('Unknown runtime')
         paths = {k: str(v) for k, v in paths.items() if v}
@@ -277,9 +284,30 @@ class RuntimeDiscovery:
         stored, readable = self.repository.load()
         if not readable:
             raise ValueError('runtimes.json is unreadable; review it before choosing a runtime')
-        stored[name] = {'paths': paths, 'origin': 'configured', 'adopted': False}
+        stored[name] = {'paths': paths, 'origin': origin, 'adopted': False}
         self.repository.save(stored)
         return self.resolve()[name]
+
+    def from_folder(self, name, folder) -> dict:
+        """The location fields a chosen folder implies (the folder itself is never trusted blindly)."""
+        root = Path(folder)
+        if name == 'ollama':
+            for relative in ('ollama.exe', 'bin/ollama', 'ollama', 'Contents/Resources/ollama'):
+                if (root / relative).is_file():
+                    return {'executable': str(root / relative)}
+            return {'executable': str(root / ('ollama.exe' if self.platform == 'win32' else 'bin/ollama'))}
+        if name in ('comfy', 'video_comfy'):
+            for comfy_root, python in (('ComfyUI', 'comfy-venv/bin/python'), ('ComfyUI', 'comfy-venv/Scripts/python.exe'),
+                                       ('ComfyUI_windows_portable/ComfyUI', 'ComfyUI_windows_portable/python_embeded/python.exe'),
+                                       ('.', '.venv/bin/python'), ('.', 'venv/bin/python'), ('.', '.venv/Scripts/python.exe')):
+                if (root / comfy_root / 'main.py').is_file() and (root / python).is_file():
+                    return {'root': str((root / comfy_root).resolve()), 'python': str(root / python)}
+            return {'root': str(root), 'python': ''}
+        if name == 'voicestudio':
+            return {'root': str(root), 'url': VOICESTUDIO_URL}
+        if name == 'media_models':
+            return {'path': str(root)}
+        raise ValueError('Unknown runtime')
 
     def forget(self, name) -> None:
         stored, readable = self.repository.load()

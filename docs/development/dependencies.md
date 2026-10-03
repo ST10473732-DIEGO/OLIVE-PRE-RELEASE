@@ -7,9 +7,9 @@
 | Declaration | Contents | Used by |
 | --- | --- | --- |
 | `[project] dependencies` | Exactly the backend runtime that `python -m olive.bridge` needs, with platform markers | The future self-contained backend artifact (`pip install .` into a relocatable Python) |
-| extra `browser` | `playwright` | Optional Playwright research provider. HTTP research works without it; browsers are a separate download |
+| extra `browser` | `playwright` | Optional Playwright research provider for source checkouts. HTTP research works without it. Packaged builds never include it: OLIVE Complete offers it as an optional first-run component (pinned wheels from the runtime manifest, installed per user) |
 | extra `qt` | `PySide6` | Legacy Qt fallback (`main.py`, `olive/ui_qt`) and its tests. **Never** part of the Electron backend |
-| extra `studio` | `debugpy`, `python-lsp-server`, `pyflakes`, `autopep8`, `pywinpty` (Windows) | Studio diagnostics, formatting, debugging and ConPTY terminals |
+| extra `studio` | `debugpy`, `python-lsp-server`, `pyflakes`, `autopep8` | Studio diagnostics, formatting and debugging |
 
 The requirements files are install lists for the source launchers and CI. They
 mirror `pyproject.toml` and add nothing of their own except two transitive pins:
@@ -37,7 +37,7 @@ run the Connect tests on Ubuntu and Windows; it is not a full declaration.
 | `keyring` (25.7.0) | macOS | Keychain credential vault, using only its macOS backend (Security framework) |
 | `pywin32`, `pywinauto`, `comtypes` | Windows | Credential Manager, UI Automation desktop control, clipboard, shortcuts |
 | `winrt-Windows.*` | Windows | Media session control |
-| `pywinpty` (studio) | Windows | ConPTY terminals |
+| `pywinpty` (core) | Windows | ConPTY terminals for the Studio terminal; in the packaged Windows backend |
 
 macOS has no platform-specific packages yet; the macOS credential backend is open
 OLIVE 1.0 work.

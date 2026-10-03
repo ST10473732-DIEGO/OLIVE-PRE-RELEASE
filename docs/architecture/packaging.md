@@ -11,7 +11,7 @@ has been published. Linux (AppImage) is the only package built and launched so f
 | Python backend artefact | `packaging/backend/build_backend.py` → `desktop/backend-artifact/` → `resources/backend` | Relocatable CPython (python-build-standalone), hash-locked wheels, `olive/` |
 | Legal notices | `resources/legal/` | `LICENSE`, `THIRD_PARTY_NOTICES.md`, `desktop/THIRD_PARTY.md`; Electron adds its own `LICENSE*` |
 | Icons | `assets/branding/` | `.ico` (Windows), `.icns` (macOS, `packaging/icons/make_icons.py`), PNG (Linux) |
-| Runtime manifest | `olive/runtime_manifest/1.0.0.json` (inside the backend) | API boundary only; every entry disabled |
+| Runtime manifest | `olive/runtime_manifest/1.0.0.json` (inside the backend) | What first-run setup may install; see [first-run-setup.md](first-run-setup.md) |
 | Linux entries | `packaging/linux/*.in` = `olive/services/linux_desktop_entries.py` | Visible `olive.desktop`, hidden `local.dmdo.desktop.desktop` |
 | Windows installer script | `packaging/electron/installer.nsh` | Optional desktop shortcut; never deletes data |
 | macOS entitlements | `packaging/electron/entitlements.mac*.plist` | Hardened-runtime placeholders; not signed |

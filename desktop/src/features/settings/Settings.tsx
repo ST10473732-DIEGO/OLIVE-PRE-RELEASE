@@ -310,6 +310,13 @@ export default function Settings({
               </div>
               <h3 className="settings-group-title">Startup and layout</h3>
               <div className="settings-group">
+                <div className="setting-row">
+                  <span className="setting-text">
+                    <strong>OLIVE setup</strong>
+                    <span>Check this computer, install runtimes and models, or repair them.</span>
+                  </span>
+                  <button type="button" onClick={() => window.dispatchEvent(new Event("olive:open-setup"))}>Open setup</button>
+                </div>
                 <label className="setting-row">
                   <span className="setting-text">
                     <strong>Start on Home</strong>

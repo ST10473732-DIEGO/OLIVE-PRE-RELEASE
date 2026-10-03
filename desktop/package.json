@@ -101,6 +101,10 @@
       {
         "from": "THIRD_PARTY.md",
         "to": "legal/THIRD_PARTY-desktop.md"
+      },
+      {
+        "from": "backend-artifact/THIRD_PARTY-backend.txt",
+        "to": "legal/THIRD_PARTY-backend.txt"
       }
     ],
     "linux": {

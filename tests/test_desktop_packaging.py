@@ -115,8 +115,11 @@ class ElectronBuilderTargetTests(unittest.TestCase):
         self.assertEqual(resources['backend-artifact'], 'backend')
         self.assertEqual(resources['../LICENSE'], 'legal/LICENSE.txt')
         self.assertEqual(resources['../THIRD_PARTY_NOTICES.md'], 'legal/THIRD_PARTY_NOTICES.md')
+        # Generated per build by packaging/legal/collect_notices.py (PASS 2C).
+        self.assertEqual(resources['backend-artifact/THIRD_PARTY-backend.txt'], 'legal/THIRD_PARTY-backend.txt')
         self.assertEqual(set(resources) - {'backend-artifact', '../assets/branding/olive.ico', '../assets/branding/olive-256.png',
-                                           '../LICENSE', '../THIRD_PARTY_NOTICES.md', 'THIRD_PARTY.md'}, set())
+                                           '../LICENSE', '../THIRD_PARTY_NOTICES.md', 'THIRD_PARTY.md',
+                                           'backend-artifact/THIRD_PARTY-backend.txt'}, set())
         self.assertEqual(BUILD['directories']['output'], 'dist')  # Never inside out/, which is packaged.
 
 

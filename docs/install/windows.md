@@ -44,7 +44,7 @@ developer tool that uses the same locations.
 
 ## Known gaps
 
-- Studio terminal: `pywinpty` is not in the backend yet; the terminal reports that clearly.
+- Studio terminal: `pywinpty` 3.0.5 is part of the Windows backend (core dependency). Not yet validated on a Windows build.
 - Desktop Control's browser: Playwright is not in the backend yet; it reports that clearly.
 - No current-tree Windows acceptance.
 - Owned Ollama, ComfyUI and VoiceStudio starts are not validated.

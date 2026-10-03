@@ -210,7 +210,7 @@ class OptionalBrowserComponentTests(unittest.IsolatedAsyncioTestCase):
             service.remember = lambda page: page
             self.assertIs(await service.open('https://example.test/'), short_page)
             service.rendered.open.assert_not_awaited()
-            with self.assertRaisesRegex(RuntimeError, 'not part of this OLIVE build'):
+            with self.assertRaisesRegex(RuntimeError, 'optional OLIVE component and is not installed'):
                 await browser.PlaywrightBrowserProvider().ensure_started()
 
     async def test_interactive_browser_without_playwright_is_a_truthful_platform_state(self):
