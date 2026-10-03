@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=OLIVE
+GenericName=AI Assistant
+Comment=Local-first desktop AI assistant
+Exec=@EXEC@
+Icon=olive
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+StartupWMClass=olive
+X-OLIVE-Managed=true

@@ -33,46 +33,11 @@ fi
 if [[ -d "$HOME/.ollama/models" ]]; then
   export OLLAMA_MODELS="${OLLAMA_MODELS:-$HOME/.ollama/models}"
 fi
-# A provisioned optional Media runtime starts only when Media tools request it.
-# Prefer the persistent OLIVE-managed runtime so Git clones/branches do not
-# own heavyweight runtime dependencies. Fall back to repository-local tools.
-olive_comfy_root=""
-olive_comfy_python=""
-
-if [[ -f "$HOME/.local/share/olive/runtime/comfy/ComfyUI/main.py" \
-   && -x "$HOME/.local/share/olive/runtime/comfy/comfy-venv/bin/python" ]]; then
-  olive_comfy_root="$HOME/.local/share/olive/runtime/comfy/ComfyUI"
-  olive_comfy_python="$HOME/.local/share/olive/runtime/comfy/comfy-venv/bin/python"
-elif [[ -f "$root/.toolchains/ComfyUI/main.py" \
-     && -x "$root/.toolchains/comfy-venv/bin/python" ]]; then
-  olive_comfy_root="$root/.toolchains/ComfyUI"
-  olive_comfy_python="$root/.toolchains/comfy-venv/bin/python"
-fi
-
-if [[ -n "$olive_comfy_root" && -n "$olive_comfy_python" ]]; then
-  export OLIVE_COMFY_ROOT="${OLIVE_COMFY_ROOT:-$olive_comfy_root}"
-  export OLIVE_COMFY_PYTHON="${OLIVE_COMFY_PYTHON:-$olive_comfy_python}"
-fi
-# Persistent image model store (FLUX.2 files live outside the runtime's models
-# folder). The owned image runtime reads it through an extra model-paths map.
-if [[ -d "$HOME/.local/share/olive/models/comfy" ]]; then
-  export OLIVE_MEDIA_MODELS="${OLIVE_MEDIA_MODELS:-$HOME/.local/share/olive/models/comfy}"
-fi
-# Chat VIDEO uses its own isolated ComfyUI runtime on 127.0.0.1:8190; the
-# image runtime above is never repurposed for video.
-if [[ -f "$HOME/.local/share/olive/runtime/video-comfy/ComfyUI/main.py" \
-   && -x "$HOME/.local/share/olive/runtime/video-comfy/comfy-venv/bin/python" ]]; then
-  export OLIVE_VIDEO_COMFY_ROOT="${OLIVE_VIDEO_COMFY_ROOT:-$HOME/.local/share/olive/runtime/video-comfy/ComfyUI}"
-  export OLIVE_VIDEO_COMFY_PYTHON="${OLIVE_VIDEO_COMFY_PYTHON:-$HOME/.local/share/olive/runtime/video-comfy/comfy-venv/bin/python}"
-fi
-# Chat AUDIO talks to a separately installed VoiceStudio service (not bundled).
-# An already-running service is reused only if it listens on loopback alone;
-# otherwise OLIVE starts its own on 127.0.0.1:3900, offline, when AUDIO needs it.
-if [[ -f "$HOME/.local/share/olive/runtime/voicestudio/backend/main.py" \
-   && -x "$HOME/.local/share/olive/runtime/voicestudio/.venv/bin/python" ]]; then
-  export OLIVE_VOICESTUDIO_URL="${OLIVE_VOICESTUDIO_URL:-http://127.0.0.1:3900}"
-  export OLIVE_VOICESTUDIO_ROOT="${OLIVE_VOICESTUDIO_ROOT:-$HOME/.local/share/olive/runtime/voicestudio}"
-fi
+# OLIVE-owned runtimes (ComfyUI image/video, VoiceStudio, the image model store)
+# are located by the backend itself (olive/services/runtime_discovery.py) from the
+# per-user runtime folder and <profile>/runtimes.json, exactly as in a packaged
+# app. OLIVE_COMFY_ROOT/_PYTHON, OLIVE_VIDEO_COMFY_ROOT/_PYTHON,
+# OLIVE_VOICESTUDIO_ROOT/_URL and OLIVE_MEDIA_MODELS remain optional overrides.
 for tool in python3 node npm; do
   command -v "$tool" >/dev/null || { printf 'Missing dependency: %s. Install it before launching OLIVE.\n' "$tool" >&2; exit 1; }
 done

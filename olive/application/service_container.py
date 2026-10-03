@@ -88,7 +88,8 @@ class ServiceContainer:
         self.migration_actions = migrate_legacy_data() if migrate and data_dir is None else []
 
         self.settings = self.settings_repo.load()
-        self.settings.setdefault("preferred_name", "Diego")
+        # Unset until the user names themselves (first-run setup); a stored name is kept as is.
+        self.settings.setdefault("preferred_name", "")
         self.model_defaults = self.settings_repo.load_model_defaults()
         self.model_aliases = self.settings_repo.load_model_aliases()
         self.theme_name = self.settings.get("theme", DEFAULT_THEME)
@@ -101,8 +102,20 @@ class ServiceContainer:
         from ..authority.owner import OwnerPolicy
         self.owner_policy = OwnerPolicy(lambda: self.settings)
         self.ollama = OllamaService()
+        from ..services.runtime_discovery import RuntimeDiscovery
+        # Runtime locations come from the profile (runtimes.json) and discovery, so a
+        # packaged app launched from its icon finds them without a launcher script.
+        self.runtime_discovery = RuntimeDiscovery(data)
+        try:
+            self.runtimes = self.runtime_discovery.resolve(adopt=True)
+        except Exception:
+            logger.exception("Runtime discovery failed; runtimes report Needs setup")
+            from ..services.runtime_discovery import from_environment
+            self.runtimes = from_environment()
         from ..services.local_ollama_runtime import LocalOllamaRuntime
-        self.local_ollama_runtime = LocalOllamaRuntime(self.ollama.host)
+        self.local_ollama_runtime = LocalOllamaRuntime(
+            self.ollama.host, executable=self.runtimes["ollama"].get("executable") or None,
+            models=self.runtimes["ollama"].get("models") or None)
         self.model_registry = ModelCapabilityRegistry(self.ollama)
         self.rag_store = RAGStore(data / "rag.sqlite3")
         self.rag = RAGService(

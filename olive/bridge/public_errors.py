@@ -55,6 +55,7 @@ for _message in (
  'Wait for attached documents to finish indexing, or remove failed attachments',
  'Remove an attached image before adding another reference',
  'Cannot verify media GPU release. Reconnect the configured engine, or disconnect it in Media tools while it is running and idle, before retrying Chat.',
+ 'The browser research provider (Playwright) is not part of this OLIVE build. Research uses HTTP pages; choose Auto or HTTP in Research settings.',
 ):
  _MESSAGES[_message] = _message
 

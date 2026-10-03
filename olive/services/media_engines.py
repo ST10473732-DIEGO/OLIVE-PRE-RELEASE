@@ -5,7 +5,6 @@ downloads, installs or edits a runtime. Status is cached and cheap so the
 preset snapshot never blocks on the network.
 """
 import logging
-import os
 from pathlib import Path
 import re
 import time
@@ -198,21 +197,19 @@ class ComfyEngine:
         await self.runtime.close()  # Only an OLIVE-started process is stopped.
 
 
-def data_home():
-    base = os.environ.get('XDG_DATA_HOME') or str(Path.home() / '.local' / 'share')
-    return Path(base) / 'olive'
-
-
 class MediaEngines:
-    def __init__(self, config_dir):
+    def __init__(self, config_dir, located=None):
+        """`located` is runtime discovery's result; without it only environment overrides apply."""
+        from .runtime_discovery import from_environment
         self.config_dir = Path(config_dir)
-        image_models = os.environ.get('OLIVE_MEDIA_MODELS', '')
-        image = LocalComfyRuntime()  # OLIVE_COMFY_ROOT / OLIVE_COMFY_PYTHON, port 8188
+        located = located or from_environment()
+        image_models = located['media_models'].get('path')
+        image = LocalComfyRuntime(root=located['comfy'].get('root'), python=located['comfy'].get('python'))  # port 8188
         self.image = ComfyEngine('image', image, IMAGE_WORKFLOWS,
                                  extra_models=(image_models, IMAGE_EXTRA) if image_models else None)
         image.model_paths = lambda: self.image.model_paths_config(self.config_dir)
         video = LocalComfyRuntime(
-            'http://127.0.0.1:8190', os.environ.get('OLIVE_VIDEO_COMFY_ROOT', ''), os.environ.get('OLIVE_VIDEO_COMFY_PYTHON', ''),
+            'http://127.0.0.1:8190', located['video_comfy'].get('root'), located['video_comfy'].get('python'),
             # The LTX 2.3 loader lives in this reviewed custom node; all others stay off.
             custom_nodes=('ComfyUI-GGUF-Loader',),
             # Matches the manually validated launch (dynamic VRAM for LTX on 16 GiB);

@@ -51,7 +51,7 @@ tests. IMAP uses a labelled scripted TLS fixture, not independent server proof.
 
 Ctrl+Shift+P opens the command palette. Ctrl+Alt+Escape stops desktop input through Electron main and Python. Studio Ctrl+S uses the policy-bearing save path. Studio's language servers, debug adapters and interactive terminals are optional tooling provisioned by `scripts/provision_studio_tooling.py` (see `THIRD_PARTY.md`).
 
-Packaging uses electron-builder, but `package:dir` deliberately fails until a validated self-contained `backend-artifact/python.exe` and dependencies exist. The development virtual environment is not a distributable backend. No OLIVE installer has been built for any platform yet; Linux, Windows and macOS installers are OLIVE 1.0 release work (`docs/install/README.md`).
+Packaging uses electron-builder: `npm run package:linux` (AppImage), `package:win` (per-user NSIS) and `package:mac` (unsigned DMG). Each one first needs the self-contained backend for that OS, built with `python ../packaging/backend/build_backend.py`. `scripts/require-backend.cjs` refuses a missing, mismatched or development backend, and the repository `.venv` is never packaged. Only the Linux AppImage has been built and launched so far; nothing is published (`docs/architecture/packaging.md`, `docs/install/README.md`).
 
 Mail is available from All Spaces or the command palette. It works locally before
 server setup. See `docs/features/mail.md` and `docs/security/credentials.md` for optional setup,

@@ -26,6 +26,10 @@ desktop/test-results/
 desktop/test-results-*/
 desktop/playwright-report/
 desktop/backend-artifact/
+desktop/backend-artifact.staging/
+desktop/backend-artifact.previous/
+# Verified python-build-standalone downloads (packaging/backend/build_backend.py)
+packaging/backend/.cache/
 # Local evidence captures (screenshots, videos, acceptance runs) never belong in Git.
 artifacts/
 

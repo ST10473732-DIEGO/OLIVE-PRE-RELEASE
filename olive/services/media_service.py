@@ -49,7 +49,7 @@ class MediaService:
         from .media_engines import MediaEngines
         self.s=services;self.root=Path(services.data_dir)/'media';self.store=JsonStore(self.root/'records.json');self.config=JsonStore(self.root/'engine.json')
         # One process manager per runtime: Media tools and Chat share the image engine.
-        self.engines=MediaEngines(self.root/'engines');self.runtime=self.engines.image.runtime
+        self.engines=MediaEngines(self.root/'engines',getattr(services,'runtimes',None));self.runtime=self.engines.image.runtime
         self.engines.image.legacy=lambda:self.config.read({}).get('endpoint')==self.engines.image.endpoint
         self.file_checks={}
         self.jobs={};self.tasks={};self.cancel_events={};self.lock=asyncio.Lock()

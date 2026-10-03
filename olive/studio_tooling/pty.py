@@ -67,6 +67,14 @@ class TerminalSession:
             self._reader = threading.Thread(target=self._read_loop, name=f"olive-pty-{self.id[:8]}", daemon=True)
             self._reader.start()
             return
+        from ..platform_support import PlatformUnavailable, unavailable_message
+        if sys.platform != 'win32':
+            raise PlatformUnavailable(unavailable_message('Studio interactive terminal'))  # macOS: not yet.
+        import importlib.util
+        if importlib.util.find_spec("winpty") is None:
+            # pywinpty is in the optional `studio` extra, which packaged backends do not include yet.
+            raise PlatformUnavailable("The Studio terminal on Windows needs the pywinpty component, "
+                                      "which is not part of this OLIVE build.")
         import winpty
         if command:
             executable = shutil.which(command[0], path=environment.get('PATH')) or command[0]

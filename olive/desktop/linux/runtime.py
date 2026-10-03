@@ -78,6 +78,8 @@ class LinuxRuntime:
             if self.capabilities is not None or self.probe_error:
                 return
             try:
+                from ...services.linux_desktop_entries import ensure_portal_identity
+                await asyncio.to_thread(ensure_portal_identity)  # Packaged builds only.
                 self.capabilities = await self.native.call('probe')
             except Exception:
                 self.probe_error = 'Native GObject helper or application portal unavailable'

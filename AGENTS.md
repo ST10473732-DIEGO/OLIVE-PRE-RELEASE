@@ -28,9 +28,11 @@
 
 ## Quality bar
 Before considering a change complete, run from the repository root:
-1. `python -m compileall -q -x "(^|[/\\])\.venv[/\\]" .`
-   (the exclusion skips a development virtual environment inside the checkout; third-party
-   templates in it do not compile)
+1. `python -m compileall -q -x "(^|[^A-Za-z0-9_.-])(\.venv|backend-artifact|dist|node_modules)[^A-Za-z0-9_.-]" .`
+   (the exclusion skips a development virtual environment inside the checkout, whose
+   third-party templates do not compile, and the ignored packaging outputs
+   `desktop/backend-artifact` and `desktop/dist`, whose byte-code is built deliberately; the
+   separator class avoids backslashes so the same command works in bash, zsh, PowerShell and cmd)
 2. `python -m unittest discover -s tests -v`
    (use a throwaway profile, e.g. a temporary `HOME`/`OLIVE_DATA_DIR`; never real user data)
 3. Desktop, from `desktop/`:

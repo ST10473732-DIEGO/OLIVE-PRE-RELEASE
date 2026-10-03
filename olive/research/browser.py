@@ -59,6 +59,10 @@ class HTTPBrowserProvider(ObservationBrowser):
         return self.remember(extract_page(body.decode("utf-8", errors="replace"), url, kind))
 
 
+UNAVAILABLE = ("The browser research provider (Playwright) is not part of this OLIVE build. "
+               "Research uses HTTP pages; choose Auto or HTTP in Research settings.")
+
+
 class PlaywrightBrowserProvider(ObservationBrowser):
     name = "playwright"
 
@@ -69,17 +73,27 @@ class PlaywrightBrowserProvider(ObservationBrowser):
         self.contexts = set()
 
     @staticmethod
-    def availability():
-        from playwright._impl._driver import compute_driver_executable
+    def installed():
+        """Playwright is an optional extra; packaged backends do not include it."""
+        import importlib.util
 
-        driver, _ = compute_driver_executable()
+        return importlib.util.find_spec("playwright") is not None
+
+    @staticmethod
+    def availability():
         edge = any(
             (Path(os.environ.get(key, "")) / "Microsoft/Edge/Application/msedge.exe").is_file()
             for key in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA")
         )
+        if not PlaywrightBrowserProvider.installed():
+            return {"driver": False, "installed_edge": edge, "installed": False, "setup": UNAVAILABLE}
+        from playwright._impl._driver import compute_driver_executable
+
+        driver, _ = compute_driver_executable()
         return {
             "driver": Path(driver).is_file(),
             "installed_edge": edge,
+            "installed": True,
             "setup": "If Chromium/Edge is unavailable, run: python -m playwright install chromium",
         }
 
@@ -87,6 +101,8 @@ class PlaywrightBrowserProvider(ObservationBrowser):
         async with self.lock:
             if self.browser:
                 return
+            if not self.installed():
+                raise RuntimeError(UNAVAILABLE)
             from playwright.async_api import async_playwright
 
             self.driver = await async_playwright().start()
@@ -202,7 +218,7 @@ class BrowserService(ObservationBrowser):
             page = await self.rendered.open(url)
         else:
             page = await self.http.open(url)
-            if self.provider == "auto" and len(page.text.strip()) < 200:
+            if self.provider == "auto" and len(page.text.strip()) < 200 and self.rendered.installed():
                 page = await self.rendered.open(url)
         return self.remember(page)
 

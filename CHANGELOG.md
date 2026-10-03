@@ -37,6 +37,15 @@ are still being prepared on `release/olive-1.0`.
   cannot read.
 - Project licence ([LICENSE](LICENSE)), [security policy](SECURITY.md) and
   [third-party notices](THIRD_PARTY_NOTICES.md).
+- Desktop packaging foundation: a self-contained Python backend (relocatable
+  CPython 3.14.8 with hash-locked dependencies), Linux AppImage, per-user Windows
+  installer and unsigned macOS DMG configuration. Only the AppImage has been built so
+  far, and nothing is published.
+- Runtime discovery: OLIVE finds its Ollama, ComfyUI, VoiceStudio and media-model
+  folders itself and remembers them in `runtimes.json`, without moving anything.
+  Missing or moved runtimes show *Needs setup*.
+- macOS foundations: Keychain credential storage, opening files with `open`, and
+  macOS runtime folders and process handling. None of this is validated on a Mac yet.
 
 ### Changed
 
@@ -53,6 +62,12 @@ are still being prepared on `release/olive-1.0`.
   `docs/archive/`.
 - Windows-only features now say which platform they are unavailable on, instead
   of always naming Linux.
+- New profiles no longer default the preferred name to the developer's name. It
+  stays empty until you set it. Profiles that already store a name keep it.
+- `run_olive.sh` no longer exports runtime paths; the backend discovers them, as a
+  packaged app does. The `OLIVE_*` runtime variables remain optional overrides.
+- On Linux, `scripts/install_linux_desktop_entry.py` now writes a visible
+  `olive.desktop` and a hidden `local.dmdo.desktop.desktop`.
 
 ### Fixed
 
@@ -63,6 +78,9 @@ are still being prepared on `release/olive-1.0`.
 - Linux: the window announces `olive.desktop`, so it groups under an OLIVE entry.
 - Remote AI: a Stop or permission change arriving after a job had already ended no
   longer interrupts that job's cleanup, which could leave the model slot held.
+- Research diagnostics and the browser provider no longer fail when the optional
+  Playwright component is absent; research stays on HTTP pages.
+- Windows VIDEO: the app-owned ComfyUI launch keeps the LTX GGUF loader enabled.
 
 ### Removed
 

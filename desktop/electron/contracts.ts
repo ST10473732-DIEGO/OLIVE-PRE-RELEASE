@@ -34,6 +34,7 @@ export const schemas = {
   ...notesSchemas,
   ...drawSchemas,
   "runtime.snapshot": empty,
+  "runtime.runtimes": empty,
   'media.status': empty,
   'media.configure': z.object({url:short}).strict(),
   'media.disconnect': empty,

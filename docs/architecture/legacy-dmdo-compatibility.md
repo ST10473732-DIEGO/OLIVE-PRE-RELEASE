@@ -38,13 +38,25 @@ identities on purpose:
 | Identity | Use |
 | --- | --- |
 | `olive.desktop` | Visible launcher entry and the Wayland/X11 window identity. Also the name of the optional autostart entry (`~/.config/autostart/olive.desktop`, `olive/services/linux_startup.py`) |
-| `local.dmdo.desktop` | Portal/permission identity. `scripts/install_linux_desktop_entry.py` currently writes `~/.local/share/applications/local.dmdo.desktop.desktop` for it |
+| `local.dmdo.desktop` | Portal/permission identity. xdg-desktop-portal's host Registry only accepts an app ID that has a matching desktop file, so a **hidden** `local.dmdo.desktop.desktop` (`NoDisplay=true`) exists for it |
 
-Planned Linux packaging (not yet built) will ship a visible `olive.desktop` and,
-where portal continuity needs it, a hidden `local.dmdo.desktop.desktop` with
-`NoDisplay=true`. Migrating the portal grant to a new ID is out of scope for 1.0.
-Today no `~/.local/share/applications/olive.desktop` is installed by any tracked
-script; developer runs rely on the existing entries.
+PASS 2B (2026-10-03) implements this in packaging:
+
+- the AppImage embeds `olive.desktop`: `Name=OLIVE`, `Icon=olive`,
+  `StartupWMClass=olive`, and `Exec` pointing at the AppImage (`desktop/package.json`
+  sets `desktopName`, `syncDesktopName` and `executableName: olive`);
+- a packaged build writes the hidden `local.dmdo.desktop.desktop` only when desktop
+  control first probes the portal (`olive/services/linux_desktop_entries.py`,
+  `ensure_portal_identity`);
+- `scripts/install_linux_desktop_entry.py` writes both entries for a source checkout
+  (both start `run_olive.sh`);
+- templates are in `packaging/linux/*.in`, and `tests/test_desktop_packaging.py` keeps
+  them identical to the renderer.
+
+Entries that OLIVE did not write (no `X-OLIVE-Managed=true`) are never replaced. An older
+OLIVE-written visible `local.dmdo.desktop.desktop` becomes the hidden form, so OLIVE
+appears in the application menu only once. Migrating the portal grant to a new ID is out
+of scope for 1.0.
 
 ## Launchers
 
@@ -55,8 +67,8 @@ script; developer runs rely on the existing entries.
 | `python main.py` / `python -m olive` | Legacy Qt fallback UI (`olive/ui_qt`); development only, needs the `qt` extra |
 | `run_dmdo.bat` | **Retired for OLIVE 1.0.** It only forwarded to `run_olive.bat` and nothing depended on it. Use `run_olive.bat` for source development |
 
-Packaged users will use the OLIVE installer; installers are still being prepared
-and none has been published.
+Packaged users will use the OLIVE package for their platform (AppImage, NSIS installer,
+DMG; see [packaging](packaging.md)). None has been published.
 
 ## 3.5.1 rebrand record (12 September 2026, historical)
 

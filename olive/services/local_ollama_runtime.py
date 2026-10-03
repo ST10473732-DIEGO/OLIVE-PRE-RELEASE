@@ -1,20 +1,32 @@
-"""Optional Linux app-owned Ollama lifecycle; existing servers remain external."""
+"""Optional app-owned Ollama lifecycle; existing servers remain external.
+
+Linux is the validated platform. Windows and macOS use the same flow through
+olive.runtime.processes and are reported as unvalidated until accepted there.
+The executable comes from runtime discovery (an OLIVE-owned runtime, a persisted
+choice or a system installation), never from a launcher script's PATH alone.
+"""
 import asyncio
 import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 from urllib.parse import urlsplit
 
 import httpx
 
 
 class LocalOllamaRuntime:
-    def __init__(self, host):
+    def __init__(self, host, executable=None, models=None):
         self.host = host
         self.process = None
         self.owner = None
+        # A discovered executable (str) or a callable returning one; PATH is the fallback.
+        self.executable = executable
+        self.models = models  # Persisted OLLAMA_MODELS for an owned server, if any.
+
+    def resolve_executable(self):
+        value = self.executable() if callable(self.executable) else self.executable
+        return value or shutil.which('ollama')
 
     async def ready(self):
         try:
@@ -25,7 +37,8 @@ class LocalOllamaRuntime:
             return False
 
     async def start(self):
-        if sys.platform != 'linux' or os.environ.get('OLIVE_START_OLLAMA') != '1':
+        from ..runtime.processes import supported
+        if not supported() or os.environ.get('OLIVE_START_OLLAMA') != '1':
             return
         endpoint = urlsplit(self.host)
         # Only the ordinary local endpoint is auto-started. Explicit alternate
@@ -34,28 +47,22 @@ class LocalOllamaRuntime:
             return
         if await self.ready():
             return
-        executable = shutil.which('ollama')
+        executable = self.resolve_executable()
         if not executable:
             return
-        import fcntl
-        runtime = os.environ.get('XDG_RUNTIME_DIR')
-        directory = Path(runtime) if runtime and Path(runtime).is_absolute() else Path.home() / '.cache' / 'olive'
+        from .. import app_paths
+        from ..runtime.processes import StartLock, start_owned_process
+        directory = Path(app_paths.lock_directory())
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd = os.open(directory / 'olive-ollama-start.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        lock = StartLock(directory / 'olive-ollama-start.lock').open()
         try:
-            for _ in range(300):
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    await asyncio.sleep(.1)
-            else:
-                raise TimeoutError('Another local Ollama startup is still pending')
+            await lock.acquire(300, 'Another local Ollama startup is still pending')
             if await self.ready():
                 return
             env = dict(os.environ, OLLAMA_HOST='127.0.0.1:11434', OLLAMA_MAX_LOADED_MODELS='1', OLLAMA_NO_CLOUD='1', OLLAMA_NOPRUNE='1')
+            if self.models and not env.get('OLLAMA_MODELS'):
+                env['OLLAMA_MODELS'] = str(self.models)
             import psutil
-            from ..studio_tooling.posix_process import start_owned_process
             self.process = await start_owned_process(
                 [executable, 'serve'], env=env,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -71,7 +78,7 @@ class LocalOllamaRuntime:
             await self.close()
             raise
         finally:
-            os.close(fd)
+            lock.close()
 
     async def close(self):
         process = self.process

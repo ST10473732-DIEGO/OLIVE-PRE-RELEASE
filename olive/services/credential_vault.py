@@ -1,4 +1,8 @@
-"""OS-owned credentials, separate from portable application data."""
+"""OS-owned credentials, separate from portable application data.
+
+Windows Credential Manager, the Linux Secret Service, or the macOS Keychain.
+There is never a plaintext fallback.
+"""
 import hashlib
 import re
 import sys
@@ -12,6 +16,9 @@ class CredentialVault:
         if sys.platform == 'linux':
             from .linux_credentials import available
             return available()
+        if sys.platform == 'darwin':
+            from .macos_credentials import available
+            return available()
         return sys.platform == 'win32'
 
     def __init__(self, profile):
@@ -21,9 +28,25 @@ class CredentialVault:
 
     def require_available(self):
         if not self.available:
-            from .linux_credentials import UNAVAILABLE
-            from ..platform_support import PlatformUnavailable
+            from ..platform_support import PlatformUnavailable, unavailable_message
+            if sys.platform == 'linux':
+                from .linux_credentials import UNAVAILABLE
+            elif sys.platform == 'darwin':
+                from .macos_credentials import UNAVAILABLE
+            else:
+                UNAVAILABLE = unavailable_message('Secure credential storage')
             raise PlatformUnavailable(UNAVAILABLE)
+
+    @staticmethod
+    def _posix_store():
+        """The Secret Service or Keychain adapter, or None on Windows."""
+        if sys.platform == 'linux':
+            from . import linux_credentials
+            return linux_credentials
+        if sys.platform == 'darwin':
+            from . import macos_credentials
+            return macos_credentials
+        return None
 
     def _target(self, reference):
         if reference not in {'discord-bot', 'connect-identity-v1', 'connect-world-v1'} and not (isinstance(reference, str) and re.fullmatch(r'mail-[a-f0-9]{32}', reference)):
@@ -32,9 +55,9 @@ class CredentialVault:
 
     def contains(self, reference):
         """Distinguish an absent slot from an unavailable store without exposing secrets."""
-        if sys.platform == 'linux':
-            from .linux_credentials import operate
-            return operate('contains', self._target(reference))
+        store = self._posix_store()
+        if store is not None:
+            return store.operate('contains', self._target(reference))
         require_windows('Secure credential storage')
         import win32cred
         try:
@@ -48,9 +71,9 @@ class CredentialVault:
     def put(self, reference, secret):
         if not isinstance(secret,str) or not secret or '\0' in secret or len(secret.encode('utf-16-le')) > 2500:
             raise ValueError('Invalid credential length')
-        if sys.platform == 'linux':
-            from .linux_credentials import operate
-            return operate('put', self._target(reference), secret)
+        store = self._posix_store()
+        if store is not None:
+            return store.operate('put', self._target(reference), secret)
         require_windows('Secure credential storage')
         import win32cred
         win32cred.CredWrite({'Type':win32cred.CRED_TYPE_GENERIC, 'TargetName':self._target(reference),
@@ -58,9 +81,9 @@ class CredentialVault:
             'Persist':win32cred.CRED_PERSIST_LOCAL_MACHINE}, 0)
 
     def read_for_provider(self, reference):
-        if sys.platform == 'linux':
-            from .linux_credentials import operate
-            return operate('read', self._target(reference))
+        store = self._posix_store()
+        if store is not None:
+            return store.operate('read', self._target(reference))
         require_windows('Secure credential storage')
         import win32cred
         value = win32cred.CredRead(self._target(reference), win32cred.CRED_TYPE_GENERIC, 0)
@@ -69,9 +92,9 @@ class CredentialVault:
         return blob.decode('utf-16-le' if value.get('Comment')=='OLIVE UTF-16LE credential' else 'utf-8')
 
     def remove(self, reference):
-        if sys.platform == 'linux':
-            from .linux_credentials import operate
-            return operate('remove', self._target(reference))
+        store = self._posix_store()
+        if store is not None:
+            return store.operate('remove', self._target(reference))
         require_windows('Secure credential storage')
         import win32cred
         try:

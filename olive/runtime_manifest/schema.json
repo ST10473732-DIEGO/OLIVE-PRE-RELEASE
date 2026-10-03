@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "olive-runtime-manifest/1",
+  "title": "OLIVE runtime and model manifest",
+  "description": "What a future OLIVE setup step may offer to download. Nothing is downloaded by OLIVE 1.0 PASS 2B. An entry is installable only when enabled is true AND source.url, sha256, size_bytes and licence (spdx + reviewed) are all recorded; olive.services.runtime_manifest enforces this.",
+  "type": "object",
+  "required": ["schema", "manifest_version", "product_version", "entries", "profiles", "not_distributable"],
+  "properties": {
+    "schema": {"const": "olive-runtime-manifest/1"},
+    "manifest_version": {"type": "string"},
+    "product_version": {"type": "string"},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "name", "platforms", "enabled", "source", "sha256", "size_bytes", "licence", "install", "reason"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$"},
+          "kind": {"enum": ["runtime", "model", "ollama-model"]},
+          "name": {"type": "string"},
+          "platforms": {"type": "array", "items": {"enum": ["linux-x86_64", "windows-x86_64", "macos-arm64"]}},
+          "enabled": {"type": "boolean"},
+          "source": {"type": "object", "properties": {"url": {"type": ["string", "null"]}, "publisher": {"type": ["string", "null"]}}},
+          "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": ["integer", "null"]},
+          "licence": {"type": "object", "properties": {"spdx": {"type": ["string", "null"]}, "reviewed": {"type": "boolean"}}},
+          "install": {"type": "object", "properties": {"runtime": {"type": "string"}, "relative_path": {"type": "string"}}},
+          "reason": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "profiles": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+    "not_distributable": {"type": "array", "items": {"type": "object", "required": ["name", "reason"]}}
+  }
+}

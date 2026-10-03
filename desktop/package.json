@@ -7,6 +7,9 @@
   },
   "type": "module",
   "main": "out/electron/main.cjs",
+  "desktopName": "olive.desktop",
+  "description": "OLIVE - local-first desktop AI assistant",
+  "author": "Diego De Oliveira",
   "scripts": {
     "build": "vite build && node scripts/build-electron.mjs",
     "start": "electron .",
@@ -14,7 +17,10 @@
     "lint": "eslint src electron",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "package:dir": "electron-builder --dir"
+    "package:dir": "electron-builder --dir",
+    "package:linux": "electron-builder --linux AppImage --x64",
+    "package:win": "electron-builder --win nsis --x64",
+    "package:mac": "electron-builder --mac dmg --arm64"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "5.3.0",
@@ -54,11 +60,27 @@
   "build": {
     "appId": "local.dmdo.desktop",
     "productName": "OLIVE",
+    "executableName": "olive",
+    "copyright": "Copyright © 2026 Diego De Oliveira",
     "beforePack": "scripts/require-backend.cjs",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "../packaging/electron"
+    },
+    "files": [
+      "out/electron/**/*",
+      "out/renderer/**/*",
+      "package.json",
+      "!node_modules{,/**/*}"
+    ],
     "extraResources": [
       {
         "from": "backend-artifact",
-        "to": "backend"
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../assets/branding/olive.ico",
@@ -67,18 +89,98 @@
       {
         "from": "../assets/branding/olive-256.png",
         "to": "olive-256.png"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "legal/LICENSE.txt"
+      },
+      {
+        "from": "../THIRD_PARTY_NOTICES.md",
+        "to": "legal/THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "THIRD_PARTY.md",
+        "to": "legal/THIRD_PARTY-desktop.md"
       }
     ],
-    "files": [
-      "out/**/*",
-      "package.json"
-    ],
-    "directories": {
-      "output": "out/package"
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "../assets/branding/olive-512.png",
+      "category": "Utility",
+      "syncDesktopName": true,
+      "synopsis": "Local-first desktop AI assistant",
+      "artifactName": "OLIVE-${version}.${ext}",
+      "desktop": {
+        "entry": {
+          "Name": "OLIVE",
+          "GenericName": "AI Assistant",
+          "Icon": "olive",
+          "StartupWMClass": "olive",
+          "StartupNotify": "true"
+        }
+      }
+    },
+    "appImage": {
+      "executableArgs": []
     },
     "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "../assets/branding/olive.ico",
-      "target": "dir"
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "artifactName": "OLIVE-Setup-${version}.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "createStartMenuShortcut": true,
+      "createDesktopShortcut": false,
+      "shortcutName": "OLIVE",
+      "uninstallDisplayName": "OLIVE",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "../packaging/electron/installer.nsh",
+      "installerIcon": "../assets/branding/olive.ico",
+      "uninstallerIcon": "../assets/branding/olive.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "../assets/branding/olive.icns",
+      "category": "public.app-category.productivity",
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "../packaging/electron/entitlements.mac.plist",
+      "entitlementsInherit": "../packaging/electron/entitlements.mac.inherit.plist",
+      "identity": null,
+      "notarize": false,
+      "artifactName": "OLIVE-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "OLIVE ${version}",
+      "artifactName": "OLIVE-${version}-${arch}.${ext}"
     }
   }
 }

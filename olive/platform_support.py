@@ -37,6 +37,15 @@ def open_path(path):
     if sys.platform == 'win32':
         os.startfile(str(path))
         return
+    if sys.platform == 'darwin':
+        # /usr/bin/open is part of macOS; a Finder-launched app's PATH may not list it.
+        opener = '/usr/bin/open' if os.path.isfile('/usr/bin/open') else shutil.which('open')
+        if not opener:
+            raise PlatformUnavailable(unavailable_message('Opening files and folders'))
+        # An absolute path can never be read as an option of `open`.
+        subprocess.run([opener, os.path.abspath(str(path))], check=True, timeout=15,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
     opener = shutil.which('xdg-open')
     if not opener:
         raise PlatformUnavailable('Opening files and folders requires xdg-open on Linux.' if sys.platform == 'linux'

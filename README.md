@@ -70,7 +70,7 @@ reused in place. More: [development](docs/development/README.md).
 Quality bar before a change is complete (see [AGENTS.md](AGENTS.md)):
 
 ```sh
-python -m compileall -q -x "(^|[/\\])\.venv[/\\]" .
+python -m compileall -q -x "(^|[^A-Za-z0-9_.-])(\.venv|backend-artifact|dist|node_modules)[^A-Za-z0-9_.-]" .
 python -m unittest discover -s tests -v
 cd desktop && npm run typecheck && npm run lint && npm test && npm run build
 ```

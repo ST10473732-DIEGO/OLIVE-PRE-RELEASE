@@ -17,6 +17,7 @@ ID = re.compile(r'^[A-Za-z0-9_-]{1,80}$')
 # Required fields and optional fields. Strings are bounded below, booleans exact.
 METHODS = {
     'runtime.snapshot': ({}, {}),
+    'runtime.runtimes': ({}, {}),  # Runtime locations and Needs setup states (paths only).
     'media.status': ({}, {}),
     'media.import': ({'path':str}, {}),
     'media.configure': ({'url':str}, {}),

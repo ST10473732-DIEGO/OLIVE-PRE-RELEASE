@@ -22,9 +22,19 @@ class LocalOllamaRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 ready.assert_not_called()
                 spawn.assert_not_called()
 
-    async def test_windows_and_opt_out_leave_lifecycle_unchanged(self):
-        for platform, enabled in [('win32', '1'), ('linux', '0')]:
+    async def test_opt_out_and_unsupported_platforms_leave_lifecycle_unchanged(self):
+        for platform, enabled in [('win32', '0'), ('linux', '0'), ('darwin', '0'), ('freebsd14', '1')]:
             runtime = LocalOllamaRuntime('http://127.0.0.1:11434')
             with patch.dict(os.environ, OLIVE_START_OLLAMA=enabled), patch('sys.platform', platform), patch.object(runtime, 'ready', AsyncMock()) as ready:
                 await runtime.start()
                 ready.assert_not_called()
+
+    async def test_windows_and_macos_reuse_an_existing_server_too(self):
+        # The owned lifecycle is prepared on Windows/macOS; a running server is still never owned.
+        for platform in ('win32', 'darwin'):
+            runtime = LocalOllamaRuntime('http://127.0.0.1:11434')
+            with patch.dict(os.environ, OLIVE_START_OLLAMA='1'), patch('sys.platform', platform), patch.object(runtime, 'ready', AsyncMock(return_value=True)) as ready, patch('asyncio.create_subprocess_exec') as spawn:
+                await runtime.start()
+                ready.assert_awaited()
+                spawn.assert_not_called()
+                self.assertIsNone(runtime.process)

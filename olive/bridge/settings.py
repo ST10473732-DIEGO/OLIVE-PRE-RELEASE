@@ -12,7 +12,7 @@ def field(key, label, category, kind, default, minimum=None, maximum=None, choic
 
 FIELDS = [
     field('owner_mode', 'Owner Mode — ordinary explicit local tasks', 'Permissions', 'bool', False),
-    field('preferred_name', 'Preferred name', 'General', 'text', 'Diego'),
+    field('preferred_name', 'Preferred name', 'General', 'text', ''),
     field('embedding_model', 'Embedding model', 'Models', 'text', DEFAULT_EMBEDDING_MODEL),
     field('auto_rag', 'Retrieve relevant documents automatically', 'Knowledge', 'bool', True),
     field('rag_semantic_weight', 'Semantic retrieval weight', 'Knowledge', 'number', .65, 0, 1),

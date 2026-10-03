@@ -15,7 +15,6 @@ from datetime import datetime
 import io
 import json
 import logging
-import os
 import re
 import secrets
 import time
@@ -76,7 +75,9 @@ class ChatMediaService:
         self.s = services
         self.media = services.media
         self.engines = self.media.engines
-        self.voice = VoiceStudio(os.environ.get('OLIVE_VOICESTUDIO_URL', ''), os.environ.get('OLIVE_VOICESTUDIO_ROOT', ''))
+        from .runtime_discovery import from_environment
+        located = (getattr(services, 'runtimes', None) or from_environment())['voicestudio']
+        self.voice = VoiceStudio(located.get('url'), located.get('root'))
         self.progress = {}
         self.lock = asyncio.Lock()  # One Chat media generation at a time.
 

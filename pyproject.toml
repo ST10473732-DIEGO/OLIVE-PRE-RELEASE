@@ -29,6 +29,8 @@ dependencies = [
   "vobject==0.9.9",
   # Linux credential vault (Secret Service).
   "SecretStorage==3.5.0; sys_platform == 'linux'",
+  # macOS credential vault (Keychain through the Security framework).
+  "keyring==25.7.0; sys_platform == 'darwin'",
   # Windows desktop control, credential vault and media session.
   "pywinauto>=0.6.9,<0.7; sys_platform == 'win32'",
   "comtypes>=1.4.16,<2; sys_platform == 'win32'",
@@ -68,4 +70,4 @@ olive = "olive.ui_qt.application:main"
 include = ["olive*", "dmdo"]
 
 [tool.setuptools.package-data]
-olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json", "draw/drawing_schema.json", "draw/protocol_v1.json", "draw/conformance_v1.json"]
+olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json", "draw/drawing_schema.json", "draw/protocol_v1.json", "draw/conformance_v1.json", "runtime_manifest/*.json"]

@@ -43,8 +43,17 @@ come from the packaged Electron distribution and are not in this repository.
 | pycrdt 0.14.6 | MIT (as recorded in `desktop/THIRD_PARTY.md`) | to be confirmed from the built backend's metadata |
 
 Runtime dependencies declared in `pyproject.toml` (licences **not yet aggregated**;
-see below): `cryptography`, `pyOpenSSL`, `httpx`, `ollama`, `zeroconf`, `psutil`, `pycrdt`, `Pillow`, `Send2Trash`, `beautifulsoup4`, `ddgs`, `pdfplumber`, `pypdf`, `python-docx`, `icalendar`, `python-dateutil`, `tzdata`, `vobject`, `SecretStorage` (Linux), `pywinauto` (Windows), `comtypes` (Windows), `pywin32` (Windows), `winrt-Windows.Media.Control` (Windows), `winrt-Windows.Media` (Windows), `winrt-Windows.Foundation` (Windows), `winrt-Windows.Foundation.Collections` (Windows). Optional extras `browser`, `qt` and `studio` are not part of the
+see below): `cryptography`, `pyOpenSSL`, `httpx`, `ollama`, `zeroconf`, `psutil`, `pycrdt`, `Pillow`, `Send2Trash`, `beautifulsoup4`, `ddgs`, `pdfplumber`, `pypdf`, `python-docx`, `icalendar`, `python-dateutil`, `tzdata`, `vobject`, `SecretStorage` (Linux), `keyring` (macOS), `pywinauto` (Windows), `comtypes` (Windows), `pywin32` (Windows), `winrt-Windows.Media.Control` (Windows), `winrt-Windows.Media` (Windows), `winrt-Windows.Foundation` (Windows), `winrt-Windows.Foundation.Collections` (Windows). Optional extras `browser`, `qt` and `studio` are not part of the
 packaged backend.
+
+The packaged backend (`resources/backend`, built by `packaging/backend/build_backend.py`)
+also contains:
+
+- **CPython 3.14.8** from python-build-standalone release `20261001`. Its licence is
+  PSF-2.0, plus the notices of the libraries it bundles; these ship inside the
+  interpreter distribution. Source and checksums are in `packaging/backend/python-runtime.json`.
+- The **transitive** distributions pinned in `packaging/backend/locks/<target>.txt`. The
+  exact set installed in a given build is listed in that build's `olive-backend.json`.
 
 ## Studio developer tooling (downloaded on request, not bundled)
 

@@ -1,0 +1,73 @@
+{
+  "schema": "olive-runtime-manifest/1",
+  "manifest_version": "1.0.0",
+  "product_version": "1.0.0",
+  "note": "PASS 2B boundary only. Every entry is disabled: none has a recorded source, checksum AND reviewed licence. Values below are copied from tracked repository records (scripts/install_approved_media.py); nothing was invented.",
+  "entries": [
+    {
+      "id": "ollama",
+      "kind": "runtime",
+      "name": "Ollama",
+      "platforms": ["linux-x86_64", "windows-x86_64", "macos-arm64"],
+      "enabled": false,
+      "source": {"url": null, "publisher": null},
+      "sha256": null,
+      "size_bytes": null,
+      "licence": {"spdx": null, "reviewed": false},
+      "install": {"runtime": "ollama", "relative_path": "runtime/ollama"},
+      "reason": "Release asset, checksum and licence review not yet recorded per platform."
+    },
+    {
+      "id": "comfyui-windows-portable-0.35.0",
+      "kind": "runtime",
+      "name": "ComfyUI v0.35.0 Windows portable (NVIDIA)",
+      "platforms": ["windows-x86_64"],
+      "enabled": false,
+      "source": {"url": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.35.0/ComfyUI_windows_portable_nvidia.7z", "publisher": "Comfy-Org"},
+      "sha256": "6fb005a8269c6f5972a8fb76d7a4fc251578ccc7906671a801b382591c791dd2",
+      "size_bytes": 1910039517,
+      "licence": {"spdx": null, "reviewed": false},
+      "install": {"runtime": "comfy", "relative_path": "runtime/comfy"},
+      "reason": "Source and checksum recorded in scripts/install_approved_media.py; licence review of the bundle (ComfyUI and its packaged dependencies) pending."
+    },
+    {
+      "id": "sdxl-base-1.0",
+      "kind": "model",
+      "name": "Stable Diffusion XL base 1.0 (compatibility only)",
+      "platforms": ["linux-x86_64", "windows-x86_64", "macos-arm64"],
+      "enabled": false,
+      "source": {"url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors", "publisher": "Stability AI"},
+      "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b",
+      "size_bytes": 6938078334,
+      "licence": {"spdx": null, "reviewed": false},
+      "install": {"runtime": "comfy", "relative_path": "models/comfy/checkpoints"},
+      "reason": "Source and checksum recorded in scripts/install_approved_media.py; model licence review pending."
+    },
+    {
+      "id": "qwen3-embedding-0.6b",
+      "kind": "ollama-model",
+      "name": "qwen3-embedding:0.6b (embedding role default)",
+      "platforms": ["linux-x86_64", "windows-x86_64", "macos-arm64"],
+      "enabled": false,
+      "source": {"url": null, "publisher": null},
+      "sha256": null,
+      "size_bytes": null,
+      "licence": {"spdx": null, "reviewed": false},
+      "install": {"runtime": "ollama", "relative_path": "ollama:qwen3-embedding:0.6b"},
+      "reason": "Ollama registry pull; manifest digest and licence not yet pinned. Lexical retrieval works without it."
+    }
+  ],
+  "profiles": {
+    "core": ["ollama", "qwen3-embedding-0.6b"],
+    "creator": ["comfyui-windows-portable-0.35.0", "sdxl-base-1.0"],
+    "complete": []
+  },
+  "not_distributable": [
+    {"name": "OLIVE UNCENSORED / evaluation Ollama tags (locally built)", "reason": "Private local builds; never part of a downloadable profile."},
+    {"name": "FLUX.2 Klein 9B files", "reason": "Source, checksum and licence not recorded for distribution."},
+    {"name": "LTX 2.3 video files and the Gemma-derived encoder", "reason": "Source, checksum and licence not recorded for distribution."},
+    {"name": "Qwen-Image 2.1", "reason": "Recorded licence is research/evaluation only."},
+    {"name": "VoiceStudio and its speech engines", "reason": "Separately installed service; licences not reviewed."},
+    {"name": "MAX and other community models", "reason": "Licence review pending."}
+  ]
+}

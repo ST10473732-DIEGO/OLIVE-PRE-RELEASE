@@ -71,6 +71,8 @@ class DependencyDeclarationTests(unittest.TestCase):
                 self.assertIn(";sys_platform=='win32'", entry)
             elif name(entry) == 'secretstorage':
                 self.assertIn(";sys_platform=='linux'", entry)
+            elif name(entry) == 'keyring':
+                self.assertIn(";sys_platform=='darwin'", entry)
             else:
                 self.assertNotIn('sys_platform', entry, entry)
 

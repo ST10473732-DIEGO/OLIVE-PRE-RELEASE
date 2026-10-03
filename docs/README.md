@@ -49,6 +49,7 @@ support has open implementation work ([install status](install/README.md)).
 | [Model routing](architecture/model-routing.md) · [model selection](architecture/model-selection.md) | Presets, roles, measurements |
 | [Natural language](architecture/natural-language.md) · [research](architecture/research.md) | Request interpretation; research evidence model |
 | [Legacy DMDO compatibility](architecture/legacy-dmdo-compatibility.md) | Identifiers kept on purpose, Linux desktop identity, launchers |
+| [Desktop packaging](architecture/packaging.md) | Backend artefact, packaged paths, runtime discovery, AppImage/NSIS/DMG |
 | [Credentials](security/credentials.md) · [Owner Mode](security/owner-mode.md) | OS vault use; scoped task authority |
 | [Security policy](../SECURITY.md) | Reporting vulnerabilities |
 
