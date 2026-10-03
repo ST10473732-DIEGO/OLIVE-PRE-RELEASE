@@ -458,7 +458,7 @@ class ShippedManifestPlanTests(unittest.IsolatedAsyncioTestCase):
         plan = await installer.plan('complete')
         rows = {r['slot']: r for r in plan['items']}
         for slot, entry_id in (('model-vision', 'qwen3-vl-8b'), ('model-coding', 'qwen3-coder-30b'),
-                               ('playwright', 'playwright-1.63.0'), ('image-model', 'flux2-klein-4b')):
+                               ('playwright', 'playwright-1.63.0')):
             self.assertEqual(rows[slot]['entry']['id'], entry_id)
             self.assertEqual((rows[slot]['action'], rows[slot]['detail']), ('unavailable', runtime_manifest.AWAITING_APPROVAL))
         for slot in ('image-engine', 'video-engine', 'audio-engine', 'video-model', 'model-max', 'model-uncensored'):
@@ -467,8 +467,10 @@ class ShippedManifestPlanTests(unittest.IsolatedAsyncioTestCase):
         for feature in ('vision', 'advanced_coding', 'browser_automation', 'reimagine', 'audio', 'video',
                         'image_to_video', 'long_video', 'max', 'uncensored'):
             self.assertNotIn(states[feature], ('ready', 'installable'), feature)
+        # The owner-approved FLUX.2 4B model is offered, but nothing it needs to run is (see below).
         self.assertEqual(set(plan['offered']), {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b',
-                                                'qwen3-embedding-0.6b'})
+                                                'qwen3-embedding-0.6b', 'flux2-klein-4b'})
+        self.assertNotIn('flux2-klein-4b', plan['default'])
         with self.assertRaises(InstallError) as caught:
             await installer.start('complete', ['qwen3-vl-8b'])
         self.assertEqual(caught.exception.code, 'not_installable')
@@ -483,16 +485,31 @@ class ShippedManifestPlanTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runtime['entry']['id'], 'ollama-0.34.2-windows-x86_64')
         self.assertEqual(runtime['detail'], runtime_manifest.AWAITING_APPROVAL)
         self.assertEqual({f['id']: f['state'] for f in plan['features']}['fast'], 'not_in_build')
-        # An approved Creator model is still never chosen while no image engine can be installed.
-        manifest = runtime_manifest.load('1.0.0', environ={})
-        flux = next(e for e in manifest['entries'] if e['id'] == 'flux2-klein-4b')
-        manifest['_approvals'] = {**manifest['_approvals'], flux['id']: {
-            'id': flux['id'], 'fingerprint': runtime_manifest.fingerprint(flux), 'scope': 'public-release',
-            'approved_by': 'test', 'date': '2026-10-03', 'product_version': manifest['product_version']}}
-        plan = await self.make(TARGET, manifest).plan('creator')
+        # The owner approved the FLUX.2 4B model, not its engine: the model is offered on its supported
+        # platform, but it is never chosen while no image engine can be installed.
+        plan = await self.make(TARGET).plan('creator')
+        rows = {r['slot']: r for r in plan['items']}
+        model = rows['image-model']
+        self.assertEqual(model['entry']['id'], 'flux2-klein-4b')
+        self.assertEqual(model['entry']['release_state'], 'release_approved')
+        self.assertTrue(model['entry']['installable'])
+        self.assertEqual(model['action'], 'install')
         self.assertIn('flux2-klein-4b', plan['offered'])
         self.assertNotIn('flux2-klein-4b', plan['default'])
-        self.assertEqual({f['id']: f['state'] for f in plan['features']}['reimagine'], 'not_in_build')
+        engine = rows['image-engine']
+        self.assertEqual(engine['entry']['id'], 'comfyui-0.35.0-image-linux')
+        self.assertNotEqual(engine['entry']['release_state'], 'release_approved')
+        self.assertFalse(engine['entry']['installable'])
+        self.assertIn(engine['action'], ('unavailable', 'external'))
+        reimagine = next(f for f in plan['features'] if f['id'] == 'reimagine')
+        self.assertEqual(reimagine['state'], 'not_in_build')
+        self.assertIn('image-engine', reimagine['missing'])
+        # No Creator engine is offered or preselected without its own approval.
+        manifest = runtime_manifest.load('1.0.0', environ={})
+        engines = {e['id'] for e in manifest['entries'] if e['provides'] in ('image-engine', 'video-engine', 'audio-engine')}
+        self.assertIn('comfyui-0.35.0-image-linux', engines)
+        self.assertFalse(engines & set(plan['offered']))
+        self.assertFalse(engines & set(plan['default']))
 
 
 def model_entry(files: FileServer, data: dict[str, bytes], identifier='fixture-image-model') -> dict:

@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class RuntimeManifestTests(unittest.TestCase):
     # The owner's current decisions in release-approvals-1.0.0.json. Change this only together with
     # that file; generic gate tests never depend on it and build their own approval state.
-    SHIPPED_APPROVALS = {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b', 'qwen3-embedding-0.6b'}
+    SHIPPED_APPROVALS = {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b', 'qwen3-embedding-0.6b',
+                         'flux2-klein-4b'}
 
     def setUp(self):
         self.manifest = runtime_manifest.load('1.0.0', environ={})
@@ -177,9 +178,11 @@ class RuntimeManifestTests(unittest.TestCase):
             expected = {i for i in self.SHIPPED_APPROVALS if target in self.by_id(i)['platforms']}
             self.assertEqual({e['id'] for e in runtime_manifest.installable(target, environ={})}, expected, target)
         self.assertEqual(self.by_id('ollama-0.34.2-linux-x86_64')['platforms'], ['linux-x86_64'])
+        self.assertEqual(self.by_id('flux2-klein-4b')['platforms'], ['linux-x86_64', 'windows-x86_64'])
         for identifier in self.SHIPPED_APPROVALS - {'ollama-0.34.2-linux-x86_64'}:
             entry = self.by_id(identifier)
-            self.assertEqual(set(entry['platforms']), set(runtime_manifest.TARGETS), identifier)
+            if identifier != 'flux2-klein-4b':
+                self.assertEqual(set(entry['platforms']), set(runtime_manifest.TARGETS), identifier)
             for target in entry['platforms']:
                 public = runtime_manifest.public_entry(entry, target, manifest=self.manifest)
                 self.assertTrue(public['installable'], (identifier, target))
@@ -190,7 +193,7 @@ class RuntimeManifestTests(unittest.TestCase):
                                                        manifest=self.manifest)['validated'])
         # Everything else stays unapproved and is never offered on any platform.
         unapproved = {'ollama-0.34.2-windows-x86_64', 'qwen3-vl-8b', 'qwen3-coder-30b', 'playwright-1.63.0',
-                      'flux2-klein-4b', 'voicestudio', 'omnivoice'}
+                      'voicestudio', 'omnivoice'}
         unapproved |= {e['id'] for e in self.manifest['entries']
                        if e['id'].startswith('ltx-') or e['provides'] in {
                            'image-engine', 'video-engine', 'audio-engine', 'video-gguf-loader', 'ffmpeg',

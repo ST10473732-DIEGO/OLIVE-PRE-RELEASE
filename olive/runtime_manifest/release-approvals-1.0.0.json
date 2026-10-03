@@ -47,6 +47,16 @@
       "date": "2026-10-03",
       "product_version": "1.0.0",
       "note": ""
+    },
+    {
+      "id": "flux2-klein-4b",
+      "fingerprint": "e85eb9ad837266b9ca57501d3dbea089ae8fc49103bd693186dcff8109cc223e",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
     }
+
   ]
 }
