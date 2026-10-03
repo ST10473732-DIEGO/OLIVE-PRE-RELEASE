@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { resolveProfile } from "../electron/identity";
@@ -14,7 +14,7 @@ it("selects native development executables and preserves Windows", () => {
 });
 
 it("honours absolute XDG paths and refuses conflicting profile data", () => {
-  const home = mkdtempSync(path.join(tmpdir(), "olive-xdg-"));
+  const home = realpathSync(mkdtempSync(path.join(tmpdir(), "olive-xdg-")));
   try {
     const xdg = path.join(home, "data"), profile = path.join(xdg, "olive"), old = path.join(home, ".olive");
     expect(resolveProfile({ XDG_DATA_HOME: xdg }, home, "linux")).toBe(profile);
