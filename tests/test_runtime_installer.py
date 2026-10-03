@@ -396,6 +396,105 @@ class ReleaseGateTests(InstallerTestCase):
         self.assertEqual((await self.installer.plan('core'))['offered'], [])
 
 
+class ShippedManifestPlanTests(unittest.IsolatedAsyncioTestCase):
+    """Install plans over the real shipped manifest. Release approval, platform and dependency
+    rules are separate: an approved model is still not chosen when its engine cannot be installed."""
+
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        (self.root / 'home').mkdir()
+        (self.root / 'profile').mkdir()
+        self.env = {'XDG_DATA_HOME': str(self.root / 'xdg')}
+        self.ollama = FakeOllama().__enter__()
+        self.installers = []
+
+    async def asyncTearDown(self):
+        for installer in self.installers:
+            await installer.close()
+        await asyncio.to_thread(self.ollama.__exit__, None, None, None)
+        self.temp.cleanup()
+
+    def make(self, target, manifest=None):
+        manifest = manifest if manifest is not None else runtime_manifest.load('1.0.0', environ={})
+        self.assertEqual(manifest['_source'], 'release')
+        discovery = RuntimeDiscovery(self.root / 'profile', environ=self.env, platform='linux', home=self.root / 'home',
+                                     install_root=self.root / 'install', which=lambda name: None)
+        installer = RuntimeInstaller(self.root / 'profile', discovery, ollama_host=self.ollama.base, environ=self.env,
+                                     platform='linux', home=self.root / 'home', target=target, manifest=manifest,
+                                     disk_usage=Disk(10 ** 12))
+        installer.module_available = lambda name: False
+        self.installers.append(installer)
+        return installer
+
+    async def test_engineering_evidence_alone_is_refused_by_setup(self):
+        bare = runtime_manifest.load('1.0.0', environ={})
+        bare['_approvals'] = {}  # Isolated from the owner's approvals file.
+        installer = self.make(TARGET, bare)
+        plan = await installer.plan('complete')
+        self.assertEqual((plan['offered'], plan['default']), ([], []))
+        row = next(r for r in plan['items'] if r['slot'] == 'model-fast')
+        self.assertEqual(row['entry']['id'], 'qwen3-8b')
+        self.assertEqual(row['entry']['release_state'], 'engineering_reviewed')
+        self.assertEqual((row['action'], row['detail']), ('unavailable', runtime_manifest.AWAITING_APPROVAL))
+        for entry_id in ('qwen3-8b', 'ollama-0.34.2-linux-x86_64'):
+            with self.assertRaises(InstallError) as caught:
+                await installer.start('core', [entry_id])
+            self.assertEqual(caught.exception.code, 'not_installable')
+        self.assertEqual(self.ollama.pulls, [])
+
+    async def test_linux_core_offers_the_approved_runtime_and_models(self):
+        installer = self.make(TARGET)
+        plan = await installer.plan('core')
+        self.assertEqual(set(plan['default']), {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b',
+                                                'qwen3-embedding-0.6b'})
+        self.assertEqual(set(plan['offered']), set(plan['default']))
+        states = {f['id']: f['state'] for f in plan['features']}
+        for feature in ('fast', 'normal', 'now', 'deep', 'agent_workspace'):
+            self.assertEqual(states[feature], 'installable', feature)
+
+    async def test_unapproved_components_stay_out_of_the_shipped_plan(self):
+        installer = self.make(TARGET)
+        plan = await installer.plan('complete')
+        rows = {r['slot']: r for r in plan['items']}
+        for slot, entry_id in (('model-vision', 'qwen3-vl-8b'), ('model-coding', 'qwen3-coder-30b'),
+                               ('playwright', 'playwright-1.63.0'), ('image-model', 'flux2-klein-4b')):
+            self.assertEqual(rows[slot]['entry']['id'], entry_id)
+            self.assertEqual((rows[slot]['action'], rows[slot]['detail']), ('unavailable', runtime_manifest.AWAITING_APPROVAL))
+        for slot in ('image-engine', 'video-engine', 'audio-engine', 'video-model', 'model-max', 'model-uncensored'):
+            self.assertIn(rows[slot]['action'], ('unavailable', 'external'), slot)
+        states = {f['id']: f['state'] for f in plan['features']}
+        for feature in ('vision', 'advanced_coding', 'browser_automation', 'reimagine', 'audio', 'video',
+                        'image_to_video', 'long_video', 'max', 'uncensored'):
+            self.assertNotIn(states[feature], ('ready', 'installable'), feature)
+        self.assertEqual(set(plan['offered']), {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b',
+                                                'qwen3-embedding-0.6b'})
+        with self.assertRaises(InstallError) as caught:
+            await installer.start('complete', ['qwen3-vl-8b'])
+        self.assertEqual(caught.exception.code, 'not_installable')
+
+    async def test_dependencies_are_separate_from_release_approval(self):
+        # Windows: the models are approved for every platform, but the Windows runtime is not,
+        # so no feature can become ready there and nothing is chosen by default.
+        plan = await self.make('windows-x86_64').plan('core')
+        self.assertEqual(set(plan['offered']), {'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b', 'qwen3-embedding-0.6b'})
+        self.assertEqual(plan['default'], [])
+        runtime = next(r for r in plan['items'] if r['slot'] == 'ollama-runtime')
+        self.assertEqual(runtime['entry']['id'], 'ollama-0.34.2-windows-x86_64')
+        self.assertEqual(runtime['detail'], runtime_manifest.AWAITING_APPROVAL)
+        self.assertEqual({f['id']: f['state'] for f in plan['features']}['fast'], 'not_in_build')
+        # An approved Creator model is still never chosen while no image engine can be installed.
+        manifest = runtime_manifest.load('1.0.0', environ={})
+        flux = next(e for e in manifest['entries'] if e['id'] == 'flux2-klein-4b')
+        manifest['_approvals'] = {**manifest['_approvals'], flux['id']: {
+            'id': flux['id'], 'fingerprint': runtime_manifest.fingerprint(flux), 'scope': 'public-release',
+            'approved_by': 'test', 'date': '2026-10-03', 'product_version': manifest['product_version']}}
+        plan = await self.make(TARGET, manifest).plan('creator')
+        self.assertIn('flux2-klein-4b', plan['offered'])
+        self.assertNotIn('flux2-klein-4b', plan['default'])
+        self.assertEqual({f['id']: f['state'] for f in plan['features']}['reimagine'], 'not_in_build')
+
+
 def model_entry(files: FileServer, data: dict[str, bytes], identifier='fixture-image-model') -> dict:
     listed = [{'name': name.rsplit('/', 1)[-1], 'path': name, 'url': files.add('/m/' + name, body),
                'sha256': __import__('hashlib').sha256(body).hexdigest(), 'size_bytes': len(body)}
