@@ -19,13 +19,19 @@ on:
         default: false
   push:
     tags: ['v1.*']
+  # Exercise the same build before a release branch merges. `pull_request` (never
+  # `pull_request_target`) runs the PR's merge commit with a read-only token and no
+  # secrets; the Creator and signing jobs below run only on workflow_dispatch.
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read          # No release, package or deployment write access anywhere in this workflow.
 
 concurrency:
   group: release-build-${{ github.ref }}
-  cancel-in-progress: false
+  # A newer push to the same PR supersedes its build; tag and manual builds always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   OLIVE_SOURCE_COMMIT: ${{ github.sha }}

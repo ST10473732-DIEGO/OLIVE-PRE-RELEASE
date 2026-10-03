@@ -45,13 +45,15 @@ KLEIN = Workflow(
 # The distributable REIMAGINE path (Apache-2.0). ComfyUI 0.35.0's bundled "Image Edit
 # (Flux.2 Klein 4B Distilled)" template uses the same node graph as KLEIN with these three
 # files (installed by setup from runtime_manifest entry flux2-klein-4b) and nearest-exact
-# reference scaling. It stays unrouted until a real local run passes on 0.35.0.
+# reference scaling. Validated 2026-10-03 on the reference machine's ComfyUI 0.35.0
+# (RTX 3080 Ti Laptop 16 GiB): generate and single-reference edit at 1024x1024, every model
+# fully loaded, GPU release verified. A user-supplied 9B still outranks it (ROUTES).
 KLEIN4 = Workflow(
     'flux2-klein-4b', 'image', 'FLUX.2 Klein', frozenset({'generate', 'edit'}),
     {('UNETLoader', 'unet_name'): 'flux-2-klein-4b-fp8.safetensors',
      ('CLIPLoader', 'clip_name'): 'qwen_3_4b.safetensors',
      ('VAELoader', 'vae_name'): 'flux2-vae.safetensors'},
-    dict(KLEIN.nodes), validated=frozenset(), max_references=1,
+    dict(KLEIN.nodes), validated=frozenset({'0.35.0'}), max_references=1,
     defaults={**KLEIN.defaults, 'upscale_method': 'nearest-exact'})
 
 QWEN = Workflow(

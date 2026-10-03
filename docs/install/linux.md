@@ -2,7 +2,8 @@
 
 Status (2026-10-03): the AppImage can be built and was launched on the reference CachyOS
 machine in an isolated profile. It is **not published**, and no clean-machine acceptance
-has been done.
+has been done. The checklist for Ubuntu 24.04, Fedora and Debian is in
+[linux-clean-machine-acceptance.md](linux-clean-machine-acceptance.md).
 
 ## Build
 

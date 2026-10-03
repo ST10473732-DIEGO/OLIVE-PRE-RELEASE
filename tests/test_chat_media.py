@@ -216,6 +216,29 @@ class ChatMediaTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(hashlib.sha256(Path(file['path']).read_bytes()).hexdigest(), artifact['sha256'])
         self.assertTrue(fake.vram == 0 and ('POST', '/free') in fake.calls, 'engine released after generation')
 
+    async def test_reimagine_with_only_the_distributable_klein_4b(self):
+        fake = FakeComfy((wf.KLEIN4,), png('blue'))
+        self.engine('image', fake)
+        self.preset('reimagine')
+        result = await self.s.chat.send(self.chat_id, 'A ceramic teapot on a wooden table.')
+        status = self.s.chat_media.status('reimagine')  # From the live engine inventory.
+        self.assertTrue(status['available'])
+        self.assertEqual(status['capabilities'], ['text-to-image', 'image-edit'])
+        artifact = result['messages'][-1]['artifacts'][0]
+        self.assertEqual((artifact['generator']['workflow'], artifact['generator']['family']), ('flux2-klein-4b', 'FLUX.2 Klein'))
+        self.assertEqual(result['messages'][-1]['provider']['family'], 'FLUX.2 Klein')
+        graph = fake.prompts.popitem()[1]['prompt']
+        self.assertEqual(graph['unet']['inputs']['unet_name'], 'flux-2-klein-4b-fp8.safetensors')
+        self.assertEqual(graph['clip']['inputs']['clip_name'], 'qwen_3_4b.safetensors')
+        source = self.root / 'photo.png'
+        source.write_bytes(png('red'))
+        await self.s.knowledge.attach(self.chat_id, [str(source)])
+        result = await self.s.chat.send(self.chat_id, 'Make it evening.')
+        artifact = result['messages'][-1]['artifacts'][0]
+        self.assertEqual((artifact['generator']['workflow'], artifact['parameters']['operation']), ('flux2-klein-4b', 'edit'))
+        graph = fake.prompts.popitem()[1]['prompt']
+        self.assertEqual(graph['scaled']['inputs']['upscale_method'], 'nearest-exact')
+
     async def test_image_attachment_is_an_edit_reference_and_original_is_preserved(self):
         fake = FakeComfy(wf.IMAGE_WORKFLOWS, png('green'))
         self.engine('image', fake)
@@ -590,18 +613,39 @@ class WorkflowAndRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def inventory(self, workflows, version='0.35.0'):
         return wf.engine_inventory(version, object_info(workflows), wf.IMAGE_WORKFLOWS + wf.VIDEO_WORKFLOWS)
 
-    def test_distributable_klein_4b_routes_only_once_validated(self):
+    def test_distributable_klein_4b_routes_on_its_validated_engine(self):
+        # PASS 2E: real generate + edit runs passed on the reference machine's ComfyUI 0.35.0.
+        self.assertEqual(wf.KLEIN4.validated, frozenset({'0.35.0'}))
+        self.assertEqual(wf.KLEIN4.validated, wf.KLEIN.validated)
         klein4 = self.inventory((wf.KLEIN4,))
-        workflow, _, reasons = wf.route('image', 'A cinematic city', [], klein4)
-        self.assertIsNone(workflow)  # Installed but never run for real on 0.35.0: not offered.
-        self.assertEqual(reasons['flux2-klein-4b'], 'not validated on ComfyUI 0.35.0')
-        validated = wf.Workflow(**{**wf.KLEIN4.__dict__, 'validated': frozenset({'0.35.0'})})
-        with patch.dict(wf.WORKFLOWS, {'flux2-klein-4b': validated}):
-            self.assertEqual(wf.route('image', 'A cinematic city', [], klein4)[0].key, 'flux2-klein-4b')
-            self.assertEqual(wf.route('image', 'Make it night', [('a', b'')], klein4)[0].key, 'flux2-klein-4b')
-            # A user-supplied 9B still outranks it when both are ready.
-            both = self.inventory(wf.IMAGE_WORKFLOWS)
-            self.assertEqual(wf.route('image', 'A cinematic city', [], both)[0].key, 'flux2-klein-9b')
+        for prompt, refs, shape in (('A cinematic city', [], 'generate'), ('Make it night', [('a', b'')], 'edit'),
+                                    ('A poster that says "OLIVE"', [], 'text')):
+            workflow, got_shape, reasons = wf.route('image', prompt, refs, klein4)
+            self.assertEqual((workflow.key, got_shape), ('flux2-klein-4b', shape))
+            self.assertTrue(reasons['flux2-klein-9b'].startswith('model missing'))  # Reported, not hidden.
+        self.assertIsNone(wf.route('image', 'Make it night', [('a', b''), ('b', b'')], klein4)[0])  # One reference only.
+
+    def test_existing_klein_9b_still_outranks_4b_and_keeps_working_alone(self):
+        both = self.inventory(wf.IMAGE_WORKFLOWS)
+        for prompt, refs in (('A cinematic city', []), ('Make it night', [('a', b'')]), ('A sign that says "OPEN"', [])):
+            self.assertEqual(wf.route('image', prompt, refs, both)[0].key, 'flux2-klein-9b')
+        only9 = self.inventory((wf.KLEIN,))
+        self.assertEqual(wf.route('image', 'Make it night', [('a', b'')], only9)[0].key, 'flux2-klein-9b')
+        self.assertLess(wf.ROUTES['generate'].index('flux2-klein-9b'), wf.ROUTES['generate'].index('flux2-klein-4b'))
+        self.assertLess(wf.ROUTES['edit'].index('flux2-klein-9b'), wf.ROUTES['edit'].index('flux2-klein-4b'))
+
+    def test_klein_4b_stays_unrouted_off_its_validated_engine_or_with_missing_files(self):
+        newer = self.inventory((wf.KLEIN4,), version='0.36.0')
+        workflow, _, reasons = wf.route('image', 'A cinematic city', [], newer)
+        self.assertIsNone(workflow)  # A real run is required again on another ComfyUI version.
+        self.assertEqual(reasons['flux2-klein-4b'], 'not validated on ComfyUI 0.36.0')
+        partial = self.inventory((wf.KLEIN4,))
+        partial['inputs'][('CLIPLoader', 'clip_name')] = ()
+        self.assertEqual(wf.availability(wf.KLEIN4, partial), 'model missing: qwen_3_4b.safetensors')
+        self.assertIsNone(wf.route('image', 'A cinematic city', [], partial)[0])
+
+    def test_klein_4b_graph_names_its_own_files(self):
+        validated = wf.KLEIN4
         graph = wf.image_graph(validated, 'a fox', 7, 'olive', reference='in.png')
         self.assertEqual(graph['unet']['inputs']['unet_name'], 'flux-2-klein-4b-fp8.safetensors')
         self.assertEqual(graph['clip']['inputs']['clip_name'], 'qwen_3_4b.safetensors')

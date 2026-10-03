@@ -44,6 +44,21 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('retention-days', self.code)
         self.assertIn('extraMetadata.oliveSourceCommit=${{ github.sha }}', self.code)
 
+    def test_pull_requests_to_main_build_without_secrets_or_heavy_jobs(self):
+        on = self.code.split('\non:\n', 1)[1].split('\npermissions:', 1)[0]
+        self.assertRegex(on, r'(?m)^  pull_request:\n    branches: \[main\]$')
+        self.assertRegex(on, r"(?m)^  push:\n    tags: \['v1\.\*'\]$")  # Tags stay; no branch pushes.
+        self.assertNotIn('branches:', on.split('pull_request:', 1)[0])
+        self.assertIn('workflow_dispatch:', on)
+        self.assertNotIn('pull_request_target', self.code)  # Would run with secrets and a write token.
+        jobs = dict(re.findall(r'(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)', self.code.split('\njobs:\n', 1)[1]))
+        for heavy in ('creator', 'macos-signing'):  # Manual only: a PR can never reach them.
+            self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.", jobs[heavy])
+        for job in ('desktop', 'relay', 'checksums', 'creator'):
+            self.assertNotIn('secrets.', jobs[job])
+            self.assertNotIn('environment:', jobs[job])
+        self.assertIn('environment: release-signing', jobs['macos-signing'])
+
     def test_build_info_records_commit_and_checksums(self):
         spec = importlib.util.spec_from_file_location('build_info', ROOT / 'packaging/release/build_info.py')
         module = importlib.util.module_from_spec(spec)
