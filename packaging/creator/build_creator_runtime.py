@@ -206,9 +206,21 @@ def _record_hash(data: bytes) -> str:
     return 'sha256=' + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b'=').decode()
 
 
+def _runtime_interpreter(interpreter: bytes, bin_folder: Path) -> bool:
+    """Whether a launcher's interpreter is this runtime's own bin/python*. pip always writes the
+    absolute path; the build folder may have been given relative, long or through a symlink, so
+    the folder is compared by identity, not by spelling."""
+    path = Path(os.fsdecode(interpreter))
+    try:
+        return path.is_absolute() and path.parent.samefile(bin_folder)
+    except OSError:
+        return False
+
+
 def relocate_scripts(stage: Path, definition: dict) -> list[str]:
-    """pip writes console scripts with the build folder's absolute interpreter path. Rewrite them
-    to python-build-standalone's own relocatable /bin/sh trampoline and fix their RECORD lines."""
+    """pip writes console scripts with the build folder's absolute interpreter path, as a direct
+    shebang or (long paths) its own /bin/sh trampoline. Rewrite both to python-build-standalone's
+    relocatable /bin/sh trampoline and fix their RECORD lines. Anything else is left for the audit."""
     python_root = stage / definition['layout']['python']
     interpreter = Path(definition['register']['paths']['python']).name
     changed = {}
@@ -217,7 +229,7 @@ def relocate_scripts(stage: Path, definition: dict) -> list[str]:
             continue
         head = path.read_bytes()[:512]
         match = SHEBANG.match(head)
-        if not match or not (match[1] or match[2]).startswith(str(stage).encode()):
+        if not match or not _runtime_interpreter(match[1] or match[2], python_root / 'bin'):
             continue
         body = path.read_bytes()[match.end():]
         trampoline = (b'#!/bin/sh\n'
@@ -282,11 +294,13 @@ def audit(stage: Path, definition: dict, records: list[dict]) -> dict:
         if path.is_file() or path.is_symlink():
             if os.path.normpath(path) not in owned and path.name != 'README.txt':
                 problems.append(f'{path.relative_to(stage).as_posix()}: not in any archive distribution RECORD')
-    # The build folder's path must not leak into scripts, path files or metadata.
-    needle = str(stage).encode()
+    # The build folder's path must not leak into scripts, path files or metadata, however it is spelled.
+    needles = {os.fsencode(spelling) for spelling in (stage, stage.absolute(), os.path.realpath(stage))}
     for path in [*(python_root / 'bin').glob('*'), *site.glob('*.pth'), *site.glob('*.dist-info/*')]:
-        if path.is_file() and not path.is_symlink() and needle in path.read_bytes():
-            problems.append(f'{path.relative_to(stage).as_posix()}: contains the build folder path')
+        if path.is_file() and not path.is_symlink():
+            data = path.read_bytes()
+            if any(needle in data for needle in needles):
+                problems.append(f'{path.relative_to(stage).as_posix()}: contains the build folder path')
     if problems:
         raise AuditError('Creator archive audit failed:\n  ' + '\n  '.join(problems[:50]))
     return {'distributions': inventory, 'files_attributed': len(owned)}

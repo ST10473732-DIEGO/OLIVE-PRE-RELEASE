@@ -30,16 +30,18 @@ spec = importlib.util.spec_from_file_location('build_creator_runtime', CREATOR /
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 HAS_PIP = importlib.util.find_spec('pip') is not None
+HAS_ENSUREPIP = importlib.util.find_spec('ensurepip') is not None
 EPOCH = 1788930166  # Committer time of the pinned ComfyUI v0.35.0 commit (the definitions' source_date_epoch).
 
 
-def wheel(name='olivefixture', version='1.0') -> bytes:
-    """A minimal valid pure-Python wheel."""
+def wheel(name='olivefixture', version='1.0', extra: dict[str, bytes] | None = None) -> bytes:
+    """A minimal valid pure-Python wheel (extra adds files, e.g. entry_points.txt)."""
     files = {f'{name}/__init__.py': b'VALUE = 1\n',
              f'{name}-{version}.dist-info/METADATA': (f'Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n'
                                                      'License-Expression: MIT\n\n').encode(),
              f'{name}-{version}.dist-info/licenses/LICENSE': b'MIT fixture licence text\n',
-             f'{name}-{version}.dist-info/WHEEL': b'Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\nTag: py3-none-any\n'}
+             f'{name}-{version}.dist-info/WHEEL': b'Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\nTag: py3-none-any\n',
+             **(extra or {})}
     record = io.StringIO()
     writer = csv.writer(record, lineterminator='\n')
     for path, data in files.items():
@@ -293,6 +295,149 @@ class FixtureBuildTests(unittest.IsolatedAsyncioTestCase):
         edited = await asyncio.to_thread(self.build, self.root / 'edited', definition=changed_path)
         self.assertNotEqual(edited['inputs']['lock_sha256'], changed['inputs']['lock_sha256'])
         self.assertNotEqual(edited['sha256'], changed['sha256'])
+
+
+ECHO_ENTRY = b'''import json, sys
+
+
+def main():
+    print(json.dumps({'argv': sys.argv[1:], 'prefix': sys.prefix}))
+    return 7
+'''
+LONG_SEGMENT = 'long-' + 'x' * 150  # Pushes pip's interpreter path past distlib's 127-byte shebang limit.
+
+
+@unittest.skipIf(sys.platform == 'win32', 'POSIX console-script launchers')
+@unittest.skipUnless(HAS_ENSUREPIP, 'ensurepip is needed to give the fixture runtime its own pip')
+class ConsoleScriptRelocationTests(unittest.TestCase):
+    """pip writes a direct shebang for a short build folder and its /bin/sh trampoline for a long one,
+    and the hosted CI build passes a relative --output. Every combination must reach the same
+    relocatable launcher through the builder's real install_wheels -> relocate_scripts -> audit."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.definition = json.loads((CREATOR / 'definitions/creator-image-comfyui-0.35.0-linux-x86_64.json').read_text())
+        data = wheel('olive_echo', '1.0', {
+            'olive_echo/__init__.py': ECHO_ENTRY,
+            'olive_echo-1.0.dist-info/entry_points.txt': b'[console_scripts]\nolive-echo = olive_echo:main\n'})
+        self.wheelhouse = self.root / 'wheels'
+        self.wheelhouse.mkdir()
+        (self.wheelhouse / 'olive_echo-1.0-py3-none-any.whl').write_bytes(data)
+        self.lock = self.root / 'lock.txt'
+        self.lock.write_text(f'olive-echo==1.0 --hash=sha256:{hashlib.sha256(data).hexdigest()}\n')
+        self.cwd = Path.cwd()
+
+    def tearDown(self):
+        import os
+        os.chdir(self.cwd)
+        self.temp.cleanup()
+
+    def install(self, output: Path, cwd: Path | None = None) -> dict:
+        """A runtime with its own interpreter and pip in output/<id>.staging/python, built like the archive."""
+        import os
+        import venv
+        if cwd is not None:
+            cwd.mkdir(parents=True)
+            os.chdir(cwd)
+        stage = output / 'creator-image-fixture.staging'
+        venv.EnvBuilder(with_pip=True).create(stage / 'python')
+        for script in (stage / 'python/bin').glob('[Aa]ctivate*'):
+            script.unlink()  # venv's own shell helpers, not pip console scripts.
+        builder.install_wheels(stage / self.definition['register']['paths']['python'], self.lock, self.wheelhouse)
+        script = stage / 'python/bin/olive-echo'
+        raw, mode = script.read_bytes(), stat.S_IMODE(script.stat().st_mode)
+        relocated = builder.relocate_scripts(stage, self.definition)
+        builder.prune(stage)
+        builder.audit(stage, self.definition, [])  # Raises on any build-folder path.
+        final, final_mode = script.read_bytes(), stat.S_IMODE(script.stat().st_mode)
+        site = next((stage / 'python/lib').glob('python3.*/site-packages'))
+        rows = list(csv.reader((site / 'olive_echo-1.0.dist-info/RECORD').read_text().splitlines()))
+        row = next(r for r in rows if r and r[0].endswith('/bin/olive-echo'))
+        absolute = Path.cwd() / stage  # A relative interpreter path is made absolute against the physical cwd.
+        os.chdir(self.cwd)
+        return {'stage': absolute, 'raw': raw, 'final': final, 'mode': mode, 'final_mode': final_mode,
+                'relocated': relocated, 'record': row, 'interpreter_length': len(str(absolute / 'python/bin/python3'))}
+
+    def test_short_long_and_relative_build_folders_reach_one_canonical_launcher(self):
+        cases = {
+            'short': self.install(self.root / 's'),
+            'long': self.install(self.root / LONG_SEGMENT / 'out'),
+            'short-relative': self.install(Path('out'), cwd=self.root / 'ws'),  # The hosted CI's --output out.
+            'long-relative': self.install(Path('out'), cwd=self.root / LONG_SEGMENT / 'ws'),
+        }
+        roots = [str(case['stage']).encode() for case in cases.values()]
+        for name, case in cases.items():
+            with self.subTest(name):
+                # pip's own choice of launcher, before OLIVE normalises it.
+                long_form = case['interpreter_length'] + 3 > 127
+                self.assertEqual(name.startswith('long'), long_form)
+                interpreter = str(case['stage']).encode() + b'/python/bin/python3'
+                expected = b"#!/bin/sh\n'''exec' " + interpreter + b' "$0" "$@"\n' if long_form else b'#!' + interpreter + b'\n'
+                self.assertTrue(case['raw'].startswith(expected), case['raw'][:300])
+                # After normalisation: the canonical launcher, the same entry-point body, no build folder.
+                self.assertEqual(case['relocated'], ['bin/olive-echo'])
+                self.assertTrue(case['final'].startswith(
+                    b'#!/bin/sh\n\'\'\'exec\' "$(dirname -- "$(realpath -- "$0")")/python3" "$0" "$@"\n\' \'\'\'\n'))
+                self.assertEqual(case['raw'].split(b'\nimport sys\n', 1)[1], case['final'].split(b'\nimport sys\n', 1)[1])
+                for root in roots:
+                    self.assertNotIn(root, case['final'])
+                self.assertEqual(case['final_mode'], case['mode'])
+                self.assertTrue(case['mode'] & stat.S_IXUSR)
+                self.assertEqual(case['record'][1:], [builder._record_hash(case['final']), str(len(case['final']))])
+        self.assertEqual(len({case['final'] for case in cases.values()}), 1)  # Byte-identical everywhere.
+        self.assertNotEqual(cases['short']['raw'][:12], cases['long']['raw'][:12])  # Both pip forms were exercised.
+        # The relocated runtime still runs its own interpreter, with arguments and exit status intact.
+        import subprocess
+        for name in ('short', 'long-relative'):
+            moved = self.root / 'moved' / name
+            moved.parent.mkdir(exist_ok=True)
+            cases[name]['stage'].rename(moved)
+            result = subprocess.run([str(moved / 'python/bin/olive-echo'), 'a', 'b c', '', '$HOME'],
+                                    capture_output=True, text=True, env={'PATH': '/usr/bin:/bin'})
+            self.assertEqual(result.returncode, 7, result.stderr)
+            value = json.loads(result.stdout)
+            self.assertEqual(value['argv'], ['a', 'b c', '', '$HOME'])
+            self.assertEqual(Path(value['prefix']).resolve(), (moved / 'python').resolve())
+
+
+@unittest.skipIf(sys.platform == 'win32', 'POSIX console-script launchers')
+class UnrecognisedScriptTests(unittest.TestCase):
+    """Only a launcher whose interpreter is the runtime's own python/bin is rewritten; anything else that
+    still names the build folder, however it is spelled, fails the audit (fail closed)."""
+
+    def test_unrecognised_executables_with_the_build_folder_fail_the_audit(self):
+        definition = json.loads((CREATOR / 'definitions/creator-image-comfyui-0.35.0-linux-x86_64.json').read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            real = Path(directory) / 'real'
+            (real / 'creator-image-fixture.staging/python/bin').mkdir(parents=True)
+            (Path(directory) / 'link').symlink_to(real, target_is_directory=True)
+            stage = Path(directory) / 'link' / 'creator-image-fixture.staging'  # Reached through a symlink.
+            bin_folder = stage / 'python/bin'
+            (bin_folder / 'python3').write_bytes(b'')
+            (stage / 'python/lib/python3.14/site-packages').mkdir(parents=True)
+            scripts = {
+                # Positively recognised: pip's direct shebang to this runtime, spelled through the resolved path.
+                'tool': f'#!{real}/creator-image-fixture.staging/python/bin/python3\nimport sys\n'.encode(),
+                # A launcher shape, but the interpreter is not the runtime's own bin folder.
+                'other-python': f'#!{stage}/ComfyUI/bin/python3\nimport sys\n'.encode(),
+                # Not a recognised launcher at all.
+                'shell-helper': f'#!/bin/sh\nexec "{stage}/ComfyUI/run" "$@"\n'.encode(),
+                # Only the resolved spelling of the build folder.
+                'resolved-only': f'#!/bin/sh\nexec "{real}/creator-image-fixture.staging/x" "$@"\n'.encode(),
+            }
+            for name, data in scripts.items():
+                (bin_folder / name).write_bytes(data)
+                (bin_folder / name).chmod(0o755)
+            self.assertEqual(builder.relocate_scripts(stage, definition), ['bin/tool'])
+            for name in ('other-python', 'shell-helper', 'resolved-only'):
+                self.assertEqual((bin_folder / name).read_bytes(), scripts[name])  # Never rewritten.
+            with self.assertRaises(builder.AuditError) as caught:
+                builder.audit(stage, definition, [])
+            message = str(caught.exception)
+            for name in ('other-python', 'shell-helper', 'resolved-only'):
+                self.assertIn(f'python/bin/{name}: contains the build folder path', message)
+            self.assertNotIn('python/bin/tool:', message)
 
 
 class PinnedEpochTests(unittest.TestCase):

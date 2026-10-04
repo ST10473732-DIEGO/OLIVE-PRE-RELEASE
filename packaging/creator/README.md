@@ -75,7 +75,10 @@ python packaging/creator/audit_archive.py out/creator-image-comfyui-0.35.0-linux
 The builder refuses a definition without the split and re-checks it, then audits the staged tree
 before packing: no direct-download distribution, every `site-packages` file belongs to an
 archive distribution's RECORD, and no build-folder path in scripts or metadata (pip's console
-scripts are rewritten to python-build-standalone's relocatable `/bin/sh` launcher). The archive
+scripts, a direct shebang or pip's long-path `/bin/sh` trampoline, are rewritten to
+python-build-standalone's relocatable `/bin/sh` launcher when their interpreter is the runtime's
+own `python/bin`, whether `--output` is relative, long or behind a symlink; any other script that
+still names the build folder fails the build). The archive
 is byte-reproducible from its runtime inputs alone (sorted members, uid/gid 0, no pip, and every
 mtime = the definition's pinned `source_date_epoch`, 1788930166 = the committer time of the pinned
 ComfyUI v0.35.0 commit, checked against that commit at build time). The OLIVE repository commit
