@@ -370,13 +370,15 @@ class FixtureBuildTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(changed['compression']['tar_sha256'], base['compression']['tar_sha256'])
         self.assertEqual({k: v for k, v in changed['inputs'].items() if k != 'compression_sha256'},
                          {k: v for k, v in base['inputs'].items() if k != 'compression_sha256'})
-        # A compressor that is not the declared libzstd version writes nothing.
+        # A compressor that is not the declared libzstd version writes nothing. The mismatch must be an
+        # impossible version: a real one such as 1.5.5 is the host's own libzstd on some runners, where
+        # the fixture fallback packs with this Python and the "mismatch" would then match.
         spec['parameters']['compression_level'] = 12
-        spec['zstd_version'] = '1.5.5'
+        spec['zstd_version'] = '0.0.0'
         level.write_text(json.dumps(spec))
         with self.assertRaises(SystemExit) as caught:
             await asyncio.to_thread(self.build, self.root / 'other-version', compression_path=level)
-        self.assertIn('the pinned compressor is 1.5.5', str(caught.exception))
+        self.assertIn('the pinned compressor is 0.0.0', str(caught.exception))
         self.assertFalse((self.root / 'other-version' / base['archive']).exists())
 
     async def test_a_real_input_change_still_changes_the_archive(self):
