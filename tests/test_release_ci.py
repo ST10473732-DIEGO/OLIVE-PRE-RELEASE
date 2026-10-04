@@ -54,7 +54,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         jobs = dict(re.findall(r'(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)', self.code.split('\njobs:\n', 1)[1]))
         for heavy in ('creator', 'macos-signing'):  # Manual only: a PR can never reach them.
             self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.", jobs[heavy])
-        for job in ('desktop', 'relay', 'checksums', 'creator'):
+        for job in ('desktop', 'smoke', 'relay', 'checksums', 'creator'):
             self.assertNotIn('secrets.', jobs[job])
             self.assertNotIn('environment:', jobs[job])
         self.assertIn('environment: release-signing', jobs['macos-signing'])
@@ -87,6 +87,21 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertLess(creator.index('audit_archive.py'), creator.index('upload-artifact'))
         for forbidden in ('codesign', 'notarytool', 'secrets.', 'docker', 'gh release', 'environment:'):
             self.assertNotIn(forbidden, creator.lower())
+
+    def test_smoke_job_starts_the_packages_this_run_built(self):
+        jobs = dict(re.findall(r'(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)', self.code.split('\njobs:\n', 1)[1]))
+        smoke = jobs['smoke']
+        self.assertIn('needs: [desktop]', smoke)
+        self.assertIn('target: windows-x86_64', smoke)
+        self.assertIn('target: macos-arm64', smoke)
+        self.assertIn('name: olive-desktop-${{ matrix.target }}', smoke)  # This run's artefact, never another build.
+        self.assertIn("-ArgumentList '/S'", smoke)
+        self.assertIn('node packaging/release/smoke_packaged.mjs "$OLIVE_EXE"', smoke)
+        self.assertNotIn('upload-artifact', smoke)
+        self.assertNotIn('smoke', jobs['checksums'].split('needs:', 1)[1].splitlines()[0])  # Never gates the build.
+        script = (ROOT / 'packaging/release/smoke_packaged.mjs').read_text(encoding='utf-8')
+        self.assertIn('main.setup[aria-label="OLIVE setup"]', script)
+        self.assertIn('.setup-banner', script)  # A test runtime manifest fails the check.
 
     def test_build_info_records_commit_and_checksums(self):
         spec = importlib.util.spec_from_file_location('build_info', ROOT / 'packaging/release/build_info.py')
