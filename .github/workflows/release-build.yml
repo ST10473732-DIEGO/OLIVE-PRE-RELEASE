@@ -132,8 +132,11 @@ jobs:
           Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
           Start-Sleep -Seconds 5   # The installer never starts OLIVE when silent; make sure before the single-instance launch.
           Get-Process olive -ErrorAction SilentlyContinue | Stop-Process -Force
-          $exe = Join-Path $env:LOCALAPPDATA 'Programs\OLIVE\olive.exe'
-          if (-not (Test-Path $exe)) { Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Recurse -Filter olive.exe | Format-List FullName; throw "olive.exe not installed at $exe" }
+          # electron-builder names the per-user folder after the package (Programs\olive-desktop).
+          $found = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Recurse -Filter olive.exe)
+          if ($found.Count -ne 1) { $found | Format-List FullName; throw "expected one installed olive.exe, found $($found.Count)" }
+          $exe = $found[0].FullName
+          "Installed: $exe"
           "OLIVE_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install (macOS, copy the app out of the DMG)
         if: runner.os == 'macOS'
