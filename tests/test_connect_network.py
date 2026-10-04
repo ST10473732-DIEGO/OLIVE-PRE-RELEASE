@@ -1,6 +1,7 @@
 """Real loopback TLS with distinct C2 identities; no multicast requirement in CI."""
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, contextmanager
 import json
 from pathlib import Path
 import socket
@@ -14,7 +15,7 @@ from unittest.mock import patch
 
 from olive.connect.contracts import ConnectError, canonical
 from olive.connect.identity import DeviceKeyStore
-from olive.connect.network import Budget
+from olive.connect.network import AUTHORITY_WAIT, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, REQUEST_TIMEOUT, Budget
 from olive.connect.network_wire import frame, header, HEADER
 from olive.connect.service import DesktopDeviceService
 from tests.test_connect_pairing import MemoryVault
@@ -572,7 +573,8 @@ class NetworkTests(unittest.TestCase):
                 with closing(sqlite3.connect(self.a.repository.path)) as db:
                     db.execute('BEGIN EXCLUSIVE')
                     release.set()
-                    self.assertTrue(failed.wait(3))
+                    # The fresh read waits out a commit window first, then fails closed.
+                    self.assertTrue(failed.wait(AUTHORITY_WAIT + 3))
                     terminal = channel.debug_snapshot()['terminal']
                     storage = terminal.pop('storage')
                     self.assertEqual(terminal, dict(category='storage_unavailable',
@@ -629,7 +631,7 @@ class NetworkTests(unittest.TestCase):
                 with channel.authority_snapshot(reader), ThreadPoolExecutor(1) as pool:
                     channel.check()  # Existing pinned reader remains usable.
                     with self.assertRaises(sqlite3.OperationalError):
-                        pool.submit(channel.check).result(3)  # No cross-thread reuse.
+                        pool.submit(channel.check).result(AUTHORITY_WAIT + 3)  # No cross-thread reuse.
                 self.assertIsNone(channel.authority.db)
             writer.commit()
         self.a.revoke(self.b.local_id)
@@ -1097,3 +1099,195 @@ class DiscoveryTests(unittest.TestCase):
         with patch('psutil.net_if_stats', return_value={n: SimpleNamespace(isup=True) for n in addresses}), \
              patch('psutil.net_if_addrs', return_value=addresses):
             self.assertEqual([i.name for i in interfaces()], ['eth0'])
+
+
+@contextmanager
+def held_commit(service):
+    """Hold the lock every rollback-journal writer holds while it commits.
+
+    From the start of a commit until its journal is flushed and removed, SQLite
+    excludes new readers; on Windows that window can outlast a .25s busy timeout.
+    BEGIN EXCLUSIVE holds the same lock until the test ends it. A change written
+    through the yielded connection becomes visible exactly when it commits.
+    """
+    holder = sqlite3.connect(service.repository.path, timeout=5)
+    try:
+        holder.execute('BEGIN EXCLUSIVE')
+        yield holder
+    finally:
+        if holder.in_transaction:
+            holder.rollback()
+        holder.close()
+
+
+@contextmanager
+def observed_busy(service):
+    """Count SQLITE_BUSY per thread on one repository; no timers involved."""
+    original = service.repository.transaction
+    counts, changed = Counter(), threading.Condition()
+
+    @contextmanager
+    def observed(*args, **kwargs):
+        try:
+            with original(*args, **kwargs) as db:
+                yield db
+        except sqlite3.OperationalError as error:
+            if error.sqlite_errorcode == sqlite3.SQLITE_BUSY:
+                with changed:
+                    counts[threading.current_thread()] += 1
+                    changed.notify_all()
+            raise
+
+    def wait(predicate, timeout=AUTHORITY_WAIT + 3):
+        with changed:
+            return changed.wait_for(lambda: predicate(counts), timeout)
+
+    with patch.object(service.repository, 'transaction', observed):
+        yield wait
+
+
+class AuthorityContentionTests(unittest.TestCase):
+    """A commit window must not retire a healthy channel, nor let stale authority through."""
+    setUp, tearDown = NetworkTests.setUp, NetworkTests.tearDown
+    connect, allow = NetworkTests.connect, NetworkTests.allow
+
+    def target_channel(self):
+        channel = self.connect(); self.allow()
+        with self.na.lock:
+            self.na.targets.pop(self.b.local_id, None)  # This test owns reconnects.
+        return channel, self.nb.channels[self.a.local_id]
+
+    def test_commit_window_is_waited_out_and_reads_the_committed_record(self):
+        channel, remote = self.target_channel()
+        readers = []
+
+        def read():
+            readers.append(threading.current_thread())
+            return self.b.require_paired_identity(remote.public, timeout=.25,
+                deadline=time.monotonic() + AUTHORITY_WAIT, interrupt=remote.running)
+
+        with observed_busy(self.b) as busy, held_commit(self.b) as holder, ThreadPoolExecutor(1) as pool:
+            record = self.b.repository.get(holder, self.a.local_id)
+            self.b.repository.put(holder, dict(record, display_name='Committed meanwhile',
+                                               revision=record['revision'] + 1))
+            pending = pool.submit(read)
+            # Two refused slices each: excluded for longer than the former .25s bound.
+            self.assertTrue(busy(lambda seen: seen[remote.thread] >= 2
+                                 and bool(readers) and seen[readers[0]] >= 2), remote.debug_snapshot())
+            self.assertFalse(remote.stop.is_set())
+            holder.commit()
+            self.assertEqual(pending.result(AUTHORITY_WAIT + 3)['display_name'], 'Committed meanwhile')
+        self.assertTrue(channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+        self.assertFalse(remote.stop.is_set())
+        self.assertIsNone(remote.debug_snapshot()['terminal'])
+
+    def test_requester_request_thread_waits_out_its_own_commit_window(self):
+        channel, _ = self.target_channel()
+        with observed_busy(self.a) as busy, held_commit(self.a) as holder, ThreadPoolExecutor(1) as pool:
+            pending = pool.submit(channel.request, canonical(request(self.a, self.b)))
+            self.assertTrue(busy(lambda seen: sum(seen[t] >= 2 for t in seen if t is not channel.thread) >= 1))
+            holder.commit()
+            self.assertTrue(pending.result(AUTHORITY_WAIT + 5)['result']['pong'])
+        self.assertFalse(channel.stop.is_set())
+        self.assertIsNone(channel.debug_snapshot()['terminal'])
+
+    def test_connect_precheck_and_handshake_trust_read_wait_out_commit_windows(self):
+        self.allow()
+        for service, reader in ((self.a, lambda t: t.name != 'olive-connect-channel'),  # connect() pre-check
+                                (self.b, lambda t: t.name == 'olive-connect-channel')):  # inbound TLS trust set
+            with observed_busy(service) as busy, held_commit(service) as holder, ThreadPoolExecutor(1) as pool:
+                pending = pool.submit(self.na.connect, self.b.local_id, '127.0.0.1', self.nb.port)
+                self.assertTrue(busy(lambda seen: any(reader(t) and n >= 2 for t, n in seen.items())))
+                holder.commit()
+                channel = pending.result(CONNECT_TIMEOUT + 2 * HANDSHAKE_TIMEOUT + 2)
+            self.assertTrue(channel.request(canonical(request(self.a, self.b)))['result']['pong'])
+            self.na.disconnect(self.b.local_id)
+            until(lambda: not self.nb.channels and not self.na.workers and not self.nb.workers)
+
+    def test_contention_beyond_the_bound_fails_closed_without_dispatch(self):
+        channel, remote = self.target_channel()
+        with patch.object(self.b, '_execute') as execute, observed_busy(self.b) as busy, \
+                held_commit(self.b), ThreadPoolExecutor(1) as pool:
+            self.assertTrue(busy(lambda seen: seen[remote.thread] >= 1))
+            result = pool.submit(channel.request, canonical(request(self.a, self.b)))
+            remote.thread.join(AUTHORITY_WAIT + 3)
+            self.assertFalse(remote.thread.is_alive(), remote.debug_snapshot())
+            self.assertTrue(busy(lambda seen: seen[remote.thread] >= 2))  # It waited across slices.
+            terminal = remote.debug_snapshot()['terminal']
+            self.assertEqual((terminal['category'], terminal['phase'], terminal['storage']['sqlite_errorname']),
+                             ('storage_unavailable', 'authority', 'SQLITE_BUSY'))
+            self.assertEqual(remote.sock.fileno(), -1)
+            with self.assertRaisesRegex(ConnectError, 'connection_closed'):
+                result.result(REQUEST_TIMEOUT)
+            execute.assert_not_called()
+
+    def test_revocation_committed_during_contention_is_what_the_wait_reads(self):
+        channel, remote = self.target_channel()
+        with patch.object(self.b, '_execute') as execute, observed_busy(self.b) as busy, \
+                held_commit(self.b) as holder, ThreadPoolExecutor(1) as pool:
+            record = self.b.repository.get(holder, self.a.local_id)
+            self.b.repository.put(holder, dict(record, trust_state='revoked', revoked_at=int(time.time()),
+                connection_state='offline', permissions=[], revision=record['revision'] + 1))
+            self.assertTrue(busy(lambda seen: seen[remote.thread] >= 1))
+            result = pool.submit(channel.request, canonical(request(self.a, self.b)))
+            holder.commit()  # Only network.disconnect is skipped: the read itself must deny.
+            remote.thread.join(AUTHORITY_WAIT + 3)
+            self.assertFalse(remote.thread.is_alive(), remote.debug_snapshot())
+            self.assertEqual(remote.debug_snapshot()['terminal']['category'], 'authority_denied')
+            with self.assertRaisesRegex(ConnectError, 'connection_closed'):
+                result.result(REQUEST_TIMEOUT)
+            execute.assert_not_called()
+
+    def test_permission_removed_during_contention_is_enforced_after_the_wait(self):
+        channel, remote = self.target_channel()
+        with patch.object(self.b, '_execute') as execute, observed_busy(self.b) as busy, \
+                held_commit(self.b) as holder, ThreadPoolExecutor(1) as pool:
+            record = self.b.repository.get(holder, self.a.local_id)
+            self.b.repository.put(holder, dict(record, permissions=[], revision=record['revision'] + 1))
+            self.assertTrue(busy(lambda seen: seen[remote.thread] >= 1))
+            result = pool.submit(channel.request, canonical(request(self.a, self.b)))
+            holder.commit()
+            self.assertEqual(result.result(REQUEST_TIMEOUT)['error'], 'permission_off')
+            execute.assert_not_called()
+        self.assertFalse(remote.stop.is_set())
+
+    def test_shutdown_during_contention_interrupts_the_wait_and_retires_workers(self):
+        _, remote = self.target_channel()
+        with observed_busy(self.b) as busy, held_commit(self.b):
+            self.assertTrue(busy(lambda seen: seen[remote.thread] >= 1))
+            network = self.nb
+            with network.lock:
+                workers = list(network.workers)
+            network.close()  # Still inside the commit window: no read can have succeeded.
+            self.assertFalse(network.workers)
+            for worker in workers:
+                self.assertFalse(worker.thread.is_alive())
+                self.assertEqual(worker.sock.fileno(), -1)
+                # Stopped between slices, not by exhausting the storage wait.
+                self.assertNotEqual((worker.debug_snapshot()['terminal'] or {}).get('category'), 'storage_unavailable')
+        self.b.network = None
+
+    def test_fresh_read_retries_only_busy_and_honours_interrupt_and_deadline(self):
+        attempts = []
+
+        def broken(db):
+            attempts.append(1)
+            db.execute('SELECT * FROM no_such_table')
+
+        with self.assertRaises(sqlite3.OperationalError) as failure:
+            self.b.repository.fresh_read(broken, deadline=time.monotonic() + 5,
+                                         interrupt=lambda: self.fail('a non-busy error was retried'))
+        self.assertEqual((failure.exception.sqlite_errorcode, len(attempts)), (sqlite3.SQLITE_ERROR, 1))
+        read = lambda db: self.b.repository.get(db, self.a.local_id)
+        with held_commit(self.b):
+            def closed():
+                raise ConnectError('connection_closed')
+            with self.assertRaisesRegex(ConnectError, 'connection_closed'):
+                self.b.repository.fresh_read(read, deadline=time.monotonic() + 5, interrupt=closed)
+            started = time.monotonic()
+            with self.assertRaises(sqlite3.OperationalError) as failure:
+                self.b.repository.fresh_read(read, deadline=started + .6, interrupt=lambda: None)
+            self.assertEqual(failure.exception.sqlite_errorcode, sqlite3.SQLITE_BUSY)
+            self.assertGreaterEqual(time.monotonic() - started, .6)
+        self.assertEqual(self.b.repository.fresh_read(read, deadline=time.monotonic() + 1,
+                                                      interrupt=lambda: None)['device_id'], self.a.local_id)

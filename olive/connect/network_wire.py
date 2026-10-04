@@ -79,18 +79,19 @@ def require_current(public):
     return cert
 
 
-def tls_context(service, expected=None, *, local=None):
+def tls_context(service, expected=None, *, local=None, deadline=None, interrupt=None):
     """Same C2 key, certificate and OpenSSL verification rules, fresh per socket.
 
     A listener pins all currently paired certificates; outgoing sockets pin only
     the selected peer. Revocation and exact DER are checked again after handshake.
+    `deadline` and `interrupt` bound the fresh trust read (DeviceRepository.fresh_read).
     """
     public, key = local if local is not None else (service.cryptographic_identity(), None)
     require_current(public)
     if key is None:
         key = service.identities.key_store.load(public)
     peers = {}
-    for record in service.paired_devices(timeout=.25):
+    for record in service.paired_devices(timeout=.25, deadline=deadline, interrupt=interrupt):
         if (record['trust_state'] == 'paired' and record.get('revoked_at') is None
                 and record.get('public_identity') and (expected is None or record['device_id'] == expected)):
             remote = record['public_identity']
