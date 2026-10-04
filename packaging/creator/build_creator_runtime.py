@@ -17,7 +17,9 @@ Inputs are all pinned by the definition:
   * custom nodes   - git commits (the video engine's reviewed GGUF loader only);
   * Python wheels  - locks/<id>.archive.txt: the archive subset of the hash lock (pip
                      --require-hashes --only-binary=:all: --no-deps --no-index), each file first
-                     fetched from the exact URL and SHA-256 in locks/<id>.wheels.json.
+                     fetched from the exact URL and SHA-256 in locks/<id>.wheels.json;
+  * compressor     - compression.json: the pinned interpreter's built-in libzstd version and the
+                     fixed zstd parameters (its SHA-256 is recorded with the inputs).
 
 Direct-download wheels (NVIDIA packages and wheels that bundle NVIDIA components) are never
 fetched, installed or packed here. Before building,
@@ -38,7 +40,10 @@ Output (in --output):
   <id>.inventory.json                   every distribution in the archive and every direct download
 
 Reproducibility: the archive's bytes depend only on the runtime inputs (definition, locks,
-split files, interpreter, ComfyUI commit, wheels, OLIVE's notices generator). The OLIVE
+split files, interpreter, ComfyUI commit, wheels, OLIVE's notices generator) and the pinned
+compressor (compression.json): pack_archive.py writes the tar and compresses it under the pinned
+python-build-standalone interpreter, whose libzstd is compiled in, with fixed parameters
+(single-threaded), so the build machine's Python, zstd, CPU count and locale never matter. The OLIVE
 repository commit is build PROVENANCE: it is recorded in the sidecar files beside the archive
 (manifest-entry.json and inventory.json), never inside it, and the mtimes come from the
 definition's pinned source_date_epoch rather than SOURCE_DATE_EPOCH or the OLIVE commit time. A
@@ -50,7 +55,8 @@ own wheel metadata) and THIRD_PARTY-creator-direct-downloads.txt (the list of wh
 fetches separately). No models are included.
 
 Tests use --fixture-* inputs (a fake interpreter tree, a fake ComfyUI tree and a local
-wheelhouse), so no network and no large download is involved.
+wheelhouse), so no network and no large download is involved; they pack with the real pinned
+interpreter when it is cached, otherwise with --fixture-compressor-python.
 """
 from __future__ import annotations
 
@@ -77,6 +83,10 @@ import collect_notices  # noqa: E402
 import split_lock  # noqa: E402
 
 SCHEMA = 'olive-creator-runtime/1'
+COMPRESSION = HERE / 'compression.json'
+COMPRESSION_SCHEMA = 'olive-creator-compression/1'
+# The parameters a compression spec may set (compression.zstd CompressionParameter names).
+COMPRESSION_PARAMETERS = {'compression_level', 'nb_workers', 'checksum_flag', 'content_size_flag'}
 MARKER = 'OLIVE-RUNTIME.json'
 NOTICES = 'THIRD_PARTY-creator.txt'
 DIRECT_NOTICES = 'THIRD_PARTY-creator-direct-downloads.txt'
@@ -390,34 +400,58 @@ def direct_notices(definition: dict, records: list[dict], texts: dict | None = N
     return '\n'.join(lines)
 
 
-def deterministic_tar(stage: Path, output: Path, epoch: int):
-    """A byte-reproducible tar.zst: sorted paths, fixed owner and mtime, normalised modes."""
-    from compression import zstd  # Python 3.14+
+def load_compression(path: Path) -> dict:
+    value = json.loads(Path(path).read_text(encoding='utf-8'))
+    if value.get('schema') != COMPRESSION_SCHEMA or value.get('format') != 'zstd':
+        raise SystemExit(f'{path}: not an {COMPRESSION_SCHEMA} zstd spec')
+    parameters = value.get('parameters')
+    if (not isinstance(value.get('zstd_version'), str) or not isinstance(value.get('interpreters'), dict)
+            or not isinstance(parameters, dict) or not set(parameters) <= COMPRESSION_PARAMETERS
+            or any(type(v) is not int for v in parameters.values()) or 'compression_level' not in parameters):
+        raise SystemExit(f'{path}: needs zstd_version, interpreters and integer parameters '
+                         f'({", ".join(sorted(COMPRESSION_PARAMETERS))})')
+    if parameters.get('nb_workers') != 0:
+        # libzstd's multithreaded engine writes different bytes; only in-thread compression is pinned.
+        raise SystemExit(f'{path}: nb_workers must be pinned to 0 (single-threaded)')
+    return value
 
-    def members():
-        for path in sorted(stage.rglob('*'), key=lambda p: p.relative_to(stage).as_posix()):
-            yield path
 
-    with zstd.open(output, 'wb', level=12) as raw, \
-            tarfile.open(fileobj=raw, mode='w', format=tarfile.PAX_FORMAT) as tar:
-        for path in members():
-            relative = path.relative_to(stage).as_posix()
-            info = tar.gettarinfo(str(path), arcname=relative)
-            info.uid = info.gid = 0
-            info.uname = info.gname = ''
-            info.mtime = epoch
-            info.pax_headers = {}
-            if info.isdir():
-                info.mode = 0o755
-                tar.addfile(info)
-            elif info.issym():
-                tar.addfile(info)
-            elif info.isreg():
-                info.mode = 0o755 if os.access(path, os.X_OK) else 0o644
-                with open(path, 'rb') as stream:
-                    tar.addfile(info, stream)
-            else:
-                raise SystemExit(f'Unsupported file type in the runtime: {relative}')
+def check_compressor_pin(definition: dict, python_spec: dict, compression: dict):
+    pinned = compression['interpreters'].get(definition['target'])
+    if pinned != python_spec['sha256']:
+        raise SystemExit(f"compression.json pins the {definition['target']} compressor interpreter {pinned}, but "
+                         f"python-runtime.json pins {python_spec['sha256']}: changing the interpreter changes the "
+                         'compressor, so update compression.json deliberately')
+
+
+def compressor_python(definition: dict, python_spec: dict, cache: Path, output: Path) -> Path:
+    """A private copy of the pinned interpreter (the same verified, cached asset the runtime is
+    built from), so packing never executes anything inside the staged runtime."""
+    folder = output / (definition['id'] + '.compressor')
+    if folder.exists():
+        shutil.rmtree(folder)
+    folder.mkdir(parents=True)
+    with tarfile.open(fetch(python_spec['url'], python_spec['sha256'], cache)) as tar:
+        tar.extractall(folder, filter='data')
+    return folder / 'python' / python_spec['python']
+
+
+def pack(stage: Path, archive: Path, epoch: int, compression: dict, python: Path, *, fixture: bool = False) -> dict:
+    """Run pack_archive.py under the pinned interpreter; returns its compressor identity and tar digest."""
+    spec = {'epoch': epoch, 'zstd_version': compression['zstd_version'], 'parameters': compression['parameters']}
+    # -I -S: nothing from the build machine's environment or site-packages; -B: writes no bytecode;
+    # -X utf8: file names are encoded the same under any locale.
+    result = subprocess.run([str(python), '-I', '-B', '-S', '-X', 'utf8', str(HERE / 'pack_archive.py'),
+                             str(stage.absolute()), str(archive.absolute()), json.dumps(spec)],
+                            capture_output=True, text=True, env=clean_environment())
+    if result.returncode != 0:
+        archive.unlink(missing_ok=True)
+        raise SystemExit('Packing the archive failed:\n' + (result.stderr or result.stdout).strip())
+    report = json.loads(result.stdout)
+    if report['zstd_version'] != compression['zstd_version'] or not (report['builtin'] or fixture):
+        archive.unlink(missing_ok=True)
+        raise SystemExit(f'the compressor is not the pinned built-in libzstd {compression["zstd_version"]}: {report}')
+    return report
 
 
 def executables(stage: Path, definition: dict) -> list[str]:
@@ -432,16 +466,33 @@ def executables(stage: Path, definition: dict) -> list[str]:
     return sorted(found)
 
 
-def provenance(source_commit: str | None = None) -> dict:
+def provenance(source_commit: str | None = None, output: Path | None = None, repository: Path = REPOSITORY) -> dict:
     """The OLIVE repository state this build ran from. Sidecar metadata only: it is never written
-    into the archive, so recording it cannot change the archive's bytes."""
+    into the archive, so recording it cannot change the archive's bytes. working_tree_clean is
+    about the SOURCE checkout: the builder's own --output folder (CI builds into out/ inside the
+    checkout) is left out of the status, and nothing else is. A folder holding tracked files is
+    source, so it is never left out."""
     def git(*arguments):
-        result = subprocess.run(['git', '-C', str(REPOSITORY), *arguments], capture_output=True, text=True)
+        result = subprocess.run(['git', '-C', str(repository), *arguments], capture_output=True, text=True)
         return result.stdout.strip() if result.returncode == 0 else None
-    status = git('status', '--porcelain')
-    return {'olive_source_commit': source_commit or os.environ.get('OLIVE_SOURCE_COMMIT') or git('rev-parse', 'HEAD'),
-            'working_tree_clean': None if status is None else not status,
-            'builder': 'packaging/creator/build_creator_runtime.py'}
+    excluded = None
+    if output is not None:
+        try:
+            excluded = Path(os.path.realpath(output)).relative_to(os.path.realpath(repository)).as_posix()
+        except ValueError:
+            pass  # Outside the checkout: nothing to leave out.
+    if excluded not in (None, '.') and git('ls-files', '--', f':(top){excluded}') != '':
+        excluded = None
+    if excluded in (None, '.'):
+        status, excluded = git('status', '--porcelain'), None
+    else:
+        status = git('status', '--porcelain', '--', ':/', f':(top,exclude){excluded}')
+    value = {'olive_source_commit': source_commit or os.environ.get('OLIVE_SOURCE_COMMIT') or git('rev-parse', 'HEAD'),
+             'working_tree_clean': None if status is None else not status,
+             'builder': 'packaging/creator/build_creator_runtime.py'}
+    if excluded:
+        value['working_tree_excludes'] = [excluded + '/']  # The build's own output, not a source change.
+    return value
 
 
 def direct_entry(definition: dict, records: list[dict]) -> list[dict]:
@@ -461,8 +512,13 @@ def direct_entry(definition: dict, records: list[dict]) -> list[dict]:
 
 
 def build(definition_path: Path, output: Path, cache: Path, *, fixture_python: Path | None = None,
-          fixture_comfyui: Path | None = None, wheelhouse: Path | None = None, source_commit: str | None = None) -> dict:
+          fixture_comfyui: Path | None = None, wheelhouse: Path | None = None, source_commit: str | None = None,
+          compression_path: Path = COMPRESSION, fixture_compressor: Path | None = None) -> dict:
     definition = load_definition(definition_path)
+    compression = load_compression(compression_path)
+    if fixture_compressor is not None and fixture_python is None:
+        raise SystemExit('--fixture-compressor-python is for fixture builds only; a release build packs with the '
+                         'pinned interpreter')
     problems = split_lock.check(definition)
     if problems:
         raise SystemExit('The direct-download split is not consistent:\n  ' + '\n  '.join(problems))
@@ -476,6 +532,8 @@ def build(definition_path: Path, output: Path, cache: Path, *, fixture_python: P
     layout = definition['layout']
     runtime = json.loads((REPOSITORY / 'packaging' / 'backend' / 'python-runtime.json').read_text(encoding='utf-8'))
     python_spec = runtime['targets'][definition['target']]
+    if fixture_compressor is None:
+        check_compressor_pin(definition, python_spec, compression)
     if fixture_python is not None:
         shutil.copytree(fixture_python, stage / layout['python'], symlinks=True)
     else:
@@ -524,12 +582,22 @@ def build(definition_path: Path, output: Path, cache: Path, *, fixture_python: P
     inputs = {'definition_sha256': record['definition_sha256'], 'python_sha256': python_spec['sha256'],
               'comfyui_commit': definition['comfyui']['commit'], 'lock_sha256': record['lock']['sha256'],
               'archive_lock_sha256': record['archive_lock']['sha256'], 'wheels_sha256': record['wheels']['sha256'],
-              'direct_licences_sha256': record['direct_licences']['sha256'], 'source_date_epoch': epoch}
+              'direct_licences_sha256': record['direct_licences']['sha256'], 'source_date_epoch': epoch,
+              # How the stable tar is compressed: changes the archive bytes, never the payload.
+              'compression_sha256': sha256(compression_path)}
     (stage / MARKER).write_text(json.dumps(record, indent=2, sort_keys=True) + '\n', encoding='utf-8')
     installed = sum(p.stat().st_size for p in stage.rglob('*') if p.is_file() and not p.is_symlink())
     archive = output / f"{definition['id']}.tar.zst"
-    deterministic_tar(stage, archive, epoch)
+    packer = fixture_compressor or compressor_python(definition, python_spec, cache, output)
+    packed = pack(stage, archive, epoch, compression, packer, fixture=fixture_compressor is not None)
+    if fixture_compressor is None:
+        shutil.rmtree(output / (definition['id'] + '.compressor'))
     digest = sha256(archive)
+    compressed = {'format': 'zstd', 'implementation': packed['implementation'], 'zstd_version': packed['zstd_version'],
+                  'builtin': packed['builtin'], 'parameters': packed['parameters'],
+                  'interpreter_sha256': 'fixture' if fixture_compressor is not None else python_spec['sha256'],
+                  'spec': Path(compression_path).name, 'spec_sha256': inputs['compression_sha256'],
+                  'tar_sha256': packed['tar_sha256'], 'tar_bytes': packed['tar_bytes']}
     (output / (archive.name + '.sha256')).write_text(f'{digest}  {archive.name}\n', encoding='utf-8')
     (output / f"{definition['id']}.{DIRECT_NOTICES.replace('THIRD_PARTY-creator-', 'THIRD_PARTY-')}").write_text(
         direct_text, encoding='utf-8')
@@ -549,15 +617,17 @@ def build(definition_path: Path, output: Path, cache: Path, *, fixture_python: P
         'direct_summary': definition['direct_download'].get('summary'),
         'url': None,
         'inputs': inputs,
+        'compression': compressed,
         # Provenance of THIS build, outside the archive: it never changes the archive's bytes.
-        'build_provenance': provenance(source_commit),
+        'build_provenance': provenance(source_commit, output),
         'relocated_scripts': relocated,
         'note': 'url stays null until the owner publishes this archive; the release manifest entry also needs '
                 'engineering review and an owner release approval.',
     }
     (output / f"{definition['id']}.manifest-entry.json").write_text(json.dumps(entry, indent=2) + '\n', encoding='utf-8')
     (output / f"{definition['id']}.inventory.json").write_text(json.dumps({
-        'id': definition['id'], 'archive_sha256': digest, 'inputs': inputs, 'build_provenance': entry['build_provenance'],
+        'id': definition['id'], 'archive_sha256': digest, 'inputs': inputs, 'compression': compressed,
+        'build_provenance': entry['build_provenance'],
         'archive_distributions': inventory['distributions'],
         'files_attributed_to_records': inventory['files_attributed'],
         'direct_downloads': [{k: w[k] for k in ('package', 'version', 'name', 'sha256', 'size_bytes', 'licence')}
@@ -573,12 +643,15 @@ def main(argv=None):
     parser.add_argument('--cache', type=Path, default=HERE / '.cache')
     parser.add_argument('--fixture-python', type=Path, help='tests only: a prepared interpreter tree')
     parser.add_argument('--fixture-comfyui', type=Path, help='tests only: a prepared ComfyUI tree')
+    parser.add_argument('--fixture-compressor-python', type=Path,
+                        help='tests only (with --fixture-python): pack with this interpreter instead of the pinned one')
     parser.add_argument('--wheelhouse', type=Path, help='install from this folder (default: fetch the archive '
                                                         'wheels from wheels.json into --cache)')
     args = parser.parse_args(argv)
     args.output.mkdir(parents=True, exist_ok=True)
     entry = build(args.definition, args.output, args.cache, fixture_python=args.fixture_python,
-                  fixture_comfyui=args.fixture_comfyui, wheelhouse=args.wheelhouse)
+                  fixture_comfyui=args.fixture_comfyui, wheelhouse=args.wheelhouse,
+                  fixture_compressor=args.fixture_compressor_python)
     print(json.dumps({k: v for k, v in entry.items() if k != 'direct_wheels'}, indent=2))
     return 0
 

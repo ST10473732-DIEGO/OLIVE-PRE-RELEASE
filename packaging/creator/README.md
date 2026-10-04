@@ -32,6 +32,7 @@ audit_archive.py ──> no direct package, no bundled NVIDIA component, marker 
 | Custom nodes | git commit (video only: ComfyUI-GGUF-Loader `ba92ceb8…`) |
 | Archive wheels | `locks/<id>.archive.txt`, each file fetched by the exact URL and SHA-256 in `locks/<id>.wheels.json`, installed with `pip --no-index --require-hashes --only-binary=:all: --no-deps` |
 | Direct downloads | `locks/<id>.wheels.json` records with `"distribution": "direct"`, copied into the manifest entry's `direct_wheels` |
+| Compressor | `compression.json`: the pinned CPython's built-in libzstd 1.5.7, level 12, `nb_workers` 0 (single-threaded), no checksum, no content size; its SHA-256 is `inputs.compression_sha256` |
 
 The pins are the exact distributions of the reference machine's validated image and video
 environments (torch 2.14.0, CUDA 13.0 wheels). Image and video stay **separate** runtimes
@@ -89,6 +90,18 @@ commit rebuilds the identical archive. A release manifest may carry it as
 `ComfyUI/`, `python/`, `OLIVE-RUNTIME.json` (definition, ComfyUI commit, lock, split, licence-text
 and interpreter digests, the pinned epoch and the direct-download list), `THIRD_PARTY-creator.txt` (what is inside)
 and `THIRD_PARTY-creator-direct-downloads.txt` (what setup fetches separately). No models.
+
+The compressed bytes are pinned too. `pack_archive.py` writes the tar and compresses it under a
+private copy of the pinned python-build-standalone interpreter (`python -I -B -S -X utf8`), whose
+libzstd is compiled in, with the fixed parameters of `compression.json`. The build machine's
+Python, its `zstd`, CPU count, locale and paths never matter: stable tar + pinned compressor +
+fixed parameters = the same `.tar.zst` everywhere. Before this (PASS 2F-C) the builder used the
+host Python's libzstd, and the hosted runner's older library wrote different bytes for the same
+tar. `nb_workers` stays 0: libzstd's multithreaded engine (any value ≥ 1) writes different bytes.
+Bumping CPython changes the compressor, so the builder refuses until `compression.json` names the
+new interpreter. The sidecar `compression` block records the compressor, its parameters and the
+uncompressed tar's SHA-256. `build_provenance.working_tree_clean` describes the source checkout:
+the builder's own `--output` folder (CI's `out/`) is left out of `git status`, nothing else is.
 
 The release CI job `creator` builds and audits the image archive on manual dispatch only and
 keeps it as a short-lived private artefact. Its optional `creator_assemble_nvidia` input also

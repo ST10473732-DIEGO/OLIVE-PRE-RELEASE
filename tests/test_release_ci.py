@@ -70,6 +70,14 @@ class ReleaseWorkflowTests(unittest.TestCase):
         # The archive's mtimes come from the definition's pinned epoch, never the OLIVE commit (PASS 2F-C).
         self.assertNotIn('SOURCE_DATE_EPOCH', creator)
         self.assertNotIn('git log', creator)
+        # The pinned interpreter compresses (PASS 2F-D): the job never runs or installs the runner's zstd,
+        # and logs the compressor identity, its parameters and both digests from the sidecar.
+        self.assertNotRegex(creator, r'(?m)(^|[\s|;&(])(un)?zstd\s')
+        self.assertNotRegex(creator, r'\bapt(-get)?\s+install')
+        for logged in ("c['implementation']", "c['zstd_version']", "p['compression_level']", "p['nb_workers']",
+                       "c['tar_sha256']", "entry['sha256']"):
+            self.assertIn(logged, creator)
+        self.assertLess(creator.index('build_creator_runtime.py'), creator.index('Compressor identity and digests'))
         # The NVIDIA assembly is an explicit, separate input; its output lives outside out/ and is deleted.
         self.assertIn('if: inputs.creator_assemble_nvidia', creator)
         self.assertIn('rm -rf "$RUNNER_TEMP/assembled"', creator)

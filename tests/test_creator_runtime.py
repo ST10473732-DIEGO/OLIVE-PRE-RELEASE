@@ -3,6 +3,7 @@ through the normal verified archive path (no network, no real PyTorch)."""
 import asyncio
 import base64
 import csv
+import functools
 import hashlib
 import importlib.util
 import io
@@ -32,6 +33,32 @@ spec.loader.exec_module(builder)
 HAS_PIP = importlib.util.find_spec('pip') is not None
 HAS_ENSUREPIP = importlib.util.find_spec('ensurepip') is not None
 EPOCH = 1788930166  # Committer time of the pinned ComfyUI v0.35.0 commit (the definitions' source_date_epoch).
+PINNED_PYTHON = json.loads((ROOT / 'packaging/backend/python-runtime.json').read_text())['targets']['linux-x86_64']
+
+
+@functools.cache
+def cached_pinned_interpreter() -> Path | None:
+    """The pinned python-build-standalone archive (the real compressor) when a local build cache
+    already holds it; tests never download it."""
+    import platform
+    if sys.platform != 'linux' or platform.machine() not in ('x86_64', 'AMD64'):
+        return None
+    for folder in (CREATOR / '.cache', ROOT / 'packaging/backend/.cache'):
+        path = folder / PINNED_PYTHON['asset']
+        if path.is_file() and builder.sha256(path) == PINNED_PYTHON['sha256']:
+            return path
+    return None
+
+
+def host_compression(folder: Path) -> Path:
+    """The pinned spec with this Python's libzstd version, for packing with --fixture-compressor-python
+    where the pinned interpreter is not cached (the parameters stay the pinned ones)."""
+    from compression import zstd
+    spec = json.loads(builder.COMPRESSION.read_text())
+    spec['zstd_version'] = zstd.zstd_version
+    path = folder / 'compression-host.json'
+    path.write_text(json.dumps(spec))
+    return path
 
 
 def wheel(name='olivefixture', version='1.0', extra: dict[str, bytes] | None = None) -> bytes:
@@ -150,14 +177,25 @@ class FixtureBuildTests(unittest.IsolatedAsyncioTestCase):
         self.definition = self.root / 'definition.json'
         self.definition.write_text(json.dumps(definition))
         self.python, self.comfy = python, comfy
+        # Pack with the real pinned interpreter whenever it is cached; otherwise this Python is the
+        # (declared) fixture compressor with the pinned parameters.
+        self.cache = self.root / 'cache'
+        self.cache.mkdir()
+        pinned = cached_pinned_interpreter()
+        if pinned is not None:
+            (self.cache / PINNED_PYTHON['asset']).symlink_to(pinned)
+            self.packing = {}
+        else:
+            self.packing = {'fixture_compressor': Path(sys.executable), 'compression_path': host_compression(self.root)}
 
     async def asyncTearDown(self):
         self.temp.cleanup()
 
-    def build(self, output, source_commit='0' * 40, definition=None):
+    def build(self, output, source_commit='0' * 40, definition=None, **packing):
         output.mkdir(parents=True, exist_ok=True)
-        return builder.build(definition or self.definition, output, self.root / 'cache', fixture_python=self.python,
-                             fixture_comfyui=self.comfy, wheelhouse=self.wheelhouse, source_commit=source_commit)
+        return builder.build(definition or self.definition, output, self.cache, fixture_python=self.python,
+                             fixture_comfyui=self.comfy, wheelhouse=self.wheelhouse, source_commit=source_commit,
+                             **{**self.packing, **packing})
 
     async def test_fixture_build_is_deterministic_and_installs_through_setup(self):
         first = await asyncio.to_thread(self.build, self.root / 'out1')
@@ -269,6 +307,77 @@ class FixtureBuildTests(unittest.IsolatedAsyncioTestCase):
             mtimes = {m.mtime for m in tar.getmembers()}
         self.assertNotIn(b'a' * 40, marker)
         self.assertEqual(mtimes, {EPOCH})
+
+    async def test_build_folder_cpu_count_and_system_zstd_never_change_the_archive(self):
+        """Regression (PASS 2F-D): the hosted archive differed because the runner's Python compressed
+        with its own libzstd. Every spelling of the build folder, a single CPU and a hostile system
+        zstd on PATH must give the identical archive, packed by the pinned compressor."""
+        import os
+        from unittest import mock
+        builds = {'short': self.root / 's', 'long': self.root / LONG_SEGMENT / 'deeper' / 'out'}
+        results = {name: await asyncio.to_thread(self.build, path) for name, path in builds.items()}
+        cwd = Path.cwd()
+        try:
+            for name, workspace in (('short-relative', self.root / 'ws'),
+                                    ('long-relative', self.root / LONG_SEGMENT / 'ws')):
+                workspace.mkdir(parents=True)
+                os.chdir(workspace)
+                results[name] = await asyncio.to_thread(self.build, Path('out'))  # The hosted CI's --output out.
+        finally:
+            os.chdir(cwd)
+        if hasattr(os, 'sched_setaffinity') and len(os.sched_getaffinity(0)) > 1:
+            def one_cpu():  # The build thread (and so the packer it starts) sees a single CPU.
+                everything = os.sched_getaffinity(0)
+                os.sched_setaffinity(0, {min(everything)})
+                try:
+                    return self.build(self.root / 'one-cpu')
+                finally:
+                    os.sched_setaffinity(0, everything)
+            results['one-cpu'] = await asyncio.to_thread(one_cpu)
+        fake = self.root / 'fake-bin'
+        fake.mkdir()
+        (fake / 'zstd').write_text('#!/bin/sh\necho "system zstd must not be used" >&2\nexit 97\n')
+        (fake / 'zstd').chmod(0o755)
+        with mock.patch.dict(os.environ, {'PATH': f'{fake}{os.pathsep}{os.environ.get("PATH", "")}',
+                                          'ZSTD_CLEVEL': '19', 'ZSTD_NBTHREADS': '8'}):
+            results['system-zstd'] = await asyncio.to_thread(self.build, self.root / 'fake-zstd')
+        self.assertEqual(len({r['sha256'] for r in results.values()}), 1, {n: r['sha256'] for n, r in results.items()})
+        self.assertEqual(len({r['compression']['tar_sha256'] for r in results.values()}), 1)
+        self.assertEqual(len({json.dumps(r['inputs'], sort_keys=True) for r in results.values()}), 1)
+        compression = results['short']['compression']
+        self.assertEqual(compression['parameters']['nb_workers'], 0)
+        self.assertEqual(compression['spec_sha256'], results['short']['inputs']['compression_sha256'])
+        if not self.packing:  # The real pinned interpreter packed it.
+            self.assertEqual((compression['zstd_version'], compression['builtin'], compression['interpreter_sha256']),
+                             ('1.5.7', True, PINNED_PYTHON['sha256']))
+            self.assertEqual(compression['implementation'], 'CPython 3.14.8 compression.zstd')
+        for path in builds.values():
+            self.assertEqual(sorted(p.name for p in path.iterdir() if p.name.endswith(('.staging', '.compressor'))), [])
+        sidecar = json.loads((self.root / 's' / 'creator-image-fixture.inventory.json').read_text())
+        self.assertEqual(sidecar['compression'], compression)
+
+    async def test_compression_settings_are_a_deliberate_build_input(self):
+        base = await asyncio.to_thread(self.build, self.root / 'base')
+        spec_path = self.packing.get('compression_path', builder.COMPRESSION)
+        spec = json.loads(Path(spec_path).read_text())
+        spec['parameters']['compression_level'] = 3
+        level = self.root / 'compression-level3.json'
+        level.write_text(json.dumps(spec))
+        changed = await asyncio.to_thread(self.build, self.root / 'level3', compression_path=level)
+        self.assertNotEqual(changed['inputs']['compression_sha256'], base['inputs']['compression_sha256'])
+        self.assertNotEqual(changed['sha256'], base['sha256'])
+        # Only the compressed layer changed: the same payload, the same runtime-input digests.
+        self.assertEqual(changed['compression']['tar_sha256'], base['compression']['tar_sha256'])
+        self.assertEqual({k: v for k, v in changed['inputs'].items() if k != 'compression_sha256'},
+                         {k: v for k, v in base['inputs'].items() if k != 'compression_sha256'})
+        # A compressor that is not the declared libzstd version writes nothing.
+        spec['parameters']['compression_level'] = 12
+        spec['zstd_version'] = '1.5.5'
+        level.write_text(json.dumps(spec))
+        with self.assertRaises(SystemExit) as caught:
+            await asyncio.to_thread(self.build, self.root / 'other-version', compression_path=level)
+        self.assertIn('the pinned compressor is 1.5.5', str(caught.exception))
+        self.assertFalse((self.root / 'other-version' / base['archive']).exists())
 
     async def test_a_real_input_change_still_changes_the_archive(self):
         base = await asyncio.to_thread(self.build, self.root / 'base')

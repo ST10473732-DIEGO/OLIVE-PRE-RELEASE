@@ -171,7 +171,28 @@ jobs:
         # source_date_epoch. github.sha is provenance and reaches only the sidecar files.
         env:
           OLIVE_SOURCE_COMMIT: ${{ github.sha }}
+        # The tar is written and compressed by the pinned python-build-standalone interpreter's
+        # built-in libzstd (packaging/creator/compression.json), never this runner's Python or zstd.
         run: python packaging/creator/build_creator_runtime.py packaging/creator/definitions/${{ matrix.definition }}.json --output out --cache "$RUNNER_TEMP/creator-cache"
+      - name: Compressor identity and digests
+        env:
+          ENTRY: out/${{ matrix.definition }}.manifest-entry.json
+        run: |
+          python - <<'PY'
+          import json, os
+          entry = json.load(open(os.environ['ENTRY']))
+          c, p = entry['compression'], entry['compression']['parameters']
+          print('compressor     ', c['implementation'], '(built in:', c['builtin'], ')')
+          print('interpreter    ', c['interpreter_sha256'])
+          print('libzstd        ', c['zstd_version'])
+          print('level          ', p['compression_level'])
+          print('nb_workers     ', p['nb_workers'], '(single-threaded)')
+          print('checksum/size  ', p['checksum_flag'], p['content_size_flag'])
+          print('spec           ', c['spec'], c['spec_sha256'])
+          print('tar sha256     ', c['tar_sha256'], c['tar_bytes'], 'bytes')
+          print('archive sha256 ', entry['sha256'], entry['size_bytes'], 'bytes')
+          print('source clean   ', entry['build_provenance']['working_tree_clean'])
+          PY
       - name: Audit - no direct-download package or bundled NVIDIA component, marker matches the split, no build paths
         run: python packaging/creator/audit_archive.py out/${{ matrix.definition }}.tar.zst packaging/creator/definitions/${{ matrix.definition }}.json --forbid "$GITHUB_WORKSPACE" --forbid "$RUNNER_TEMP" --json out/${{ matrix.definition }}.audit.json
       - name: Internal assembly check (downloads the 20 direct wheels from PyPI; the result is deleted, never uploaded)
