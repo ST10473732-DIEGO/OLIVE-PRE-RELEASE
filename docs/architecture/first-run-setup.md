@@ -102,11 +102,17 @@ None of these is a model tool: the assistant cannot download or install anything
   or OLIVE-owned Ollama is reused.
 - **Windows:** OLIVE-owned Ollama (zip) or the official Ollama install. Not validated on Windows.
 - **macOS:** the official Ollama app or Homebrew; no bundled install until validated on a Mac.
-- **Creator:** the image and video engines are defined as checksum-pinned runtime archives
-  built by release CI (`packaging/creator/`) but are not built or published yet, so they stay
-  disabled. FLUX.2 [klein] 4B (Apache-2.0) is the one Creator model with complete evidence and
-  awaits owner approval. VoiceStudio is installed by the person (external). Setup says "Some
-  components are not yet available in this build" and never blocks completion on Creator extras.
+- **Creator:** the Linux image engine is a checksum-pinned runtime archive built by
+  `packaging/creator/` (built, reproducible and validated, but not published: its manifest entry
+  is `built_validated_unpublished`, disabled, with no URL and no owner approval). The archive never
+  contains NVIDIA's CUDA wheels or the wheels that bundle NVIDIA components (triton, torchvision,
+  comfy-kitchen, cuda-bindings): its entry lists those 20 as `direct_wheels`, which setup downloads
+  from PyPI (`direct_hosts`, pinned size and SHA-256) and unpacks into the staged runtime's
+  `site-packages` (RECORD-verified, no pip) before one runtime check and the single rename that
+  registers it ([packaging/creator/README.md](../../packaging/creator/README.md)). The video engine
+  is defined but not built. FLUX.2 [klein] 4B (Apache-2.0) is owner-approved. VoiceStudio is
+  installed by the person (external). Setup says "Some components are not yet available in this
+  build" and never blocks completion on Creator extras.
 
 ## Testing without downloads
 

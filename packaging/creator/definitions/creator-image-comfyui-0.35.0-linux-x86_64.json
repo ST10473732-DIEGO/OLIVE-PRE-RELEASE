@@ -5,12 +5,61 @@
   "target": "linux-x86_64",
   "role": "image",
   "note": "The REIMAGINE engine: ComfyUI only, no custom nodes. Wheel set = the validated reference image environment (pins/comfyui-0.35.0-image.txt). Interpreter = the backend's pinned python-build-standalone 3.14.8 (the reference venv runs system CPython 3.14.7).",
-  "comfyui": {"repository": "https://github.com/Comfy-Org/ComfyUI.git", "tag": "v0.35.0",
-              "commit": "40c4fcdf513a4523e39d54a9d391908af8df8171", "licence": "GPL-3.0-only"},
+  "comfyui": {
+    "repository": "https://github.com/Comfy-Org/ComfyUI.git",
+    "tag": "v0.35.0",
+    "commit": "40c4fcdf513a4523e39d54a9d391908af8df8171",
+    "licence": "GPL-3.0-only"
+  },
+  "source_date_epoch": 1788930166,
+  "source_date_epoch_note": "Committer time of the pinned ComfyUI commit 40c4fcdf513a4523e39d54a9d391908af8df8171 (v0.35.0, 2026-09-09T01:02:46-04:00); covered by that commit hash. Every archive member gets this mtime; the builder checks it against the fetched commit. It does not depend on the OLIVE repository commit.",
   "custom_nodes": [],
   "pins": "pins/comfyui-0.35.0-image.txt",
   "lock": "locks/creator-image-comfyui-0.35.0-linux-x86_64.txt",
-  "layout": {"comfyui": "ComfyUI", "python": "python"},
+  "archive_lock": "locks/creator-image-comfyui-0.35.0-linux-x86_64.archive.txt",
+  "wheels": "locks/creator-image-comfyui-0.35.0-linux-x86_64.wheels.json",
+  "direct_licences": "locks/creator-image-comfyui-0.35.0-linux-x86_64.direct-licences.json",
+  "wheel_selection": {
+    "python": "3.14",
+    "max_glibc": "2.39",
+    "note": "pip tag order for CPython 3.14 on manylinux_2_39_x86_64 and older (the ubuntu-24.04 builder)"
+  },
+  "direct_download": {
+    "reason": "OLIVE-hosted Creator archives never contain NVIDIA-published wheels (nvidia-*, cuda-* unless allowed below with an open licence) or wheels shown to bundle NVIDIA components (bundles_nvidia, with the evidence). First-run setup downloads those exact pinned files from PyPI and unpacks them into the OLIVE-owned runtime before it is registered (engineering decision \"Option B+\", not a legal determination).",
+    "patterns": [
+      "nvidia-*",
+      "cuda-*"
+    ],
+    "archive_allowed": {
+      "cuda-pathfinder": {
+        "spdx": "Apache-2.0",
+        "evidence": "License-Expression: Apache-2.0 and LICENSE in the 1.8.2 wheel; pure Python, no binaries (PASS 2F-B+ audit)"
+      }
+    },
+    "index": "https://pypi.org/simple",
+    "hosts": [
+      "files.pythonhosted.org"
+    ],
+    "site_packages": "python/lib/python3.14/site-packages",
+    "bundles_nvidia": {
+      "comfy-kitchen": "comfy_kitchen/backends/cuda/_C.abi3.so statically links the NVIDIA CUDA runtime (cudart_static); the wheel's own licenses/NOTICE says so (PASS 2F audit).",
+      "cuda-bindings": "cuda/bindings/_internal/runtime.cpython-314-x86_64-linux-gnu.so and runtime_ptds…so embed the NVIDIA CUDA runtime (cudart internals /cudart.shm.*, no libcudart dependency) although the wheel declares Apache-2.0 (PASS 2F-B+ audit, owner decision B++).",
+      "torchvision": "torchvision.libs bundles libcudart and libnvjpeg (auditwheel-vendored; PASS 2F audit).",
+      "triton": "triton/backends/nvidia bundles ptxas, ptxas-blackwell, cuobjdump, nvdisasm, CUPTI libraries and CUDA headers (PASS 2F audit)."
+    },
+    "source_label": "PyPI",
+    "summary": "including NVIDIA CUDA dependencies"
+  },
+  "layout": {
+    "comfyui": "ComfyUI",
+    "python": "python"
+  },
   "destination": "runtime/comfy",
-  "register": {"runtime": "comfy", "paths": {"root": "ComfyUI", "python": "python/bin/python3"}}
+  "register": {
+    "runtime": "comfy",
+    "paths": {
+      "root": "ComfyUI",
+      "python": "python/bin/python3"
+    }
+  }
 }

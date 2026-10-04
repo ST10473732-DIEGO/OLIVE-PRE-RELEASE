@@ -15,6 +15,13 @@ What it will do, and nothing else:
 * unpack through safe_archive into a private staging folder beside the destination (so the
   final rename never crosses a filesystem), then move it into <user data>/<destination>
   with one rename, never over an existing folder;
+* for an archive with direct-download wheels (the Creator image engine's NVIDIA CUDA wheels
+  and the wheels that bundle NVIDIA components), download each pinned wheel from its own host list and unpack it
+  into the staged runtime's site-packages (RECORD-verified, no pip, no wheel code run)
+  before that single rename, so the runtime is never registered without them;
+* for an entry that names a runtime check, start the staged interpreter once with a fixed
+  OLIVE probe (Python, PyTorch, CUDA, ComfyUI import, no imports from outside the runtime)
+  and keep nothing that fails it;
 * place verified model files (kind "file") beside their destination and rename them into
   place, never over an existing file;
 * pull Ollama models through the local Ollama API after checking that the registry
@@ -38,6 +45,8 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
+import sys
 import threading
 import time
 from typing import Any, Awaitable, Callable
@@ -62,6 +71,42 @@ RUNTIME_SLOTS = {'ollama-runtime': 'ollama', 'image-engine': 'comfy', 'video-eng
                  'audio-engine': 'voicestudio'}
 ORDER = {'archive': 0, 'python-wheels': 1, 'file': 2, 'ollama-model': 3}
 FINAL = {'done', 'present', 'different_build', 'failed', 'cancelled'}
+RUNTIME_MARKER = 'OLIVE-RUNTIME.json'
+PROBE_TIMEOUT = 600
+# Run by the staged runtime's own interpreter in isolated mode (-I -B): OLIVE's code, not the
+# archive's. Each stage reports separately so a failure is named truthfully.
+PROBE = r"""
+import json, os, sys
+root, comfy = os.path.realpath(sys.argv[1]), sys.argv[2]
+out = {'stage': 'python', 'python': sys.version.split()[0]}
+def inside(path):
+    return os.path.realpath(path) == root or os.path.realpath(path).startswith(root + os.sep)
+def leaks():
+    paths = [p for p in sys.path if p and not inside(p)]
+    files = [m.__file__ for m in list(sys.modules.values()) if getattr(m, '__file__', None) and not inside(m.__file__)]
+    return sorted(set(paths + files))[:5]
+try:
+    out['stage'] = 'torch'
+    import torch
+    out.update(torch=torch.__version__, torch_cuda=torch.version.cuda)
+    out['stage'] = 'cuda'
+    out['cuda_available'] = bool(torch.cuda.is_available())
+    if out['cuda_available']:
+        out['device'] = torch.cuda.get_device_name(0)
+        out['cudnn'] = torch.backends.cudnn.version()
+    out['stage'] = 'comfyui'
+    sys.path.insert(0, os.path.join(root, comfy))
+    import comfyui_version
+    out['comfyui'] = comfyui_version.__version__
+    if out['cuda_available']:
+        import nodes
+        out['core_nodes'] = len(nodes.NODE_CLASS_MAPPINGS)
+    out['leaks'] = leaks()
+    out['stage'] = 'done'
+except BaseException as error:
+    out['error'] = type(error).__name__
+print('OLIVE-PROBE ' + json.dumps(out), flush=True)
+"""
 MOUNTINFO = '/proc/self/mountinfo'
 
 
@@ -599,14 +644,17 @@ class RuntimeInstaller:
         self.state.save(state)
 
     # ------------------------------------------------------------------ files
-    def _download(self, entry, files, item: Item, cancel) -> list[Path]:
+    def _download(self, entry, files, item: Item, cancel, direct=()) -> list[Path]:
+        """Download files (from the entry's hosts), then direct wheels (from the entry's
+        direct_hosts only: an archive host can never serve them and vice versa)."""
         downloader = Downloader(self.temp / 'downloads', allow_loopback_http=self.loopback,
                                 **({'client_factory': self.client_factory} if self.client_factory else {}))
         hosts = tuple(entry['source'].get('hosts') or ())
+        direct_hosts = tuple(entry.get('direct_hosts') or ())
         paths, before = [], 0
         item.state = 'downloading'
-        for each in files:
-            artefact = Artefact(each['url'], each['sha256'], each['size_bytes'], hosts, each['name'])
+        for each, allowed in [(f, hosts) for f in files] + [(w, direct_hosts) for w in direct]:
+            artefact = Artefact(each['url'], each['sha256'], each['size_bytes'], allowed, each['name'])
             offset = before
 
             def progress(done, total, offset=offset):
@@ -626,7 +674,10 @@ class RuntimeInstaller:
             raise InstallError('destination_exists', f'{destination} already exists. OLIVE does not replace an '
                                                      'installation it did not create; choose it under Runtimes instead')
         files = manifests.files_for(entry, self.target)
-        downloaded = self._download(entry, files, item, cancel)
+        direct = manifests.direct_files(entry, self.target)
+        downloaded = self._download(entry, files, item, cancel, direct)
+        wheels = downloaded[len(files):]
+        downloaded_files = downloaded[:len(files)]
         item.state = 'extracting'
         # Staged beside the destination so the final rename stays on one filesystem (the runtime
         # folder may be a bind mount or another volume than the temp folder).
@@ -635,19 +686,26 @@ class RuntimeInstaller:
         expected = int(install.get('installed_bytes') or sum(f['size_bytes'] for f in files) * 4)
         limit = int(expected * 1.25) + 64 * 1024 ** 2
         executables = install.get('executables', [])
+        keep_exec = install.get('modes') == 'archive'
+        verified = None
         try:
             if entry['kind'] == 'archive':
-                safe_archive.extract(downloaded[0], install['format'], staging, max_bytes=limit,
-                                     executables=executables, cancel=cancel)
+                safe_archive.extract(downloaded_files[0], install['format'], staging, max_bytes=limit,
+                                     executables=executables, cancel=cancel, keep_exec=keep_exec)
+                if direct:
+                    item.message = 'Adding the pinned dependencies downloaded from PyPI'
+                    self._add_direct_wheels(entry, staging, direct, wheels, cancel)
             else:
-                safe_archive.extract(downloaded[0], 'wheel', staging, max_bytes=limit, cancel=cancel)
-                for path in downloaded[1:]:
+                safe_archive.extract(downloaded_files[0], 'wheel', staging, max_bytes=limit, cancel=cancel)
+                for path in downloaded_files[1:]:
                     safe_archive.extract_more(path, 'wheel', staging, max_bytes=limit, cancel=cancel)
                 safe_archive.require_executables(staging, executables)
-            safe_archive.normalise_modes(staging, executables)
-            (staging / MARKER).write_text(json.dumps({
-                'schema': 'olive-install/1', 'id': entry['id'], 'version': entry.get('version'),
-                'files': [{'name': f['name'], 'sha256': f['sha256']} for f in files]}, indent=2), encoding='utf-8')
+            safe_archive.normalise_modes(staging, executables, keep_exec=keep_exec)
+            if install.get('verify'):
+                item.state, item.message = 'installing', 'Checking the new runtime'
+                verified = self._verify_runtime(entry, staging, cancel)
+            (staging / MARKER).write_text(json.dumps(self._install_marker(entry, staging, files, direct, verified),
+                                                     indent=2), encoding='utf-8')
             item.state = 'installing'
             destination.parent.mkdir(parents=True, exist_ok=True)
             if destination.exists() or destination.is_symlink():
@@ -658,8 +716,128 @@ class RuntimeInstaller:
             raise
         for path in downloaded:
             path.unlink(missing_ok=True)  # Verified and unpacked; the archive itself is no longer needed.
-        return destination, {'kind': entry['kind'], 'version': entry.get('version') or '', 'path': str(destination),
-                             'sha256': files[0]['sha256'] if len(files) == 1 else ''}
+        record = {'kind': entry['kind'], 'version': entry.get('version') or '', 'path': str(destination),
+                  'sha256': files[0]['sha256'] if len(files) == 1 else ''}
+        if direct:
+            record['direct_wheels'] = [{'name': w['name'], 'sha256': w['sha256']} for w in direct]
+        if verified is not None:
+            record['verified'] = verified
+        return destination, record
+
+    # ------------------------------------------------------------------ direct downloads
+    def _add_direct_wheels(self, entry, staging: Path, direct: list[dict], paths: list[Path], cancel):
+        """Unpack the verified direct-download wheels into the staged runtime's site-packages."""
+        relative = entry['install'].get('direct_wheels_target') or ''
+        if not manifests.safe_relative(relative):
+            raise InstallError('bad_destination', 'The manifest names an unsafe folder for direct downloads')
+        site = safe_archive._inside(staging, safe_archive._clean(relative))  # No link on the way in.
+        if not site.is_dir() or site.is_symlink():
+            raise InstallError('archive_mismatch', 'The runtime archive has no folder for its direct downloads')
+        packages = {re.sub(r'[-_.]+', '-', w['package']).lower() for w in direct}
+        # The archive must not already carry anything setup is about to fetch from the publisher.
+        for info in site.glob('*.dist-info'):
+            name = re.sub(r'[-_.]+', '-', info.name[:-len('.dist-info')].rsplit('-', 1)[0]).lower()
+            if name in packages:
+                raise safe_archive.ArchiveError(f'The runtime archive already contains {name}; it was not used')
+        try:
+            marker = json.loads((staging / RUNTIME_MARKER).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            marker = None
+        declared = ((marker or {}).get('direct_downloads') or {}).get('wheels') if isinstance(marker, dict) else None
+        if declared is not None and sorted((w['name'], w['sha256']) for w in declared) != sorted(
+                (w['name'], w['sha256']) for w in direct):
+            raise InstallError('archive_mismatch', 'The runtime archive was built for different direct downloads than '
+                                                   'this release lists, so it was not used')
+        for wheel, path in zip(direct, paths):
+            if cancel.is_set():
+                from .secure_download import Cancelled as _Cancelled
+                raise _Cancelled()
+            limit = int((wheel.get('installed_bytes') or wheel['size_bytes'] * 4) * 1.25) + 64 * 1024 ** 2
+            safe_archive.install_wheel(path, site, max_bytes=limit, cancel=cancel)
+
+    def _verify_runtime(self, entry, staging: Path, cancel) -> dict:
+        """Start the staged interpreter once with OLIVE's probe; anything but a clean result fails
+        the install before the runtime is registered."""
+        register = entry['install'].get('register') or {}
+        python = staging.joinpath(*(register.get('paths', {}).get('python') or '').split('/'))
+        comfy = register.get('paths', {}).get('root') or 'ComfyUI'
+        if not python.is_file():
+            raise InstallError('runtime_unhealthy', 'The new runtime has no Python interpreter')
+        env = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'LANG', 'SYSTEMROOT', 'TEMP', 'TMP',
+                                                             'CUDA_VISIBLE_DEVICES', 'LD_LIBRARY_PATH')}
+        env.pop('LD_LIBRARY_PATH', None)  # The runtime finds its CUDA libraries itself (RPATH).
+        env.update(PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1')
+        try:
+            process = subprocess.Popen([str(python), '-I', '-B', '-c', PROBE, str(staging), comfy], cwd=str(staging),
+                                       env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.DEVNULL, text=True)
+        except OSError as error:
+            raise InstallError('runtime_unhealthy', f'The new runtime could not start ({type(error).__name__})') from None
+        deadline = time.monotonic() + PROBE_TIMEOUT
+        try:
+            while process.poll() is None:
+                if cancel.is_set():
+                    from .secure_download import Cancelled as _Cancelled
+                    raise _Cancelled()
+                if time.monotonic() > deadline:
+                    raise InstallError('runtime_unhealthy', 'The new runtime did not answer its check in time')
+                time.sleep(.1)
+            output = process.stdout.read()
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            process.stdout.close()
+        line = next((l for l in reversed(output.splitlines()) if l.startswith('OLIVE-PROBE ')), None)
+        try:
+            result = json.loads(line[len('OLIVE-PROBE '):]) if line else None
+        except ValueError:
+            result = None
+        if not isinstance(result, dict):
+            raise InstallError('runtime_unhealthy', 'The new runtime\'s Python did not start correctly')
+        stage = result.get('stage')
+        if stage == 'torch':
+            raise InstallError('runtime_unhealthy', 'PyTorch could not be loaded from the new runtime')
+        if stage == 'done' and not result.get('cuda_available'):
+            raise InstallError('cuda_unavailable', 'The image engine needs an NVIDIA GPU with a working driver; CUDA '
+                                                   'is not available on this computer. Downloads are kept for a retry')
+        if stage != 'done':
+            raise InstallError('runtime_unhealthy', f'The new runtime failed its {stage} check')
+        if result.get('leaks'):
+            raise InstallError('runtime_unhealthy', 'The new runtime loaded Python code from outside its own folder')
+        return {k: result.get(k) for k in ('python', 'torch', 'torch_cuda', 'cuda_available', 'cudnn', 'device',
+                                           'comfyui', 'core_nodes')}
+
+    def _install_marker(self, entry, staging: Path, files, direct, verified) -> dict:
+        """What OLIVE installed, without personal paths: the ownership marker and runtime record."""
+        marker = {'schema': 'olive-install/1', 'id': entry['id'], 'version': entry.get('version'),
+                  'files': [{'name': f['name'], 'sha256': f['sha256']} for f in files]}
+        if direct or verified is not None:
+            try:
+                runtime = json.loads((staging / RUNTIME_MARKER).read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                runtime = {}
+            runtime = runtime if isinstance(runtime, dict) else {}
+            marker.update({
+                'product_version': self.manifest().get('product_version'), 'platform': self.target,
+                'runtime': {k: runtime.get(k) for k in ('id', 'version', 'target')},
+                'comfyui': runtime.get('comfyui') or {},
+                # The runtime inputs the (SHA-256-verified) archive was built from.
+                'inputs': {'definition_sha256': runtime.get('definition_sha256'),
+                           'python_sha256': (runtime.get('python') or {}).get('sha256'),
+                           'source_date_epoch': runtime.get('source_date_epoch'),
+                           **{f'{key}_sha256': (runtime.get(key) or {}).get('sha256')
+                              for key in ('lock', 'archive_lock', 'wheels', 'direct_licences')}},
+                'archive': {'name': files[0]['name'], 'sha256': files[0]['sha256']} if files else None,
+                'direct_wheels': [{'name': w['name'], 'package': w.get('package'), 'version': w.get('version'),
+                                   'sha256': w['sha256']} for w in direct],
+                'verified': verified, 'installed_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
+            # Build provenance only from the release manifest (external, verified metadata); the archive
+            # itself carries no OLIVE commit. Nothing is invented when the manifest has none.
+            commit = (entry.get('source') or {}).get('olive_source_commit')
+            if isinstance(commit, str) and re.fullmatch(r'[0-9a-f]{40}', commit):
+                marker['olive_source_commit'] = commit
+        return marker
 
     # ------------------------------------------------------------------ model files
     def _file_targets(self, entry, prepare=True) -> list[tuple[dict, Path]]:

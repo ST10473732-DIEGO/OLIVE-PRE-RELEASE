@@ -30,6 +30,9 @@ USER_DATA = ('settings.json', 'chats.json', 'memories.json', 'rag.sqlite3', 'run
              'notes.sqlite3', 'drawings.sqlite3', 'connect')
 
 
+VERIFIED = ('python', 'torch', 'torch_cuda', 'cuda_available', 'cudnn', 'device', 'comfyui', 'core_nodes')
+
+
 def _clean_installed(value) -> dict:
     result = {}
     if not isinstance(value, dict):
@@ -47,6 +50,16 @@ def _clean_installed(value) -> dict:
             result[key]['files'] = [{'path': f['path'], 'sha256': f['sha256'], 'size_bytes': f['size_bytes']}
                                     for f in files[:64] if isinstance(f, dict) and isinstance(f.get('path'), str)
                                     and isinstance(f.get('sha256'), str) and type(f.get('size_bytes')) is int]
+        # A runtime with direct-download wheels (Creator) records each wheel and its runtime check.
+        wheels = record.get('direct_wheels')
+        if isinstance(wheels, list):
+            result[key]['direct_wheels'] = [{'name': w['name'], 'sha256': w['sha256']} for w in wheels[:64]
+                                            if isinstance(w, dict) and isinstance(w.get('name'), str)
+                                            and isinstance(w.get('sha256'), str)]
+        verified = record.get('verified')
+        if isinstance(verified, dict):
+            result[key]['verified'] = {k: v for k, v in verified.items() if isinstance(k, str) and k in VERIFIED
+                                       and (v is None or isinstance(v, (str, int, float, bool)))}
     return result
 
 

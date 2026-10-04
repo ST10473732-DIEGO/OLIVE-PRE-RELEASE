@@ -8,7 +8,11 @@ those pins for the definition's target and CPython minor version, binary wheels 
 index SHA-256 hashes, so build_creator_runtime.py can install with
 `pip --require-hashes --only-binary=:all: --no-deps`. Only metadata is fetched. Review the
 diff of locks/ like any other dependency change; a pin is never changed silently.
+
+Afterwards it re-derives each definition's NVIDIA direct-download split (split_lock.py: the
+archive lock and the per-wheel records), so a re-lock can never leave a stale split behind.
 """
+import argparse
 import json
 from pathlib import Path
 import subprocess
@@ -40,11 +44,14 @@ def lock(definition: dict) -> Path:
     return output
 
 
-def main():
+def main(argv=None):
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     for path in sorted((HERE / 'definitions').glob('*.json')):
         definition = json.loads(path.read_text(encoding='utf-8'))
         print(f"{definition['id']}: {lock(definition)}")
+    import split_lock
+    return split_lock.main([])
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

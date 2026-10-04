@@ -10,7 +10,11 @@ on:
   workflow_dispatch:
     inputs:
       creator_runtimes:
-        description: Also build the Linux Creator runtime archives (several GB; manual only)
+        description: Also build the Linux Creator image runtime archive (83 wheels, without its 20 direct-download wheels; several GB; manual only)
+        type: boolean
+        default: false
+      creator_assemble_nvidia:
+        description: Internal check only - also download the 20 pinned direct-download wheels from PyPI and assemble a throwaway runtime (never uploaded)
         type: boolean
         default: false
       macos_signing:
@@ -140,13 +144,17 @@ jobs:
           if-no-files-found: error
 
   creator:
+    # Option B+: the archive never contains NVIDIA's wheels or wheels that bundle NVIDIA components
+    # (triton, torchvision, comfy-kitchen, cuda-bindings); first-run setup downloads all 20 from PyPI.
+    # The uploaded artefact is private and short-lived; nothing is published, pushed or signed.
     name: Creator runtimes (Linux, manual)
     if: github.event_name == 'workflow_dispatch' && inputs.creator_runtimes
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        definition: [creator-image-comfyui-0.35.0-linux-x86_64, creator-video-comfyui-0.35.0-linux-x86_64]
+        # VIDEO is defined and split too, but is not built until its own acceptance pass.
+        definition: [creator-image-comfyui-0.35.0-linux-x86_64]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,10 +162,23 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-      - name: Free runner disk space for the PyTorch/CUDA wheels
+      - name: Direct-download split (83 archive + 20 direct = complete lock) is consistent (offline)
+        run: python packaging/creator/split_lock.py --check
+      - name: Free runner disk space for the PyTorch wheels
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h .
-      - name: Build (pinned CPython, ComfyUI commit, hash-locked wheels)
-        run: python packaging/creator/build_creator_runtime.py packaging/creator/definitions/${{ matrix.definition }}.json --output out
+      - name: Build the archive (pinned CPython, ComfyUI commit, hash-locked archive wheels; no direct-download wheels)
+        # Archive bytes depend only on the runtime inputs; mtimes are the definition's pinned
+        # source_date_epoch. github.sha is provenance and reaches only the sidecar files.
+        env:
+          OLIVE_SOURCE_COMMIT: ${{ github.sha }}
+        run: python packaging/creator/build_creator_runtime.py packaging/creator/definitions/${{ matrix.definition }}.json --output out --cache "$RUNNER_TEMP/creator-cache"
+      - name: Audit - no direct-download package or bundled NVIDIA component, marker matches the split, no build paths
+        run: python packaging/creator/audit_archive.py out/${{ matrix.definition }}.tar.zst packaging/creator/definitions/${{ matrix.definition }}.json --forbid "$GITHUB_WORKSPACE" --forbid "$RUNNER_TEMP" --json out/${{ matrix.definition }}.audit.json
+      - name: Internal assembly check (downloads the 20 direct wheels from PyPI; the result is deleted, never uploaded)
+        if: inputs.creator_assemble_nvidia
+        run: |
+          python packaging/creator/assemble_check.py out/${{ matrix.definition }}.manifest-entry.json out/${{ matrix.definition }}.tar.zst "$RUNNER_TEMP/assembled"
+          rm -rf "$RUNNER_TEMP/assembled"
       - run: python packaging/release/build_info.py out --target linux-x86_64 --kind creator-runtime
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

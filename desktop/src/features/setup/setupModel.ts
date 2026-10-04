@@ -83,6 +83,14 @@ export interface PublicEntry {
   publisher: string | null;
   link: string | null;
   reason: string | null;
+  /** How far a built artefact has got when it is not downloadable yet (e.g. built_validated_unpublished). */
+  artefact_state?: string | null;
+  /** Pinned files setup fetches from another source for this item (Creator: wheels from PyPI). */
+  direct_downloads?: { package: string; version: string; download_bytes: number; licence: string | null }[];
+  direct_download_bytes?: number;
+  /** Where they come from (e.g. "PyPI"); attribution stays per package, never one publisher. */
+  direct_source?: string | null;
+  direct_summary?: string | null;
 }
 export type ItemAction = "present" | "install" | "different_build" | "choose" | "external" | "unavailable";
 export interface PlanItem { slot: string; entry: PublicEntry; action: ItemAction; detail: string; optional: boolean }
@@ -230,6 +238,13 @@ export function itemLabel(item: PlanItem): string {
     default:
       return "Not yet available in this build";
   }
+}
+
+/** One plain line for an item that also downloads pinned dependencies from another source; null otherwise. */
+export function directDownloadNote(entry: PublicEntry): string | null {
+  if (!entry.direct_downloads?.length || !entry.direct_source) return null;
+  const summary = entry.direct_summary ? `, ${entry.direct_summary},` : "";
+  return `Includes ${bytes(entry.direct_download_bytes ?? 0)} of pinned dependencies downloaded directly from ${entry.direct_source}${summary} under their respective licences`;
 }
 
 export function jobItemLabel(item: JobItem): string {

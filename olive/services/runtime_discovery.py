@@ -150,7 +150,8 @@ class RuntimeDiscovery:
                     comfy('source-checkout', media_runtime, [('ComfyUI_windows_portable/ComfyUI',
                                                              'ComfyUI_windows_portable/python_embeded/python.exe')])
             else:
-                comfy('olive-owned', folder, [('ComfyUI', 'comfy-venv/bin/python')])
+                # A venv-based install, or the Creator archive OLIVE setup installs (its own interpreter).
+                comfy('olive-owned', folder, [('ComfyUI', 'comfy-venv/bin/python'), ('ComfyUI', 'python/bin/python3')])
                 if name == 'comfy' and legacy is not None:
                     comfy('source-checkout', legacy, [('ComfyUI', 'comfy-venv/bin/python')])
         elif name == 'voicestudio':
@@ -297,7 +298,8 @@ class RuntimeDiscovery:
                     return {'executable': str(root / relative)}
             return {'executable': str(root / ('ollama.exe' if self.platform == 'win32' else 'bin/ollama'))}
         if name in ('comfy', 'video_comfy'):
-            for comfy_root, python in (('ComfyUI', 'comfy-venv/bin/python'), ('ComfyUI', 'comfy-venv/Scripts/python.exe'),
+            for comfy_root, python in (('ComfyUI', 'comfy-venv/bin/python'), ('ComfyUI', 'python/bin/python3'),
+                                       ('ComfyUI', 'comfy-venv/Scripts/python.exe'),
                                        ('ComfyUI_windows_portable/ComfyUI', 'ComfyUI_windows_portable/python_embeded/python.exe'),
                                        ('.', '.venv/bin/python'), ('.', 'venv/bin/python'), ('.', '.venv/Scripts/python.exe')):
                 if (root / comfy_root / 'main.py').is_file() and (root / python).is_file():

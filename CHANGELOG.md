@@ -126,6 +126,15 @@ are still being prepared on `release/olive-1.0`.
   packaged Windows backend (not yet validated on a Windows build).
 - Research with Playwright uses Chrome, Edge or Chromium already installed and never
   downloads a browser; without them, research stays on HTTP pages.
+- The Linux Creator image engine is a reproducible runtime archive that never contains
+  NVIDIA's CUDA wheels or wheels that bundle NVIDIA components: setup downloads those 20
+  pinned wheels from PyPI and unpacks them into the OLIVE-owned runtime (RECORD-verified, no
+  pip) before checking and registering it.
+  The archive is built and validated but not yet published, so setup does not offer it.
+- An image engine that OLIVE started stops after it has been idle for the model keep-alive
+  period (5 minutes by default, at least 1 minute), freeing several GB of memory. It never
+  stops during a job, while another OLIVE job holds the GPU, while another client has queued
+  work, or when someone else started it; the next request starts it again.
 
 ### Fixed
 

@@ -14,6 +14,7 @@ import {
   bytes,
   hardwareLines,
   isRuntimeSlot,
+  directDownloadNote,
   itemLabel,
   jobItemLabel,
   jobRunning,
@@ -192,6 +193,9 @@ export function Setup({ initial, close }: { initial: SetupStatus; close: (state:
             {item.action === "install" && !item.entry.validated && " · Not yet verified on this system"}
             {item.entry.licence.spdx && item.action === "install" && ` · ${item.entry.licence.spdx}`}
           </small>
+          {item.action === "install" && directDownloadNote(item.entry) && (
+            <small className="setup-muted">{directDownloadNote(item.entry)}</small>
+          )}
           {item.detail && item.action !== "install" && item.action !== "present" && <small className="setup-muted">{item.detail}</small>}
           {item.action === "external" && item.entry.link && (
             <button type="button" className="link" onClick={() => void window.olive.openExternal(item.entry.link!)}>

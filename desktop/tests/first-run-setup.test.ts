@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { validateCall } from "../electron/contracts";
 import {
   bytes,
+  directDownloadNote,
   featureAvailableInBuild,
   hardwareLines,
   isRuntimeSlot,
@@ -84,6 +85,25 @@ describe("first-run setup model", () => {
     expect(bytes(5_225_388_164)).toBe("5.2 GB");
     expect(bytes(null)).toBe("Not measurable");
   });
+  it("says plainly when an item also downloads pinned dependencies from another source", () => {
+    const plain = entry("engine", "image-engine", true);
+    expect(directDownloadNote(plain)).toBeNull();
+    const creator = {
+      ...plain,
+      direct_downloads: [{ package: "a-lib", version: "1", download_bytes: 2.52e9, licence: "Proprietary" }],
+      direct_download_bytes: 2.52e9,
+      direct_source: "the index",
+      direct_summary: "including GPU runtime dependencies",
+    };
+    expect(directDownloadNote(creator)).toBe(
+      "Includes 2.5 GB of pinned dependencies downloaded directly from the index, including GPU runtime dependencies, under their respective licences",
+    );
+    expect(directDownloadNote({ ...creator, direct_summary: null })).toBe(
+      "Includes 2.5 GB of pinned dependencies downloaded directly from the index under their respective licences",
+    );
+    expect(directDownloadNote({ ...creator, direct_source: null })).toBeNull();
+  });
+
   it("never claims unmeasured hardware", () => {
     const system = {
       os: { name: "Linux", version: "6", architecture: "x86_64" }, target: "linux-x86_64",

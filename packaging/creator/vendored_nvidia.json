@@ -1,0 +1,7 @@
+{
+  "schema": "olive-creator-vendored-nvidia/1",
+  "note": "Reviewed NVIDIA-origin content that an archive wheel bundles inside itself (CUDA library or toolkit file names, NVIDIA header/tool folders, ELF binaries that embed the CUDA runtime, NVIDIA proprietary licence markers). audit_archive.py fails when an archive's content differs from its list here. Option B+ (owner decision, PASS 2F-B+): every wheel found to bundle such content (triton, torchvision, comfy-kitchen, cuda-bindings) is a direct download from PyPI instead, so the image archive's reviewed list is EMPTY and any such content fails the audit. History: PASS 2F archive 68225a69... (obsolete) carried triton 185 files / 386,043,221 B and torchvision.libs 2 files / 6,575,504 B. Engineering evidence, not a legal determination.",
+  "archives": {
+    "creator-image-comfyui-0.35.0-linux-x86_64": {}
+  }
+}

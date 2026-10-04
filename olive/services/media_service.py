@@ -59,6 +59,7 @@ class MediaService:
         except OSError:pass
         if services.ollama.residency is not None:
             services.ollama.residency.external_guard=self.release_engine_for_chat
+        self.engines.share_lease(services.ollama.residency)
         for operation in ('import','render'):services.tool_registry.register(MediaTool(self,operation))
     async def release_engine_for_chat(self):
         # Text inference may load only after every OLIVE media engine is idle and
@@ -186,12 +187,15 @@ class MediaService:
                     if loaded:raise ValueError('Another Ollama client has resident models. Release them before starting media generation.')
                     await self.engines.release_others(keep=self.engines.image)
                     await self.runtime.start_for(engine.url)
-                    check()
-                    if raw:
-                        with Image.open(io.BytesIO(raw)) as original:
-                            image=ImageOps.exif_transpose(original).convert('RGB').resize((request['width'],request['height']))
-                            buffer=io.BytesIO();image.save(buffer,format='PNG');raw=buffer.getvalue()
-                    result,provenance=await engine.render(request,raw,job_id,cancel,progress)
+                    try:
+                        check()
+                        if raw:
+                            with Image.open(io.BytesIO(raw)) as original:
+                                image=ImageOps.exif_transpose(original).convert('RGB').resize((request['width'],request['height']))
+                                buffer=io.BytesIO();image.save(buffer,format='PNG');raw=buffer.getvalue()
+                        result,provenance=await engine.render(request,raw,job_id,cancel,progress)
+                    finally:
+                        self.engines.image.touch()  # Restart the owned engine's idle countdown.
             check()
             with Image.open(io.BytesIO(result)) as image:
                 image.verify()

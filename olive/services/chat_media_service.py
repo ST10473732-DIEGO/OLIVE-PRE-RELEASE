@@ -456,6 +456,7 @@ class ChatMediaService:
             except Exception as error:
                 # The next text or media request re-verifies before loading anything.
                 log.warning('%s engine release after generation not verified: %s', kind, error)
+            engine.touch()  # An OLIVE-started engine stops after the idle period (media_engines).
         seconds = round(time.monotonic() - started, 1)
         if kind == 'image':
             progress('Saving image…')

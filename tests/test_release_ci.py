@@ -59,6 +59,27 @@ class ReleaseWorkflowTests(unittest.TestCase):
             self.assertNotIn('environment:', jobs[job])
         self.assertIn('environment: release-signing', jobs['macos-signing'])
 
+    def test_creator_job_builds_the_archive_without_nvidia_wheels(self):
+        jobs = dict(re.findall(r'(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)', self.code.split('\njobs:\n', 1)[1]))
+        creator = jobs['creator']
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.creator_runtimes", creator)
+        self.assertIn('definition: [creator-image-comfyui-0.35.0-linux-x86_64]', creator)  # VIDEO is not built yet.
+        self.assertIn('split_lock.py --check', creator)
+        self.assertIn('audit_archive.py out/', creator)
+        self.assertIn('OLIVE_SOURCE_COMMIT: ${{ github.sha }}', creator)  # Sidecar provenance only.
+        # The archive's mtimes come from the definition's pinned epoch, never the OLIVE commit (PASS 2F-C).
+        self.assertNotIn('SOURCE_DATE_EPOCH', creator)
+        self.assertNotIn('git log', creator)
+        # The NVIDIA assembly is an explicit, separate input; its output lives outside out/ and is deleted.
+        self.assertIn('if: inputs.creator_assemble_nvidia', creator)
+        self.assertIn('rm -rf "$RUNNER_TEMP/assembled"', creator)
+        uploads = re.findall(r'path: (\S+)', creator)
+        self.assertEqual(uploads, ['out/'])
+        self.assertNotIn('assembled', creator.split('upload-artifact', 1)[1])
+        self.assertLess(creator.index('audit_archive.py'), creator.index('upload-artifact'))
+        for forbidden in ('codesign', 'notarytool', 'secrets.', 'docker', 'gh release', 'environment:'):
+            self.assertNotIn(forbidden, creator.lower())
+
     def test_build_info_records_commit_and_checksums(self):
         spec = importlib.util.spec_from_file_location('build_info', ROOT / 'packaging/release/build_info.py')
         module = importlib.util.module_from_spec(spec)

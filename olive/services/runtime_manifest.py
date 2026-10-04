@@ -16,6 +16,17 @@ OFFER an entry is decided by three separate gates, in order:
 Engineering evidence alone never makes anything installable; neither does an approval
 without complete evidence. Nothing here is legal advice or legal approval.
 
+An archive entry may also name "direct_wheels": exact wheels (URL, SHA-256, size) that setup
+downloads from their index (direct_hosts) and unpacks into the staged archive before the runtime
+is registered. The Creator image engine uses this so NVIDIA's CUDA wheels, and other wheels
+that bundle NVIDIA components, are fetched from PyPI rather than placed in an OLIVE-hosted
+archive. They are part of the entry's pins: its download size, completeness check and release
+fingerprint all include them. "direct_source" names where they come from (PyPI); attribution is
+per wheel ("metadata_attribution", copied from the wheel's own METADATA), never one publisher.
+
+"artefact_state" records how far a built artefact has got when it is not yet downloadable
+(for example "built_validated_unpublished"); it never makes an entry offerable.
+
 Features name the components they need ("ollama-runtime", "model-fast", ...); profiles are
 derived from features, so no model or file name is hard-coded outside this file.
 
@@ -52,6 +63,8 @@ SHA256 = re.compile(r'^[0-9a-f]{64}$')
 ID = re.compile(r'^[a-z0-9][a-z0-9._-]{0,79}$')
 PRIVATE_TAG = re.compile(r'(^|/)olive-[a-z0-9-]+', re.I)
 MAX_DOWNLOAD = 64 * 1024 ** 3
+ARTEFACT_STATES = ('defined', 'built_validated_unpublished', 'published')
+MODES = ('manifest', 'archive')
 MANIFEST_VARIABLE = 'OLIVE_RUNTIME_MANIFEST'
 LOOPBACK_VARIABLE = 'OLIVE_INSTALLER_ALLOW_LOOPBACK_HTTP'
 AWAITING_APPROVAL = 'Not yet approved for the public OLIVE release'
@@ -152,10 +165,17 @@ def files_for(entry: dict, target: str) -> list[dict]:
     return []
 
 
+def direct_files(entry: dict, target: str) -> list[dict]:
+    """Wheels an archive entry downloads from their publisher and unpacks into its staged runtime."""
+    if entry.get('kind') != 'archive' or not entry.get('direct_wheels'):
+        return []
+    return list(entry['direct_wheels'].get(target) or [])
+
+
 def download_bytes(entry: dict, target: str) -> int:
     if entry['kind'] == 'ollama-model':
         return int(entry.get('size_bytes') or 0)
-    return sum(int(f.get('size_bytes') or 0) for f in files_for(entry, target))
+    return sum(int(f.get('size_bytes') or 0) for f in files_for(entry, target) + direct_files(entry, target))
 
 
 def _file_complete(item, hosts, loopback) -> bool:
@@ -201,12 +221,29 @@ def complete(entry: dict, target: str | None = None, allow_loopback_http=False) 
         placed = [f.get('path') or f['name'] for f in files]
         if kind == 'file' and len(set(placed)) != len(placed):
             return False
+        if not _direct_complete(entry, each, allow_loopback_http):
+            return False
     register = install.get('register')
     if register is not None:
         from .runtime_discovery import NAMES
         if register.get('runtime') not in NAMES or not all(safe_relative(v) for v in register.get('paths', {}).values()):
             return False
     return True
+
+
+def _direct_complete(entry: dict, target: str, allow_loopback_http=False) -> bool:
+    """Direct-download wheels, when an entry has them: pinned, on their own host list, unpacked
+    into a safe folder of the archive, each name once."""
+    if not entry.get('direct_wheels'):
+        return True
+    install = entry.get('install') or {}
+    wheels = direct_files(entry, target)
+    hosts = entry.get('direct_hosts') or []
+    names = [w.get('name') for w in wheels]
+    return (entry.get('kind') == 'archive' and bool(wheels) and safe_relative(install.get('direct_wheels_target'))
+            and len(set(names)) == len(names)
+            and all(_file_complete(w, hosts, allow_loopback_http) and str(w['name']).endswith('.whl')
+                    and isinstance(w.get('package'), str) and isinstance(w.get('version'), str) for w in wheels))
 
 
 def fingerprint(entry: dict) -> str:
@@ -224,6 +261,11 @@ def fingerprint(entry: dict) -> str:
                   for target in sorted(entry.get('platforms') or [])},
         'destination': (entry.get('install') or {}).get('destination'),
     }
+    if entry.get('direct_wheels'):
+        # Only entries with direct downloads carry this key, so every other fingerprint is unchanged.
+        pinned['direct_wheels'] = {target: sorted([w.get('name'), w.get('url'), w.get('sha256'), w.get('size_bytes')]
+                                                  for w in direct_files(entry, target))
+                                   for target in sorted(entry.get('platforms') or [])}
     return hashlib.sha256(json.dumps(pinned, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
@@ -290,6 +332,20 @@ def validate(value: dict, allow_loopback_http=False, release=False) -> list[str]
             problems.append(f'{identifier} names a private olive-* Ollama tag')
         if not entry.get('enabled') and not entry.get('reason'):
             problems.append(f'{identifier} is disabled without a reason')
+        if entry.get('direct_wheels') is not None and entry['kind'] != 'archive':
+            problems.append(f'{identifier} names direct-download wheels but is not an archive')
+        if entry.get('direct_wheels') and 'direct_publisher' in entry:
+            problems.append(f'{identifier} names one publisher for all direct downloads; use direct_source and '
+                            'per-wheel metadata_attribution')
+        if (entry.get('install') or {}).get('verify') not in (None, 'comfyui-cuda'):
+            problems.append(f'{identifier} names an unknown runtime check')
+        if (entry.get('install') or {}).get('modes', 'manifest') not in MODES:
+            problems.append(f'{identifier} has an unknown install modes policy')
+        if entry.get('artefact_state') is not None and entry['artefact_state'] not in ARTEFACT_STATES:
+            problems.append(f'{identifier} has an unknown artefact state')
+        if entry.get('artefact_state') == 'built_validated_unpublished' and (entry.get('enabled')
+                                                                            or (entry.get('source') or {}).get('url')):
+            problems.append(f'{identifier} is unpublished but enabled or given a download URL')
     profiles = value.get('profiles', {})
     if set(profiles) != set(PROFILES):
         problems.append('profiles must be core, creator and complete')
@@ -367,6 +423,7 @@ def public_entry(entry: dict, target: str | None, loopback=False, manifest: dict
     """What the renderer may show: no internal evidence beyond plain facts."""
     licence = entry.get('licence') or {}
     state = release_state(entry, manifest, target if target in entry.get('platforms', []) else None, loopback)
+    direct = direct_files(entry, target) if target else []
     return {
         'id': entry['id'], 'kind': entry['kind'], 'name': entry['name'], 'provides': entry.get('provides'),
         'version': entry.get('version'),
@@ -381,4 +438,12 @@ def public_entry(entry: dict, target: str | None, loopback=False, manifest: dict
         'link': (entry.get('source') or {}).get('url') if entry['kind'] == 'external' else None,
         'reason': entry.get('reason') or (AWAITING_APPROVAL if entry.get('enabled') and state == 'engineering_reviewed'
                                           else None),
+        'artefact_state': entry.get('artefact_state'),
+        # Plain facts about what setup fetches from another publisher (no URLs or digests).
+        'direct_downloads': [{'package': w.get('package'), 'version': w.get('version'),
+                              'download_bytes': int(w.get('size_bytes') or 0), 'licence': w.get('licence')}
+                             for w in direct],
+        'direct_download_bytes': sum(int(w.get('size_bytes') or 0) for w in direct),
+        'direct_source': entry.get('direct_source') if direct else None,
+        'direct_summary': entry.get('direct_summary') if direct else None,
     }
