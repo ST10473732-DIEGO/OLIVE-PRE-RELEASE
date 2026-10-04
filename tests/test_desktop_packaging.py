@@ -190,5 +190,51 @@ class BackendArtifactInputTests(unittest.TestCase):
         self.assertFalse((ROOT / 'desktop/backend-artifact/dmdo').exists())
 
 
+class ApplicationIconTests(unittest.TestCase):
+    """OLIVE 2: the dark icon on every desktop, light and dark appearances on iOS."""
+    ARTWORK = ROOT / 'assets/branding/olive2/app-icons'
+    APPICONSET = ROOT / 'mobile/ios/OLIVEMobile/Assets.xcassets/AppIcon.appiconset'
+
+    def test_desktop_packaging_uses_the_canonical_icons(self):
+        self.assertEqual(BUILD['win']['icon'], '../assets/branding/olive.ico')
+        self.assertEqual(BUILD['nsis']['installerIcon'], '../assets/branding/olive.ico')
+        self.assertEqual(BUILD['nsis']['uninstallerIcon'], '../assets/branding/olive.ico')
+        self.assertEqual(BUILD['mac']['icon'], '../assets/branding/olive.icns')
+        self.assertEqual(BUILD['linux']['icon'], '../assets/branding/olive-512.png')
+
+    def test_installed_icons_match_the_supplied_artwork(self):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, str(ROOT / 'packaging/icons/make_icons.py'), '--check'],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_windows_and_macos_icons_carry_every_size(self):
+        from PIL import Image
+        with Image.open(ROOT / 'assets/branding/olive.ico') as ico:
+            self.assertTrue({16, 24, 32, 48, 64, 128, 256} <= {w for w, _ in ico.info['sizes']})
+        with Image.open(ROOT / 'assets/branding/olive.icns') as icns:
+            self.assertTrue({(16, 16, 2), (128, 128, 1), (256, 256, 2), (512, 512, 2)} <= set(icns.info['sizes']))
+
+    def test_ios_icon_has_light_default_and_dark_appearance_both_opaque(self):
+        from PIL import Image
+        catalog = json.loads((self.APPICONSET / 'Contents.json').read_text(encoding='utf-8'))
+        appearances = {tuple((a['appearance'], a['value']) for a in image.get('appearances', [])): image
+                       for image in catalog['images']}
+        self.assertEqual(set(appearances), {(), (('luminosity', 'dark'),)})
+        self.assertEqual(appearances[()]['filename'], 'AppIcon-Light.png')
+        self.assertEqual(appearances[(('luminosity', 'dark'),)]['filename'], 'AppIcon-Dark.png')
+        for image in catalog['images']:
+            self.assertEqual((image['idiom'], image['platform'], image['size']), ('universal', 'ios', '1024x1024'))
+            with Image.open(self.APPICONSET / image['filename']) as icon:
+                self.assertEqual(icon.size, (1024, 1024))
+                self.assertEqual(icon.mode, 'RGB')  # No alpha channel: App Store rejects transparent icons.
+                self.assertNotIn('transparency', icon.info)
+        self.assertEqual(sorted(p.name for p in self.APPICONSET.iterdir()),
+                         ['AppIcon-Dark.png', 'AppIcon-Light.png', 'Contents.json'])
+        pbxproj = (ROOT / 'mobile/ios/OLIVEMobile.xcodeproj/project.pbxproj').read_text(encoding='utf-8')
+        self.assertIn('ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;', pbxproj)
+
+
 if __name__ == '__main__':
     unittest.main()

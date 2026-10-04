@@ -10,7 +10,7 @@ has been published. Linux (AppImage) is the only package built and launched so f
 | Electron shell | `desktop/` → `app.asar` | Only `out/electron`, `out/renderer` and `package.json` |
 | Python backend artefact | `packaging/backend/build_backend.py` → `desktop/backend-artifact/` → `resources/backend` | Relocatable CPython (python-build-standalone), hash-locked wheels, `olive/` |
 | Legal notices | `resources/legal/` | `LICENSE`, `THIRD_PARTY_NOTICES.md`, `desktop/THIRD_PARTY.md`; Electron adds its own `LICENSE*` |
-| Icons | `assets/branding/` | `.ico` (Windows), `.icns` (macOS, `packaging/icons/make_icons.py`), PNG (Linux) |
+| Icons | `assets/branding/` | OLIVE 2 dark `.ico` (Windows), `.icns` (macOS), PNG (Linux); installed from `assets/branding/olive2/app-icons/` by `packaging/icons/make_icons.py` |
 | Runtime manifest | `olive/runtime_manifest/1.0.0.json` (inside the backend) | What first-run setup may install; see [first-run-setup.md](first-run-setup.md) |
 | Linux entries | `packaging/linux/*.in` = `olive/services/linux_desktop_entries.py` | Visible `olive.desktop`, hidden `local.dmdo.desktop.desktop` |
 | Windows installer script | `packaging/electron/installer.nsh` | Optional desktop shortcut; never deletes data |

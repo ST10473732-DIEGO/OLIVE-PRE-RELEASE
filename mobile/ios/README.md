@@ -185,11 +185,13 @@ development step; Xcode does not fetch dependencies.
 - `NativeConnect`: in-process Ed25519 X.509 and TLS memory-BIO adapter.
 - `OLIVEMobileTests`, `OLIVEMobileUITests`: state, persistence, Keychain and UI checks.
 
-The app uses the repository's canonical olive mark. Recreate its opaque icon:
+The Home Screen icon has a default (light) and a dark appearance, `AppIcon-Light.png` and
+`AppIcon-Dark.png`: opaque 1024x1024 copies of the OLIVE 2 artwork in
+`assets/branding/olive2/app-icons/ios/`. iOS 18 and later pick the appearance; iOS 17 uses
+the default. Reinstall or verify them with the desktop icons:
 
 ```sh
-swift mobile/ios/scripts/render-icon.swift assets/branding/olive-source.png \
-  mobile/ios/OLIVEMobile/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+python packaging/icons/make_icons.py [--check]
 ```
 
 See [the unchanged C9.1 foundation report](../../docs/archive/mobile-c9/OLIVE_MOBILE_C9_1_FOUNDATION.md)
