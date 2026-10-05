@@ -137,7 +137,7 @@ jobs:
           if ($found.Count -ne 1) { $found | Format-List FullName; throw "expected one installed olive.exe, found $($found.Count)" }
           $exe = $found[0].FullName
           $expected = Join-Path $env:LOCALAPPDATA 'Programs\OLIVE\olive.exe'
-          if ($exe -ne $expected) { throw "installed at $exe, expected $expected" }
+          if ($exe -cne $expected) { throw "installed at $exe, expected $expected" }
           "Installed: $exe"
           "OLIVE_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install (macOS, copy the app out of the DMG)

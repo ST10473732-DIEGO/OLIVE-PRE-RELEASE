@@ -98,8 +98,9 @@ class ElectronBuilderTargetTests(unittest.TestCase):
         self.assertIn('!ifndef BUILD_UNINSTALLER', pre_init)
         self.assertIn('ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation', pre_init)
         self.assertIn('${if} $0 == ""', pre_init)
-        self.assertIn('WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$0\\${PRODUCT_FILENAME}"', pre_init)
+        self.assertIn('WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$0\\${PRODUCT_NAME}"', pre_init)
         self.assertNotIn('HKLM', pre_init)
+        self.assertNotIn('${PRODUCT_FILENAME}', pre_init)  # That follows executableName: Programs\olive.
         self.assertNotRegex(script, r'RMDir[^\n]*(LOCALAPPDATA|PROFILE|\.olive|APPDATA)')
         self.assertNotIn('cscLink', json.dumps(BUILD))  # No signing certificate is assumed.
 

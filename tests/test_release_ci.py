@@ -98,6 +98,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("-ArgumentList '/S'", smoke)
         self.assertIn("Join-Path $env:LOCALAPPDATA 'Programs\\OLIVE\\olive.exe'", smoke)  # Never Programs\olive-desktop.
         self.assertNotIn('olive-desktop\\', smoke)
+        self.assertIn('if ($exe -cne $expected)', smoke)  # Case-sensitive: Programs\olive must fail.
         self.assertIn('node packaging/release/smoke_packaged.mjs "$OLIVE_EXE"', smoke)
         self.assertNotIn('upload-artifact', smoke)
         self.assertNotIn('smoke', jobs['checksums'].split('needs:', 1)[1].splitlines()[0])  # Never gates the build.

@@ -14,6 +14,7 @@
   ; electron-builder documents seeding InstallLocation here to change the default folder.
   ; Its per-user setup reads this value first and still honours /D=. Only seeded when
   ; absent, so an update never moves an installed OLIVE; the uninstaller deletes the key.
+  ; PRODUCT_NAME, not PRODUCT_FILENAME: the latter follows executableName (olive).
   !ifndef BUILD_UNINSTALLER
     SetRegView 64
     Push $0
@@ -31,7 +32,7 @@
       ${if} $2 != 0
         System::Call 'OLE32::CoTaskMemFree(p r2)'
       ${endif}
-      WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$0\${PRODUCT_FILENAME}"
+      WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$0\${PRODUCT_NAME}"
     ${endif}
     Pop $2
     Pop $1
