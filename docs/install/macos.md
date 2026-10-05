@@ -1,7 +1,8 @@
 # OLIVE on macOS (DMG)
 
-Status (2026-10-03): **foundations only**. No DMG has been built. Nothing is signed or
-notarized. Nothing on macOS has been validated on a Mac. Intel Macs are not supported
+Status: **not included in OLIVE 1.0**. Release CI builds an unsigned DMG and checks that the
+app starts on a hosted Mac runner, but it is not signed, notarized or distributed, and it has had
+no release acceptance on a Mac. Intel Macs are not supported
 (the bundled `cryptography` has no x86_64 macOS wheel).
 
 ## Build (on Apple Silicon)

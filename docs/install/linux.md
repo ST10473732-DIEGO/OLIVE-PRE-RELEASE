@@ -1,8 +1,8 @@
 # OLIVE on Linux (AppImage)
 
-Status (2026-10-03): the AppImage can be built and was launched on the reference CachyOS
-machine in an isolated profile. It is **not published**, and no clean-machine acceptance
-has been done. The checklist for Ubuntu 24.04, Fedora and Debian is in
+Status: **published** as part of OLIVE 1.0 ([release](https://github.com/ST10473732-DIEGO/get-olive/releases/tag/olive-1.0),
+`OLIVE-1.0.0-linux-x86_64.AppImage`), supported on Linux x86_64. Tested on the reference CachyOS
+machine; no clean-machine acceptance on other distributions has been done yet. The checklist for Ubuntu 24.04, Fedora and Debian is in
 [linux-clean-machine-acceptance.md](linux-clean-machine-acceptance.md).
 
 ## Build

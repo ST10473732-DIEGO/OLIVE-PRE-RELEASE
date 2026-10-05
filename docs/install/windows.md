@@ -1,8 +1,10 @@
 # OLIVE on Windows (NSIS installer)
 
-Status (2026-10-03): configuration only. `OLIVE-Setup-1.0.0.exe` has **not been built**.
-It needs the Windows backend, which can only be built on Windows. Nothing on Windows is
-validated on the current tree, including VIDEO and AUDIO.
+Status: **published as an unsigned preview** in OLIVE 1.0 ([release](https://github.com/ST10473732-DIEGO/get-olive/releases/tag/olive-1.0),
+`OLIVE-Setup-1.0.0-windows-x86_64.exe`). Release CI builds it on a Windows runner (the Windows
+backend can only be built on Windows), installs it and checks that it starts; it was also tested
+by hand on a Windows PC before release. No Windows Creator engine; Ollama is installed
+separately. VIDEO and AUDIO are not validated on Windows.
 
 ## Build (on Windows x64)
 
