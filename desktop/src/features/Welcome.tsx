@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { ArrowRight, Check, Cpu, ShieldCheck, Smartphone } from "lucide-react";
 import { Core } from "../components/Core";
 import { welcomeDevices, type ConnectSnapshotLike, type RuntimeState } from "../services/runtimeState";
+import type { SetupStatus } from "./setup/setupModel";
 
 // The Grove entrance: the dot-matrix olive, the wordmark, and two honest
 // checks (the local AI and where your data lives) before Home. It never waits
@@ -14,7 +15,12 @@ export function Welcome({
   enter,
   model,
   connect,
+  setup = null,
+  openSetup,
 }: {
+  /** First-run setup state; a profile needing repair says so here. */
+  setup?: SetupStatus | null;
+  openSetup?: () => void;
   /** The model status label, for example "NORMAL ready". */
   model?: string;
   state: string;
@@ -76,6 +82,16 @@ export function Welcome({
             </li>
           ))}
         </ul>
+        {setup?.state === "requires_repair" && openSetup && (
+          <p className="welcome-repair" role="status">
+            <span>
+              {setup.reason === "unreadable_state"
+                ? "Setup information could not be read."
+                : `${setup.repairs.map((r) => r.label).filter((v, i, a) => a.indexOf(v) === i).join(", ")} needs attention.`}
+            </span>
+            <button type="button" className="quiet" onClick={openSetup}>Repair</button>
+          </p>
+        )}
         <motion.button whileTap={{ scale: 0.985 }} className="primary enter" onClick={() => enter()}>
           Enter OLIVE
           <ArrowRight size={17} aria-hidden="true" />

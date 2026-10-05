@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from olive.services.presets import PRESETS
 from unittest.mock import patch
@@ -221,6 +222,98 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
         await self.released(req)
         self.assertEqual((await self.poll(req))['error'], 'permission_denied')
         self.assertIsNone(self.sb.ollama.residency.active)
+
+    async def test_late_stop_cannot_interrupt_cleanup_after_natural_end(self):
+        # A run that has already ended on its own (here: output_limit) is in
+        # cleanup. A Stop or invalidation landing now must neither cancel that
+        # cleanup nor let `released` be signalled while the slot is still held.
+        await self.policy('allow')
+        self.eb.mode = 'overflow'
+        inference = self.b.inference
+        entered, proceed = threading.Event(), threading.Event()
+        cancel_seen = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        at_release = []
+        original_release, original_cancel, original_done = inference._release, inference._cancel_task, inference._job_done
+        def held_release(job):
+            entered.set()
+            proceed.wait(5)
+            original_release(job)
+        def observed_cancel(job):
+            original_cancel(job)
+            loop.call_soon(cancel_seen.set)
+        def observed_done(job, task):
+            at_release.append((inference.active, task.cancelled()))
+            original_done(job, task)
+        stop = None
+        try:
+            with patch.object(inference, '_release', held_release), \
+                    patch.object(inference, '_cancel_task', observed_cancel), \
+                    patch.object(inference, '_job_done', observed_done):
+                req = self.start_request(); await self.send(req)
+                self.assertTrue(await asyncio.to_thread(entered.wait, 3))
+                job = inference.jobs[(self.a.local_id, req.job_id)]
+                self.assertEqual((job.state, job.error), ('failed', 'output_limit'))
+                stop = asyncio.create_task(asyncio.to_thread(inference.stop, self.a.local_id, req.job_id))
+                await asyncio.wait_for(cancel_seen.wait(), 3)
+                self.assertFalse(job.released.is_set())
+                proceed.set()
+                await asyncio.wait_for(stop, 5)
+            self.assertEqual(at_release, [(None, False)])
+            self.assertTrue(self.eb.stopped.is_set())
+            await self.released(req)
+            self.assertEqual((await self.poll(req))['result']['error'], 'output_limit')
+        finally:
+            proceed.set()
+            if stop:
+                await asyncio.gather(stop, return_exceptions=True)
+
+    async def test_permission_change_seen_first_by_stream_then_invalidate(self):
+        # The original load-sensitive ordering, made deterministic: set_permission
+        # commits the new rules, the running stream's next offer sees them and ends
+        # the job, and only then does set_permission's invalidate() arrive.
+        await self.policy('allow')
+        self.eb.mode = 'long'
+        inference = self.b.inference
+        entered, proceed = threading.Event(), threading.Event()
+        cancel_seen = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        at_release = []
+        original_release, original_cancel, original_done = inference._release, inference._cancel_task, inference._job_done
+        original_invalidate = inference.invalidate
+        def held_release(job):
+            entered.set()
+            proceed.wait(5)
+            original_release(job)
+        def observed_cancel(job):
+            original_cancel(job)
+            loop.call_soon(cancel_seen.set)
+        def observed_done(job, task):
+            at_release.append((inference.active, task.cancelled()))
+            original_done(job, task)
+        try:
+            with patch.object(inference, '_release', held_release), \
+                    patch.object(inference, '_cancel_task', observed_cancel), \
+                    patch.object(inference, '_job_done', observed_done):
+                with patch.object(inference, 'invalidate', lambda *args, **kwargs: None), \
+                        patch.object(inference, '_sweep', lambda: None):
+                    req = self.start_request(); await self.send(req)
+                    await asyncio.wait_for(self.eb.started.wait(), 3)
+                    await self.policy('deny')
+                    self.eb.release.set()
+                    self.assertTrue(await asyncio.to_thread(entered.wait, 3))
+                job = inference.jobs[(self.a.local_id, req.job_id)]
+                self.assertEqual((job.state, job.error), ('failed', 'permission_denied'))
+                await asyncio.to_thread(original_invalidate, self.a.local_id)
+                await asyncio.wait_for(cancel_seen.wait(), 3)
+                self.assertFalse(job.released.is_set())
+                proceed.set()
+                self.assertTrue(await asyncio.to_thread(job.released.wait, 5))
+            self.assertEqual(at_release, [(None, False)])
+            await self.released(req)
+            self.assertEqual((await self.poll(req))['error'], 'permission_denied')
+        finally:
+            proceed.set()
 
     async def test_cancel_ack_waits_for_provider_cleanup(self):
         await self.policy('allow')

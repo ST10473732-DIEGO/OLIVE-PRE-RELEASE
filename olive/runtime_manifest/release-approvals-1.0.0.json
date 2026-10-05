@@ -1,0 +1,71 @@
+{
+  "schema": "olive-release-approvals/1",
+  "product_version": "1.0.0",
+  "note": "OWNER-CONTROLLED. Each record allows exactly one manifest entry, bound to its release fingerprint (pinned URLs, digests, sizes, destination and licence), into the public OLIVE 1.0 release. Engineering evidence in 1.0.0.json never approves anything by itself, and a changed pin voids its approval. Generate a candidate record with `python packaging/release/release_gate.py --record <id> --by <name>` and add it here only as a deliberate owner decision. This is a release authorisation, not a legal opinion: record legal review separately if it happens.",
+  "approvals": [
+    {
+      "id": "ollama-0.34.2-linux-x86_64",
+      "fingerprint": "67f44f01886eedb4cb50815c27bc1d774d2e9a653399ca83ac83444a2daa1a35",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
+    },
+    {
+      "id": "qwen3-8b",
+      "fingerprint": "93e3610187635df0d4c878bd820d3829221d3c91bdf34feac580afeb8d37ca98",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
+    },
+    {
+      "id": "gpt-oss-20b",
+      "fingerprint": "52a2901527b54fd22c9b66be8a9be478ecbab79d5e7353b318db1312892a9d6d",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
+    },
+    {
+      "id": "qwen3.5-9b",
+      "fingerprint": "3b641c6d90f508db4ddfe9eb7bdc21dae1910b646ffaddb54ee1db327e868ad8",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
+    },
+    {
+      "id": "qwen3-embedding-0.6b",
+      "fingerprint": "c09a28342eb65a2a35bcdbb3cbf559957a51d982a91a88526a8321608a980d6b",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
+    },
+    {
+      "id": "flux2-klein-4b",
+      "fingerprint": "e85eb9ad837266b9ca57501d3dbea089ae8fc49103bd693186dcff8109cc223e",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-03",
+      "product_version": "1.0.0",
+      "note": ""
+    },
+    {
+      "id": "comfyui-0.35.0-image-linux",
+      "fingerprint": "dae20fabf18261bcdf61bfad1ff3740a735026cac3e889c0fc442cd2c89bb643",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-05",
+      "product_version": "1.0.0",
+      "note": "Linux x86_64 only: archive ecdb6702 (1,121,452,201 bytes) from release creator-runtime-1.0.0-ecdb6702."
+    }
+
+  ]
+}

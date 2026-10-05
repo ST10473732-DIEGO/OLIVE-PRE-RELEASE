@@ -1,4 +1,6 @@
-pywinpty==3.0.5; sys_platform == 'win32'
+# Optional Studio tooling; mirrors the pyproject.toml `studio` extra.
+# Installed by CI and scripts/provision_studio_tooling.py, not by run_olive.sh.
+# pywinpty (Windows terminal) moved to the core dependencies in OLIVE 1.0.
 debugpy==1.8.21
 python-lsp-server==1.15.0
 # Optional pylsp features used by Studio diagnostics and formatting.

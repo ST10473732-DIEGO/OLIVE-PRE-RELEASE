@@ -49,6 +49,11 @@ class Endpoint:
     partner: 'Endpoint | None' = None
     started: float = field(default_factory=time.monotonic)
     category: str = 'closed'
+    # While the relay holds this sender's next message for a slow partner it does not read
+    # this socket, so silence then is the relay's backpressure, not the sender's: stall_timeout
+    # bounds that wait, and the idle clock restarts when reading resumes.
+    held: bool = False
+    resumed: float = 0.0
 
 
 class Relay:
@@ -314,6 +319,7 @@ class Relay:
                     altered = self.observer(endpoint.role, payload)
                     if altered is not None:
                         payload = altered
+                endpoint.held = True
                 try:
                     # drain() inside send applies backpressure: we stop reading this
                     # socket until the partner's bounded write buffer empties.
@@ -328,6 +334,9 @@ class Relay:
                     endpoint.category = 'peer_left'
                     await ws.close(wire.CLOSE_CODES['peer_left'])
                     return
+                finally:
+                    endpoint.held = False
+                    endpoint.resumed = asyncio.get_running_loop().time()
         finally:
             keepalive.cancel()
 
@@ -344,7 +353,7 @@ class Relay:
                     endpoint.category = 'peer_unavailable'
                     await ws.close(wire.CLOSE_CODES['peer_unavailable'])
                     return
-                if now - ws.last_received >= limits.idle_timeout:
+                if not endpoint.held and now - max(ws.last_received, endpoint.resumed) >= limits.idle_timeout:
                     endpoint.category = 'idle_timeout'
                     await ws.close(wire.CLOSE_CODES['idle_timeout'])
                     return

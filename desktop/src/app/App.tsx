@@ -2,6 +2,8 @@ import { chatCompatibleRoute, drawNoteRoute } from "../navigation/features";
 import type { RecordTarget } from "../services/handoff";
 import { HomePage } from "../features/Home";
 import { Welcome } from "../features/Welcome";
+import { Setup } from "../features/setup/Setup";
+import { opensAutomatically, type SetupStatus } from "../features/setup/setupModel";
 import {
   lazy,
   Suspense,
@@ -204,6 +206,26 @@ export default function App() {
   }, [coreMotion]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [connections, setConnections] = useState(false);
+  // First-run setup opens by itself for a new or unfinished profile; Settings and a
+  // repair notice on Welcome can reopen it. Existing profiles are never forced through it.
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const loadSetup = useCallback(async (open?: boolean) => {
+    const status = await call<SetupStatus>("runtime.setup_status", {});
+    setSetupStatus(status);
+    if (open ?? opensAutomatically(status)) setSetupOpen(true);
+  }, []);
+  useEffect(() => {
+    void loadSetup().catch(() => undefined);
+    const reopen = (event: Event) => {
+      const step = (event as CustomEvent<{ step?: "welcome" | "runtimes" }>).detail?.step ?? "welcome";
+      void call("runtime.setup_update", { action: "resume", step })
+        .then(() => loadSetup(true))
+        .catch(() => undefined);
+    };
+    window.addEventListener("olive:open-setup", reopen);
+    return () => window.removeEventListener("olive:open-setup", reopen);
+  }, [loadSetup]);
   const chatRef = useRef(chat);
   chatRef.current = chat;
   const inFlight = useRef(false);
@@ -612,8 +634,19 @@ export default function App() {
   return (
     <MotionConfig reducedMotion={reduced ? "always" : "user"}>
       <div className="app">
-        {!entered ? (
+        {setupOpen && setupStatus ? (
+          <Setup
+            initial={setupStatus}
+            close={() => {
+              setSetupOpen(false);
+              setEntered(true);
+              void loadSetup(false).catch(() => undefined);
+            }}
+          />
+        ) : !entered ? (
           <Welcome
+            setup={setupStatus}
+            openSetup={() => window.dispatchEvent(new CustomEvent("olive:open-setup", { detail: { step: "runtimes" } }))}
             connect={connectState}
             state={state}
             ready={Boolean(snapshot)}

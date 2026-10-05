@@ -14,17 +14,12 @@ export class Backend extends EventEmitter {
   >();
   private ready: Promise<void>;
   private dead = false;
-  constructor(python: string, root: string, profile: string) {
+  constructor(python: string, args: string[], root: string, env: NodeJS.ProcessEnv) {
     super();
-    this.child = spawn(python, ["-u", "-m", "olive.bridge"], {
+    this.child = spawn(python, args, {
       cwd: root,
       windowsHide: true,
-      env: {
-        ...process.env,
-        OLIVE_DATA_DIR: profile,
-        OLIVE_UI_PROCESS_ID: String(process.pid),
-        PYTHONIOENCODING: "utf-8",
-      },
+      env,
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
     });

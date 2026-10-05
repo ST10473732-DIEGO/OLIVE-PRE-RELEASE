@@ -20,4 +20,6 @@ export default defineConfig({
     },
   },
   worker: { format: "es" },
+  // The setup wizard embeds the Connect World self-host guide from the repository docs.
+  server: { fs: { allow: [".", "../docs/connect-world"] } },
 });

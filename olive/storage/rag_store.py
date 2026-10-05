@@ -25,6 +25,7 @@ class StoredChunk:
     origin_type: str = "native_text"
     ocr_confidence: float | None = None
     embedding: list[float] | None = None
+    embedding_model: str | None = None  # None: a vector stored before models were recorded (schema < 3).
 
 
 class RAGStore:
@@ -88,6 +89,10 @@ class RAGStore:
             self._ensure_column(conn, "chunks", "origin_type", "TEXT DEFAULT 'native_text'")
             self._ensure_column(conn, "chunks", "ocr_confidence", "REAL")
             conn.execute("UPDATE schema_info SET version=2 WHERE component='rag' AND version < 2")
+            # Schema 3: the embedding model that produced each vector. Additive and nullable:
+            # existing vectors are left exactly as they are (untagged), never rewritten here.
+            self._ensure_column(conn, "chunks", "embedding_model", "TEXT")
+            conn.execute("UPDATE schema_info SET version=3 WHERE component='rag' AND version < 3")
             # FTS5 is available in standard CPython builds on modern Windows. Keep a graceful
             # fallback if a custom SQLite build lacks it.
             try:
@@ -143,8 +148,8 @@ class RAGStore:
                 cur = conn.execute(
                     """
                     INSERT INTO chunks(chat_id, document_id, document_name, chunk_index, page_number, content,
-                                       embedding_json, origin_type, ocr_confidence)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       embedding_json, origin_type, ocr_confidence, embedding_model)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         row["chat_id"],
@@ -155,6 +160,7 @@ class RAGStore:
                         row["content"],
                         json.dumps(row.get("embedding")) if row.get("embedding") else None,
                         row.get("origin_type", "native_text"), row.get("ocr_confidence"),
+                        row.get("embedding_model") if row.get("embedding") else None,
                     ),
                 )
                 try:
@@ -178,9 +184,10 @@ class RAGStore:
                 except sqlite3.OperationalError:pass
             conn.execute("DELETE FROM chunks WHERE document_id=?",(document_id,))
             for row in rows:
-                cur=conn.execute("""INSERT INTO chunks(chat_id,document_id,document_name,chunk_index,page_number,content,embedding_json,origin_type,ocr_confidence)
-                    VALUES(?,?,?,?,?,?,?,?,?)""",(row["chat_id"],document_id,row["document_name"],row["chunk_index"],row.get("page_number"),row["content"],
-                    json.dumps(row.get("embedding")) if row.get("embedding") else None,row.get("origin_type","native_text"),row.get("ocr_confidence")))
+                cur=conn.execute("""INSERT INTO chunks(chat_id,document_id,document_name,chunk_index,page_number,content,embedding_json,origin_type,ocr_confidence,embedding_model)
+                    VALUES(?,?,?,?,?,?,?,?,?,?)""",(row["chat_id"],document_id,row["document_name"],row["chunk_index"],row.get("page_number"),row["content"],
+                    json.dumps(row.get("embedding")) if row.get("embedding") else None,row.get("origin_type","native_text"),row.get("ocr_confidence"),
+                    row.get("embedding_model") if row.get("embedding") else None))
                 try:conn.execute("INSERT INTO chunks_fts(content,chunk_id,chat_id,document_id) VALUES(?,?,?,?)",(row["content"],cur.lastrowid,row["chat_id"],document_id))
                 except sqlite3.OperationalError:pass
 
@@ -215,6 +222,7 @@ class RAGStore:
             origin_type=row["origin_type"] if "origin_type" in row.keys() else "native_text",
             ocr_confidence=row["ocr_confidence"] if "ocr_confidence" in row.keys() else None,
             embedding=embedding,
+            embedding_model=row["embedding_model"] if "embedding_model" in row.keys() else None,
         )
 
     def all_chunks_for_chat(self, chat_id: str, with_embeddings_only: bool = False) -> list[StoredChunk]:
@@ -230,41 +238,56 @@ class RAGStore:
         with self._lock, self._connect() as conn:
             return [self._row_to_chunk(row) for row in conn.execute(query, (chat_id, document_id, max(1, min(limit, 12))))]
 
-    def iter_embedded_chunks(self, chat_id: str, batch_size: int = 500):
+    @staticmethod
+    def _comparable(model: str | None) -> tuple[str, tuple]:
+        """Vectors comparable with `model`: its own, plus untagged legacy vectors (whose dimension
+        is still checked by cosine_similarity). Vectors tagged with another model never are."""
+        if model is None:
+            return "", ()
+        return " AND (c.embedding_model IS NULL OR c.embedding_model=?)", (model,)
+
+    def iter_embedded_chunks(self, chat_id: str, batch_size: int = 500, model: str | None = None):
+        same, extra = self._comparable(model)
         query = ("SELECT c.*, d.kind AS source_type FROM chunks c JOIN documents d ON d.id=c.document_id "
-                 "WHERE c.chat_id=? AND c.embedding_json IS NOT NULL ORDER BY c.id")
+                 "WHERE c.chat_id=? AND c.embedding_json IS NOT NULL" + same + " ORDER BY c.id")
         with self._lock, self._connect() as conn:
-            cursor = conn.execute(query, (chat_id,))
+            cursor = conn.execute(query, (chat_id, *extra))
             while rows := cursor.fetchmany(max(1, batch_size)):
                 for row in rows:
                     yield self._row_to_chunk(row)
 
-    def has_embedded_chunks(self, chat_id: str) -> bool:
+    def has_embedded_chunks(self, chat_id: str, model: str | None = None) -> bool:
+        same, extra = self._comparable(model)
         with self._lock, self._connect() as conn:
             return conn.execute(
-                "SELECT 1 FROM chunks WHERE chat_id=? AND embedding_json IS NOT NULL LIMIT 1", (chat_id,)
-            ).fetchone() is not None
+                "SELECT 1 FROM chunks c WHERE c.chat_id=? AND c.embedding_json IS NOT NULL" + same + " LIMIT 1",
+                (chat_id, *extra)).fetchone() is not None
 
-    def chunks_without_embeddings(self, chat_id: str | None = None) -> list[StoredChunk]:
+    def chunks_without_embeddings(self, chat_id: str | None = None, model: str | None = None) -> list[StoredChunk]:
+        """Chunks with no vector, plus (when `model` is given) chunks whose vector another model made."""
+        stale = " OR (c.embedding_model IS NOT NULL AND c.embedding_model<>?)" if model else ""
         query = (
             "SELECT c.*, d.kind AS source_type FROM chunks c "
-            "JOIN documents d ON d.id=c.document_id WHERE c.embedding_json IS NULL"
+            "JOIN documents d ON d.id=c.document_id WHERE (c.embedding_json IS NULL" + stale + ")"
         )
-        params: tuple[str, ...] = ()
+        params: tuple[str, ...] = (model,) if model else ()
         if chat_id is not None:
             query += " AND c.chat_id=?"
-            params = (chat_id,)
+            params = (*params, chat_id)
         query += " ORDER BY c.document_id, c.chunk_index"
         with self._lock, self._connect() as conn:
             return [self._row_to_chunk(row) for row in conn.execute(query, params).fetchall()]
 
-    def update_embeddings(self, embeddings: dict[int, list[float]]) -> None:
+    def update_embeddings(self, embeddings: dict[int, list[float]], model: str | None = None) -> None:
+        """Store new vectors tagged with `model`. Only chunks without a vector, or whose vector another
+        (tagged) model made, are written; an untagged legacy vector is never overwritten."""
         if not embeddings:
             return
         with self._lock, self._connect() as conn:
             conn.executemany(
-                "UPDATE chunks SET embedding_json=? WHERE id=? AND embedding_json IS NULL",
-                [(json.dumps(vector), chunk_id) for chunk_id, vector in embeddings.items()],
+                "UPDATE chunks SET embedding_json=?, embedding_model=? WHERE id=? AND (embedding_json IS NULL"
+                " OR (? IS NOT NULL AND embedding_model IS NOT NULL AND embedding_model<>?))",
+                [(json.dumps(vector), model, chunk_id, model, model) for chunk_id, vector in embeddings.items()],
             )
 
     def document_stats(self, chat_id: str) -> list[dict]:
@@ -292,15 +315,20 @@ class RAGStore:
             return {"ok": result == "ok" and not foreign_keys, "integrity": result,
                     "foreign_key_violations": len(foreign_keys)}
 
-    def aggregate_counts(self, chat_id: str | None = None) -> dict[str, int]:
+    def aggregate_counts(self, chat_id: str | None = None, model: str | None = None) -> dict[str, int]:
         where = " WHERE chat_id=?" if chat_id else ""
         params = (chat_id,) if chat_id else ()
+        joiner = " AND" if where else " WHERE"
         with self._lock, self._connect() as conn:
             documents = conn.execute(f"SELECT COUNT(*) FROM documents{where}", params).fetchone()[0]
             chunks = conn.execute(f"SELECT COUNT(*) FROM chunks{where}", params).fetchone()[0]
-            missing_query = f"SELECT COUNT(*) FROM chunks{where}" + (" AND" if where else " WHERE") + " embedding_json IS NULL"
-            missing = conn.execute(missing_query, params).fetchone()[0]
-            return {"documents": int(documents), "chunks": int(chunks), "missing_embeddings": int(missing)}
+            missing = conn.execute(f"SELECT COUNT(*) FROM chunks{where}{joiner} embedding_json IS NULL", params).fetchone()[0]
+            untagged = conn.execute(f"SELECT COUNT(*) FROM chunks{where}{joiner} embedding_json IS NOT NULL"
+                                    " AND embedding_model IS NULL", params).fetchone()[0]
+            stale = conn.execute(f"SELECT COUNT(*) FROM chunks{where}{joiner} embedding_json IS NOT NULL"
+                                 " AND embedding_model IS NOT NULL AND embedding_model<>?", (*params, model)).fetchone()[0] if model else 0
+            return {"documents": int(documents), "chunks": int(chunks), "missing_embeddings": int(missing),
+                    "untagged_embeddings": int(untagged), "other_model_embeddings": int(stale)}
 
     def document_ids(self) -> list[str]:
         with self._lock, self._connect() as conn:

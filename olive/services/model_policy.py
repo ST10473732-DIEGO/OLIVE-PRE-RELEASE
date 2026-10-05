@@ -3,6 +3,9 @@
 from contextvars import ContextVar
 
 REQUEST_ROLE = ContextVar("olive_model_role", default="general")
+# The one default embedding model. Semantic retrieval runs only when it (or another
+# embedding-capable model) is installed; otherwise retrieval stays lexical. Never pulled.
+DEFAULT_EMBEDDING_MODEL = "qwen3-embedding:0.6b"
 ROLES = ("fast", "general", "reasoning", "coding", "vision", "embedding")
 CANDIDATES = {
     "fast": ("qwen3:8b", "gpt-oss:20b"),
@@ -10,7 +13,7 @@ CANDIDATES = {
     "reasoning": ("gpt-oss:20b", "qwen3:8b"),
     "coding": ("qwen3-coder:30b", "devstral:24b", "gpt-oss:20b"),
     "vision": ("qwen3-vl:8b",),
-    "embedding": ("qwen3-embedding:0.6b",),
+    "embedding": (DEFAULT_EMBEDDING_MODEL,),
 }
 CONTEXTS = {"fast": 4096, "general": 8192, "reasoning": 12288, "coding": 16384,
             "vision": 8192, "embedding": 2048}

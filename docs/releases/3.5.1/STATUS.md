@@ -3,7 +3,7 @@
 **Windows completion baseline:** `final/windows-stable-baseline` preserves the
 latest combined workspace design and accepted OLIVE GO ancestry. The normal
 Windows launcher now opens Electron. Current repairs, classified acceptance
-results and limitations are in [WINDOWS_STABLE_BASELINE.md](../../WINDOWS_STABLE_BASELINE.md).
+results and limitations are in [WINDOWS_STABLE_BASELINE.md](../../archive/3.5/WINDOWS_STABLE_BASELINE.md).
 The notices below describe earlier checkpoints and do not supersede that record.
 
 **Design branch `design/olive-complete-ui-refresh` (not merged): complete
@@ -33,15 +33,15 @@ visual review, remaining server/packaging limits and exact artifact paths.
 No real accounts/data, external delivery, release tag, Qt removal, launcher switch
 or next milestone. Earlier checkpoint notices below are historical.
 
-C# console starter is available in Studio's New Project menu and verified through real local create/edit/save/run (exit 0). Welcome footer slogan and Studio implementation captions are removed; save status remains. The .NET filtered environment now supplies project-local SDK settings/cache paths. Fresh checks: 699 Python, 23 frontend and 6 focused Electron passes; compilation/typecheck/lint/build passed. See [C# details and evidence](../../STUDIO_CSHARP.md). No M4/version/tag changes.
+C# console starter is available in Studio's New Project menu and verified through real local create/edit/save/run (exit 0). Welcome footer slogan and Studio implementation captions are removed; save status remains. The .NET filtered environment now supplies project-local SDK settings/cache paths. Fresh checks: 699 Python, 23 frontend and 6 focused Electron passes; compilation/typecheck/lint/build passed. See [C# details and evidence](../../features/studio/csharp.md). No M4/version/tag changes.
 
-Welcome follow-up: removed the Play/Pause control at the user's request. Welcome now rotates automatically while visible regardless of motion preferences; native hidden/minimized suspension and compact activity semantics remain. See [Core behaviour](../../OLIVE_CORE.md). No backend/data/version/M4 changes.
+Welcome follow-up: removed the Play/Pause control at the user's request. Welcome now rotates automatically while visible regardless of motion preferences; native hidden/minimized suspension and compact activity semantics remain. See [Core behaviour](../../architecture/core.md). No backend/data/version/M4 changes.
 
-Core follow-up: the olive now spins around its own fixed tilted axis. The static normal preview was traced to Windows reduced motion, which remains the default. Explicit Core-only Play/Pause is available without changing Windows settings. Ordinary startup rotation was verified after opt-in. Fresh follow-up checks: 697 Python, 23 frontend and 7 focused Electron scenarios; compilation/TypeScript/lint/build passed. See [Core diagnosis and evidence](../../OLIVE_CORE.md). Earlier full-suite totals below belong to their recorded checkpoints.
+Core follow-up: the olive now spins around its own fixed tilted axis. The static normal preview was traced to Windows reduced motion, which remains the default. Explicit Core-only Play/Pause is available without changing Windows settings. Ordinary startup rotation was verified after opt-in. Fresh follow-up checks: 697 Python, 23 frontend and 7 focused Electron scenarios; compilation/TypeScript/lint/build passed. See [Core diagnosis and evidence](../../architecture/core.md). Earlier full-suite totals below belong to their recorded checkpoints.
 
-Animated dot-matrix Core implementation and internal acceptance complete: shared 3D Canvas geometry, real compact activity state, reduced-motion/native visibility handling and local fallback. Fresh validation: 697 Python, 23 frontend, 7 harness, 29 ordinary Electron passes with 3 documented opt-in skips; compilation/TypeScript/lint/build passed. See [Core evidence and limits](../../OLIVE_CORE.md). M4 has not started; no version/tag/default-launcher change. This supersedes the previous ring/orb presentation only.
+Animated dot-matrix Core implementation and internal acceptance complete: shared 3D Canvas geometry, real compact activity state, reduced-motion/native visibility handling and local fallback. Fresh validation: 697 Python, 23 frontend, 7 harness, 29 ordinary Electron passes with 3 documented opt-in skips; compilation/TypeScript/lint/build passed. See [Core evidence and limits](../../architecture/core.md). M4 has not started; no version/tag/default-launcher change. This supersedes the previous ring/orb presentation only.
 
-OLIVE was formerly named DMDO. Rebrand implementation/local acceptance is complete at source `ebe737e`: 697 Python, 18 frontend, 7 harness, 28 ordinary Electron passes (3 opt-in skips), 49 Qt checks; compilation/TypeScript/lint/build passed. Separate live local identity answered OLIVE. Packaging remains blocked by the existing missing self-contained backend artifact. M3 remains complete; M4 has not started. See [the rebrand map](../../OLIVE_REBRAND.md). Historical checkpoint text below retains its original naming. New code uses `olive`, `OLIVE_*` and `window.olive`; compatibility profiles and identities remain documented.
+OLIVE was formerly named DMDO. Rebrand implementation/local acceptance is complete at source `ebe737e`: 697 Python, 18 frontend, 7 harness, 28 ordinary Electron passes (3 opt-in skips), 49 Qt checks; compilation/TypeScript/lint/build passed. Separate live local identity answered OLIVE. Packaging remains blocked by the existing missing self-contained backend artifact. M3 remains complete; M4 has not started. See [the rebrand map](../../architecture/legacy-dmdo-compatibility.md). Historical checkpoint text below retains its original naming. New code uses `olive`, `OLIVE_*` and `window.olive`; compatibility profiles and identities remain documented.
 
 # OLIVE 3.5.1 checkpoint
 

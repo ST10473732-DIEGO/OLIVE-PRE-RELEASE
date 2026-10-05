@@ -23,6 +23,7 @@ class Job:
     future: object = None
     task: object = None
     cancel_requested: bool = False
+    closing: bool = False  # Run left generation; only cleanup remains (loop thread only).
     released: Event = field(default_factory=Event)
     events: deque = field(default_factory=deque)
     sequence: int = 0
@@ -128,6 +129,12 @@ class RemoteInferenceService:
 
     @staticmethod
     def _cancel_task(job):
+        # Runs on the model loop, like _run, so `closing` cannot change underneath.
+        # A run that already ended on its own (permission seen by _offer, output
+        # limit, timeout) is only closing its stream and slot: a late Stop must not
+        # interrupt that, or the slot release can be dropped while `released` is set.
+        if job.closing:
+            return
         if job.task is not None and not job.task.done() and not job.task.cancelling():
             job.task.cancel()
         # Before task creation, _run observes the already-terminal job instead.
@@ -325,6 +332,11 @@ class RemoteInferenceService:
         with self.lock:
             self.owners.pop((job.peer, job.request.job_id), None)
             self.tasks.discard(task)
+            if self.active is job:
+                # _run's finally normally cleared it; an externally cancelled
+                # task (e.g. loop shutdown) must still never leave a released job
+                # owning the slot.
+                self.active = None
             job.released.set()  # Task done, after stream close and residency release.
 
     async def _run(self, job):
@@ -333,6 +345,7 @@ class RemoteInferenceService:
         self.tasks.add(task)
         task.add_done_callback(lambda done: self._job_done(job, done))
         stream = None
+        outcome = ('completed', None)
         try:
             while not await asyncio.to_thread(self._admit, job):
                 await asyncio.sleep(.05)
@@ -371,14 +384,19 @@ class RemoteInferenceService:
                     await self._emit(job, pending)
                 if not job.output_bytes:
                     raise ConnectError('inference_failed')
-            await asyncio.to_thread(self._end, job, 'completed')
         except asyncio.CancelledError:
-            await asyncio.to_thread(self._end, job, 'cancelled', 'cancelled')
+            outcome = ('cancelled', 'cancelled')
         except TimeoutError:
-            await asyncio.to_thread(self._end, job, 'timed_out', 'generation_timeout')
+            outcome = ('timed_out', 'generation_timeout')
         except Exception as error:
             code = str(error) if isinstance(error, ConnectError) and str(error) in ERRORS else 'inference_failed'
-            await asyncio.to_thread(self._end, job, 'failed', code)
+            outcome = ('failed', code)
+        # No await since generation's last one: from here _cancel_task declines,
+        # so terminal receipt, provider stream close and slot release all complete
+        # before _job_done signals `released` (Stop/shutdown acknowledgement).
+        job.closing = True
+        try:
+            await asyncio.to_thread(self._end, job, *outcome)
         finally:
             try:
                 if stream:

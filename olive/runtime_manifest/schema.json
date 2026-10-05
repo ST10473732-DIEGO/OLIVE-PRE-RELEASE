@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "olive-runtime-manifest/3",
+  "title": "OLIVE runtime and model manifest",
+  "description": "What OLIVE first-run setup may download. Setup offers an entry only when (1) its licence is identified, (2) release engineering reviewed its HTTPS source on a listed host, SHA-256 (or Ollama registry manifest digest), size, destination and licence (enabled entries must have both), and (3) the owner approved its exact pins in release-approvals-<version>.json. olive.services.runtime_manifest enforces this and more (safe destinations, private-tag refusal, features naming provided slots, no ambiguous 'reviewed' flag). Disabled entries must give a reason.",
+  "type": "object",
+  "required": ["schema", "manifest_version", "product_version", "profiles", "features", "entries", "not_distributable"],
+  "properties": {
+    "schema": {"const": "olive-runtime-manifest/3"},
+    "manifest_version": {"type": "string"},
+    "product_version": {"type": "string"},
+    "recorded": {"type": "string"},
+    "fixture": {"type": "boolean", "description": "Test manifests only; enables loopback http:// with OLIVE_INSTALLER_ALLOW_LOOPBACK_HTTP=1."},
+    "release_approvals": {"type": "array", "description": "Fixture manifests only: inline approvals in the olive-release-approvals/1 record format."},
+    "profiles": {
+      "type": "object",
+      "required": ["core", "creator", "complete"],
+      "additionalProperties": {"type": "object", "required": ["label", "includes"],
+        "properties": {"label": {"type": "string"}, "includes": {"type": "array", "items": {"type": "string"}}, "summary": {"type": "string"}}}
+    },
+    "features": {
+      "type": "array",
+      "items": {"type": "object", "required": ["id", "label", "profile", "requires"],
+        "properties": {"id": {"type": "string"}, "label": {"type": "string"}, "profile": {"enum": ["core", "creator", "complete"]},
+          "requires": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}},
+          "optional_component": {"type": "boolean"}, "smoke": {"type": "string"}, "note": {"type": "string"}}}
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "provides", "name", "platforms", "validated_platforms", "enabled", "source", "sha256", "size_bytes", "install", "licence", "reason"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"},
+          "kind": {"enum": ["archive", "file", "ollama-model", "python-wheels", "external"]},
+          "provides": {"type": "string"},
+          "name": {"type": "string"},
+          "version": {"type": ["string", "null"]},
+          "platforms": {"type": "array", "items": {"enum": ["linux-x86_64", "windows-x86_64", "macos-arm64"]}},
+          "validated_platforms": {"type": "array", "items": {"enum": ["linux-x86_64", "windows-x86_64", "macos-arm64"]}},
+          "enabled": {"type": "boolean"},
+          "source": {"type": "object", "properties": {"url": {"type": ["string", "null"]}, "publisher": {"type": ["string", "null"]}, "hosts": {"type": "array", "items": {"type": "string"}}, "release": {"type": "string"}, "evidence": {"type": "string"}, "olive_source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "Build provenance of an OLIVE-built archive (external metadata; the archive bytes never contain it). Setup copies it into the install marker."}}},
+          "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": ["integer", "null"]},
+          "ollama": {"type": ["object", "null"], "properties": {"model": {"type": "string"}, "manifest_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+          "files": {"type": "object", "description": "python-wheels: wheels per target. file: model files per target or under \"any\"; each may name a relative path under the destination.", "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["name", "url", "sha256", "size_bytes"], "properties": {"path": {"type": "string"}}}}},
+          "install": {"type": "object", "properties": {"destination": {"type": ["string", "null"]}, "format": {"type": ["string", "null"]}, "installed_bytes": {"type": "integer", "description": "Everything the entry places, including unpacked direct_wheels."}, "archive_installed_bytes": {"type": "integer"}, "executables": {"type": "array", "items": {"type": "string"}}, "modes": {"enum": ["manifest", "archive"], "description": "archive: keep the pinned archive's own executable bits (normalised to 0755/0644, never setuid)."}, "verify": {"enum": ["comfyui-cuda"], "description": "Start the staged runtime once with OLIVE's probe before registering it."}, "direct_wheels_target": {"type": "string", "description": "Relative site-packages folder inside the archive that receives direct_wheels."}, "register": {"type": "object"}}},
+          "direct_wheels": {"type": "object", "description": "archive only: wheels per target that setup downloads from their publisher (direct_hosts) and unpacks into the staged runtime before registering it. Part of the release fingerprint.", "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["name", "package", "version", "url", "sha256", "size_bytes"], "properties": {"installed_bytes": {"type": ["integer", "null"]}, "licence": {"type": "string"}}}}},
+          "direct_hosts": {"type": "array", "items": {"type": "string"}},
+          "direct_publisher": {"type": "string"},
+          "artefact_state": {"enum": ["defined", "built_validated_unpublished", "published"], "description": "How far a built artefact has got; never makes an entry offerable."},
+          "licence": {"type": "object", "properties": {"spdx": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}, "url": {"type": ["string", "null"]}, "evidence": {"type": "string"}, "acceptance_required": {"type": "boolean"}, "distribution": {"type": "string"}, "attribution": {"type": "string"}, "identified": {"type": "boolean", "description": "A licence and provenance source was located."}, "engineering_reviewed": {"type": "boolean", "description": "Release engineering verified source, integrity and licence metadata. Not release approval, not legal review."}}, "required": ["identified", "engineering_reviewed"]},
+          "reason": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "not_distributable": {"type": "array", "items": {"type": "object", "required": ["name", "reason"]}}
+  }
+}

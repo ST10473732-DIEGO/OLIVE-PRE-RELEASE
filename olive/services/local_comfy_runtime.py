@@ -1,8 +1,11 @@
-"""Opt-in, lazy Linux ComfyUI processes using the existing owned-runtime cleanup.
+"""Opt-in, lazy ComfyUI processes using the existing owned-runtime cleanup.
 
 One class manages each separately installed runtime (image on 8188, video on
 8190). A server already listening is reused and never stopped; only a
-process OLIVE itself started is shut down.
+process OLIVE itself started is shut down. Locations come from runtime
+discovery. Linux is validated; Windows (portable or venv layout) and macOS use
+the same launch through olive.runtime.processes and are reported unvalidated.
+The video runtime keeps its reviewed GGUF loader on every platform.
 """
 import asyncio
 import os
@@ -38,7 +41,8 @@ class LocalComfyRuntime(LocalOllamaRuntime):
         return bool(self.root and self.python and Path(self.root, 'main.py').is_file() and Path(self.python).is_file())
 
     def manages(self, url):
-        return sys.platform == 'linux' and bool(self.root and self.python) and url.rstrip('/') == self.host
+        from ..runtime.processes import supported
+        return supported() and bool(self.root and self.python) and url.rstrip('/') == self.host
 
     def owned(self):
         return self.process is not None and self.process.returncode is None
@@ -52,8 +56,12 @@ class LocalComfyRuntime(LocalOllamaRuntime):
             return False
 
     def arguments(self):
-        arguments = [self.python, str(Path(self.root) / 'main.py'), '--listen', '127.0.0.1', '--port', str(self.port),
+        # The Windows portable build expects its embedded Python without user site-packages.
+        windows = ['-s'] if sys.platform == 'win32' else []
+        arguments = [self.python, *windows, str(Path(self.root) / 'main.py'), '--listen', '127.0.0.1', '--port', str(self.port),
                      '--disable-auto-launch', '--disable-all-custom-nodes', '--disable-api-nodes', *self.allocator, '--cache-none']
+        if sys.platform == 'win32':
+            arguments.append('--windows-standalone-build')
         if self.custom_nodes:
             # Only reviewed custom node folders load; everything else stays off.
             arguments += ['--whitelist-custom-nodes', *self.custom_nodes]
@@ -71,20 +79,12 @@ class LocalComfyRuntime(LocalOllamaRuntime):
             if not Path(self.root, 'main.py').is_file() or not Path(self.python).is_file():
                 self.state = 'failed'
                 raise ValueError('The configured local ComfyUI runtime is missing')
-            import fcntl
             import psutil
-            from ..studio_tooling.posix_process import start_owned_process
-            fd = os.open(Path(self.root) / '.olive-start.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+            from ..runtime.processes import StartLock, start_owned_process
+            lock = StartLock(Path(self.root) / '.olive-start.lock').open()
             self.state = 'starting'
             try:
-                for _ in range(600):
-                    try:
-                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        break
-                    except BlockingIOError:
-                        await asyncio.sleep(.1)
-                else:
-                    raise TimeoutError('Another ComfyUI startup is still pending')
+                await lock.acquire(600, 'Another ComfyUI startup is still pending')
                 if await self.ready():
                     self.state = 'idle'
                     return
@@ -106,4 +106,4 @@ class LocalComfyRuntime(LocalOllamaRuntime):
                 await self.close()
                 raise
             finally:
-                os.close(fd)
+                lock.close()

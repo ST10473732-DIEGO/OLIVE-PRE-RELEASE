@@ -4,6 +4,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import sqlite3
+import time
 import uuid
 
 from .contracts import (CAPABILITIES, SAFE_OPERATIONS, CapabilityMetadata, ConnectError,
@@ -54,6 +55,28 @@ class DeviceRepository:
         finally:
             db.close()
 
+    def fresh_read(self, read, *, deadline, interrupt, attempt=.25):
+        """Run `read` in a new read-only snapshot, waiting out other connections' commits.
+
+        A rollback-journal commit excludes new readers until its journal is
+        flushed and removed, which on Windows can outlast one short busy timeout.
+        Only SQLITE_BUSY is retried, each time in a new transaction, so the read
+        that succeeds sees every commit that landed meanwhile (a revocation
+        included). `interrupt` runs between attempts and may raise. At the
+        monotonic deadline, or for any other error, the error is raised unchanged.
+        """
+        while True:
+            try:
+                with self.transaction(timeout=max(.001, min(attempt, deadline - time.monotonic())),
+                                      read_only=True) as db:
+                    return read(db)
+            except sqlite3.OperationalError as error:
+                # Extended codes share the primary code in the low byte.
+                if (getattr(error, 'sqlite_errorcode', 0) & 0xFF != sqlite3.SQLITE_BUSY
+                        or time.monotonic() >= deadline):
+                    raise
+            interrupt()
+
     @staticmethod
     @storage_operation('device_repository', 'read')
     def get(db, device_id):
@@ -98,7 +121,9 @@ class DeviceRepository:
         return [validate_record(json.loads(row[0])) for row in db.execute(
             'SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 
-    def devices(self, *, timeout=10):
+    def devices(self, *, timeout=10, deadline=None, interrupt=None):
+        if deadline is not None:
+            return self.fresh_read(self.devices_from_db, deadline=deadline, interrupt=interrupt, attempt=timeout)
         with self.transaction(timeout=timeout, read_only=True) as db:
             return [validate_record(json.loads(row[0])) for row in db.execute('SELECT record FROM devices WHERE local=0 ORDER BY device_id')]
 

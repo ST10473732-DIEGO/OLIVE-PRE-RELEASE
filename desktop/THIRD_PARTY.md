@@ -10,7 +10,7 @@ The exact dependency graph is in package-lock.json. Source packages retain their
 | Vite / React plugin | MIT | Build tooling |
 | TypeScript | Apache-2.0 | Strict typing |
 | Monaco Editor | MIT | Local source/diff editor and workers |
-| xterm.js / FitAddon | MIT | Read-only output |
+| xterm.js / FitAddon | MIT | Studio terminals and run output |
 | Motion | MIT | Short presentation transitions |
 | Radix Dialog | MIT | Accessible dialogs and focus management |
 | Lucide | ISC | One frontend navigation icon family |
@@ -23,7 +23,15 @@ The exact dependency graph is in package-lock.json. Source packages retain their
 
 OLIVE Notes also uses **pycrdt 0.14.6** (MIT, Jupyter project; Rust `yrs` inside) in the Python backend, pinned in `requirements.txt`. The phone bundle ships `NotesEngine.LICENSES.txt` with the Yjs and lib0 licence texts.
 
-No proprietary fonts are distributed. The UI uses installed Segoe UI Variable/Segoe UI and system monospace fallbacks. The original olive source remains unchanged; existing derived assets are reused rather than redesigned.
+Fonts bundled into the renderer (imported in `src/main.tsx`), all under the SIL Open Font License 1.1, with their licence files in `node_modules`:
+
+| Font package | Version | Copyright |
+| --- | --- | --- |
+| `@fontsource-variable/onest` | 5.3.1 | The Onest Project Authors |
+| `@fontsource-variable/bricolage-grotesque` | 5.3.0 | The Bricolage Grotesque Project Authors |
+| `@fontsource-variable/jetbrains-mono` | 5.3.0 | The JetBrains Mono Project Authors |
+
+No proprietary fonts are distributed; system fonts are only fallbacks. The original olive artwork remains unchanged; existing derived assets are reused rather than redesigned.
 
 DOMPurify is explicitly overridden to 3.4.15 because Monaco 0.56.0 pins an affected older release. The override is tested with the actual editor; the dependency audit reports zero known findings at this checkpoint. Audit results are time-specific, not a guarantee against all vulnerabilities.
 

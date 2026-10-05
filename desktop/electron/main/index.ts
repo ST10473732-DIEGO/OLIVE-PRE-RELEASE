@@ -18,7 +18,7 @@ import { identity, normalizeEnvironment, resolveProfile } from "../identity";
 import { Preview } from "./preview";
 import { OliveBrowser } from "./browser";
 import { Backend } from "./backend";
-import { backendPython, iconName } from "../platform";
+import { backendArguments, backendEnvironment, backendPython, brandingAsset, enforceSandboxPolicy, iconName, sandboxPolicy } from "../platform";
 import { validateCall } from "../contracts";
 import { fileAction } from "./file-actions";
 import { mediaId, mediaResponse } from "./media-protocol";
@@ -56,6 +56,15 @@ else {
     window?.focus();
   });
   void app.whenReady().then(async () => {
+    // Fail closed: never run web content unsandboxed because a launcher fell back to --no-sandbox.
+    const sandbox = sandboxPolicy({ platform: process.platform, noSandboxSwitch: app.commandLine.hasSwitch("no-sandbox"), env: process.env });
+    const refused = enforceSandboxPolicy(sandbox, {
+      showError: (title, message) => dialog.showErrorBox(title, message),
+      exit: (code) => app.exit(code),
+      error: (text) => console.error(text),
+      warn: (text) => console.warn(text),
+    });
+    if (refused) return;
     app.setAccessibilitySupportEnabled(true);
     const assets = app.isPackaged
       ? path.join(app.getAppPath(), "out/renderer")
@@ -109,8 +118,14 @@ else {
     session.defaultSession.setPermissionCheckHandler(() => false);
     backend = new Backend(
       backendPython(root, app.isPackaged, process.env),
+      backendArguments(app.isPackaged),
       root,
-      profile,
+      backendEnvironment(process.env, {
+        packaged: app.isPackaged,
+        profile,
+        uiProcessId: process.pid,
+        executable: process.execPath,
+      }),
     );
     window = new BrowserWindow({
       width: 1440,
@@ -119,9 +134,7 @@ else {
       minHeight: 480,
       backgroundColor: "#060705",
       title: identity.name,
-      icon: app.isPackaged
-        ? path.join(process.resourcesPath, iconName())
-        : path.join(root, "assets/branding", iconName()),
+      icon: brandingAsset(iconName(), app.isPackaged, root, process.resourcesPath),
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, "preload.cjs"),
@@ -166,7 +179,7 @@ else {
       });
       if (answer.response === 1) await shell.openExternal(url.href);
     };
-    const notify = nativeNotifications(profile, path.join(root, 'assets/branding/olive-256.png'), () => {
+    const notify = nativeNotifications(profile, brandingAsset('olive-256.png', app.isPackaged, root, process.resourcesPath), () => {
       if (!window.isDestroyed()) window.webContents.send('olive:event', {v: 1, kind: 'event', seq: 0,
         topic: 'native.notification_failure', data: {}});
     });
@@ -335,9 +348,7 @@ else {
       backend.stopControl(),
     );
     if (process.platform === "linux") {
-      controlTray = new Tray(app.isPackaged
-        ? path.join(process.resourcesPath, iconName())
-        : path.join(root, "assets/branding", iconName()));
+      controlTray = new Tray(brandingAsset(iconName(), app.isPackaged, root, process.resourcesPath));
       controlTray.setToolTip("OLIVE");
       controlTray.setContextMenu(Menu.buildFromTemplate([
         {label: "Open OLIVE", click: () => {window.show(); window.focus();}},

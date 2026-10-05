@@ -1,11 +1,15 @@
-# OLIVE Electron development application
+# OLIVE desktop (Electron)
 
-This is the untagged 3.5.1 development application. M2 workspaces, M3 Personal Core
-and M4 native Mail use the shared Python runtime. The root `run_olive.bat` launches
-this Electron application. `python main.py` retains the historical Qt fallback.
-The current implementation and classified evidence are in `docs/releases/3.5.1`.
+This is the OLIVE desktop application: an Electron/React shell around the shared
+Python runtime, which it starts as `python -m olive.bridge`. It is the product
+shell for OLIVE 1.0 (version metadata 1.0.0 on `release/olive-1.0`; installers are
+still being prepared). The root `run_olive.sh` (Linux) and `run_olive.bat`
+(Windows) launch it from a source checkout. `python main.py` starts the legacy Qt
+fallback, which is development only. Historical 3.5.1 implementation evidence is
+in `docs/releases/3.5.1`; current documentation starts at `docs/README.md`.
 
-Use Node 24.21.0 and the repository Python virtual environment. From `desktop`:
+Use Node 22.12 or newer (the launcher's minimum; CI and the 3.5.1 toolchain used
+Node 24) and the repository Python virtual environment. From `desktop`:
 
 ```text
 npm ci
@@ -25,7 +29,7 @@ development setup provisions Electron; packaged startup must not download it.
 For an isolated populated preview, run `scripts/launch_electron_preview.ps1` from
 the repository. `OLIVE_DATA_DIR` explicitly selects a profile; new defaults use
 `~/.olive`, with safe in-place legacy `~/.dmdo` recognition. Conflicting profiles
-fail clearly. Legacy environment aliases remain documented in OLIVE_REBRAND.md.
+fail clearly. Legacy environment aliases remain documented in docs/architecture/legacy-dmdo-compatibility.md.
 Qt and Electron share an exclusive writer lock: close the writer before switching.
 
 Visual evidence for the redesign is captured with an isolated synthetic profile
@@ -45,11 +49,11 @@ email. Matching synthetic approvals are exercised only under explicit delegation
 Install `requirements-mail-test.txt` in the project virtual environment for those
 tests. IMAP uses a labelled scripted TLS fixture, not independent server proof.
 
-Ctrl+Shift+P opens the command palette. Ctrl+Alt+Escape stops desktop input through Electron main and Python. Studio Ctrl+S uses the policy-bearing save path. Output is read-only, not an interactive shell. No language server or debugger is claimed.
+Ctrl+Shift+P opens the command palette. Ctrl+Alt+Escape stops desktop input through Electron main and Python. Studio Ctrl+S uses the policy-bearing save path. Studio's language servers, debug adapters and interactive terminals are optional tooling provisioned by `scripts/provision_studio_tooling.py` (see `THIRD_PARTY.md`).
 
-Packaging uses electron-builder, but `package:dir` deliberately fails until a validated self-contained `backend-artifact/python.exe` and dependencies exist. The development virtual environment is not a distributable backend. No installer or shortcut has been rebuilt.
+Packaging uses electron-builder: `npm run package:linux` (AppImage), `package:win` (per-user NSIS) and `package:mac` (unsigned DMG). Each one first needs the self-contained backend for that OS, built with `python ../packaging/backend/build_backend.py`. `scripts/require-backend.cjs` refuses a missing, mismatched or development backend, and the repository `.venv` is never packaged. Only the Linux AppImage has been built and launched so far; nothing is published (`docs/architecture/packaging.md`, `docs/install/README.md`).
 
 Mail is available from All Spaces or the command palette. It works locally before
-server setup. See `MAIL_TRANSPORTS.md` and `ACCOUNT_SECURITY.md` for optional setup,
+server setup. See `docs/features/mail.md` and `docs/security/credentials.md` for optional setup,
 protected credentials, submission semantics, backup privacy and limits. Final
 release/packaging acceptance remains separate from M4 internal acceptance.

@@ -6,7 +6,7 @@ import uuid
 import time
 
 from .contracts import ConnectError, PROTOCOL, SAFE_OPERATIONS, canonical
-from .discovery import interfaces
+from .discovery import pairing_interfaces
 from .identity import fingerprint
 
 
@@ -25,7 +25,7 @@ class DevicesWorkspace:
         s = self.service
         network = s.network
         try:
-            candidates = [asdict(i) for i in interfaces()]
+            candidates = [asdict(i) for i in pairing_interfaces()]
             interface_error = None
         except Exception:
             candidates, interface_error = [], 'interface_enumeration_unavailable'

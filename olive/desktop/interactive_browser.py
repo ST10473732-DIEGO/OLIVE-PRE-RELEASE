@@ -57,6 +57,12 @@ class InteractiveBrowserProvider:
             raise ValueError("Select installed Chrome or Edge; no browser download is automatic")
         if self.context:
             return await self.tabs()
+        import importlib.util
+        if importlib.util.find_spec("playwright") is None:
+            from ..platform_support import PlatformUnavailable
+            # The optional `browser` extra; packaged backends ship without it.
+            raise PlatformUnavailable("Browser control needs the optional Playwright component, "
+                                      "which is not part of this OLIVE build.")
         from playwright.async_api import async_playwright
         self.driver = await async_playwright().start()
         try:

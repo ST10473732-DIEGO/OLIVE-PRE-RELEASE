@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import wave
 from ipaddress import ip_address
 from urllib.parse import urlsplit
@@ -67,7 +68,8 @@ class LocalVoiceStudioRuntime:
 
     @property
     def python(self):
-        return str(Path(self.root, '.venv', 'bin', 'python'))
+        windows = Path(self.root, '.venv', 'Scripts', 'python.exe')
+        return str(windows if sys.platform == 'win32' else Path(self.root, '.venv', 'bin', 'python'))
 
     def installed(self):
         return bool(self.root) and Path(self.root, 'backend', 'main.py').is_file() and Path(self.python).is_file()
@@ -91,7 +93,7 @@ class LocalVoiceStudioRuntime:
             if port_bound(port) or not self.installed():
                 return  # An existing service is never replaced.
             import psutil
-            from ..studio_tooling.posix_process import start_owned_process
+            from ..runtime.processes import start_owned_process
             env = dict(os.environ, HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
             runtime = self.owned_process
             runtime.process = await start_owned_process(

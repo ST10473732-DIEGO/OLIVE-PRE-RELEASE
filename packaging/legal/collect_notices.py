@@ -1,0 +1,148 @@
+"""Aggregate third-party licence notices for a built OLIVE backend artefact.
+
+    python packaging/legal/collect_notices.py desktop/backend-artifact            # print a summary
+    python packaging/legal/collect_notices.py desktop/backend-artifact --write    # write THIRD_PARTY-backend.txt
+
+build_backend.py calls notices() for every build, so each packaged backend carries
+THIRD_PARTY-backend.txt at its root (electron-builder also copies it to
+resources/legal/). The text is assembled only from what the artefact itself ships:
+each distribution's declared licence metadata and its licence files, and CPython's
+LICENSE.txt. Nothing is relicensed. Items that need owner/legal review are listed
+first. This is release engineering, not legal advice.
+"""
+from __future__ import annotations
+
+import argparse
+from email.parser import Parser
+import json
+from pathlib import Path
+import sys
+
+NAME = 'THIRD_PARTY-backend.txt'
+# Components whose terms deserve an explicit owner/legal decision before public release.
+REVIEW = {
+    'zeroconf': 'LGPL-2.1-or-later: shipped unmodified as a separate Python package; keep its licence text and '
+                'allow the user to replace it (it is a plain .py/.so package inside resources/backend).',
+    'certifi': 'MPL-2.0: unmodified; file-level copyleft only. Keep the licence and the source location.',
+    'pypdfium2': 'Apache-2.0 OR BSD-3-Clause, and it bundles a PDFium binary whose own notices (BSD-3-Clause and '
+                 'third-party libraries) are in its licenses/ folder; all of them must ship.',
+    'cryptography': 'Apache-2.0 OR BSD-3-Clause; its wheels statically link OpenSSL (Apache-2.0).',
+    'pyopenssl': 'Apache-2.0.',
+    'pywin32': 'PSF-2.0-style licence; Windows only.',
+}
+LICENCE_FILES = ('LICENSE', 'LICENCE', 'COPYING', 'NOTICE', 'AUTHORS')
+# Licence texts a wheel declares but does not ship, recorded from the upstream repository.
+SUPPLEMENTS = Path(__file__).resolve().parent / 'supplements'
+SUPPLEMENT_SOURCES = {'primp': 'https://github.com/deedy5/primp/blob/main/LICENSE (git blob 16e54695)'}
+
+
+def _site_packages(root: Path) -> Path:
+    windows = root / 'Lib' / 'site-packages'
+    if windows.is_dir():
+        return windows
+    return next(iter(sorted((root / 'lib').glob('python3.*/site-packages'))))
+
+
+def _cpython_licence(root: Path) -> Path | None:
+    for candidate in sorted(root.glob('lib/python3.*/LICENSE.txt')) + [root / 'LICENSE.txt', root / 'Lib' / 'LICENSE.txt']:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+PBS_NOTICES = SUPPLEMENTS / 'python-build-standalone'
+
+
+def host_target() -> str:
+    import platform
+    machine = {'amd64': 'x86_64', 'x86_64': 'x86_64', 'arm64': 'arm64', 'aarch64': 'arm64'}.get(platform.machine().lower(), '')
+    system = {'linux': 'linux', 'win32': 'windows', 'darwin': 'macos'}.get(sys.platform, sys.platform)
+    return f'{system}-{machine}'
+
+
+def bundled_library_notices(target: str) -> list[str]:
+    """Licence texts of the libraries compiled into the python-build-standalone interpreter, recorded
+    from the pinned release's full archive by pbs_notices.py (the shipped archive omits them)."""
+    try:
+        index = json.loads((PBS_NOTICES / 'index.json').read_text(encoding='utf-8'))['targets'][target]
+    except (OSError, KeyError, ValueError):
+        return ['', f'(No recorded python-build-standalone library notices for {target}; run packaging/legal/pbs_notices.py.)']
+    lines = ['', '-' * 78, f"Libraries compiled into CPython {index['python_version']} (python-build-standalone "
+             f"{index['release']}, {target})", '-' * 78, '']
+    files = []
+    for extension, value in sorted(index['extensions'].items()):
+        lines.append(f"  {extension}: {' AND '.join(value['licences'])} ({', '.join(value['files'])})")
+        files += [f for f in value['files'] if f not in files]
+    for filename in files:
+        path = PBS_NOTICES / filename
+        lines += ['', f'[{filename}]', path.read_text(encoding='utf-8') if path.is_file() else '(text not recorded)']
+    return lines
+
+
+def distributions(root: Path) -> list[dict]:
+    site = _site_packages(root)
+    found = []
+    for info in sorted(site.glob('*.dist-info'), key=lambda p: p.name.lower()):
+        metadata = Parser().parsestr((info / 'METADATA').read_text(encoding='utf-8', errors='replace'))
+        classifiers = [c.split('::')[-1].strip() for c in metadata.get_all('Classifier') or [] if c.startswith('License ::')]
+        declared = metadata.get('License-Expression') or (metadata.get('License') or '').strip().splitlines()[0:1]
+        declared = declared if isinstance(declared, str) else (declared[0] if declared else '')
+        files = sorted(p for p in info.rglob('*') if p.is_file() and (
+            'licenses' in p.relative_to(info).parts or p.name.upper().startswith(LICENCE_FILES)))
+        found.append({'name': metadata.get('Name', info.name), 'version': metadata.get('Version', ''),
+                      'licence': declared or ', '.join(classifiers) or 'UNDECLARED', 'classifiers': classifiers,
+                      'files': files, 'info': info})
+    return found
+
+
+def notices(root: Path, title: str = 'OLIVE backend: third-party notices', review: dict | None = None,
+            generator: str = 'packaging/legal/collect_notices.py', target: str | None = None) -> str:
+    """Notices for one Python tree (the backend, a Creator runtime's interpreter or the relay)."""
+    root = Path(root)
+    items = distributions(root)
+    review = REVIEW if review is None else review
+    lines = [title, '=' * len(title), '',
+             'OLIVE is proprietary software. The components below are third-party software that',
+             'keep their own licences; OLIVE does not relicense them. Full licence texts follow.',
+             f'Generated by {generator} from this artefact\'s own metadata.', '',
+             'Flagged for owner/legal review:', '']
+    names = {i['name'].lower() for i in items}
+    for key, note in review.items():
+        if key in names:
+            lines.append(f'  * {key}: {note}')
+    lines += ['  * CPython: PSF-2.0, plus the notices of libraries bundled in the interpreter (see below).', '',
+              'Distributions:', '']
+    for item in items:
+        lines.append(f"  {item['name']} {item['version']}: {item['licence']}")
+    licence = _cpython_licence(root)
+    lines += ['', '-' * 78, 'CPython (python-build-standalone)', '-' * 78, '']
+    lines.append(licence.read_text(encoding='utf-8', errors='replace') if licence else 'LICENSE.txt not found in the artefact')
+    lines += bundled_library_notices(target or host_target())
+    for item in items:
+        lines += ['', '-' * 78, f"{item['name']} {item['version']} ({item['licence']})", '-' * 78]
+        supplement = SUPPLEMENTS / f"{item['name'].lower()}-LICENSE.txt"
+        if not item['files'] and supplement.is_file():
+            lines += [f"[upstream licence: {SUPPLEMENT_SOURCES.get(item['name'].lower(), 'upstream repository')}]",
+                      supplement.read_text(encoding='utf-8'), '']
+        elif not item['files']:
+            lines.append('(No licence file is shipped in this distribution; see its declared licence above.)')
+        for path in item['files']:
+            lines += [f'[{path.relative_to(item["info"]).as_posix()}]', path.read_text(encoding='utf-8', errors='replace'), '']
+    return '\n'.join(lines) + '\n'
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('artifact', type=Path)
+    parser.add_argument('--write', action='store_true')
+    args = parser.parse_args(argv)
+    text = notices(args.artifact)
+    if args.write:
+        (args.artifact / NAME).write_text(text, encoding='utf-8')
+    for item in distributions(args.artifact):
+        print(f"{item['name']}\t{item['version']}\t{item['licence']}\t{len(item['files'])} file(s)")
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

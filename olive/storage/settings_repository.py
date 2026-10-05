@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..config import MODEL_ALIASES_FILE, MODEL_DEFAULTS_FILE, SETTINGS_FILE
+from ..config import EMBEDDING_MODEL, MODEL_ALIASES_FILE, MODEL_DEFAULTS_FILE, SETTINGS_FILE
 from ..themes import DEFAULT_THEME
 from .json_store import JsonStore
 
@@ -23,7 +23,8 @@ class SettingsRepository:
         value = self.settings.read({})
         if value.get("theme") == "DMDO Blue": value["theme"] = DEFAULT_THEME
         value.setdefault("theme", DEFAULT_THEME)
-        value.setdefault("embedding_model", "nomic-embed-text")
+        # Only fills a missing key: a stored choice (and its existing vectors) is never replaced.
+        value.setdefault("embedding_model", EMBEDDING_MODEL)
         value.setdefault("auto_rag", True)
         value.setdefault("rag_semantic_weight", 0.65)
         value.setdefault("rag_lexical_weight", 0.35)

@@ -1,24 +1,39 @@
-PySide6>=6.10,<6.12
-ollama>=0.6
+# Source development environment used by run_olive.sh, setup_windows.bat and CI.
+# Canonical declarations live in pyproject.toml; this file mirrors its core
+# `dependencies` plus the `qt` and `browser` extras. Keep both in step
+# (tests/test_dependency_declarations.py). See docs/development/dependencies.md.
+
+# --- Core backend runtime (pyproject `dependencies`) ---
+cryptography>=50.0.1,<51
+pyOpenSSL>=26.0,<27
 httpx==0.28.1
+ollama>=0.6
+zeroconf>=0.151.3,<0.152
+psutil>=7,<8
+# OLIVE Notes CRDT (Yjs update format; MIT). Pinned: the phone and renderer use yjs 13.6.33.
+pycrdt==0.14.6
+Pillow>=11.2,<13
+Send2Trash==2.1.0
+beautifulsoup4>=4.13,<5
+ddgs>=9,<10
 pdfplumber>=0.11
 pypdf>=5.0
 python-docx>=1.1
-
-beautifulsoup4>=4.13,<5
+SecretStorage==3.5.0; sys_platform == 'linux'
+keyring==25.7.0; sys_platform == 'darwin'
 pywinauto>=0.6.9,<0.7; sys_platform == 'win32'
 comtypes>=1.4.16,<2; sys_platform == 'win32'
-psutil>=7,<8
-playwright>=1.55,<2
-ddgs>=9,<10
-Pillow>=11.2,<13
-Send2Trash==2.1.0
-# OLIVE Notes CRDT (Yjs update format; MIT). Pinned: the phone and renderer use yjs 13.6.33.
-pycrdt==0.14.6
-SecretStorage==3.5.0; sys_platform == 'linux'
+pywin32>=311; sys_platform == 'win32'
+pywinpty==3.0.5; sys_platform == 'win32'
+winrt-Windows.Media.Control>=3.2.1,<4; sys_platform == 'win32'
+winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'
+winrt-Windows.Foundation>=3.2.1,<4; sys_platform == 'win32'
+winrt-Windows.Foundation.Collections>=3.2.1,<4; sys_platform == 'win32'
+# Personal Core interchange/recurrence (also core runtime).
 -r requirements-personal.txt
 
-cryptography>=50.0.1,<51
-pyOpenSSL>=26.0,<27
-
-zeroconf>=0.151.3,<0.152
+# --- Development-only extras (never part of the packaged Electron backend) ---
+# `qt`: legacy Qt fallback UI (main.py, olive/ui_qt) and its tests.
+PySide6>=6.10,<6.12
+# `browser`: optional Playwright research provider; HTTP research works without it.
+playwright>=1.55,<2

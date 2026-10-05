@@ -6,9 +6,9 @@ individual ledger. Final release/packaging acceptance remains separate. Do not
 start the next milestone, create a release tag, remove Qt or switch the launcher.
 Earlier milestone notices below retain their original checkpoint scope.
 
-The focused dot-matrix olive Core enhancement is complete before M4. It replaces the Electron ring/orb using the existing activity architecture, with internal rendered review and fresh regression evidence in [OLIVE_CORE.md](../../OLIVE_CORE.md). No new milestone features or release tag were added.
+The focused dot-matrix olive Core enhancement is complete before M4. It replaces the Electron ring/orb using the existing activity architecture, with internal rendered review and fresh regression evidence in [OLIVE_CORE.md](../../architecture/core.md). No new milestone features or release tag were added.
 
-OLIVE was formerly named DMDO. Rebrand implementation/local acceptance is complete at source `ebe737e`: 697 Python, 18 frontend, 7 harness, 28 ordinary Electron passes (3 opt-in skips), 49 Qt checks; compilation/TypeScript/lint/build passed. Separate live local identity answered OLIVE. Packaging remains blocked by the existing missing self-contained backend artifact. M3 remains complete; M4 has not started. See [the rebrand map](../../OLIVE_REBRAND.md). Historical checkpoint text below retains its original naming. New code uses `olive`, `OLIVE_*` and `window.olive`; compatibility profiles and identities remain documented.
+OLIVE was formerly named DMDO. Rebrand implementation/local acceptance is complete at source `ebe737e`: 697 Python, 18 frontend, 7 harness, 28 ordinary Electron passes (3 opt-in skips), 49 Qt checks; compilation/TypeScript/lint/build passed. Separate live local identity answered OLIVE. Packaging remains blocked by the existing missing self-contained backend artifact. M3 remains complete; M4 has not started. See [the rebrand map](../../architecture/legacy-dmdo-compatibility.md). Historical checkpoint text below retains its original naming. New code uses `olive`, `OLIVE_*` and `window.olive`; compatibility profiles and identities remain documented.
 
 # OLIVE 3.5.1 delivery plan
 

@@ -8,7 +8,7 @@ import unittest
 
 from olive.world import wire
 from olive.world.client import RelayRefused, open_relay, rendezvous
-from olive.world.websocket import BINARY, TEXT, Closed, encode_frame
+from olive.world.websocket import BINARY, PONG, TEXT, Closed, encode_frame
 from olive.world_relay.server import Limits, Relay
 
 
@@ -221,39 +221,150 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any('category=idle_timeout' in line for line in self.logs))
 
     # ------------------------------------------------------------------ backpressure
-    async def test_flood_is_bounded_by_backpressure_and_control_plane_stays_up(self):
-        route, credential = creds(8)
+    def endpoint(self, role):
+        return next(e for slots in self.relay.routes.values() for e in slots.values() if e.role == role)
+
+    async def wait_until(self, predicate, what, timeout=5):
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while not predicate():
+            if loop.time() > deadline:
+                self.fail('timed out waiting for %s; %s' % (what, self.diagnostics()))
+            await asyncio.sleep(.01)
+
+    def trace_closes(self):
+        """TEST-ONLY: record which relay endpoint initiated each close, and why. A partner's later
+        peer_left overwrites Endpoint.category, so this keeps the first, real reason."""
+        self.closes = []
+        started = asyncio.get_running_loop().time()
+        for slots in self.relay.routes.values():
+            for endpoint in slots.values():
+                def traced(code=1000, reason='', *, _close=endpoint.ws.close, _role=endpoint.role, **kwargs):
+                    self.closes.append((round(asyncio.get_running_loop().time() - started, 2), _role,
+                                        wire.CLOSE_NAMES.get(code, code)))
+                    return _close(code, reason, **kwargs)
+                endpoint.ws.close = traced
+
+    def diagnostics(self):
+        """Close codes and categories only: never a route, credential or payload."""
+        now = asyncio.get_running_loop().time()
+        state = {e.role: dict(category=e.category, closed=e.ws.closed, held=e.held,
+                              silent_for=round(now - e.ws.last_received, 2), pongs=e.ws.pongs)
+                 for slots in self.relay.routes.values() for e in slots.values()}
+        return 'relay endpoints=%s; relay-initiated closes (t, role, reason)=%s; close logs=%s' % (
+            state, getattr(self, 'closes', None),
+            [line.split(' duration=')[0] for line in self.logs if 'event=close' in line])
+
+    async def flood_session(self, seed, *, total=40 * 1024 * 1024):
+        """A paired desktop that floods a phone which is not reading yet.
+
+        The phone keeps itself alive with unsolicited WebSocket pongs (RFC 6455 5.5.3, a
+        unidirectional heartbeat that needs no answer). It must: a phone that neither reads nor
+        sends is genuinely idle and the relay rightly closes it. The pongs drain nothing and
+        make the relay write nothing, so the phone's backlog and the hold on the sender stay.
+        """
+        route, credential = creds(seed)
         desktop = await open_relay(self.url, dev=True)
         waiting = asyncio.ensure_future(rendezvous(desktop, 'desktop', route, credential))
         phone = await self.join('phone', route, credential)
         await waiting
+        self.trace_closes()
         chunk = os.urandom(wire.CHUNK)
-        sent = 0
+        progress = {'sent': 0}
 
         async def flood():
-            nonlocal sent
-            while sent < 40 * 1024 * 1024:
+            while progress['sent'] < total:
                 await desktop.send_binary(chunk)
-                sent += len(chunk)
+                progress['sent'] += len(chunk)
+
+        async def heartbeat():
+            while True:
+                await phone._write(PONG)
+                await asyncio.sleep(self.limits.ping_interval / 3)
+        self.heartbeat = asyncio.ensure_future(heartbeat())
         flooding = asyncio.ensure_future(flood())
-        await asyncio.sleep(1.0)            # The phone is not reading at all.
-        self.assertFalse(flooding.done())
-        self.assertLess(sent, 16 * 1024 * 1024, 'the sender is held back, not buffered without bound')
-        endpoint = next(e for slots in self.relay.routes.values() for e in slots.values() if e.role == 'phone')
-        self.assertLessEqual(endpoint.ws.writer.transport.get_write_buffer_size(),
-                             self.limits.write_buffer + self.limits.max_message + 64)
-        started = asyncio.get_running_loop().time()
-        self.assertIn(b'200', await self.http(b'GET /healthz HTTP/1.1\r\n\r\n'))
-        self.assertLess(asyncio.get_running_loop().time() - started, 1.0)
+        self.addAsyncCleanup(self.stop_tasks, flooding, self.heartbeat)  # Also when a test fails early.
+        return desktop, phone, chunk, progress, flooding
+
+    @staticmethod
+    async def stop_tasks(*tasks):
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def drain_flood(self, phone, chunk, progress, flooding, total=40 * 1024 * 1024):
+        """Read the whole flood in order, then surface any sender error; the tasks are always retrieved."""
         received = 0
-        while received < sent or not flooding.done():  # Reading releases the flood, in order and complete.
-            opcode, payload = await asyncio.wait_for(phone.recv(), 5)
-            self.assertEqual(payload, chunk)
-            received += len(payload)
-            if received >= 40 * 1024 * 1024:
-                break
-        self.assertEqual(received, 40 * 1024 * 1024)
-        await desktop.close(); await phone.close()
+        try:
+            while received < total:  # Reading releases the flood, in order and complete.
+                try:
+                    opcode, payload = await asyncio.wait_for(phone.recv(), 5)
+                except Closed as closed:
+                    self.fail('phone closed (%s) after %d of %d bytes; %s' % (
+                        wire.CLOSE_NAMES.get(closed.code, closed.code), received, total, self.diagnostics()))
+                self.assertEqual(payload, chunk)
+                received += len(payload)
+            self.assertEqual(received, total)
+            await asyncio.wait_for(flooding, 5)
+            self.assertEqual(progress['sent'], total)
+        finally:
+            await self.stop_tasks(flooding, self.heartbeat)
+        if not self.heartbeat.cancelled():
+            self.fail('the phone heartbeat stopped: %r' % (self.heartbeat.exception(),))
+
+    async def test_flood_is_bounded_by_backpressure_and_control_plane_stays_up(self):
+        desktop, phone, chunk, progress, flooding = await self.flood_session(8)
+        try:
+            await asyncio.sleep(1.0)            # The phone is not reading at all.
+            self.assertFalse(flooding.done())
+            self.assertLess(progress['sent'], 16 * 1024 * 1024, 'the sender is held back, not buffered without bound')
+            self.assertLessEqual(self.endpoint('phone').ws.writer.transport.get_write_buffer_size(),
+                                 self.limits.write_buffer + self.limits.max_message + 64)
+            started = asyncio.get_running_loop().time()
+            self.assertIn(b'200', await self.http(b'GET /healthz HTTP/1.1\r\n\r\n'))
+            self.assertLess(asyncio.get_running_loop().time() - started, 1.0)
+            await self.drain_flood(phone, chunk, progress, flooding)
+            self.assertEqual(self.closes, [], self.diagnostics())
+        finally:
+            await desktop.close(); await phone.close()
+
+    async def test_sender_held_by_backpressure_is_not_closed_as_idle(self):
+        # The relay stops reading a sender while its partner's buffer is full. That pause is the
+        # relay's own backpressure (bounded by stall_timeout), not the sender going quiet, so the
+        # idle clock must not run out on it. Only the sender may look idle here: the phone, which
+        # is not reading, stays alive with its heartbeat (see flood_session).
+        limits, loop = self.limits, asyncio.get_running_loop()
+        # Silence long enough that the idle check has certainly run on it, still short of a stall.
+        window = limits.idle_timeout + limits.ping_interval + .1
+        self.assertLess(window + 1.0, limits.stall_timeout)
+        desktop, phone, chunk, progress, flooding = await self.flood_session(12)
+        try:
+            sender, receiver = self.endpoint('desktop'), self.endpoint('phone')
+            # Synchronise on relay state, not on a guessed sleep: wait until forwarding is blocked on
+            # the phone's full write buffer and the relay has read nothing from the desktop for the
+            # whole window. (While kernel socket buffers are still growing a hold may briefly end,
+            # which restarts the window.) The old relay closed the sender as idle in here.
+            await self.wait_until(lambda: sender.ws.closed or (
+                sender.held and receiver.ws.writer.transport.get_write_buffer_size() > limits.write_buffer
+                and loop.time() - sender.ws.last_received >= window), 'a hold that outlasts idle_timeout')
+            self.assertFalse(sender.ws.closed or receiver.ws.closed, self.diagnostics())
+            self.assertFalse(flooding.done())
+            # The phone itself was not idle: its heartbeat reached the relay during the hold.
+            self.assertGreater(receiver.ws.pongs, 0)
+            self.assertLess(loop.time() - receiver.ws.last_received, limits.idle_timeout, self.diagnostics())
+            self.assertEqual(self.relay.tunnels, 1)
+            await self.drain_flood(phone, chunk, progress, flooding)
+            # Both ends are still connected and the tunnel still works, in both directions.
+            await phone.send_binary(b'after-hold')
+            self.assertEqual(await asyncio.wait_for(desktop.recv(), 5), (BINARY, b'after-hold'))
+            await desktop.send_binary(b'after-hold-back')
+            self.assertEqual(await asyncio.wait_for(phone.recv(), 5), (BINARY, b'after-hold-back'))
+            self.assertEqual(self.relay.tunnels, 1)
+            self.assertIn(b'200', await self.http(b'GET /healthz HTTP/1.1\r\n\r\n'))
+            self.assertEqual(self.closes, [], self.diagnostics())
+        finally:
+            await desktop.close(); await phone.close()
 
     # ------------------------------------------------------------------ lifecycle & hygiene
     async def test_graceful_shutdown_closes_sessions_with_going_away(self):

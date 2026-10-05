@@ -1,31 +1,59 @@
 [project]
 name = "olive-local-ai"
-version = "3.5.1.dev1"
+version = "1.0.0"
 description = "OLIVE - private local desktop AI powered by Ollama"
 requires-python = ">=3.11"
+# Canonical Python dependency declaration (see docs/development/dependencies.md).
+# `dependencies` is exactly the backend runtime that `olive.bridge` needs, i.e. what a
+# packaged backend artifact installs. requirements*.txt mirror these lists for source
+# launchers and CI; tests/test_dependency_declarations.py keeps them in step.
 dependencies = [
   "cryptography>=50.0.1,<51",
   "pyOpenSSL>=26.0,<27",
   "httpx==0.28.1",
+  "ollama>=0.6",
+  "zeroconf>=0.151.3,<0.152",
+  "psutil>=7,<8",
+  "pycrdt==0.14.6",
+  "Pillow>=11.2,<13",
+  "Send2Trash==2.1.0",
+  "beautifulsoup4>=4.13,<5",
+  "ddgs>=9,<10",
+  "pdfplumber>=0.11",
+  "pypdf>=5.0",
+  "python-docx>=1.1",
+  # Personal Core interchange/recurrence; tzdata also backs zoneinfo where the OS has no tz database.
+  "icalendar==7.3.0",
+  "python-dateutil==2.9.0.post0",
+  "tzdata==2026.3",
+  "vobject==0.9.9",
+  # Linux credential vault (Secret Service).
+  "SecretStorage==3.5.0; sys_platform == 'linux'",
+  # macOS credential vault (Keychain through the Security framework).
+  "keyring==25.7.0; sys_platform == 'darwin'",
+  # Windows desktop control, credential vault and media session.
+  "pywinauto>=0.6.9,<0.7; sys_platform == 'win32'",
+  "comtypes>=1.4.16,<2; sys_platform == 'win32'",
+  "pywin32>=311; sys_platform == 'win32'",
+  # Windows Studio terminal (ConPTY). Core on Windows by owner decision (OLIVE 1.0 PASS 2C).
+  "pywinpty==3.0.5; sys_platform == 'win32'",
   "winrt-Windows.Media.Control>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Foundation>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Foundation.Collections>=3.2.1,<4; sys_platform == 'win32'",
-  "Pillow>=11.2,<13",
-  "Send2Trash==2.1.0",
-  "pycrdt==0.14.6",
-  "pywinauto>=0.6.9,<0.7; sys_platform == 'win32'",
-  "comtypes>=1.4.16,<2; sys_platform == 'win32'",
-  "pywin32>=311; sys_platform == 'win32'",
-  "psutil>=7,<8",
-  "beautifulsoup4>=4.13,<5",
-  "playwright>=1.55,<2",
-  "ddgs>=9,<10",
-  "PySide6>=6.10,<6.12",
-  "ollama>=0.6",
-  "pdfplumber>=0.11",
-  "pypdf>=5.0",
-  "python-docx>=1.1",
+]
+
+[project.optional-dependencies]
+# Optional browser research provider; HTTP research works without it. Browsers are a separate download.
+browser = ["playwright>=1.55,<2"]
+# Legacy Qt fallback UI (main.py, olive.ui_qt). Development only; never part of the Electron backend.
+qt = ["PySide6>=6.10,<6.12"]
+# Studio diagnostics, formatting and Python debugging (mirrors requirements-studio.txt).
+studio = [
+  "debugpy==1.8.21",
+  "python-lsp-server==1.15.0",
+  "pyflakes==3.4.0",
+  "autopep8==2.3.2",
 ]
 
 [tool.ruff]
@@ -36,10 +64,11 @@ target-version = "py311"
 testpaths = ["tests"]
 
 [project.scripts]
+# Qt fallback entry point; needs the `qt` extra. The product shell is Electron (desktop/).
 olive = "olive.ui_qt.application:main"
 
 [tool.setuptools.packages.find]
 include = ["olive*", "dmdo"]
 
 [tool.setuptools.package-data]
-olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json", "draw/drawing_schema.json", "draw/protocol_v1.json", "draw/conformance_v1.json"]
+olive = ["identity.json", "ui_qt/experience/tokens.json", "ui_qt/experience/qml/*.qml", "evaluation/fixtures/*.json", "notes/protocol_v1.json", "draw/drawing_schema.json", "draw/protocol_v1.json", "draw/conformance_v1.json", "runtime_manifest/*.json"]

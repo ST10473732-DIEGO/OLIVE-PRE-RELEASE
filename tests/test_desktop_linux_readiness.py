@@ -66,8 +66,13 @@ class ProcessReadinessTests(unittest.IsolatedAsyncioTestCase):
             entry.write_text('[Desktop Entry]\nName=Owned\n')
             app = SimpleNamespace(id=entry.name, entry=entry, digest=hashlib.sha256(entry.read_bytes()).hexdigest(), executable=Path('/wrapper'))
             apps = Applications(); apps.values[app.id] = app
-            process = Mock()
-            process.exe.return_value = str(Path(sys.executable).resolve())
+            # An owned native executable fixture, never the host interpreter: hosted runners
+            # install Python world-writable, which the binding rightly refuses.
+            binary = Path(directory) / 'owned-app'
+            binary.write_bytes(b'\x7fELF' + bytes(60))
+            binary.chmod(0o755)
+            process = Mock()  # PID 123 is the mocked process; no host process is inspected.
+            process.exe.return_value = str(binary.resolve())
             process.uids.return_value = SimpleNamespace(real=os.getuid())
             process.create_time.return_value = 10
             with patch('psutil.Process', return_value=process):
@@ -75,8 +80,21 @@ class ProcessReadinessTests(unittest.IsolatedAsyncioTestCase):
                 apps.verify_process(app, 123, 10)
                 process.create_time.return_value = 11
                 with self.assertRaises(PermissionError): apps.verify_process(app, 123, 10)
+                process.create_time.return_value = 10
+                for mode in (0o775, 0o757):
+                    binary.chmod(mode)
+                    with self.assertRaisesRegex(PermissionError, 'owner or executable changed'):
+                        apps.bind_window_processes(app, [{'pid': 123}])
+                binary.chmod(0o755)
+                process.uids.return_value = SimpleNamespace(real=os.getuid() + 1)
+                with self.assertRaisesRegex(PermissionError, 'owner or executable changed'):
+                    apps.bind_window_processes(app, [{'pid': 123}])
+                process.uids.return_value = SimpleNamespace(real=os.getuid())
+                binary.write_bytes(b'#!/bin/sh\n')
+                with self.assertRaisesRegex(PermissionError, 'not a native executable'):
+                    apps.bind_window_processes(app, [{'pid': 123}])
                 entry.write_text('changed')
-                with self.assertRaises(PermissionError): apps.bind_window_processes(app, [{'pid': 123}])
+                with self.assertRaisesRegex(PermissionError, 'entry changed'): apps.bind_window_processes(app, [{'pid': 123}])
 
 
 class WindowReadinessTests(unittest.TestCase):

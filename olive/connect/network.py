@@ -38,6 +38,10 @@ IDLE_TIMEOUT = 60.0
 # channel that looks current until IDLE_TIMEOUT. Before such a channel may block
 # a newly authenticated one, it must answer one heartbeat within this window.
 LIVENESS_TIMEOUT = 2.0
+# A fresh authority read may wait out another connection's SQLite commit for as
+# long as a channel tolerates one stalled framed write. Local storage is not
+# slower over World, so this is never scaled. Beyond it, the channel fails closed.
+AUTHORITY_WAIT = WRITE_TIMEOUT
 MAX_CONNECTIONS = 8
 MAX_PENDING = 8
 PEER_CLOSED_ERRNOS = frozenset(getattr(errno, name) for name in (
@@ -121,12 +125,17 @@ class Channel:
             worker_alive=self.thread.is_alive(), socket_open=self.sock.fileno() != -1,
             network_stopping=self.owner.stopping.is_set())
 
-    def check(self):
+    def running(self):
         if self.stop.is_set() or self.owner.stopping.is_set():
             raise ConnectError('connection_closed')
+
+    def check(self):
+        self.running()
         if self.public is not None:
+            # Waits use .25s slices so stop and shutdown are still seen promptly.
             self.owner.service.require_paired_identity(self.public, timeout=.25,
-                db=getattr(self.authority, 'db', None))
+                db=getattr(self.authority, 'db', None),
+                deadline=time.monotonic() + AUTHORITY_WAIT, interrupt=self.running)
             require_current(self.public)
 
     def io(self, action, deadline):
@@ -537,7 +546,8 @@ class Channel:
                 self.owner.audit(self.expected, 'connection_started')
             self.diagnostics.at('tls')
             ctx, peers = tls_context(self.owner.service, self.expected or self.route_peer,
-                                     local=self.owner.local_identity)
+                                     local=self.owner.local_identity,
+                                     deadline=time.monotonic() + AUTHORITY_WAIT, interrupt=self.running)
             self.sock.setblocking(False)
             self.tls = SSL.Connection(ctx, self.sock)
             (self.tls.set_connect_state if self.outbound else self.tls.set_accept_state)()
@@ -739,6 +749,10 @@ class LocalNetwork:
                 self.discovery.close()
             raise
 
+    def running(self):
+        if self.stopping.is_set():
+            raise ConnectError('connection_closed')
+
     def audit(self, peer, event):
         with self.lock:
             if not self.audit_budget.take():
@@ -776,10 +790,11 @@ class LocalNetwork:
         if not self.interface.permits(address) or type(port) is not int or not 1 <= port <= 65535:
             raise ConnectError('endpoint_not_local')
         for attempt in range(retries + 1):
-            if self.stopping.is_set():
-                raise ConnectError('connection_closed')
-            record = self.service.device(peer, timeout=.25)
-            self.service.require_paired_identity(record.get('public_identity'), timeout=.25)
+            self.running()
+            deadline = time.monotonic() + AUTHORITY_WAIT
+            record = self.service.device(peer, timeout=.25, deadline=deadline, interrupt=self.running)
+            self.service.require_paired_identity(record.get('public_identity'), timeout=.25,
+                deadline=deadline, interrupt=self.running)
             require_current(record['public_identity'])
             with self.lock:
                 if (peer in self.channels and not self.channels[peer].stop.is_set()

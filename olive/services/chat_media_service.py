@@ -15,7 +15,6 @@ from datetime import datetime
 import io
 import json
 import logging
-import os
 import re
 import secrets
 import time
@@ -76,7 +75,9 @@ class ChatMediaService:
         self.s = services
         self.media = services.media
         self.engines = self.media.engines
-        self.voice = VoiceStudio(os.environ.get('OLIVE_VOICESTUDIO_URL', ''), os.environ.get('OLIVE_VOICESTUDIO_ROOT', ''))
+        from .runtime_discovery import from_environment
+        located = (getattr(services, 'runtimes', None) or from_environment())['voicestudio']
+        self.voice = VoiceStudio(located.get('url'), located.get('root'))
         self.progress = {}
         self.lock = asyncio.Lock()  # One Chat media generation at a time.
 
@@ -102,7 +103,7 @@ class ChatMediaService:
                 'not installed': 'Needs setup', 'needs setup': 'Needs setup · model or workflow missing',
                 'failed': 'Engine failed · retry to restart'}.get(state, 'Checking')
         capabilities = []
-        if 'flux2-klein-9b' in info['ready_workflows'] or 'qwen-image-2.1' in info['ready_workflows']:
+        if {'flux2-klein-9b', 'flux2-klein-4b', 'qwen-image-2.1'} & set(info['ready_workflows']):
             capabilities = ['text-to-image', 'image-edit']
         elif 'sdxl-base' in info['ready_workflows']:
             capabilities = ['text-to-image']
@@ -455,6 +456,7 @@ class ChatMediaService:
             except Exception as error:
                 # The next text or media request re-verifies before loading anything.
                 log.warning('%s engine release after generation not verified: %s', kind, error)
+            engine.touch()  # An OLIVE-started engine stops after the idle period (media_engines).
         seconds = round(time.monotonic() - started, 1)
         if kind == 'image':
             progress('Saving image…')

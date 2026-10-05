@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OLIVE
+Comment=Desktop-control permission identity for OLIVE (compatibility entry)
+Exec=@EXEC@
+Icon=olive
+Terminal=false
+NoDisplay=true
+X-OLIVE-Managed=true

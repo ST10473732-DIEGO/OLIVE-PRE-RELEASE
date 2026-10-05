@@ -11,6 +11,8 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+# Editor backup copies (e.g. nano *.save)
+*.save
 
 .qt-smoke/
 .qt-spike-350/
@@ -24,11 +26,13 @@ desktop/test-results/
 desktop/test-results-*/
 desktop/playwright-report/
 desktop/backend-artifact/
-artifacts/ui-review/
-artifacts/rebrand/
-artifacts/core/
-artifacts/connect-c4/
-artifacts/connect-c7/
+desktop/backend-artifact.staging/
+desktop/backend-artifact.previous/
+# Verified python-build-standalone downloads (packaging/backend/build_backend.py)
+packaging/backend/.cache/
+packaging/creator/.cache/
+# Local evidence captures (screenshots, videos, acceptance runs) never belong in Git.
+artifacts/
 
 # Native iOS local build/signing state (shared project and schemes are tracked)
 .DS_Store
@@ -38,6 +42,4 @@ mobile/ios/Signing.local.xcconfig
 **/xcuserdata/
 *.xcuserstate
 *.xcresult/
-artifacts/mobile-c9-1/
-artifacts/mobile-c9-2/
 mobile/ios/Vendor/OpenSSL/

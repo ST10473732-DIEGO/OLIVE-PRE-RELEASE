@@ -8,7 +8,20 @@ from olive.connect.identity import DeviceKeyStore
 from olive.connect.service import DesktopDeviceService
 from tests.test_connect_pairing import MemoryVault
 from tests.test_connect_network import pair, request
-from olive.connect.contracts import canonical
+from olive.connect.contracts import ConnectError, canonical
+
+
+def failure(error, net, command):
+    """Fixed labels and path-free diagnostics only; never arbitrary exception text."""
+    detail = dict(op=command[0], exception=type(error).__name__,
+                  code=str(error) if isinstance(error, ConnectError) else None,
+                  sqlite=getattr(error, 'sqlite_errorname', None))
+    if command[0] in ('connect', 'request', 'status') and len(command) > 1:
+        try:
+            detail.update(status=net.status(command[1]), diagnostics=net.debug_snapshot(command[1]))
+        except Exception as nested:
+            detail['diagnostics_unavailable'] = type(nested).__name__
+    return detail
 
 
 def worker(pipe, profile, values, discovery):
@@ -47,8 +60,8 @@ def worker(pipe, profile, values, discovery):
                 else:
                     raise ValueError()
                 pipe.send({'result': result})
-            except Exception:
-                pipe.send({'error': 'fixture_operation_failed'})
+            except Exception as error:
+                pipe.send({'error': 'fixture_operation_failed', 'detail': failure(error, net, command)})
     finally:
         service.close()
         pipe.close()
@@ -76,6 +89,11 @@ def acceptance(discovery=False):
             if not pipes[i].poll(10):
                 raise AssertionError('fixture process timeout')
             return pipes[i].recv()
+        def result(i, *command):
+            response = call(i, *command)
+            # An error response still fails; it now says which error it was.
+            assert 'result' in response, f'{command[0]} failed: {response}'
+            return response['result']
         def wait(predicate, timeout=10):
             end = time.monotonic() + timeout
             while time.monotonic() < end:
@@ -94,20 +112,22 @@ def acceptance(discovery=False):
                 endpoints.append(parent.recv())
             target = lambda i: endpoints[i]['instance' if discovery else 'port']
             if discovery:
-                wait(lambda: any(e['instance'] == target(1) for e in call(0, 'nearby')['result']))
-                wait(lambda: any(e['instance'] == target(0) for e in call(1, 'nearby')['result']))
-                wait(lambda: any(e['instance'] == target(2) for e in call(0, 'nearby')['result']))
-            assert call(0, 'connect', ids[1], target(1))['result']['encrypted']
+                wait(lambda: any(e['instance'] == target(1) for e in result(0, 'nearby')))
+                wait(lambda: any(e['instance'] == target(0) for e in result(1, 'nearby')))
+                wait(lambda: any(e['instance'] == target(2) for e in result(0, 'nearby')))
+            connected = result(0, 'connect', ids[1], target(1))
+            assert connected['encrypted'], connected
             first = call(0, 'request', ids[1], raw)
-            assert first['result']['result']['pong']
-            assert call(0, 'request', ids[1], status_raw)['result']['result']['transport'] == 'local'
+            assert 'result' in first and first['result']['result']['pong'], first
+            assert result(0, 'request', ids[1], status_raw)['result']['transport'] == 'local'
             call(0, 'disconnect', ids[1])
-            wait(lambda: call(1, 'status', ids[0])['result']['state'] == 'offline')
+            wait(lambda: result(1, 'status', ids[0])['state'] == 'offline')
             assert 'error' in call(0, 'connect', ids[1], target(2)), 'spoof accepted'
-            assert call(0, 'connect', ids[1], target(1))['result']['encrypted']
+            connected = result(0, 'connect', ids[1], target(1))
+            assert connected['encrypted'], connected
             assert call(0, 'request', ids[1], raw) == first
             call(1, 'revoke', ids[0])
-            wait(lambda: call(0, 'status', ids[1])['result']['state'] == 'offline')
+            wait(lambda: result(0, 'status', ids[1])['state'] == 'offline')
             assert 'error' in call(0, 'connect', ids[1], target(1)), 'revoked accepted'
             for i in range(3):
                 assert call(i, 'stop')['stopped']

@@ -1,7 +1,9 @@
 # M3 local-only interchange/recurrence resources; no runtime downloads.
+# Direct dependencies (declared in pyproject.toml `dependencies`):
 icalendar==7.3.0
 python-dateutil==2.9.0.post0
 tzdata==2026.3
 vobject==0.9.9
+# Transitive pins of vobject/python-dateutil, kept for reproducible source installs:
 pytz==2026.3.post1
 six==1.17.0

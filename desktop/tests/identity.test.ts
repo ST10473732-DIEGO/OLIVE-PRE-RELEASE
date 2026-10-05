@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { identity, normalizeEnvironment, resolveProfile } from "../electron/identity";
@@ -13,7 +13,7 @@ describe("shared OLIVE identity and profile continuity", () => {
     expect(metadata.version.replace("-dev.", ".dev")).toBe(identity.version);
   });
   it("reuses legacy data, respects explicit paths, and refuses conflicting homes", () => {
-    const home = mkdtempSync(path.join(tmpdir(), "olive-path-test-"));
+    const home = realpathSync(mkdtempSync(path.join(tmpdir(), "olive-path-test-")));
     try {
       const old = path.join(home, ".dmdo"), current = path.join(home, ".olive");
       expect(resolveProfile({}, home, "win32")).toBe(current);

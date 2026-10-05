@@ -99,15 +99,19 @@ class DesktopDeviceService:
             raise ConnectError('service_closed')
         return self.identities.ensure()
 
-    def require_paired_identity(self, public, *, timeout=10, db=None):
+    def require_paired_identity(self, public, *, timeout=10, db=None, deadline=None, interrupt=None):
         """Check a public binding, NOT proof of possession or action authorization.
 
         C3 authenticates the live transport before using this check, then rechecks
         the exact public identity and current permissions in the dispatch transaction.
+        A pinned `db` is read as is; see device() for `deadline` and `interrupt`.
         """
         from .identity import fingerprint
         expected = fingerprint(public)
-        record = self.device(public['device_id'], timeout=timeout) if db is None else self.repository.get(db, public['device_id'])
+        if db is not None:
+            record = self.repository.get(db, public['device_id'])
+        else:
+            record = self.device(public['device_id'], timeout=timeout, deadline=deadline, interrupt=interrupt)
         if not record or record.get('trust_state') != 'paired' or record.get('revoked_at') is not None:
             raise ConnectError('device_not_paired')
         if record.get('identity_fingerprint') != expected:
@@ -117,18 +121,24 @@ class DesktopDeviceService:
     def this_device(self):
         return self.device(self.local_id)
 
-    def device(self, device_id, *, timeout=10):
+    def device(self, device_id, *, timeout=10, deadline=None, interrupt=None):
         identifier(device_id)
         # A short committed snapshot; dispatch rechecks authority under its
         # operation transaction before claiming or executing any request.
-        with self.repository.transaction(timeout=timeout, read_only=True) as db:
+        # With a `deadline`, SQLITE_BUSY is retried in fresh `timeout` slices
+        # and `interrupt` runs between them (DeviceRepository.fresh_read).
+        def known(db):
             record = self.repository.get(db, device_id)
             if record is None:
                 raise ConnectError('unknown_device')
             return record
+        if deadline is not None:
+            return self.repository.fresh_read(known, deadline=deadline, interrupt=interrupt, attempt=timeout)
+        with self.repository.transaction(timeout=timeout, read_only=True) as db:
+            return known(db)
 
-    def paired_devices(self, *, timeout=10):
-        return self.repository.devices(timeout=timeout)
+    def paired_devices(self, *, timeout=10, deadline=None, interrupt=None):
+        return self.repository.devices(timeout=timeout, deadline=deadline, interrupt=interrupt)
 
     def listed_devices(self):
         """Devices shown to the user: removed revoked devices are left out."""

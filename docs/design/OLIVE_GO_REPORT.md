@@ -91,7 +91,7 @@ a deliberate step for whoever owns the backend work.
   (label), `tests/visual/go-qa.spec.ts`.
 - **Docs:** `docs/design/olive-go-artifact.html` (reference, unchanged),
   `docs/design/OLIVE_GO.md`, `docs/design/OLIVE_GO_PARITY.md`, this file,
-  `docs/BROWSER_AND_MEDIA.md`.
+  `docs/archive/3.5/BROWSER_AND_MEDIA.md`.
 
 Data: `browser.json` is read as before and written in a v2 shape that a v1
 reader ignores gracefully; history, favourites and normal tabs carry over.

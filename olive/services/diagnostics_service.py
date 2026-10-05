@@ -17,7 +17,7 @@ class DiagnosticsService:
         models = sorted(self.registry.models)
         embedding = self.rag.embedding_model or "None"
         embedding_info = self.registry.get(embedding) if embedding != "None" else None
-        counts = self.rag.store.aggregate_counts(chat.id)
+        counts = self.rag.store.aggregate_counts(chat.id, model=self.rag.embedding_model or None)
         jobs = self.jobs.list_all() if self.jobs else []
         ocr = self.ocr.diagnostics() if self.ocr and hasattr(self.ocr, "diagnostics") else {}
         return {
@@ -40,6 +40,7 @@ class DiagnosticsService:
             "failed_indexing_jobs": sum(job.state == "failed" for job in jobs),
             "indexed_chunk_count": counts["chunks"],
             "chunks_missing_embeddings": counts["missing_embeddings"],
+            "chunks_needing_reembedding": counts["other_model_embeddings"],  # Made by another embedding model.
             "rag_integrity_ok": bool(self.rag.store.integrity_check()["ok"]),
             "data_directory": str(DATA_DIR),
             "log_directory": str(LOGS_DIR),

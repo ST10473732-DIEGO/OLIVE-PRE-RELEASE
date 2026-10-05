@@ -6,7 +6,7 @@
 `EditPreview`, side-by-side diff against HEAD, search options) are not
 implemented; class D items are not shown. Nothing here changed backend
 contracts, the security model, IPC names or persistence. See
-[`../OLIVE_DESIGN_V2_IMPLEMENTATION.md`](../OLIVE_DESIGN_V2_IMPLEMENTATION.md)
+[`../archive/design/OLIVE_DESIGN_V2_IMPLEMENTATION.md`](../archive/design/OLIVE_DESIGN_V2_IMPLEMENTATION.md)
 for the capability matrix, deviations and test evidence.
 **Interactive artifact:** [`olive-studio-v2-artifact.html`](olive-studio-v2-artifact.html)
 (open it next to this file; it loads `v2-assets/olive-v2.css` and the

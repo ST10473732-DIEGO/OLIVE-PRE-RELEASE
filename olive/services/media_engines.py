@@ -3,9 +3,18 @@
 Discovery is explicit (environment set by run_olive.sh); nothing here
 downloads, installs or edits a runtime. Status is cached and cheap so the
 preset snapshot never blocks on the network.
+
+Idle lifecycle (image engine): after a generation the engine releases its GPU
+memory but its process keeps several GiB of host RAM. When OLIVE itself started
+the engine, it is stopped once it has been idle for the model keep-alive period
+(the same setting that unloads idle text models; at least IDLE_FLOOR seconds).
+It never stops while a job runs, while any OLIVE GPU job holds the shared
+residency lock (Chat, Media tools and remote Connect requests all take it),
+while ComfyUI reports queued work from another client, or when someone else
+started the server. The next request starts it again.
 """
+import asyncio
 import logging
-import os
 from pathlib import Path
 import re
 import time
@@ -39,7 +48,11 @@ IMAGE_EXTRA = {'diffusion_models': ['diffusion_models', 'flux2'],
 
 
 class ComfyEngine:
-    def __init__(self, kind, runtime, workflows, *, extra_models=None):
+    IDLE_FLOOR = 60      # Never stop an owned engine sooner than this after OLIVE last used it.
+    IDLE_DEFAULT = 300   # The model policy's default keep-alive.
+    IDLE_RETRY = 30
+
+    def __init__(self, kind, runtime, workflows, *, extra_models=None, idle_stop=False):
         self.kind, self.runtime, self.workflows = kind, runtime, workflows
         self.client = ComfyWorkflows(runtime.host)
         self.extra_models = extra_models  # (models root, folder mapping) or None
@@ -50,6 +63,72 @@ class ComfyEngine:
         self.used = False          # OLIVE ran work on it in this session.
         self.legacy = lambda: False  # Media tools configured this endpoint.
         self._static = None
+        self.idle_stop = idle_stop          # Stop an OLIVE-started engine after an idle period.
+        self.idle_seconds = lambda: self.IDLE_DEFAULT
+        self.lease = None                   # The asyncio.Lock every OLIVE GPU job holds.
+        self.idle_stops = 0
+        self._idle_task = None
+
+    # ------------------------------------------------------------------ idle lifecycle
+    def grace(self):
+        try:
+            seconds = float(self.idle_seconds())
+        except Exception:
+            seconds = self.IDLE_DEFAULT
+        return max(self.IDLE_FLOOR, seconds)
+
+    def touch(self):
+        """OLIVE just used this engine: restart the idle countdown (only for an engine OLIVE started)."""
+        self._cancel_idle()
+        if not self.idle_stop or not self.runtime.owned():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._idle_task = loop.create_task(self._idle_watch())
+
+    def _cancel_idle(self):
+        task, self._idle_task = self._idle_task, None
+        if task is not None and not task.done() and task is not asyncio.current_task():
+            task.cancel()
+
+    async def _idle_watch(self):
+        delay = self.grace()
+        while True:
+            await asyncio.sleep(delay)
+            outcome = await self.stop_if_idle()
+            if outcome != 'busy':
+                return outcome
+            delay = min(self.grace(), self.IDLE_RETRY)  # Text or media work held the lock: look again soon.
+
+    async def stop_if_idle(self):
+        """Stop the OLIVE-started engine if nothing uses it: 'stopped', 'busy' or 'not_owned'."""
+        if not self.runtime.owned():
+            return 'not_owned'  # A server someone else started is never stopped by OLIVE.
+        lease = self.lease
+        if self.active or (lease is not None and lease.locked()):
+            return 'busy'
+        if lease is not None:
+            await lease.acquire()  # Held until the process is gone: no new job can start meanwhile.
+        try:
+            if self.active:
+                return 'busy'
+            if not self.runtime.owned():
+                return 'not_owned'
+            try:
+                if await self.client.busy():
+                    return 'busy'  # Work queued by another client on OLIVE's engine.
+            except Exception:
+                return 'busy'      # Cannot verify it is idle: look again later.
+            await asyncio.shield(self.runtime.close())
+            self.inventory, self.state = None, 'unknown'
+            self.idle_stops += 1
+            log.info('Stopped the idle OLIVE-owned %s engine after %s s', self.kind, self.grace())
+            return 'stopped'
+        finally:
+            if lease is not None:
+                lease.release()
 
     @property
     def endpoint(self):
@@ -124,7 +203,8 @@ class ComfyEngine:
         if state not in {'not installed', 'failed'} and not ready:
             state = 'needs setup'
         return {'state': state, 'owned': self.runtime.owned(), 'workflows': states, 'ready_workflows': ready,
-                'error': self.error}
+                'error': self.error, 'idle_stop_seconds': self.grace() if self.idle_stop else None,
+                'idle_stops': self.idle_stops}
 
     def model_paths_config(self, directory):
         """Write the owned image runtime's read-only extra model path map."""
@@ -171,6 +251,7 @@ class ComfyEngine:
                 self.state, self.error = 'failed', type(error).__name__
                 log.warning('%s engine failed to start: %s', self.kind, error)
                 raise MediaError('engine_start_failed', str(error)) from None
+            self.touch()  # Even if this request fails below, the started engine is not kept forever.
         try:
             self.inventory = await self.client.inventory(self.workflows)
         except Exception as error:
@@ -195,24 +276,23 @@ class ComfyEngine:
             raise MediaError('engine_busy' if 'busy' in str(error) else 'gpu_release_unverified', str(error)) from None
 
     async def close(self):
+        self._cancel_idle()
         await self.runtime.close()  # Only an OLIVE-started process is stopped.
 
 
-def data_home():
-    base = os.environ.get('XDG_DATA_HOME') or str(Path.home() / '.local' / 'share')
-    return Path(base) / 'olive'
-
-
 class MediaEngines:
-    def __init__(self, config_dir):
+    def __init__(self, config_dir, located=None):
+        """`located` is runtime discovery's result; without it only environment overrides apply."""
+        from .runtime_discovery import from_environment
         self.config_dir = Path(config_dir)
-        image_models = os.environ.get('OLIVE_MEDIA_MODELS', '')
-        image = LocalComfyRuntime()  # OLIVE_COMFY_ROOT / OLIVE_COMFY_PYTHON, port 8188
+        located = located or from_environment()
+        image_models = located['media_models'].get('path')
+        image = LocalComfyRuntime(root=located['comfy'].get('root'), python=located['comfy'].get('python'))  # port 8188
         self.image = ComfyEngine('image', image, IMAGE_WORKFLOWS,
-                                 extra_models=(image_models, IMAGE_EXTRA) if image_models else None)
+                                 extra_models=(image_models, IMAGE_EXTRA) if image_models else None, idle_stop=True)
         image.model_paths = lambda: self.image.model_paths_config(self.config_dir)
         video = LocalComfyRuntime(
-            'http://127.0.0.1:8190', os.environ.get('OLIVE_VIDEO_COMFY_ROOT', ''), os.environ.get('OLIVE_VIDEO_COMFY_PYTHON', ''),
+            'http://127.0.0.1:8190', located['video_comfy'].get('root'), located['video_comfy'].get('python'),
             # The LTX 2.3 loader lives in this reviewed custom node; all others stay off.
             custom_nodes=('ComfyUI-GGUF-Loader',),
             # Matches the manually validated launch (dynamic VRAM for LTX on 16 GiB);
@@ -225,6 +305,14 @@ class MediaEngines:
 
     def get(self, kind):
         return {'image': self.image, 'video': self.video}[kind]
+
+    def share_lease(self, residency):
+        """Every OLIVE GPU job holds the model residency lock; idle stops take it too."""
+        if residency is None:
+            return
+        for engine in self.all():
+            engine.lease = residency.lock
+            engine.idle_seconds = lambda: residency.policy()['keep_alive']
 
     async def release_others(self, keep=None):
         for engine in self.all():

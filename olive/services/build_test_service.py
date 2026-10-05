@@ -46,6 +46,11 @@ class BuildAndTestService:
             for relative in (("Scripts/python.exe",) if sys.platform == "win32" else ("bin/python", "bin/python3")):
                 candidate = root / folder / relative
                 if candidate.is_file(): return str(candidate)
+        from ..app_paths import packaged
+        if packaged():
+            # The bundled backend interpreter is read-only and private to OLIVE; projects
+            # without their own environment use the user's Python instead.
+            return shutil.which("python3") or shutil.which("python") or ("python.exe" if sys.platform == "win32" else "python3")
         if sys.platform == "linux":
             return getattr(sys, "_base_executable", None) or shutil.which("python3") or shutil.which("python") or "python3"
         if not getattr(sys, "frozen", False) and Path(sys.executable).is_file():

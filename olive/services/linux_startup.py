@@ -15,13 +15,26 @@ def quote_exec(value):
     return '"' + escaped.replace('\\', '\\\\').replace('%', '%%') + '"'
 
 
-def configure(enabled, root, profile, config_home=None):
+def launcher_for(root, executable=None):
+    """The packaged app (an AppImage or installed binary) or, in a source checkout, run_olive.sh."""
+    if executable:
+        launcher = Path(executable)
+        if '/.mount_' in str(launcher):
+            raise ValueError('An AppImage mount is temporary; start OLIVE from the AppImage file')
+        if not launcher.is_absolute() or not launcher.is_file():
+            raise ValueError('The OLIVE application executable is missing')
+        return launcher
+    launcher = Path(root).resolve() / 'run_olive.sh'
+    if not launcher.is_file():
+        raise ValueError('The OLIVE launcher is missing')
+    return launcher
+
+
+def configure(enabled, root, profile, config_home=None, executable=None):
     if sys.platform != 'linux':
         raise ValueError('This startup adapter is Linux-only')
     root, profile = Path(root).resolve(), Path(profile).resolve()
-    launcher = root / 'run_olive.sh'
-    if not launcher.is_file():
-        raise ValueError('The OLIVE launcher is missing')
+    launcher = launcher_for(root, executable)
     configured = config_home or os.environ.get('XDG_CONFIG_HOME', '')
     home = Path(configured) if configured and Path(configured).is_absolute() else Path.home() / '.config'
     target = home / 'autostart' / 'olive.desktop'
@@ -47,7 +60,9 @@ def main():
     parser.add_argument('action', choices=['enable', 'disable'])
     args = parser.parse_args()
     from ..identity import resolve_profile
-    target = configure(args.action == 'enable', Path(__file__).resolve().parents[2], resolve_profile())
+    from .. import app_paths
+    executable = app_paths.app_executable() if app_paths.packaged() else None
+    target = configure(args.action == 'enable', app_paths.INSTALL_ROOT, resolve_profile(), executable=executable)
     print(f'OLIVE launch at login {args.action}d: {target}')
 
 

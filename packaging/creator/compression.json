@@ -1,0 +1,16 @@
+{
+  "schema": "olive-creator-compression/1",
+  "format": "zstd",
+  "implementation": "compression.zstd of the pinned python-build-standalone CPython (packaging/backend/python-runtime.json), whose libzstd is compiled into the interpreter; packaging/creator/pack_archive.py runs under that interpreter, never the build machine's Python or zstd",
+  "interpreters": {
+    "linux-x86_64": "b373a4a4e4e70fc05f368c9b53d7738bf37637682b650d96c742805d2da26c32"
+  },
+  "zstd_version": "1.5.7",
+  "parameters": {
+    "compression_level": 12,
+    "nb_workers": 0,
+    "checksum_flag": 0,
+    "content_size_flag": 0
+  },
+  "note": "Archive bytes = stable tar + this compressor + these parameters. nb_workers 0 compresses in the calling thread; any value >= 1 selects libzstd's multithreaded engine, whose output differs. One streamed frame: no checksum (the archive's SHA-256 is pinned instead) and no content size. The interpreter SHA-256 must equal the runtime pin for the definition's target, so bumping CPython (and with it libzstd) is a deliberate change of this file. PASS 2F-D: the hosted build's 30f7d1fb... is reproduced exactly by libzstd 1.5.7 with its block pre-splitter (new in 1.5.7) disabled, i.e. an older libzstd behind the runner's Python; every build now uses this pinned compressor."
+}

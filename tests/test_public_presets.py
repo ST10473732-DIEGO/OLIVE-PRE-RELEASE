@@ -60,7 +60,7 @@ class PublicPresetTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(n.startswith(('profile.', 'contacts.')) for n in names))
         self.assertIsNotNone(self.s.tool_registry.get('contacts.get'))
         self.assertTrue(self.s.personal.records.profile()['timezone'])
-        self.assertEqual(self.s.settings['preferred_name'], 'Diego')
+        self.assertEqual(self.s.settings['preferred_name'], '')  # Unset until first-run setup asks.
 
     async def test_deep_requires_actual_vision_and_preserves_native_results(self):
         chat = self.s.chats[self.s.current_chat_id]

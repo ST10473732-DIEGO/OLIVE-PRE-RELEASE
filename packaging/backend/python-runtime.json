@@ -1,0 +1,42 @@
+{
+  "schema": "olive-python-runtime/1",
+  "implementation": "CPython",
+  "version": "3.14.8",
+  "distribution": "python-build-standalone",
+  "project": "https://github.com/astral-sh/python-build-standalone",
+  "release": "20261001",
+  "release_url": "https://github.com/astral-sh/python-build-standalone/releases/tag/20261001",
+  "checksums_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261001/SHA256SUMS",
+  "checksums_note": "Each sha256 below was copied from the release's SHA256SUMS file and cross-checked against the GitHub release asset digest on 2026-10-03.",
+  "flavour": "install_only_stripped",
+  "licence": "Python-2.0 (CPython) plus the bundled-library notices shipped inside the distribution",
+  "targets": {
+    "linux-x86_64": {
+      "asset": "cpython-3.14.8+20261001-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261001/cpython-3.14.8%2B20261001-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "sha256": "b373a4a4e4e70fc05f368c9b53d7738bf37637682b650d96c742805d2da26c32",
+      "python": "bin/python3",
+      "site_packages": "lib/python3.14/site-packages",
+      "lock": "locks/linux-x86_64.txt"
+    },
+    "windows-x86_64": {
+      "asset": "cpython-3.14.8+20261001-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261001/cpython-3.14.8%2B20261001-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      "sha256": "b7ff8b700995379e425b39abce9b087d84a45aa265ea465c0069c2747ea5b2ea",
+      "python": "python.exe",
+      "site_packages": "Lib/site-packages",
+      "lock": "locks/windows-x86_64.txt"
+    },
+    "macos-arm64": {
+      "asset": "cpython-3.14.8+20261001-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261001/cpython-3.14.8%2B20261001-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "sha256": "69e48cd7f54261df5b6abbd374f69fe6e496fa781d271592aeef49cd5ffbea6c",
+      "python": "bin/python3",
+      "site_packages": "lib/python3.14/site-packages",
+      "lock": "locks/macos-arm64.txt"
+    }
+  },
+  "unsupported_targets": {
+    "macos-x86_64": "cryptography>=50 publishes no x86_64 macOS wheel; the 1.0 macOS backend targets Apple Silicon only."
+  }
+}

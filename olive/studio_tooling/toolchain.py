@@ -9,11 +9,28 @@ import shutil
 import subprocess
 import sys
 
-REPOSITORY = Path(__file__).resolve().parents[2]
-TOOLS = REPOSITORY / ".toolchains" / "studio"
+from .. import app_paths
+
+REPOSITORY = app_paths.INSTALL_ROOT
+
+
+def toolchain_roots() -> list[Path]:
+    """Per-user OLIVE toolchains first; the repository's ignored folder only in a source checkout."""
+    roots = [Path(app_paths.toolchains_root())]
+    if not app_paths.packaged(REPOSITORY):
+        roots.append(REPOSITORY / ".toolchains")
+    return roots
+
+
+def _located(relative: str) -> Path:
+    """The first existing copy, else where the per-user folder would hold it."""
+    roots = toolchain_roots()
+    return next((root / relative for root in roots if (root / relative).is_file()), roots[0] / relative)
+
+
 PINNED = {
-    "omnisharp": {"version": "1.39.15", "executable": TOOLS / "omnisharp" / ("OmniSharp.exe" if sys.platform == "win32" else "OmniSharp"), "licence": "MIT"},
-    "netcoredbg": {"version": "3.2.0-1092", "executable": TOOLS / "netcoredbg" / "netcoredbg" / ("netcoredbg.exe" if sys.platform == "win32" else "netcoredbg"), "licence": "MIT"},
+    "omnisharp": {"version": "1.39.15", "executable": _located("studio/omnisharp/" + ("OmniSharp.exe" if sys.platform == "win32" else "OmniSharp")), "licence": "MIT"},
+    "netcoredbg": {"version": "3.2.0-1092", "executable": _located("studio/netcoredbg/netcoredbg/" + ("netcoredbg.exe" if sys.platform == "win32" else "netcoredbg")), "licence": "MIT"},
 }
 
 
@@ -21,7 +38,8 @@ def dotnet_executable() -> str | None:
     configured = os.environ.get("DOTNET_ROOT")
     if configured:
         return _executable(Path(configured) / _binary("dotnet"))
-    return shutil.which("dotnet") or _executable(REPOSITORY / ".toolchains" / "dotnet" / _binary("dotnet"))
+    return shutil.which("dotnet") or next(
+        (found for root in toolchain_roots() if (found := _executable(root / "dotnet" / _binary("dotnet")))), None)
 
 
 def _binary(name: str) -> str:
@@ -41,7 +59,9 @@ def java_executable(name: str = "java") -> str | None:
         directory = Path(configured) / "bin"
     else:
         compiler = shutil.which("javac")
-        directory = Path(compiler).resolve().parent if compiler else REPOSITORY / ".toolchains" / "jdk" / "bin"
+        local = [root / "jdk" / "bin" for root in toolchain_roots()]
+        directory = Path(compiler).resolve().parent if compiler else next(
+            (d for d in local if all(_executable(d / _binary(tool)) for tool in ("java", "javac"))), local[0])
     if not all(_executable(directory / _binary(tool)) for tool in ("java", "javac")):
         return None
     return _executable(directory / _binary(name))

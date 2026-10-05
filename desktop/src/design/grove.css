@@ -1105,3 +1105,16 @@ input[type="radio"] {
 .ws .chat-tool select { field-sizing: content; max-width: 220px; }
 .ws .chat-head .chat-tools { gap: 4px; }
 .ws .chat-head .chat-tools .icon-button { width: 30px; height: 30px; }
+.welcome-repair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: var(--r-lg);
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+  font-size: 13px;
+}

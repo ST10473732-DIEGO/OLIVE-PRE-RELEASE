@@ -4,6 +4,7 @@ import re
 from .m2_contracts import SPEC, MAIN_ONLY
 from .m2_validation import validate_arguments
 from .connect_routes import SPEC as CONNECT_SPEC
+from .setup_routes import SPEC as SETUP_SPEC
 from ..personal.contracts import SPEC as PERSONAL_SPEC, MAIN_ONLY as PERSONAL_MAIN, validate as validate_personal
 from ..mail.contracts import SPEC as MAIL_SPEC, MAIN_ONLY as MAIL_MAIN, validate as validate_mail
 from ..studio_tooling.contracts import SPEC as TOOLING_SPEC, validate as validate_tooling
@@ -17,6 +18,7 @@ ID = re.compile(r'^[A-Za-z0-9_-]{1,80}$')
 # Required fields and optional fields. Strings are bounded below, booleans exact.
 METHODS = {
     'runtime.snapshot': ({}, {}),
+    'runtime.runtimes': ({}, {}),  # Runtime locations and Needs setup states (paths only).
     'media.status': ({}, {}),
     'media.import': ({'path':str}, {}),
     'media.configure': ({'url':str}, {}),
@@ -77,6 +79,7 @@ METHODS = {
 
 
 METHODS.update(CONNECT_SPEC)
+METHODS.update(SETUP_SPEC)
 
 def validate(value):
     if not isinstance(value, dict) or set(value) != {'v', 'id', 'method', 'args'}:
@@ -121,6 +124,9 @@ def validate(value):
     if value['method'] in CONNECT_SPEC:
         from .connect_routes import validate_arguments as validate_connect
         validate_connect(value['method'], args)
+    if value['method'] in SETUP_SPEC:
+        from .setup_routes import validate_arguments as validate_setup
+        validate_setup(value['method'], args)
     return value
 
 

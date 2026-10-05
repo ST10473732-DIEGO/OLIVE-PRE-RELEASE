@@ -1,0 +1,311 @@
+# OLIVE 1.0 release builds: BUILD ONLY, in this private repository.
+#
+# Every job uploads its outputs as private workflow artefacts (short retention). Nothing here
+# creates a GitHub Release, pushes to a public repository, pushes a container image, signs or
+# notarizes anything, or needs a secret. Signed/notarized macOS is a separate, gated job that
+# fails closed unless an owner-approved environment provides credentials (see packaging/release/README.md).
+name: OLIVE release build (private, unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      creator_runtimes:
+        description: Also build the Linux Creator image runtime archive (83 wheels, without its 20 direct-download wheels; several GB; manual only)
+        type: boolean
+        default: false
+      creator_assemble_nvidia:
+        description: Internal check only - also download the 20 pinned direct-download wheels from PyPI and assemble a throwaway runtime (never uploaded)
+        type: boolean
+        default: false
+      macos_signing:
+        description: Run the gated macOS signing/notarization stage (needs the release-signing environment)
+        type: boolean
+        default: false
+  push:
+    tags: ['v1.*']
+  # Exercise the same build before a release branch merges. `pull_request` (never
+  # `pull_request_target`) runs the PR's merge commit with a read-only token and no
+  # secrets; the Creator and signing jobs below run only on workflow_dispatch.
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read          # No release, package or deployment write access anywhere in this workflow.
+
+concurrency:
+  group: release-build-${{ github.ref }}
+  # A newer push to the same PR supersedes its build; tag and manual builds always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  OLIVE_SOURCE_COMMIT: ${{ github.sha }}
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # Unsigned test builds: never pick up a signing identity.
+  ELECTRON_BUILDER_PUBLISH: never
+
+jobs:
+  desktop:
+    name: Desktop ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x86_64, os: ubuntu-24.04, package: --linux AppImage --x64 }
+          - { target: windows-x86_64, os: windows-2025, package: --win nsis --x64 }
+          - { target: macos-arm64, os: macos-15, package: --mac dmg --arm64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Backend artefact (pinned CPython, hash-locked wheels, notices, smoke test)
+        run: python packaging/backend/build_backend.py
+      - name: Desktop dependencies and checks
+        working-directory: desktop
+        run: |
+          npm ci
+          node node_modules/electron/install.js
+          npm run typecheck && npm run lint && npm test && npm run build
+      - name: Package (unsigned, never published)
+        working-directory: desktop
+        run: >
+          npx electron-builder ${{ matrix.package }} --publish never
+          -c.extraMetadata.oliveSourceCommit=${{ github.sha }}
+      - name: Collect, checksum and record the source commit
+        run: |
+          mkdir -p out
+          find desktop/dist -maxdepth 1 -type f \( -name '*.AppImage' -o -name '*.exe' -o -name '*.dmg' -o -name '*.blockmap' -o -name '*.yml' \) -exec cp {} out/ \;
+          cp desktop/backend-artifact/olive-backend.json out/olive-backend-${{ matrix.target }}.json
+          cp desktop/backend-artifact/THIRD_PARTY-backend.txt out/THIRD_PARTY-backend-${{ matrix.target }}.txt
+          python packaging/release/build_info.py out --target ${{ matrix.target }} --kind desktop
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: olive-desktop-${{ matrix.target }}
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
+
+  smoke:
+    # Installs the package this run built on a clean runner and starts it: passes only when the
+    # bundled backend answers and the release first-run setup wizard appears. A launch check on a
+    # hosted runner, not a platform acceptance. Linux is checked on the reference machine instead:
+    # Ubuntu runners restrict unprivileged user namespaces, so the AppImage (correctly) refuses to start.
+    name: Packaged app starts (${{ matrix.target }})
+    needs: [desktop]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: windows-x86_64, os: windows-2025 }
+          - { target: macos-arm64, os: macos-15 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: packaging/release
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: olive-desktop-${{ matrix.target }}
+          path: package
+      - name: Install (Windows, per-user NSIS, silent)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem package -Filter 'OLIVE-Setup-*.exe' | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 5   # The installer never starts OLIVE when silent; make sure before the single-instance launch.
+          Get-Process olive -ErrorAction SilentlyContinue | Stop-Process -Force
+          # installer.nsh (preInit) names the per-user folder Programs\OLIVE, not the package name.
+          $found = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Recurse -Filter olive.exe)
+          if ($found.Count -ne 1) { $found | Format-List FullName; throw "expected one installed olive.exe, found $($found.Count)" }
+          $exe = $found[0].FullName
+          $expected = Join-Path $env:LOCALAPPDATA 'Programs\OLIVE\olive.exe'
+          if ($exe -cne $expected) { throw "installed at $exe, expected $expected" }
+          "Installed: $exe"
+          "OLIVE_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Install (macOS, copy the app out of the DMG)
+        if: runner.os == 'macOS'
+        run: |
+          dmg=$(ls package/OLIVE-*.dmg | head -n1)
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$RUNNER_TEMP/olive-dmg"
+          ditto "$RUNNER_TEMP/olive-dmg/OLIVE.app" "$RUNNER_TEMP/OLIVE.app"
+          hdiutil detach "$RUNNER_TEMP/olive-dmg"
+          exe=$(ls "$RUNNER_TEMP"/OLIVE.app/Contents/MacOS/* | head -n1)
+          echo "OLIVE_EXE=$exe" >> "$GITHUB_ENV"
+      - name: Start OLIVE and wait for first-run setup
+        run: node packaging/release/smoke_packaged.mjs "$OLIVE_EXE"
+
+  relay:
+    name: Connect World relay bundle and OCI image (not pushed)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Build the bundle twice and require identical bytes
+        run: |
+          python packaging/relay/build_relay.py --output out
+          python packaging/relay/build_relay.py --output check
+          cmp out/olive-world-relay-1.0.0.tar.gz check/olive-world-relay-1.0.0.tar.gz
+          python -m unittest tests.test_relay_bundle -v
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Unpack the bundle as the image build context
+        run: mkdir -p context && tar xzf out/olive-world-relay-1.0.0.tar.gz -C context --strip-components=1
+      - name: OCI image into a local archive only (push is false)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: context
+          push: false
+          provenance: false
+          tags: olive-world-relay:1.0.0
+          outputs: type=oci,dest=out/olive-world-relay-1.0.0.oci.tar
+        env:
+          SOURCE_DATE_EPOCH: 0
+      - name: Record the image digest, checksums and source commit
+        run: |
+          python - <<'PY'
+          import json, tarfile
+          with tarfile.open('out/olive-world-relay-1.0.0.oci.tar') as tar:
+              index = json.load(tar.extractfile('index.json'))
+          digest = index['manifests'][0]['digest']
+          open('out/olive-world-relay-1.0.0.oci-digest.txt', 'w').write(digest + '\n')
+          print('OCI manifest digest', digest)
+          PY
+          python packaging/release/build_info.py out --target any --kind relay
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: olive-world-relay
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
+
+  creator:
+    # Option B+: the archive never contains NVIDIA's wheels or wheels that bundle NVIDIA components
+    # (triton, torchvision, comfy-kitchen, cuda-bindings); first-run setup downloads all 20 from PyPI.
+    # The uploaded artefact is private and short-lived; nothing is published, pushed or signed.
+    name: Creator runtimes (Linux, manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.creator_runtimes
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # VIDEO is defined and split too, but is not built until its own acceptance pass.
+        definition: [creator-image-comfyui-0.35.0-linux-x86_64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Direct-download split (83 archive + 20 direct = complete lock) is consistent (offline)
+        run: python packaging/creator/split_lock.py --check
+      - name: Free runner disk space for the PyTorch wheels
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h .
+      - name: Build the archive (pinned CPython, ComfyUI commit, hash-locked archive wheels; no direct-download wheels)
+        # Archive bytes depend only on the runtime inputs; mtimes are the definition's pinned
+        # source_date_epoch. github.sha is provenance and reaches only the sidecar files.
+        env:
+          OLIVE_SOURCE_COMMIT: ${{ github.sha }}
+        # The tar is written and compressed by the pinned python-build-standalone interpreter's
+        # built-in libzstd (packaging/creator/compression.json), never this runner's Python or zstd.
+        run: python packaging/creator/build_creator_runtime.py packaging/creator/definitions/${{ matrix.definition }}.json --output out --cache "$RUNNER_TEMP/creator-cache"
+      - name: Compressor identity and digests
+        env:
+          ENTRY: out/${{ matrix.definition }}.manifest-entry.json
+        run: |
+          python - <<'PY'
+          import json, os
+          entry = json.load(open(os.environ['ENTRY']))
+          c, p = entry['compression'], entry['compression']['parameters']
+          print('compressor     ', c['implementation'], '(built in:', c['builtin'], ')')
+          print('interpreter    ', c['interpreter_sha256'])
+          print('libzstd        ', c['zstd_version'])
+          print('level          ', p['compression_level'])
+          print('nb_workers     ', p['nb_workers'], '(single-threaded)')
+          print('checksum/size  ', p['checksum_flag'], p['content_size_flag'])
+          print('spec           ', c['spec'], c['spec_sha256'])
+          print('tar sha256     ', c['tar_sha256'], c['tar_bytes'], 'bytes')
+          print('archive sha256 ', entry['sha256'], entry['size_bytes'], 'bytes')
+          print('source clean   ', entry['build_provenance']['working_tree_clean'])
+          PY
+      - name: Audit - no direct-download package or bundled NVIDIA component, marker matches the split, no build paths
+        run: python packaging/creator/audit_archive.py out/${{ matrix.definition }}.tar.zst packaging/creator/definitions/${{ matrix.definition }}.json --forbid "$GITHUB_WORKSPACE" --forbid "$RUNNER_TEMP" --json out/${{ matrix.definition }}.audit.json
+      - name: Internal assembly check (downloads the 20 direct wheels from PyPI; the result is deleted, never uploaded)
+        if: inputs.creator_assemble_nvidia
+        run: |
+          python packaging/creator/assemble_check.py out/${{ matrix.definition }}.manifest-entry.json out/${{ matrix.definition }}.tar.zst "$RUNNER_TEMP/assembled"
+          rm -rf "$RUNNER_TEMP/assembled"
+      - run: python packaging/release/build_info.py out --target linux-x86_64 --kind creator-runtime
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.definition }}
+          path: out/
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+
+  checksums:
+    name: SHA256SUMS over every artefact
+    needs: [desktop, relay]
+    if: always() && !cancelled()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: all
+      - name: One SHA256SUMS for the whole run
+        run: |
+          python packaging/release/build_info.py all --target all --kind release-candidate
+          cat all/SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: olive-release-checksums
+          path: |
+            all/SHA256SUMS
+            all/BUILD-INFO.json
+          retention-days: 14
+
+  macos-signing:
+    name: macOS signing and notarization (gated)
+    needs: [desktop]
+    if: github.event_name == 'workflow_dispatch' && inputs.macos_signing
+    runs-on: macos-15
+    environment: release-signing   # Owner-protected; holds the Developer ID credentials when they exist.
+    steps:
+      - name: Refuse without owner-provided credentials
+        env:
+          HAS_CERTIFICATE: ${{ secrets.MAC_DEVELOPER_ID_P12 != '' }}
+          HAS_NOTARY: ${{ secrets.MAC_NOTARY_API_KEY != '' }}
+        run: |
+          if [ "$HAS_CERTIFICATE" != "true" ] || [ "$HAS_NOTARY" != "true" ]; then
+            echo "Signing is not configured: the owner has not provided a Developer ID certificate and notary key." >&2
+            echo "Nothing was signed. The unsigned DMG from the desktop job is unchanged." >&2
+            exit 1
+          fi
+          echo "Credentials present, but the signing steps are not implemented in OLIVE 1.0 RC CI yet." >&2
+          exit 1
