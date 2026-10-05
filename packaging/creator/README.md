@@ -122,13 +122,19 @@ Console-script launchers that pip would generate for direct wheels (Triton's `pr
 
 1. CI builds the archive; `<id>.manifest-entry.json` gives its SHA-256, size, installed size
    (archive plus unpacked direct wheels), executables, the runtime check and the direct wheels.
-2. The manifest entry (`comfyui-0.35.0-image-linux`) records the build with
+2. Until it is published, the manifest entry records the build with
    `"artefact_state": "built_validated_unpublished"`, `enabled: false` and no URL. Setup shows it
    as "not yet published" and never offers it.
 3. When the owner publishes the archive on an HTTPS release host: fill `source.url` and `hosts`,
    set `artefact_state: published`, `engineering_reviewed: true`, `enabled: true`.
 4. The owner adds a release approval (`packaging/release/release_gate.py --record …`). The
    approval's fingerprint covers the archive AND every direct wheel's URL, SHA-256 and size.
+
+`comfyui-0.35.0-image-linux` went through steps 3 and 4 on 2026-10-05: the accepted archive
+(`ecdb6702…`, 1,121,452,201 bytes) is the asset of the GitHub release
+[`creator-runtime-1.0.0-ecdb6702`](https://github.com/ST10473732-DIEGO/get-olive/releases/tag/creator-runtime-1.0.0-ecdb6702),
+and the owner approved it for Linux x86_64. Never replace that asset with a rebuilt copy; a CI
+rebuild only proves the bytes reproduce.
 
 ### What setup does (runtime_installer.py)
 

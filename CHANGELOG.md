@@ -130,7 +130,9 @@ are still being prepared on `release/olive-1.0`.
   NVIDIA's CUDA wheels or wheels that bundle NVIDIA components: setup downloads those 20
   pinned wheels from PyPI and unpacks them into the OLIVE-owned runtime (RECORD-verified, no
   pip) before checking and registering it.
-  The archive is built and validated but not yet published, so setup does not offer it.
+  The archive is published as the OLIVE release `creator-runtime-1.0.0-ecdb6702` and
+  owner-approved for Linux x86_64, so setup offers it with FLUX.2 [klein] 4B for REIMAGINE.
+  No Creator engine is offered on Windows or macOS.
 - An image engine that OLIVE started stops after it has been idle for the model keep-alive
   period (5 minutes by default, at least 1 minute), freeing several GB of memory. It never
   stops during a job, while another OLIVE job holds the GPU, while another client has queued

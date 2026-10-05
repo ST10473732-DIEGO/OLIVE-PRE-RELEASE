@@ -461,16 +461,16 @@ class ShippedManifestPlanTests(unittest.IsolatedAsyncioTestCase):
                                ('playwright', 'playwright-1.63.0')):
             self.assertEqual(rows[slot]['entry']['id'], entry_id)
             self.assertEqual((rows[slot]['action'], rows[slot]['detail']), ('unavailable', runtime_manifest.AWAITING_APPROVAL))
-        for slot in ('image-engine', 'video-engine', 'audio-engine', 'video-model', 'model-max', 'model-uncensored'):
+        for slot in ('video-engine', 'audio-engine', 'video-model', 'model-max', 'model-uncensored'):
             self.assertIn(rows[slot]['action'], ('unavailable', 'external'), slot)
         states = {f['id']: f['state'] for f in plan['features']}
-        for feature in ('vision', 'advanced_coding', 'browser_automation', 'reimagine', 'audio', 'video',
+        for feature in ('vision', 'advanced_coding', 'browser_automation', 'audio', 'video',
                         'image_to_video', 'long_video', 'max', 'uncensored'):
             self.assertNotIn(states[feature], ('ready', 'installable'), feature)
-        # The owner-approved FLUX.2 4B model is offered, but nothing it needs to run is (see below).
+        # Only the owner-approved Linux image engine and its FLUX.2 4B model are offered from Creator.
+        self.assertEqual(states['reimagine'], 'installable')
         self.assertEqual(set(plan['offered']), {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b',
-                                                'qwen3-embedding-0.6b', 'flux2-klein-4b'})
-        self.assertNotIn('flux2-klein-4b', plan['default'])
+                                                'qwen3-embedding-0.6b', 'comfyui-0.35.0-image-linux', 'flux2-klein-4b'})
         with self.assertRaises(InstallError) as caught:
             await installer.start('complete', ['qwen3-vl-8b'])
         self.assertEqual(caught.exception.code, 'not_installable')
@@ -485,31 +485,40 @@ class ShippedManifestPlanTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runtime['entry']['id'], 'ollama-0.34.2-windows-x86_64')
         self.assertEqual(runtime['detail'], runtime_manifest.AWAITING_APPROVAL)
         self.assertEqual({f['id']: f['state'] for f in plan['features']}['fast'], 'not_in_build')
-        # The owner approved the FLUX.2 4B model, not its engine: the model is offered on its supported
-        # platform, but it is never chosen while no image engine can be installed.
+        # The FLUX.2 4B model is approved for Windows too, but no Windows image engine is: the model is
+        # offered there, never chosen, and REIMAGINE cannot become ready.
+        plan = await self.make('windows-x86_64').plan('creator')
+        rows = {r['slot']: r for r in plan['items']}
+        self.assertEqual(rows['image-model']['entry']['id'], 'flux2-klein-4b')
+        self.assertTrue(rows['image-model']['entry']['installable'])
+        self.assertIn('flux2-klein-4b', plan['offered'])
+        self.assertNotIn('flux2-klein-4b', plan['default'])
+        self.assertEqual(rows['image-engine']['entry']['id'], 'comfyui-windows-portable-0.35.0')
+        self.assertFalse(rows['image-engine']['entry']['installable'])
+        self.assertIn(rows['image-engine']['action'], ('unavailable', 'external'))
+        reimagine = next(f for f in plan['features'] if f['id'] == 'reimagine')
+        self.assertEqual(reimagine['state'], 'not_in_build')
+        self.assertIn('image-engine', reimagine['missing'])
+        # Linux: the published image engine has its own approval, so engine and model are both chosen.
         plan = await self.make(TARGET).plan('creator')
         rows = {r['slot']: r for r in plan['items']}
         model = rows['image-model']
         self.assertEqual(model['entry']['id'], 'flux2-klein-4b')
         self.assertEqual(model['entry']['release_state'], 'release_approved')
-        self.assertTrue(model['entry']['installable'])
         self.assertEqual(model['action'], 'install')
-        self.assertIn('flux2-klein-4b', plan['offered'])
-        self.assertNotIn('flux2-klein-4b', plan['default'])
         engine = rows['image-engine']
         self.assertEqual(engine['entry']['id'], 'comfyui-0.35.0-image-linux')
-        self.assertNotEqual(engine['entry']['release_state'], 'release_approved')
-        self.assertFalse(engine['entry']['installable'])
-        self.assertIn(engine['action'], ('unavailable', 'external'))
-        reimagine = next(f for f in plan['features'] if f['id'] == 'reimagine')
-        self.assertEqual(reimagine['state'], 'not_in_build')
-        self.assertIn('image-engine', reimagine['missing'])
-        # No Creator engine is offered or preselected without its own approval.
+        self.assertEqual(engine['entry']['release_state'], 'release_approved')
+        self.assertTrue(engine['entry']['installable'])
+        self.assertEqual(engine['action'], 'install')
+        self.assertTrue({'comfyui-0.35.0-image-linux', 'flux2-klein-4b'} <= set(plan['default']))
+        self.assertEqual(next(f for f in plan['features'] if f['id'] == 'reimagine')['state'], 'installable')
+        # No other Creator engine is offered or preselected without its own approval.
         manifest = runtime_manifest.load('1.0.0', environ={})
         engines = {e['id'] for e in manifest['entries'] if e['provides'] in ('image-engine', 'video-engine', 'audio-engine')}
-        self.assertIn('comfyui-0.35.0-image-linux', engines)
-        self.assertFalse(engines & set(plan['offered']))
-        self.assertFalse(engines & set(plan['default']))
+        self.assertIn('comfyui-0.35.0-video-linux', engines)
+        self.assertEqual(engines & set(plan['offered']), {'comfyui-0.35.0-image-linux'})
+        self.assertEqual(engines & set(plan['default']), {'comfyui-0.35.0-image-linux'})
 
 
 def model_entry(files: FileServer, data: dict[str, bytes], identifier='fixture-image-model') -> dict:

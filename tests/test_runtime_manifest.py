@@ -18,7 +18,7 @@ class RuntimeManifestTests(unittest.TestCase):
     # The owner's current decisions in release-approvals-1.0.0.json. Change this only together with
     # that file; generic gate tests never depend on it and build their own approval state.
     SHIPPED_APPROVALS = {'ollama-0.34.2-linux-x86_64', 'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b', 'qwen3-embedding-0.6b',
-                         'flux2-klein-4b'}
+                         'flux2-klein-4b', 'comfyui-0.35.0-image-linux'}
 
     def setUp(self):
         self.manifest = runtime_manifest.load('1.0.0', environ={})
@@ -49,7 +49,9 @@ class RuntimeManifestTests(unittest.TestCase):
         models = {'qwen3-8b', 'gpt-oss-20b', 'qwen3.5-9b', 'qwen3-embedding-0.6b', 'qwen3-vl-8b', 'qwen3-coder-30b',
                   'playwright-1.63.0'}
         creator = {'flux2-klein-4b'}
-        self.assertEqual(self.engineering_ready('linux-x86_64'), models | creator | {'ollama-0.34.2-linux-x86_64'})
+        image_engine = {'comfyui-0.35.0-image-linux'}  # Published for Linux only.
+        self.assertEqual(self.engineering_ready('linux-x86_64'),
+                         models | creator | image_engine | {'ollama-0.34.2-linux-x86_64'})
         self.assertEqual(self.engineering_ready('windows-x86_64'), models | creator | {'ollama-0.34.2-windows-x86_64'})
         # macOS: no bundled Ollama until validated on a Mac; the official app is used instead.
         self.assertEqual(self.engineering_ready('macos-arm64'), models)
@@ -99,10 +101,15 @@ class RuntimeManifestTests(unittest.TestCase):
         self.assertFalse(runtime_manifest.release_approved(self.by_id('qwen3-8b', next_release), next_release))
 
     def test_an_approval_never_bypasses_missing_evidence(self):
-        for identifier in ('comfyui-0.35.0-image-linux', 'ltx-2.3-video', 'max-qwen3.8-27b-uncensored', 'omnivoice'):
+        for identifier in ('comfyui-0.35.0-video-linux', 'ltx-2.3-video', 'max-qwen3.8-27b-uncensored', 'omnivoice'):
             approved = self.approved(identifier)
             entry = self.by_id(identifier, approved)
             self.assertFalse(runtime_manifest.offerable(entry, 'linux-x86_64', approved), identifier)
+        unhosted = copy.deepcopy(self.manifest)  # Approved archive whose download URL is gone.
+        self.by_id('comfyui-0.35.0-image-linux', unhosted)['source']['url'] = None
+        unhosted = self.approved('comfyui-0.35.0-image-linux', manifest=unhosted)
+        self.assertFalse(runtime_manifest.offerable(self.by_id('comfyui-0.35.0-image-linux', unhosted), 'linux-x86_64',
+                                                    unhosted))
         unreviewed = self.approved('qwen3-8b')
         self.by_id('qwen3-8b', unreviewed)['licence']['engineering_reviewed'] = False
         self.assertFalse(runtime_manifest.offerable(self.by_id('qwen3-8b', unreviewed), 'linux-x86_64', unreviewed))
@@ -179,9 +186,10 @@ class RuntimeManifestTests(unittest.TestCase):
             self.assertEqual({e['id'] for e in runtime_manifest.installable(target, environ={})}, expected, target)
         self.assertEqual(self.by_id('ollama-0.34.2-linux-x86_64')['platforms'], ['linux-x86_64'])
         self.assertEqual(self.by_id('flux2-klein-4b')['platforms'], ['linux-x86_64', 'windows-x86_64'])
+        self.assertEqual(self.by_id('comfyui-0.35.0-image-linux')['platforms'], ['linux-x86_64'])
         for identifier in self.SHIPPED_APPROVALS - {'ollama-0.34.2-linux-x86_64'}:
             entry = self.by_id(identifier)
-            if identifier != 'flux2-klein-4b':
+            if identifier not in ('flux2-klein-4b', 'comfyui-0.35.0-image-linux'):
                 self.assertEqual(set(entry['platforms']), set(runtime_manifest.TARGETS), identifier)
             for target in entry['platforms']:
                 public = runtime_manifest.public_entry(entry, target, manifest=self.manifest)
@@ -198,7 +206,8 @@ class RuntimeManifestTests(unittest.TestCase):
                        if e['id'].startswith('ltx-') or e['provides'] in {
                            'image-engine', 'video-engine', 'audio-engine', 'video-gguf-loader', 'ffmpeg',
                            'model-max', 'model-uncensored'}}
-        self.assertTrue({'comfyui-0.35.0-image-linux', 'comfyui-0.35.0-video-linux', 'comfyui-windows-portable-0.35.0',
+        unapproved -= {'comfyui-0.35.0-image-linux'}  # The one approved engine (Linux image runtime).
+        self.assertTrue({'comfyui-0.35.0-video-linux', 'comfyui-windows-portable-0.35.0',
                          'comfyui-gguf-loader', 'ltx-2.3-video', 'ltx-2.3-official-fp8', 'max-qwen3.8-27b-uncensored',
                          'uncensored-routing-set'} <= unapproved)
         for identifier in sorted(unapproved):
@@ -261,15 +270,20 @@ class RuntimeManifestTests(unittest.TestCase):
         for slot in ('image-engine', 'video-engine', 'audio-engine', 'image-model', 'video-model', 'audio-model',
                      'video-gguf-loader', 'ffmpeg', 'model-max', 'model-uncensored'):
             for entry in runtime_manifest.providers(self.manifest, slot, None):
-                if entry['id'] == 'flux2-klein-4b':
-                    continue  # The one Creator model with complete evidence (still unapproved).
+                if entry['id'] in ('flux2-klein-4b', 'comfyui-0.35.0-image-linux'):
+                    continue  # The published Linux image engine and its model.
                 self.assertFalse(entry['enabled'], entry['id'])
                 self.assertTrue(entry['reason'], entry['id'])
-        # No engine is installable, so no Creator feature can be offered even with every approval.
-        everything = self.approved(*self.engineering_ready('linux-x86_64'))
-        for slot in ('image-engine', 'video-engine', 'audio-engine'):
-            self.assertFalse([e for e in runtime_manifest.providers(everything, slot, 'linux-x86_64')
-                              if runtime_manifest.offerable(e, 'linux-x86_64', everything)], slot)
+        # Only the Linux image engine is installable; no video or audio engine is, even with every approval.
+        everything = self.approved(*(self.engineering_ready('linux-x86_64') | self.engineering_ready('windows-x86_64')))
+        offered = lambda slot, target: {e['id'] for e in runtime_manifest.providers(everything, slot, target)
+                                        if runtime_manifest.offerable(e, target, everything)}
+        self.assertEqual(offered('image-engine', 'linux-x86_64'), {'comfyui-0.35.0-image-linux'})
+        for target in ('windows-x86_64', 'macos-arm64'):
+            self.assertEqual(offered('image-engine', target), set(), target)
+        for slot in ('video-engine', 'audio-engine'):
+            for target in runtime_manifest.TARGETS:
+                self.assertEqual(offered(slot, target), set(), (slot, target))
 
     def test_distributable_image_path_is_flux2_klein_4b(self):
         from olive.services.media_workflows import WORKFLOWS
@@ -311,7 +325,7 @@ class RuntimeManifestTests(unittest.TestCase):
         self.assertIn('qwen3-8b names a private olive-* Ollama tag', runtime_manifest.validate(bad))
 
     def test_enabling_an_unresolved_entry_is_rejected(self):
-        for identifier in ('flux2-klein-9b', 'voicestudio', 'max-qwen3.8-27b-uncensored', 'comfyui-0.35.0-image-linux',
+        for identifier in ('flux2-klein-9b', 'voicestudio', 'max-qwen3.8-27b-uncensored', 'comfyui-0.35.0-video-linux',
                            'ltx-2.3-video'):
             broken = copy.deepcopy(self.manifest)
             self.by_id(identifier, broken)['enabled'] = True

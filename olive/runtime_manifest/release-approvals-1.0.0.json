@@ -56,6 +56,15 @@
       "date": "2026-10-03",
       "product_version": "1.0.0",
       "note": ""
+    },
+    {
+      "id": "comfyui-0.35.0-image-linux",
+      "fingerprint": "dae20fabf18261bcdf61bfad1ff3740a735026cac3e889c0fc442cd2c89bb643",
+      "scope": "public-release",
+      "approved_by": "Diego De Oliveira",
+      "date": "2026-10-05",
+      "product_version": "1.0.0",
+      "note": "Linux x86_64 only: archive ecdb6702 (1,121,452,201 bytes) from release creator-runtime-1.0.0-ecdb6702."
     }
 
   ]

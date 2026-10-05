@@ -119,5 +119,6 @@ never replaced. See `docs/architecture/first-run-setup.md`.
 ## Not done yet
 
 Clean-machine acceptance on other distributions, AppImage update channel, signing of SHA256SUMS,
-and the Creator runtimes (image, video and audio engines), which are not installable from setup in
-this build.
+and the Creator video and audio engines, which are not installable from setup in this build. The
+Creator image engine (REIMAGINE; NVIDIA GPU) is: setup downloads the published, checksum-pinned
+runtime archive and its pinned PyPI wheels when you choose the Creator or Complete package.

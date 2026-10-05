@@ -31,6 +31,7 @@ sys.path.insert(0, str(CREATOR))
 import split_lock  # noqa: E402
 
 IMAGE = 'creator-image-comfyui-0.35.0-linux-x86_64'
+RELEASE_URL = 'https://github.com/ST10473732-DIEGO/get-olive'
 BUNDLING = {'triton', 'torchvision', 'comfy-kitchen', 'cuda-bindings'}
 PROPRIETARY = {'nvidia-cublas', 'nvidia-cuda-cupti', 'nvidia-cuda-nvrtc', 'nvidia-cuda-runtime', 'nvidia-cudnn-cu13',
                'nvidia-cufft', 'nvidia-cufile', 'nvidia-curand', 'nvidia-cusolver', 'nvidia-cusparse',
@@ -703,36 +704,50 @@ class ReleaseManifestEntryTests(unittest.TestCase):
         self.manifest = runtime_manifest.load('1.0.0', environ={})
         self.entry = next(e for e in self.manifest['entries'] if e['id'] == 'comfyui-0.35.0-image-linux')
 
-    def test_entry_records_the_built_archive_without_pretending_it_is_downloadable(self):
+    def test_entry_records_the_published_archive(self):
         entry = self.entry
-        self.assertEqual(entry['artefact_state'], 'built_validated_unpublished')
-        self.assertFalse(entry['enabled'])
-        self.assertIsNone(entry['source']['url'])
-        self.assertRegex(entry['sha256'], r'^[0-9a-f]{64}$')
-        self.assertGreater(entry['size_bytes'], 0)
+        self.assertEqual(entry['artefact_state'], 'published')
+        self.assertTrue(entry['enabled'])
+        self.assertIsNone(entry['reason'])
+        self.assertEqual(entry['source']['url'], RELEASE_URL + '/releases/download/creator-runtime-1.0.0-ecdb6702/'
+                         + IMAGE + '.tar.zst')
+        self.assertEqual(entry['source']['release'], RELEASE_URL + '/releases/tag/creator-runtime-1.0.0-ecdb6702')
+        self.assertTrue(runtime_manifest.url_allowed(entry['source']['url'], entry['source']['hosts']))
+        self.assertEqual(entry['sha256'], 'ecdb670232fc643a90e18acdd749763de43d9a4f277439f26cd35cf4cfff0d81')
+        self.assertEqual(entry['size_bytes'], 1_121_452_201)
         self.assertGreater(entry['install']['installed_bytes'], entry['size_bytes'])
         self.assertEqual(entry['install']['direct_wheels_target'], SITE)
         self.assertEqual(entry['install']['verify'], 'comfyui-cuda')
-        self.assertEqual(runtime_manifest.release_state(entry, self.manifest), 'license_identified')
-        self.assertFalse(runtime_manifest.offerable(entry, 'linux-x86_64', self.manifest))
-        self.assertNotIn(entry['id'], self.manifest['_approvals'])  # No owner approval was added.
+        self.assertEqual(entry['validated_platforms'], ['linux-x86_64'])
+        self.assertTrue(entry['licence']['identified'] and entry['licence']['engineering_reviewed'])
+        self.assertEqual(runtime_manifest.release_state(entry, self.manifest), 'release_approved')
+        self.assertTrue(runtime_manifest.offerable(entry, 'linux-x86_64', self.manifest))
+        for target in ('windows-x86_64', 'macos-arm64'):  # Linux only: no Windows or macOS Creator engine.
+            self.assertFalse(runtime_manifest.offerable(entry, target, self.manifest), target)
+        self.assertEqual(self.manifest['_approvals'][entry['id']]['fingerprint'], runtime_manifest.fingerprint(entry))
         self.assertIn('LicenseRef-NVIDIA-Proprietary', {w['licence'] for w in entry['direct_wheels']['linux-x86_64']})
         public = runtime_manifest.public_entry(entry, 'linux-x86_64', False, self.manifest)
-        self.assertFalse(public['installable'])
-        self.assertEqual(public['artefact_state'], 'built_validated_unpublished')
+        self.assertTrue(public['installable'])
+        self.assertTrue(public['validated'])
+        self.assertEqual(public['artefact_state'], 'published')
         self.assertEqual(public['direct_download_bytes'], 2_518_725_343)
-        self.assertEqual(public['download_bytes'], 2_518_725_343)  # The archive has no URL, so only what is listed.
+        self.assertEqual(public['download_bytes'], 1_121_452_201 + 2_518_725_343)  # Archive plus direct wheels.
         self.assertEqual(len(public['direct_downloads']), 20)
         self.assertEqual((public['direct_source'], public['direct_summary']), ('PyPI', 'including NVIDIA CUDA dependencies'))
         self.assertNotIn('direct_publisher', public)
-        self.assertTrue(public['reason'])
+        self.assertIsNone(public['reason'])
 
     def test_unpublished_cannot_be_enabled_or_given_a_url(self):
-        bad = copy.deepcopy(self.manifest)
-        bad.pop('_approvals'), bad.pop('_source')
-        entry = next(e for e in bad['entries'] if e['id'] == 'comfyui-0.35.0-image-linux')
-        entry['source']['url'] = 'https://example.invalid/creator.tar.zst'
-        self.assertTrue(any('unpublished' in p for p in runtime_manifest.validate(bad)))
+        for change in ({'enabled': True}, {'url': 'https://example.invalid/creator.tar.zst'}):
+            bad = copy.deepcopy(self.manifest)
+            bad.pop('_approvals'), bad.pop('_source')
+            entry = next(e for e in bad['entries'] if e['id'] == 'comfyui-0.35.0-image-linux')
+            entry.update(artefact_state='built_validated_unpublished', enabled=False, reason='Not yet published.')
+            entry['source']['url'] = None
+            if 'url' in change:
+                entry['source']['url'] = change['url']
+            entry.update({k: v for k, v in change.items() if k != 'url'})
+            self.assertTrue(any('unpublished' in p for p in runtime_manifest.validate(bad)), change)
 
     def test_direct_wheels_are_part_of_the_release_fingerprint(self):
         published = copy.deepcopy(self.entry)
@@ -744,15 +759,13 @@ class ReleaseManifestEntryTests(unittest.TestCase):
             if entry['id'] in self.manifest['_approvals']:
                 self.assertTrue(runtime_manifest.release_approved(entry, self.manifest), entry['id'])
 
-    def test_a_published_and_approved_entry_would_offer_archive_plus_wheels(self):
+    def test_a_moved_archive_needs_a_new_owner_approval(self):
         manifest = copy.deepcopy(self.manifest)
         entry = next(e for e in manifest['entries'] if e['id'] == 'comfyui-0.35.0-image-linux')
-        entry.update(enabled=True, artefact_state='published', reason=None)
         entry['source'].update(url='https://releases.example.invalid/' + IMAGE + '.tar.zst',
                                hosts=['releases.example.invalid'])
-        entry['licence']['engineering_reviewed'] = True
         self.assertTrue(runtime_manifest.complete(entry, 'linux-x86_64'))
-        self.assertFalse(runtime_manifest.offerable(entry, 'linux-x86_64', manifest))  # Still needs the owner.
+        self.assertFalse(runtime_manifest.offerable(entry, 'linux-x86_64', manifest))  # The approval lapsed.
         manifest['_approvals'][entry['id']] = {'id': entry['id'], 'fingerprint': runtime_manifest.fingerprint(entry),
                                                'scope': 'public-release', 'approved_by': 'test', 'date': 'x',
                                                'product_version': '1.0.0'}

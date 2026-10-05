@@ -110,8 +110,13 @@ class DefinitionTests(unittest.TestCase):
             entry = next(e for e in manifest['entries'] if e['id'] == f'comfyui-0.35.0-{role}-linux')
             self.assertEqual(entry['install']['destination'], definition['destination'])
             self.assertEqual(entry['install']['register'], definition['register'])
-            self.assertFalse(entry['enabled'])  # Not built, verified or published yet.
-            self.assertIsNone(entry['source']['url'])
+            if role == 'image':  # Built, validated and published as the fixed release asset.
+                self.assertTrue(entry['enabled'])
+                self.assertEqual(entry['artefact_state'], 'published')
+                self.assertTrue(entry['source']['url'].endswith('/' + definition['id'] + '.tar.zst'))
+            else:
+                self.assertFalse(entry['enabled'])  # Not built, verified or published yet.
+                self.assertIsNone(entry['source']['url'])
         video = builder.load_definition(CREATOR / 'definitions/creator-video-comfyui-0.35.0-linux-x86_64.json')
         self.assertEqual([n['name'] for n in video['custom_nodes']], ['ComfyUI-GGUF-Loader'])
         image = builder.load_definition(CREATOR / 'definitions/creator-image-comfyui-0.35.0-linux-x86_64.json')

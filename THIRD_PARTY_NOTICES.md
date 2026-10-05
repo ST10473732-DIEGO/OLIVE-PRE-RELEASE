@@ -70,8 +70,9 @@ also contains:
 
 ## Downloaded at first run (not bundled)
 
-First-run setup downloads these from their publishers, only when the person chooses them. They
-are not part of the OLIVE package and keep their own licences. Source, integrity and licence
+First-run setup downloads these from their publishers (the Creator image runtime from OLIVE's own
+release), only when the person chooses them. They are not part of the OLIVE package and keep their
+own licences. Source, integrity and licence
 evidence for each is in `olive/runtime_manifest/1.0.0.json`; licence identification there is
 engineering evidence, not legal advice. **Setup offers an entry only after the owner approves it
 for the public release** (`olive/runtime_manifest/release-approvals-1.0.0.json`).
@@ -84,12 +85,13 @@ for the public release** (`olive/runtime_manifest/release-approvals-1.0.0.json`)
 | qwen3-embedding:0.6b | Apache-2.0 | Ollama library, digest pinned | The registry manifest has no licence layer; this notice supplies it |
 | Playwright 1.63.0 + greenlet 3.5.6 + pyee 13.0.1 (optional) | Apache-2.0; MIT AND PSF-2.0; MIT | PyPI wheels, SHA-256 pinned | Playwright's wheel bundles a Node.js driver (MIT, with Node's own notices) |
 | FLUX.2 [klein] 4B fp8, Qwen3 4B text encoder, FLUX.2 VAE (REIMAGINE) | Apache-2.0 | Hugging Face `black-forest-labs/FLUX.2-klein-4b-fp8` and the Comfy-Org repackaging `vae-text-encorder-for-flux-klein-4b`, revision and SHA-256 pinned | Owner-approved for 1.0; useful once an image engine is installed or chosen. BFL encourages deployers to use input/output filters |
+| OLIVE Creator image runtime (ComfyUI v0.35.0 + CPython 3.14.8 + hash-locked PyTorch 2.14.0 wheels), Linux x86_64 only | Archive (83 wheels): GPL-3.0-only (ComfyUI), PSF-2.0, BSD-3-Clause (PyTorch) and the other archive wheels' licences, listed in the archive's `THIRD_PARTY-creator.txt`. **Not** in the archive: 20 wheels setup downloads from PyPI (`THIRD_PARTY-creator-direct-downloads.txt`, with each wheel's own licence and NOTICE texts and METADATA attribution): NVIDIA's CUDA/cuDNN/NCCL wheels under NVIDIA's terms, and triton (MIT), torchvision (BSD), comfy-kitchen (Apache-2.0) and cuda-bindings (Apache-2.0), each with the NVIDIA components it bundles | OLIVE release `creator-runtime-1.0.0-ecdb6702` on GitHub (`ST10473732-DIEGO/get-olive`), archive SHA-256 `ecdb6702…cff0d81` and size pinned, reproducible from its runtime inputs alone; the 20 wheels from PyPI, SHA-256 pinned | Owner-approved for 1.0 on Linux x86_64 (REIMAGINE engine). The archive audit finds no bundled NVIDIA runtime, tools or proprietary licence text; NVIDIA copyright lines remain only in open-source code (ComfyUI, torch's CUTLASS/cudnn-frontend notices, transformers, torchaudio, cuda-pathfinder). The GPL source offer for ComfyUI is the pinned public commit. |
 
 ## Separate runtimes and models (not installable from setup)
 
 | Item | Licence evidence | Status |
 | --- | --- | --- |
-| OLIVE Creator image runtime (ComfyUI v0.35.0 + CPython 3.14.8 + hash-locked PyTorch 2.14.0 wheels) | Archive (83 wheels): GPL-3.0-only (ComfyUI), PSF-2.0, BSD-3-Clause (PyTorch) and the other archive wheels' licences, listed in the archive's `THIRD_PARTY-creator.txt`. **Not** in the archive: 20 wheels setup downloads from PyPI (`THIRD_PARTY-creator-direct-downloads.txt`, with each wheel's own licence and NOTICE texts and METADATA attribution): NVIDIA's CUDA/cuDNN/NCCL wheels under NVIDIA's terms, and triton (MIT), torchvision (BSD), comfy-kitchen (Apache-2.0) and cuda-bindings (Apache-2.0), each with the NVIDIA components it bundles | Built and validated on Linux (archive SHA-256 `ecdb6702…cff0d81`, reproducible from its runtime inputs alone), not published, not owner-approved. The archive audit finds no bundled NVIDIA runtime, tools or proprietary licence text; NVIDIA copyright lines remain only in open-source code (ComfyUI, torch's CUTLASS/cudnn-frontend notices, transformers, torchaudio, cuda-pathfinder). The GPL source offer for ComfyUI is the pinned public commit. The video runtime is defined and split the same way but not built |
+| OLIVE Creator video runtime (ComfyUI v0.35.0) | Split like the image runtime: NVIDIA wheels and wheels that bundle NVIDIA components are downloaded from PyPI, never archived | Defined, not built or published |
 | ComfyUI-GGUF-Loader (video engine) | Apache-2.0 and MIT | Inside the video runtime archive (commit pinned) |
 | SDXL base 1.0 checkpoint | CreativeML Open RAIL++-M (use restrictions, acceptance) | Engineering-reviewed; owner decision and an acceptance step needed |
 | FLUX.2 [klein] 9B | FLUX Non-Commercial License, gated | **Not distributable**; an existing user-supplied copy keeps working |
@@ -128,7 +130,7 @@ a **draft** relay licence.
 ## Remaining release work
 
 - Owner/legal review of every flagged item above, of the model licences, and of the release
-  approvals themselves (the approvals file is empty).
+  approvals themselves (recorded in `olive/runtime_manifest/release-approvals-1.0.0.json`).
 - A relay image published by OLIVE would redistribute the Debian base image and CPython:
   generate its notice file from the image's package list at that point.
 - `react-remove-scroll-bar` declares MIT but ships no licence file; `THIRD_PARTY-npm.txt` lists
