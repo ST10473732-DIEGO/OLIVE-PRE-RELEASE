@@ -96,6 +96,8 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('target: macos-arm64', smoke)
         self.assertIn('name: olive-desktop-${{ matrix.target }}', smoke)  # This run's artefact, never another build.
         self.assertIn("-ArgumentList '/S'", smoke)
+        self.assertIn("Join-Path $env:LOCALAPPDATA 'Programs\\OLIVE\\olive.exe'", smoke)  # Never Programs\olive-desktop.
+        self.assertNotIn('olive-desktop\\', smoke)
         self.assertIn('node packaging/release/smoke_packaged.mjs "$OLIVE_EXE"', smoke)
         self.assertNotIn('upload-artifact', smoke)
         self.assertNotIn('smoke', jobs['checksums'].split('needs:', 1)[1].splitlines()[0])  # Never gates the build.

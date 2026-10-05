@@ -92,6 +92,14 @@ class ElectronBuilderTargetTests(unittest.TestCase):
         self.assertFalse(nsis['createDesktopShortcut'])  # Optional: asked by installer.nsh.
         script = (ROOT / 'desktop' / nsis['include']).resolve().read_text(encoding='utf-8')
         self.assertIn('MessageBox MB_YESNO', script)
+        # Fresh installs go to Programs\OLIVE, not the package name; an existing install stays put.
+        self.assertEqual(BUILD['productName'], 'OLIVE')
+        pre_init = re.search(r'(?ms)^!macro preInit\n(.*?)^!macroend', script).group(1)
+        self.assertIn('!ifndef BUILD_UNINSTALLER', pre_init)
+        self.assertIn('ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation', pre_init)
+        self.assertIn('${if} $0 == ""', pre_init)
+        self.assertIn('WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$0\\${PRODUCT_FILENAME}"', pre_init)
+        self.assertNotIn('HKLM', pre_init)
         self.assertNotRegex(script, r'RMDir[^\n]*(LOCALAPPDATA|PROFILE|\.olive|APPDATA)')
         self.assertNotIn('cscLink', json.dumps(BUILD))  # No signing certificate is assumed.
 

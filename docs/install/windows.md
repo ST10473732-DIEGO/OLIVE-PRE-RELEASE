@@ -13,10 +13,12 @@ cd desktop; npm ci; npm run build; npm run package:win   # dist\OLIVE-Setup-1.0.
 
 ## Installer behaviour
 
-- **Install scope.** Per-user, with no elevation, into `%LOCALAPPDATA%\Programs\olive-desktop`
-  (electron-builder names the folder after the `desktop/package.json` package name; confirmed by
-  the release CI smoke job on 2026-10-04). The directory cannot be changed, so it can never
-  be pointed at a data folder that the uninstaller would then remove.
+- **Install scope.** Per-user, with no elevation, into `%LOCALAPPDATA%\Programs\OLIVE`
+  (`packaging/electron/installer.nsh` sets this default; electron-builder would otherwise use the
+  `desktop/package.json` package name; the release CI smoke job installs to and starts
+  `Programs\OLIVE\olive.exe`). An update keeps the folder of the existing install. The
+  directory cannot be changed, so it can never be pointed at a data folder that the
+  uninstaller would then remove.
 - **Shortcuts.** The installer always creates a Start Menu **OLIVE** entry. It asks once
   whether to add a desktop shortcut; silent installs and updates never add one.
 - **Identity.** The app ID stays `local.dmdo.desktop`, for taskbar, notification and
