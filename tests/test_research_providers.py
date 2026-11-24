@@ -26,7 +26,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(values), 1)
             self.assertEqual(client.return_value.text.call_args.kwargs["max_results"], 3)
             self.assertEqual(client.return_value.text.call_args.kwargs["timelimit"], "w")
-            self.assertEqual(client.return_value.text.call_args.kwargs["backend"], "bing")
+            self.assertEqual(client.return_value.text.call_args.kwargs["backend"], "google")
 
     async def test_search_failures_are_visible_without_bypass(self):
         with patch("ddgs.DDGS") as client:

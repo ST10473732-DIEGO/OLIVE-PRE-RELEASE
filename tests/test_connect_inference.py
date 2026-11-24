@@ -558,7 +558,7 @@ class InferenceTests(unittest.IsolatedAsyncioTestCase):
             model = 'gpt-oss:20b' if preset == 'fast' else 'qwen3:8b'
             output = [v async for v in self.sb.ollama.chat_stream(model, [{'role': 'user', 'content': 'Local'}])]
             self.assertTrue(output)
-        self.assertEqual([c['model'] for c in self.eb.calls], ['qwen3:8b', 'gpt-oss:20b', PRESETS['max']['model'], 'qwen3:8b'])
+        self.assertEqual([c['model'] for c in self.eb.calls], [PRESETS['fast']['model'], 'gpt-oss:20b', PRESETS['max']['model'], 'qwen3:8b'])
         self.assertIsNone(self.sb.ollama.residency.active)
 
     async def test_changed_ask_request_withdraws_exact_approval(self):

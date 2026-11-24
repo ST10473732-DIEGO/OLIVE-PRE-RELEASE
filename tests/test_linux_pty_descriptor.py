@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 
-@unittest.skipUnless(sys.platform == 'linux', 'POSIX PTY ownership')
+@unittest.skipUnless(sys.platform in {'linux', 'darwin'}, 'POSIX PTY ownership (Linux and macOS)')
 class DescriptorOwnershipTests(unittest.TestCase):
     def test_concurrent_close_transfers_descriptor_once(self):
         from olive.studio_tooling.posix_pty import PosixPTY

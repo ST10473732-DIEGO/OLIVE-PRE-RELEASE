@@ -169,7 +169,14 @@ class RuntimeDiscoveryTests(DiscoveryFixture):
 class ServiceContainerDiscoveryTests(DiscoveryFixture, unittest.IsolatedAsyncioTestCase):
     async def test_service_container_resolves_runtimes_for_the_backend(self):
         from olive.application.service_container import ServiceContainer
+        from olive import app_paths
+        # The container discovers runtimes for the platform it runs on: lay the same
+        # in-place layout out in that platform's OLIVE data folder (XDG on Linux,
+        # ~/Library/Application Support/OLIVE on macOS).
+        root = Path(app_paths.user_data_root(self.env, home=self.home))
+        self.runtime = root / 'runtime'
         self.install_linux_runtimes()
+        (root / 'models/comfy').mkdir(parents=True, exist_ok=True)
         with patch.dict(os.environ, self.env):
             services = ServiceContainer(lambda *_: None, None, data_dir=self.profile, migrate=False)
         try:

@@ -1,23 +1,47 @@
 """Lossless optional fast paths. Authority still belongs to the normal broker."""
 import re
 
+# A literal path: written without spaces, or (after _spaced masking) a \ue000N\ue001 token
+# standing for a path that contains spaces, found by interaction.literal_paths.
+P = r'(?:/|~/)[^\s\x00]+|\d+'
+
+
+def _path(value, paths):
+    token = re.fullmatch(r'(\d+)', value or '')
+    return paths[int(token.group(1))] if token and int(token.group(1)) < len(paths) else value
+
+
+def _spaced(parse, text):
+    """Retry `parse` with spaced paths masked, only when the plain reading failed."""
+    from .literal_paths import mask_paths
+    masked, paths = mask_paths(text, skip_quoted=True, marker='\ue000{index}\ue001')
+    if not any(' ' in path or '\t' in path for path in paths):
+        return None
+    return parse(masked, paths)
+
 
 def file_transfer(text):
-    write = re.fullmatch(r'(Create (?:a (?:[\w#+]+ )?)?file(?: at)?|Edit) ((?:/|~/)[^\s\x00]+) (?:containing|to contain|saying) ([\'\"])(.*?)\3', text.strip(), re.I|re.S)
+    return _file_transfer(text, ()) or _spaced(_file_transfer, text)
+
+
+def _file_transfer(text, paths):
+    write = re.fullmatch(r'(Create (?:a (?:[\w#+]+ )?)?file(?: at)?|Edit) (' + P + r') (?:containing|to contain|saying) ([\'\"])(.*?)\3', text.strip(), re.I|re.S)
     if write:
         verb,path,_,content = write.groups()
+        path = _path(path, paths)
         if '\x00' in content or len(content)>80000:return None
         return {'confidence':1, 'clarification':'', 'steps':[
             {'intent':'filesystem.edit_file' if verb.casefold()=='edit' else 'filesystem.create_file',
              'entities':{'path':path,'text':content},'references':{}}]}
-    trash = re.fullmatch(r'(?:Delete|Trash) ((?:/|~/)[^\s\x00]+)', text.strip(), re.I)
+    trash = re.fullmatch(r'(?:Delete|Trash) (' + P + r')', text.strip(), re.I)
     if trash:
         return {'confidence':1, 'clarification':'', 'steps':[
-            {'intent':'filesystem.trash','entities':{'path':trash.group(1)},'references':{}}]}
-    found = re.fullmatch(r'(?:Find|Locate) ([\w][\w.-]{0,200}) in ((?:/|~/)[^\s\x00]+) and (copy|move) it (?:to|into) ((?:/|~/)[^\s\x00]+?)[.]?',
+            {'intent':'filesystem.trash','entities':{'path':_path(trash.group(1), paths)},'references':{}}]}
+    found = re.fullmatch(r'(?:Find|Locate) ([\w][\w.-]{0,200}) in (' + P + r') and (copy|move) it (?:to|into) ((?:/|~/)[^\s\x00]+?|\d+)[.]?',
                          text.strip(), re.I)
     if found:
         name, folder, verb, destination = found.groups()
+        folder, destination = _path(folder, paths), _path(destination, paths)
         # A literal filename in a named folder: search that folder, then transfer
         # the single verified result (never the folder itself).
         return {'confidence': 1, 'clarification': '', 'steps': [
@@ -26,15 +50,16 @@ def file_transfer(text):
              'references': {'path': 'path'}}]}
     # Unquoted absolute paths without spaces are unambiguous. Other phrasing,
     # relative references and quoted filenames use the existing interpreter.
-    match = re.fullmatch(r'(Copy|Move) ((?:/|~/)[^\s\x00]+) (?:to|into) ((?:/|~/)[^\s\x00]+)', text.strip(), re.I)
+    match = re.fullmatch(r'(Copy|Move) (' + P + r') (?:to|into) (' + P + r')', text.strip(), re.I)
     if not match:
         return None
     verb, source, destination = match.groups()
+    source, destination = _path(source, paths), _path(destination, paths)
     return {'confidence':1, 'clarification':'', 'steps':[
         {'intent':'filesystem.'+verb.lower(), 'entities':{'path':source,'destination':destination}, 'references':{}}]}
 
 
-PATH = r'((?:/|~/)[^\s\x00]+?)'
+PATH = r'((?:/|~/)[^\s\x00]+?|\d+)'
 
 
 def _step(intent, **entities):
@@ -43,19 +68,23 @@ def _step(intent, **entities):
 
 def directory_request(text):
     """Explicit folder creation/listing/rename with unambiguous absolute paths."""
+    return _directory_request(text, ()) or _spaced(_directory_request, text)
+
+
+def _directory_request(text, paths):
     value = re.sub(r'^(?:please\s+)', '', text.strip(), flags=re.I)
     match = re.fullmatch(r'(?:Create|Make) (?:a |an |the )?(?:new )?(?:folder|directory)(?: (?:at|called|named))? '
                          + PATH + r'[.]?', value, re.I)
     if match:
-        return _step('filesystem.create_directory', path=match.group(1))
+        return _step('filesystem.create_directory', path=_path(match.group(1), paths))
     match = re.fullmatch(r'(?:List|Show)(?: me)? (?:the |all )?(?:files|contents|items|entries)(?: (?:in|of|inside))? '
                          + PATH + r'[.]?', value, re.I)
     if match:
-        return _step('filesystem.list', path=match.group(1))
+        return _step('filesystem.list', path=_path(match.group(1), paths))
     match = re.fullmatch(r'Rename ' + PATH + r' (?:to|as) ([\'"]?)([^\s/\x00\'"]{1,255})\2[.]?', value, re.I)
     if match and match.group(3) not in {'.', '..'}:
         from pathlib import Path
-        source = match.group(1)
+        source = _path(match.group(1), paths)
         return {'confidence': 1, 'clarification': '', 'steps': [{'intent': 'filesystem.move', 'entities': {
             'path': source, 'destination': str(Path(source).expanduser().parent / match.group(3))}, 'references': {}}]}
     return None

@@ -647,7 +647,7 @@ class StudioToolingController:
 
     async def terminal_open(self, workspace_id: str, shell: str = "") -> dict:
         import sys
-        shell = shell or ("bash" if sys.platform == "linux" else "powershell")
+        shell = shell or {"linux": "bash", "darwin": "zsh"}.get(sys.platform, "powershell")
         workspace = self._workspace(workspace_id)
         return await self._direct("studio.terminal", {"workspace": workspace.id, "shell": shell}, f"Open a {shell} terminal in {workspace.title}")
 

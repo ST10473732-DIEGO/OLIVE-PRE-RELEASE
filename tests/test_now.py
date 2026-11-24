@@ -15,6 +15,7 @@ from olive.bridge.public_errors import public_error
 from olive.models import Chat
 from olive.research.models import SearchResult, PageObservation
 from olive.services.model_registry import ModelCapability
+from olive.services.presets import PRESETS
 from olive.services.now_service import PRIMARY, HEAVY, is_fresh, public_question, supplied_citations, current_state_kind, current_snapshot
 from olive.services.now_weather import NowError, OpenMeteoWeather, weather_request
 
@@ -38,7 +39,8 @@ class NowTests(unittest.IsolatedAsyncioTestCase):
         self.host.services = self.s
         self.s.permissions.save({'network.read': 'allow', 'network.search': 'allow'})
         for model in (PRIMARY, HEAVY):
-            self.s.model_registry.models[model] = ModelCapability(model, True, ('completion',), 32768, 'general')
+            self.s.model_registry.models[model] = ModelCapability(model, True, ('completion',), 32768, 'general',
+                digest=PRESETS['max']['pinned_digest'] if model == HEAVY else '')
             self.s.ollama._context_length_cache[model] = 32768
             self.s.ollama._artifact_cache[model] = {'thinking_values': (False, True)}
         self.s.ollama.unload_model = AsyncMock()
@@ -119,6 +121,14 @@ class NowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.calls[-1]['model'], PRIMARY)
         self.assertIn('escalation unavailable', self.chat.messages[-1].provider['route_reason'])
         self.assertTrue(self.s.presets.get('now')['available'])
+
+    async def test_heavy_research_refuses_unpinned_model_replacement(self):
+        self.assertEqual(HEAVY, PRESETS['max']['model'])
+        self.s.model_registry.models[HEAVY].digest = '0' * 64
+        self.assertFalse(self.s.now.installed(HEAVY))
+        await self.send('Compare current estimates for Elon Musk')
+        self.assertEqual(self.calls[-1]['model'], PRIMARY)
+        self.assertIn('escalation unavailable', self.chat.messages[-1].provider['route_reason'])
 
     async def test_primary_unavailable_no_retrieval_no_download_no_inference(self):
         del self.s.model_registry.models[PRIMARY]

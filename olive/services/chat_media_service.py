@@ -28,6 +28,7 @@ from . import video_assembly as assembly
 from . import video_duration as durations
 from .media_engines import MediaEngines
 from .media_errors import MediaError
+from . import macos_mflux, macos_kokoro, macos_wan
 from .media_workflows import LTX_I2V, image_graph, route, video_graph, video_size
 from .voicestudio import VoiceStudio
 
@@ -84,6 +85,18 @@ class ChatMediaService:
     # ------------------------------------------------------------------ status
     def status(self, preset):
         kind = MEDIA_PRESETS[preset]
+        if kind == 'image' and macos_mflux.available():
+            return {'available': True, 'status': 'Ready', 'engine_state': 'ready',
+                    'runtime': 'Native macOS MFLUX · FLUX.2 Klein 4B',
+                    'capabilities': ['text-to-image','image-edit'] if macos_mflux.edit_available() else ['text-to-image']}
+        if kind == 'audio' and macos_kokoro.available():
+            return {'available': True, 'status': 'Ready', 'engine_state': 'ready',
+                    'runtime': 'Native macOS Kokoro 82M · MLX',
+                    'capabilities': ['text-to-speech']}
+        if kind == 'video' and macos_wan.available():
+            return {'available': True, 'status': 'Ready', 'engine_state': 'ready',
+                    'runtime': 'Native macOS Wan2.1 1.3B · MLX (short silent clips)',
+                    'capabilities': ['text-to-video','silent-video']}
         if kind == 'audio':
             last = self.voice.last
             state = last.get('state', 'unknown')
@@ -136,6 +149,8 @@ class ChatMediaService:
         """Voices the local service lists, only once it is verified local-only.
         Opening AUDIO may start OLIVE's own loopback service (no model load)."""
         selected = self.s.settings.get('media_audio_voice', 'default')
+        if macos_kokoro.available():
+            return {'selected': 'af_heart', 'voices': [{'id':'af_heart', 'name':'Kokoro Heart (English)'}]}
         status = await self.voice.status()
         if status['state'] == 'stopped':
             try:
@@ -166,6 +181,16 @@ class ChatMediaService:
 
     def video_capability(self):
         """What VIDEO can do here; the Remote AI panel and OLIVE Mobile read this."""
+        if macos_wan.available():
+            return {'supports_text_to_video': True, 'supports_image_to_video': False,
+                    'supports_audio': False, 'native_segment_seconds': macos_wan.DURATION,
+                    'fps': 16, 'max_images': 0, 'accepted_attachment_kinds': [],
+                    'continuation': 'none',
+                    'duration': {'configurable': False, 'default_seconds': macos_wan.DURATION,
+                                 'maximum_seconds': macos_wan.DURATION,
+                                 'minimum_seconds': macos_wan.DURATION,
+                                 'long_video_warning_seconds': macos_wan.DURATION,
+                                 'presets': [macos_wan.DURATION], 'setting': 'fixed-native-mlx'}}
         policy = self.video_policy()
         states = self.engines.video.workflow_states() if self.engines.video.configured() else {}
         long_form = bool(assembly.tools())
@@ -189,6 +214,18 @@ class ChatMediaService:
     def video_plan(self, text='', duration=None, images=0):
         """Resolve and plan a VIDEO request for the composer: target, segments and a
         measured estimate. Pure planning; nothing starts."""
+        if macos_wan.available():
+            stated,_ = durations.parse_duration(text)
+            explicit = duration is not None
+            incompatible = (images>0 or explicit and (type(duration) not in (int,float) or abs(float(duration)-macos_wan.DURATION)>0.05)
+                            or not explicit and stated is not None and abs(stated-macos_wan.DURATION)>0.05)
+            return {'policy': self.video_capability()['duration'],
+                    'capability': self.video_capability(),
+                    'error': 'video_image_unsupported' if images else 'video_duration_too_long' if incompatible else None,
+                    'message': 'This native MLX mode makes fixed 1.25-second silent clips.' if incompatible else '',
+                    'target_seconds': macos_wan.DURATION, 'source': 'native-fixed',
+                    'segments': 1, 'native_segment_seconds': macos_wan.DURATION,
+                    'estimate_seconds': None, 'long': False}
         policy = self.video_policy()
         result = {'policy': policy.public(), 'capability': self.video_capability(), 'error': None, 'message': ''}
         try:
@@ -207,6 +244,21 @@ class ChatMediaService:
         return result
 
     def _plan_video(self, request, text, images, options):
+        if macos_wan.available():
+            if images:
+                raise MediaError('video_image_unsupported')
+            options=options or {}
+            desired=options.get('target_duration_seconds')
+            spoken,span=durations.parse_duration(text)
+            if desired is not None:
+                if type(desired) not in (int,float) or abs(float(desired)-macos_wan.DURATION)>0.05:
+                    raise MediaError('video_duration_too_long',limit='1.25 seconds')
+            elif spoken is not None and abs(spoken-macos_wan.DURATION)>0.05:
+                raise MediaError('video_duration_too_long',limit='1.25 seconds')
+            request.update(plan=None, target_duration_seconds=macos_wan.DURATION,
+                           duration_source='native-fixed',
+                           generation_prompt=durations.strip_duration(text,span) if span else text)
+            return
         policy = self.video_policy()
         i2v = self.image_to_video_ready()
         if len(images) > 1:
@@ -251,10 +303,12 @@ class ChatMediaService:
             raise MediaError('attachment_unsupported_mode')
         request = {'kind': kind, 'mode': chat.preset, 'prompt': text, 'references': []}
         # Fail fast, before the text model is unloaded, when nothing is set up.
-        if kind == 'audio' and not self.voice.url:
+        if kind == 'audio' and not self.voice.url and not macos_kokoro.available():
             raise MediaError('audio_not_configured')
-        if kind != 'audio' and not self.engines.get(kind).configured():
+        if kind != 'audio' and not self.engines.get(kind).configured() and not (kind == 'image' and macos_mflux.available()) and not (kind == 'video' and macos_wan.available()):
             raise MediaError(f'{kind}_not_configured')
+        if kind == 'image' and macos_mflux.available() and images and not macos_mflux.edit_available():
+            raise MediaError('attachment_unsupported_mode')
         if kind == 'audio':
             if images:
                 raise MediaError('attachment_unsupported_mode')
@@ -384,7 +438,13 @@ class ChatMediaService:
                     if kind == 'audio':
                         return await self._audio(request, cancel, progress)
                     if kind == 'video':
+                        if macos_wan.available():
+                            await self._take_gpu(None, progress)
+                            return await macos_wan.generate(self.media,request,cancel,progress)
                         return await self._video(request, cancel, progress)
+                    if kind == 'image' and macos_mflux.available():
+                        await self._take_gpu(None, progress)
+                        return await macos_mflux.generate(self.media, request, cancel, progress)
                     return await self._comfy(kind, request, cancel, progress)
                 finally:
                     residency.active = None
@@ -393,6 +453,9 @@ class ChatMediaService:
             self.progress.pop(chat_id, None)
 
     async def _audio(self, request, cancel, progress):
+        if macos_kokoro.available():
+            await self._take_gpu(None, progress)
+            return await macos_kokoro.generate(self.media,request,cancel,progress)
         if not self.voice.url:
             raise MediaError('audio_not_configured')
         await self._take_gpu(None, progress)

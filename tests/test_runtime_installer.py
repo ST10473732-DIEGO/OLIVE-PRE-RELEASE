@@ -331,12 +331,12 @@ class ComponentTests(InstallerTestCase):
         import importlib
         self.assertEqual(importlib.import_module('olive_fixture_component').VALUE, 42)
         from olive.services.optional_components import activate
-        self.assertEqual(activate(self.profile, self.env), ['fixture-playwright'])
+        self.assertEqual(activate(self.profile, self.env, platform='linux', home=self.home), ['fixture-playwright'])
         plan = await self.installer.plan('complete')
         self.assertEqual(next(r for r in plan['items'] if r['slot'] == 'playwright')['action'], 'present')
         await self.installer.uninstall('fixture-playwright')
         self.assertFalse(destination.exists())
-        self.assertEqual(activate(self.profile, self.env), [])
+        self.assertEqual(activate(self.profile, self.env, platform='linux', home=self.home), [])
 
     async def test_uninstall_refuses_a_folder_without_its_marker(self):
         await self.run_job('complete', ['fixture-playwright'])

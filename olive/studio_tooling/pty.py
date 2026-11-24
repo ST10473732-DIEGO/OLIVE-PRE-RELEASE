@@ -36,6 +36,15 @@ def shell_command(shell: str) -> tuple[str, str]:
     return executable, " ".join(parts[1:])
 
 
+
+POSIX_PLATFORMS = {'linux', 'darwin'}
+
+
+def program_terminal_supported(platform=None) -> bool:
+    """Whether Studio can run a program inside its interactive terminal (POSIX PTY or ConPTY).
+    Elsewhere programs run through pipes, input included."""
+    return (sys.platform if platform is None else platform) in POSIX_PLATFORMS | {'win32'}
+
 class TerminalSession:
     def __init__(self, session_id: str, workspace_id: str, cwd: str, shell: str, title: str, loop: asyncio.AbstractEventLoop, publish):
         self.id = session_id
@@ -59,7 +68,7 @@ class TerminalSession:
         self._flush_handle = None
 
     def start(self, environment: dict[str, str], command=None):
-        if sys.platform == 'linux':
+        if sys.platform in POSIX_PLATFORMS:  # Linux and macOS share the POSIX PTY and supervisor.
             from .posix_pty import PosixPTY
             self.pty = PosixPTY(self.columns, self.rows, self.cwd, environment, self.shell, command)
             self.pid = self.pty.pid
@@ -69,7 +78,7 @@ class TerminalSession:
             return
         from ..platform_support import PlatformUnavailable, unavailable_message
         if sys.platform != 'win32':
-            raise PlatformUnavailable(unavailable_message('Studio interactive terminal'))  # macOS: not yet.
+            raise PlatformUnavailable(unavailable_message('Studio interactive terminal'))
         import importlib.util
         if importlib.util.find_spec("winpty") is None:
             # pywinpty is a core Windows dependency (packaged backends include it); a source

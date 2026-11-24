@@ -1,4 +1,34 @@
 import path from "node:path";
+import { userInfo } from "node:os";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+
+export const WORKSPACE_ANCHOR = "docs/external-workspace-anchor.json";
+
+/**
+ * The external macOS workspace that contains this app: the nearest folder above `executable`
+ * whose workspace anchor names that same folder as its root. No path is built in; the anchor
+ * (and its recorded volume UUID, checked by the caller) identifies the workspace.
+ * OLIVE_MACOS_EXTERNAL_ROOT may name it explicitly, but must still contain the app.
+ */
+export function findExternalWorkspace(executable: string, env: NodeJS.ProcessEnv = process.env, volumes = "/Volumes") {
+  const app = realpathSync(executable);
+  const explicit = env.OLIVE_MACOS_EXTERNAL_ROOT;
+  const candidates: string[] = [];
+  if (explicit) candidates.push(explicit);
+  else for (let folder = path.dirname(app); folder !== path.dirname(folder); folder = path.dirname(folder)) candidates.push(folder);
+  for (const folder of candidates) {
+    const anchorFile = path.join(folder, WORKSPACE_ANCHOR);
+    if (!path.isAbsolute(folder) || !existsSync(anchorFile)) continue;
+    const anchor = JSON.parse(readFileSync(anchorFile, "utf8")) as { root?: string; volume_uuid?: string };
+    const inside = path.relative(folder, app);
+    if (anchor.root !== folder || typeof anchor.volume_uuid !== "string" || !/^[0-9A-F-]{36}$/i.test(anchor.volume_uuid) ||
+        inside.startsWith("..") || path.isAbsolute(inside)) continue;
+    const name = path.relative(volumes, folder).split(path.sep)[0];
+    if (!name || name === ".." || path.isAbsolute(name)) continue;  // A mounted volume, never the system disk.
+    return { root: folder, volume: path.join(volumes, name), volumeUuid: anchor.volume_uuid };
+  }
+  return null;
+}
 
 export function backendPython(root: string, packaged: boolean, env: NodeJS.ProcessEnv, platform = process.platform) {
   if (packaged) return path.join(root, platform === "win32" ? "python.exe" : "bin/python3");
@@ -34,6 +64,19 @@ export function backendEnvironment(
   result.OLIVE_APP_EXECUTABLE = env.APPIMAGE || options.executable;
   // The packaged app may start its own loopback Ollama when none is running (opt out with 0).
   result.OLIVE_START_OLLAMA = env.OLIVE_START_OLLAMA ?? "1";
+  if (process.platform === "darwin" && env.OLIVE_MACOS_KEYCHAIN_LOGIN_HOME === "1") {
+    // Apple Security.framework searches the login Keychain relative to the
+    // real user HOME. A fake SSD HOME made the signed bridge see itemNotFound.
+    // Keep the model runtime external by passing its original HOME separately.
+    const loginHome = userInfo().homedir;
+    const externalHome = env.HOME;
+    const workspace = env.OLIVE_MACOS_EXTERNAL_ROOT;
+    if (!workspace || !path.isAbsolute(workspace) || !externalHome?.startsWith(path.join(workspace, "envs") + "/") ||
+        !path.isAbsolute(loginHome) || loginHome === externalHome)
+      throw new Error("Cannot safely separate macOS Keychain and external model storage");
+    result.OLIVE_OLLAMA_EXTERNAL_HOME = externalHome;
+    result.HOME = loginHome;
+  }
   return result;
 }
 

@@ -132,14 +132,29 @@ if __name__ == '__main__':
 
 
 class MacStudioTerminalTests(unittest.TestCase):
-    def test_terminal_is_a_truthful_unavailable_state_on_macos_and_without_pywinpty(self):
+    def test_terminal_uses_the_posix_pty_on_macos_and_is_truthful_without_pywinpty(self):
         import asyncio
+        from olive.studio_tooling import posix_pty
         from olive.studio_tooling.pty import TerminalSession
         loop = asyncio.new_event_loop()
         try:
-            session = TerminalSession('s', 'w', '/', 'bash', 'Terminal', loop, lambda *a: None)
-            with patch('sys.platform', 'darwin'), self.assertRaisesRegex(PlatformUnavailable, 'not available on macOS'):
-                session.start({})
+            session = TerminalSession('s', 'w', '/', 'zsh', 'Terminal', loop, lambda *a: None)
+            started = []
+            class FakePTY:
+                pid = 4242
+                def __init__(self, *args):
+                    started.append(args)
+                def isalive(self):
+                    return True
+                def read(self, blocking=False):
+                    return ''
+            with patch('sys.platform', 'darwin'), patch.object(posix_pty, 'PosixPTY', FakePTY):
+                session.start({'PATH': '/bin'})
+            self.assertEqual((session.state, session.pid, started[0][4]), ('running', 4242, 'zsh'))
+            session._closing = True
+            unsupported = TerminalSession('u', 'w', '/', 'sh', 'Terminal', loop, lambda *a: None)
+            with patch('sys.platform', 'freebsd'), self.assertRaises(PlatformUnavailable):
+                unsupported.start({})
             with patch('sys.platform', 'win32'), patch('importlib.util.find_spec', return_value=None), \
                     self.assertRaisesRegex(PlatformUnavailable, 'pywinpty'):
                 session.start({})

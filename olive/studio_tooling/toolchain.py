@@ -50,6 +50,16 @@ def _executable(path: Path) -> str | None:
     return str(path) if path.is_file() and os.access(path, os.X_OK) else None
 
 
+def _macos_java_home_compiler() -> str | None:
+    """javac of the JDK macOS reports, or None when no JDK is installed (java_home exits non-zero)."""
+    try:
+        done = subprocess.run(["/usr/libexec/java_home"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    home = done.stdout.strip()
+    return _executable(Path(home) / "bin" / "javac") if done.returncode == 0 and home else None
+
+
 def java_executable(name: str = "java") -> str | None:
     """Resolve a complete JDK, keeping explicit JAVA_HOME authoritative."""
     if name not in {"java", "javac", "jar"}:
@@ -59,6 +69,10 @@ def java_executable(name: str = "java") -> str | None:
         directory = Path(configured) / "bin"
     else:
         compiler = shutil.which("javac")
+        if compiler and sys.platform == "darwin" and Path(compiler).resolve().parent == Path("/usr/bin"):
+            # macOS ships /usr/bin/java and javac as placeholders even without a JDK; running
+            # them only opens an "install Java" prompt. Ask java_home for a real JDK instead.
+            compiler = _macos_java_home_compiler()
         local = [root / "jdk" / "bin" for root in toolchain_roots()]
         directory = Path(compiler).resolve().parent if compiler else next(
             (d for d in local if all(_executable(d / _binary(tool)) for tool in ("java", "javac"))), local[0])
@@ -160,9 +174,9 @@ def inventory(root: str | Path | None = None) -> dict:
         "dotnet_debugger": tools["netcoredbg"],
         "python_debugger": {"available": (module_available(python, "debugpy") or module_available(sys.executable, "debugpy")), "provider": "debugpy"},
         "python_language_server": {"available": (module_available(python, "pylsp") or module_available(sys.executable, "pylsp")), "provider": "python-lsp-server"},
-        "terminal": {"available": sys.platform == "linux" or module_available(sys.executable, "winpty"),
-                     "provider": "Linux PTY" if sys.platform == "linux" else "pywinpty (ConPTY)",
-                     "shells": ["bash", "sh"] if sys.platform == "linux" else ["powershell", "cmd"]},
+        "terminal": {"available": sys.platform in {"linux", "darwin"} or module_available(sys.executable, "winpty"),
+                     "provider": {"linux": "Linux PTY", "darwin": "macOS PTY"}.get(sys.platform, "pywinpty (ConPTY)"),
+                     "shells": {"linux": ["bash", "sh"], "darwin": ["zsh", "bash", "sh"]}.get(sys.platform, ["powershell", "cmd"])},
     }
 
 

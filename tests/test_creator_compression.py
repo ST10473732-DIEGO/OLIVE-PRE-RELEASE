@@ -3,6 +3,7 @@ compression.zstd (libzstd compiled into python-build-standalone) with fixed, sin
 parameters, so the build machine's zstd, CPU count and paths cannot change a byte. Also the build
 provenance flag working_tree_clean, which must describe the source checkout, not the build's output."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -91,6 +92,8 @@ class CompressionSpecTests(unittest.TestCase):
                               Path(directory) / 'cache', fixture_compressor=Path(sys.executable))
         self.assertIn('fixture builds only', str(caught.exception))
 
+    @unittest.skipIf(importlib.util.find_spec('compression') is None,
+                     'needs Python 3.14+ (compression.zstd), as the pinned builder interpreter and CI use')
     def test_the_host_compressor_must_match_the_declared_version(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

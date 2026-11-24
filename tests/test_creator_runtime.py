@@ -420,7 +420,10 @@ def main():
     print(json.dumps({'argv': sys.argv[1:], 'prefix': sys.prefix}))
     return 7
 '''
-LONG_SEGMENT = 'long-' + 'x' * 150  # Pushes pip's interpreter path past distlib's 127-byte shebang limit.
+# distlib (pip) switches to its /bin/sh launcher past 127 bytes, or 512 on macOS, and for
+# any interpreter path containing a space. A macOS folder name holds at most 255 bytes.
+SHEBANG_LIMIT = 512 if sys.platform == 'darwin' else 127
+LONG_SEGMENT = '/'.join(['long-' + 'x' * 150] * (3 if sys.platform == 'darwin' else 1))  # macOS PATH_MAX is 1024
 
 
 @unittest.skipIf(sys.platform == 'win32', 'POSIX console-script launchers')
@@ -483,13 +486,19 @@ class ConsoleScriptRelocationTests(unittest.TestCase):
             'long-relative': self.install(Path('out'), cwd=self.root / LONG_SEGMENT / 'ws'),
         }
         roots = [str(case['stage']).encode() for case in cases.values()]
+        # A temporary folder that is itself long or contains a space makes every case long.
+        short_possible = ' ' not in str(cases['short']['stage']) and \
+            cases['short']['interpreter_length'] + 3 <= SHEBANG_LIMIT
         for name, case in cases.items():
             with self.subTest(name):
                 # pip's own choice of launcher, before OLIVE normalises it.
-                long_form = case['interpreter_length'] + 3 > 127
-                self.assertEqual(name.startswith('long'), long_form)
                 interpreter = str(case['stage']).encode() + b'/python/bin/python3'
-                expected = b"#!/bin/sh\n'''exec' " + interpreter + b' "$0" "$@"\n' if long_form else b'#!' + interpreter + b'\n'
+                spaced = b' ' in interpreter
+                long_form = spaced or case['interpreter_length'] + 3 > SHEBANG_LIMIT
+                if short_possible:
+                    self.assertEqual(name.startswith('long'), long_form)
+                shown = b'"' + interpreter + b'"' if spaced else interpreter
+                expected = b"#!/bin/sh\n'''exec' " + shown + b' "$0" "$@"\n' if long_form else b'#!' + interpreter + b'\n'
                 self.assertTrue(case['raw'].startswith(expected), case['raw'][:300])
                 # After normalisation: the canonical launcher, the same entry-point body, no build folder.
                 self.assertEqual(case['relocated'], ['bin/olive-echo'])
@@ -502,7 +511,8 @@ class ConsoleScriptRelocationTests(unittest.TestCase):
                 self.assertTrue(case['mode'] & stat.S_IXUSR)
                 self.assertEqual(case['record'][1:], [builder._record_hash(case['final']), str(len(case['final']))])
         self.assertEqual(len({case['final'] for case in cases.values()}), 1)  # Byte-identical everywhere.
-        self.assertNotEqual(cases['short']['raw'][:12], cases['long']['raw'][:12])  # Both pip forms were exercised.
+        if short_possible:
+            self.assertNotEqual(cases['short']['raw'][:12], cases['long']['raw'][:12])  # Both pip forms were exercised.
         # The relocated runtime still runs its own interpreter, with arguments and exit status intact.
         import subprocess
         for name in ('short', 'long-relative'):

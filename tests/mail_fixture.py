@@ -19,7 +19,11 @@ def certificate(directory,hostname_mismatch=False):
     cert=(x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
           .serial_number(x509.random_serial_number()).not_valid_before(instant-timedelta(minutes=1)).not_valid_after(instant+timedelta(days=1))
           .add_extension(x509.SubjectAlternativeName([x509.DNSName('wrong.invalid')] if hostname_mismatch else [x509.IPAddress(ipaddress.ip_address('127.0.0.1')),x509.DNSName('localhost')]),critical=False)
-          .add_extension(x509.BasicConstraints(ca=True,path_length=0),critical=True).sign(key,hashes.SHA256()))
+          .add_extension(x509.BasicConstraints(ca=True,path_length=0),critical=True)
+          # Key identifiers: two fixtures share a subject name, so trust lookup must match keys, not names.
+          .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()),critical=False)
+          .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(key.public_key()),critical=False)
+          .sign(key,hashes.SHA256()))
     pem=cert.public_bytes(serialization.Encoding.PEM);(directory/'certificate.pem').write_bytes(pem)
     (directory/'key.pem').write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
     context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(directory/'certificate.pem',directory/'key.pem')

@@ -235,7 +235,7 @@ export function TerminalPanel({
           </p>
           <div className="row wrap">
             {shells.map((shell, index) => <button key={shell} className={index === 0 ? "primary" : undefined} onClick={() => void open(shell)}>
-              Open {({ powershell: "PowerShell", cmd: "Command Prompt", bash: "Bash", sh: "POSIX shell" } as Record<string, string>)[shell] || shell}
+              Open {({ powershell: "PowerShell", cmd: "Command Prompt", bash: "Bash", zsh: "Zsh", sh: "POSIX shell" } as Record<string, string>)[shell] || shell}
             </button>)}
             <button className="quiet" onClick={() => setChoosing(false)}>
               Cancel

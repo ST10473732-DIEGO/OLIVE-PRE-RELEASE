@@ -185,6 +185,12 @@
       ],
       "icon": "../assets/branding/olive.icns",
       "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "OLIVE connects directly to your approved phone over your local network using encrypted pairing, notes, chat and files. Network access is optional and controlled in Devices.",
+        "NSBonjourServices": [
+          "_olive-connect._tcp"
+        ]
+      },
       "minimumSystemVersion": "12.0",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,

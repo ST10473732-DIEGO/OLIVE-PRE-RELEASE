@@ -165,7 +165,8 @@ class RunService:
             environment["PYTHONUNBUFFERED"] = "1"
         self.sessions[session.id] = session
         try:
-            if interactive and self.terminals is not None:
+            from ..studio_tooling.pty import program_terminal_supported
+            if interactive and self.terminals is not None and program_terminal_supported():
                 from ..studio_tooling.pty import ProgramProcess
                 process = ProgramProcess(self.terminals, workspace.id, directory, session.command, environment)
                 session.terminal_session_id = process.terminal.id

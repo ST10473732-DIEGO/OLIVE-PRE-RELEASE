@@ -47,12 +47,14 @@ def deactivate_path(path) -> None:
         sys.path.remove(value)
 
 
-def activate(profile, environ=None) -> list[str]:
-    """Make recorded components importable; returns the entry ids activated."""
+def activate(profile, environ=None, platform=None, home=None) -> list[str]:
+    """Make recorded components importable; returns the entry ids activated.
+
+    platform/home mirror RuntimeInstaller, so both agree on the components folder."""
     state, readable = SetupStateRepository(Path(profile)).load()
     if not readable:
         return []
-    root = Path(app_paths.user_data_root(environ)) / 'components'
+    root = Path(app_paths.user_data_root(environ, platform, home)) / 'components'
     active = []
     for entry_id, record in state['installed'].items():
         if record.get('kind') != 'python-wheels':

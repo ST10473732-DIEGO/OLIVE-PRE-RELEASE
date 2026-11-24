@@ -1,6 +1,8 @@
 """Serialize local inference and retain one actively managed model between tasks."""
 
 import asyncio
+import os
+import sys
 from contextlib import asynccontextmanager
 import time
 from .model_policy import validated_policy
@@ -27,7 +29,12 @@ class ModelResidencyService:
         self.providers[model] = (start, stop)
 
     def policy(self):
-        return validated_policy(self.settings())
+        value = self.settings()
+        if sys.platform == 'darwin' and os.environ.get('OLIVE_MACOS_RETAIN_TWO') == '1':
+            # Keep the normal model warm between text-only switches; media
+            # explicitly evacuates every managed model before using Metal.
+            value = {**value, 'keep_alive': 1800}
+        return validated_policy(value)
 
     async def refresh(self):
         self.loaded = await self.ollama.loaded_models()
@@ -46,16 +53,22 @@ class ModelResidencyService:
             if self.external_guard:
                 await self.external_guard()
             if self.current and self.current != model:
-                # Only unload the model this runtime last used; do not evict unrelated clients' work.
-                try:
-                    if self.current in self.providers:
-                        await self.providers[self.current][1]()
-                    else:
-                        await self.ollama.unload_model(self.current)
-                except Exception as error:
-                    # A missing model is already absent, not a failed eviction.
-                    if getattr(error, "status_code", None) != 404:
-                        raise
+                # macOS-only opt-in: Ollama can retain at most two text models
+                # (its own memory manager evicts least-recently-used models).
+                # Never retain MLX or another provider across a switch.
+                retain_text = (sys.platform == 'darwin'
+                               and os.environ.get('OLIVE_MACOS_RETAIN_TWO') == '1'
+                               and self.current not in self.providers
+                               and model not in self.providers)
+                if not retain_text:
+                    try:
+                        if self.current in self.providers:
+                            await self.providers[self.current][1]()
+                        else:
+                            await self.ollama.unload_model(self.current)
+                    except Exception as error:
+                        if getattr(error, "status_code", None) != 404:
+                            raise
                 self.switches += 1
                 self.current = None
             self.error = ""

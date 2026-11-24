@@ -4,10 +4,9 @@ from dataclasses import dataclass
 from typing import Callable, Iterable, TYPE_CHECKING
 import asyncio
 import logging
-import heapq
 
 from ..models import DocumentRef
-from ..storage.rag_store import RAGStore, StoredChunk, cosine_similarity
+from ..storage.rag_store import RAGStore, StoredChunk
 from .document_service import ExtractedDocument
 
 if TYPE_CHECKING:
@@ -113,15 +112,9 @@ class RAGService:
                 query_vector = vectors[0] if vectors else None
                 if query_vector:
                     candidate_limit = max(limit * 3, 18)
-                    heap: list[tuple[float, int, StoredChunk]] = []
-                    for chunk in self.store.iter_embedded_chunks(chat_id, model=self.embedding_model):
-                        score = cosine_similarity(query_vector, chunk.embedding or [])
-                        item = (score, chunk.id, chunk)
-                        if len(heap) < candidate_limit:
-                            heapq.heappush(heap, item)
-                        elif item[:2] > heap[0][:2]:
-                            heapq.heapreplace(heap, item)
-                    semantic = [(chunk, score) for score, _, chunk in sorted(heap, reverse=True)]
+                    # Scans float32 vector copies only, off the event loop, then loads the winners.
+                    semantic = await asyncio.to_thread(self.store.semantic_candidates, chat_id, query_vector,
+                                                       candidate_limit, self.embedding_model)
                     for rank, (chunk, score) in enumerate(semantic):
                         if score <= 0:
                             continue

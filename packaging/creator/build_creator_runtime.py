@@ -237,7 +237,7 @@ def relocate_scripts(stage: Path, definition: dict) -> list[str]:
     for path in sorted((python_root / 'bin').glob('*')):
         if not path.is_file() or path.is_symlink():
             continue
-        head = path.read_bytes()[:512]
+        head = path.read_bytes()[:8192]  # A long-form launcher's line exceeds 512 bytes (PATH_MAX is 1024-4096).
         match = SHEBANG.match(head)
         if not match or not _runtime_interpreter(match[1] or match[2], python_root / 'bin'):
             continue

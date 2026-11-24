@@ -1,6 +1,11 @@
 """Public product presets; provider identity and execution authority stay separate."""
 from copy import deepcopy
 
+from .model_policy import macos_model_profile
+
+# Release presets: these match the approved 1.0 runtime manifest (olive/runtime_manifest)
+# on every platform. The Mac Preview profile below is layered on top only in the packaged
+# native macOS app.
 PRESETS = {
     "fast": {"name": "OLIVE FAST", "model": "qwen3:8b", "pipeline": "chat", "role": "fast",
              "params": {"temperature": .3, "max_tokens": 4096}, "description": "Quick answers and code, with lower resource use."},
@@ -27,6 +32,42 @@ PRESETS = {
               "params": {}, "description": "Generate local video directly in Chat."},
 }
 MEDIA_PRESETS = ("reimagine", "audio", "video")
+
+# Mac Studio Preview model profile (M1 Max, 32 GB): the models qualified on that Mac, each
+# pinned to its installed digest. Applied only when the packaged native macOS app sets
+# OLIVE_MACOS_MODEL_PROFILE=1 (desktop/electron/main/index.ts); the release presets above
+# are what every other platform and the release manifest use.
+MACOS_PRESET_PROFILE = {
+    "fast": {"model": "qwen3.5:4b-q4_K_M",
+             "pinned_digest": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+             "description": "Low-latency private local AI, optimized for responsive answers and code."},
+    "normal": {"pinned_digest": "f38aa0c53da5f8c49d08c43a99df24ff53167fe68e24664a7777288e7656fdfe",
+               "params": {"temperature": .35, "max_tokens": 4096},
+               "description": "Reliable everyday private local reasoning."},
+    "max": {"model": "gpt-oss:20b",
+            "pinned_digest": "f38aa0c53da5f8c49d08c43a99df24ff53167fe68e24664a7777288e7656fdfe",
+            "description": "High-effort private reasoning and coding on the M1 Max; this is a Mac Preview candidate."},
+    "deep": {"pinned_digest": "f38aa0c53da5f8c49d08c43a99df24ff53167fe68e24664a7777288e7656fdfe"},
+}
+RELEASE_THINKING = {"fast": False, "max": False, "uncensored": False, "normal": "low", "deep": "low"}
+MACOS_THINKING = {**RELEASE_THINKING, "max": "high", "deep": "medium"}
+
+
+def profile_presets(macos):
+    presets = deepcopy(PRESETS)
+    if macos:
+        for key, values in MACOS_PRESET_PROFILE.items():
+            presets[key].update(deepcopy(values))
+    return presets
+
+
+MACOS_PROFILE = macos_model_profile()
+if MACOS_PROFILE:
+    # In place, so every module that imported PRESETS sees the same effective values.
+    for _key, _values in profile_presets(True).items():
+        PRESETS[_key].clear()
+        PRESETS[_key].update(_values)
+THINKING = MACOS_THINKING if MACOS_PROFILE else RELEASE_THINKING
 
 # Rollback: the MAX mapping before the 2026-09-25 promotion (see
 # docs/archive/agent/OLIVE_UNIFIED_AGENT_FINAL_CLOSEOUT.md). Restoring it is a one-line revert.
@@ -76,7 +117,7 @@ class PresetCatalog:
         result.update(
             id=key,
             runtime="Ollama",
-            thinking=False if key in {"fast", "max", "uncensored"} else "low" if key in {"normal", "deep"} else None,
+            thinking=THINKING.get(key),
             digest=getattr(info, "digest", ""),
             capabilities=list(model.capabilities) if model else [],
             status="Ready" if ready else "Needs setup",

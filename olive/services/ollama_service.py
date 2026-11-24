@@ -153,7 +153,10 @@ class OllamaService:
             # context the resident model already holds instead of paying for a reload.
             held = self._loaded_context.get(model, 0)
             result["num_ctx"] = max(result["num_ctx"], held)
-            self._loaded_context = {model: result["num_ctx"]}
+            # Remembered per model: two models can stay resident on macOS. Forgetting
+            # GPT-OSS's 8192 context after another model ran made the next 4096-token
+            # classification reload it, then the 8192-token answer reload it again.
+            self._loaded_context[model] = result["num_ctx"]
         return result
 
     async def ping(self) -> bool:

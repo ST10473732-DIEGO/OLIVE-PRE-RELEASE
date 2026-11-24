@@ -100,7 +100,7 @@ class ModelStateSyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_ordinary_presets_follow_inventory(self):
         for key in ('fast', 'normal', 'deep'):
             self.assertEqual(self.preset(key)['status'], 'Needs setup')
-        self.install('qwen3:8b')
+        self.install(PRESETS['fast']['model'], digest=PRESETS['fast'].get('pinned_digest', 'd'))  # pinned only on the Mac profile
         self.install(PRESETS['normal']['model'])
         self.install(PRESETS['max']['model'], digest=PRESETS['max']['pinned_digest'])
         await self.s.models.refresh()
