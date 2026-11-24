@@ -31,7 +31,7 @@ class SemanticIndexingTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(store.all_chunks_for_chat("chat")), 2)
             self.assertEqual(store.chunks_without_embeddings(), [])
             self.assertEqual(progress, [(1, 1)])
-            self.assertEqual(store.schema_version(), 3)
+            self.assertEqual(store.schema_version(), 4)  # schema 4 added float32 vector copies
             tags = {c.content: c.embedding_model for c in store.all_chunks_for_chat("chat")}
             self.assertEqual(tags, {"needs embedding": "embed", "already done": None})  # The existing vector is untouched.
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 import logging
 import asyncio
+import os
+import sys
 from ..config import DATA_DIR, EMBEDDING_MODEL
 from ..models import Chat
 from ..services.chat_service import ChatService
@@ -436,6 +438,24 @@ class ServiceContainer:
                 raise
         self.connect.sync.dispatch = dispatch_sync
         await asyncio.to_thread(self.connect.restore_network)
+        if sys.platform == 'darwin' and os.environ.get('OLIVE_CONNECT_START_DIAGNOSTICS') == '1':
+            # Private, content-free startup verdict; never log keys or peers.
+            try:
+                import json
+                from datetime import datetime, timezone
+                note = self.connect.profile / 'connect' / 'macos-startup-diagnostic.json'
+                note.write_text(json.dumps({
+                    'at': datetime.now(timezone.utc).isoformat(),
+                    'network_listening': self.connect.network is not None,
+                    'network_error': self.connect.network_error or None,
+                    'interface': (self.connect.network.interface.address
+                                  if self.connect.network else None),
+                    'port': (self.connect.network.port if self.connect.network else None),
+                    'world_enabled': self.connect.world.settings.load()['enabled'],
+                }, indent=2)+'\n')
+                note.chmod(0o600)
+            except Exception:
+                pass
         self.personal.scheduler.start()
         self.mail.background.start()
         try:
@@ -463,6 +483,24 @@ class ServiceContainer:
         self.publish_model_state()
         self.publish("desktop", self.desktop.status())
         await self.knowledge.resume_pending()
+        # Prewarm GPT-OSS asynchronously after the UI is usable. Do not delay
+        # runtime.ready, create chats, fetch remote models, or evict active work.
+        if (os.environ.get('OLIVE_MACOS_PREWARM_NORMAL') == '1'
+                and sys.platform == 'darwin'):
+            self._normal_warm_task = asyncio.create_task(self._prewarm_normal())
+
+    async def _prewarm_normal(self):
+        try:
+            await asyncio.sleep(2)
+            if self.closing or self.model_residency.current is not None:
+                return
+            if self.model_residency.lock.locked():
+                return
+            await self.ollama.warm('gpt-oss:20b')
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception('Nonfatal local NORMAL prewarm failed')
 
     async def _ensure_ollama(self):
         """First-run setup needs the local engine for model pulls: start an owned one if none answers."""
@@ -529,6 +567,10 @@ class ServiceContainer:
         await self.knowledge.execute_job(job)
 
     async def shutdown(self):
+        warm = getattr(self, '_normal_warm_task', None)
+        if warm is not None and not warm.done():
+            warm.cancel()
+            await asyncio.gather(warm, return_exceptions=True)
         try:
             if self.connect.inference is not None:
                 await self.connect.inference.shutdown()

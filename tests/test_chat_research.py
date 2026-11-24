@@ -10,6 +10,7 @@ from olive.bridge.host import Host
 from olive.models import DocumentRef
 from olive.research.models import SearchResult, PageObservation
 from olive.services.model_registry import ModelCapability
+from olive.services.presets import PRESETS
 from olive.services.chat_research_service import research_intent
 from olive.services.now_weather import NowError
 
@@ -24,7 +25,9 @@ class ChatResearchTests(unittest.IsolatedAsyncioTestCase):
         self.s.settings['automatic_memory_suggestions'] = False
         self.calls = []
         self.chat = self.s.chats[self.s.current_chat_id]
-        self.s.model_registry.models['gpt-oss:20b'] = ModelCapability('gpt-oss:20b', True, ('completion',), 32768, 'general')
+        self.s.model_registry.models['gpt-oss:20b'] = ModelCapability('gpt-oss:20b', True, ('completion',), 32768, 'general',
+            digest=PRESETS['normal'].get('pinned_digest', ''))
+        self.s.model_infos = [type('ModelInfoFixture', (), {'name': 'gpt-oss:20b', 'digest': PRESETS['normal'].get('pinned_digest', '')})()]
         self.s.ollama._context_length_cache['gpt-oss:20b'] = 32768
         self.s.presets.apply(self.chat, 'normal')
         self.s.ollama.client.chat = self.infer

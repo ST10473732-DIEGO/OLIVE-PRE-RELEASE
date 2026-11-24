@@ -17,7 +17,8 @@ class NativeExecutionProvider:
     name="native"
     def available(self):return True
     async def start(self,command,cwd,environment,limits,interactive=False,owned_children=False):
-        if sys.platform == "linux":
+        if sys.platform == "linux" or (sys.platform == "darwin" and owned_children):
+            # Owned jobs (Remote Studio) run under the POSIX supervisor, which reaps the whole tree on cancel.
             from ..studio_tooling.posix_process import start_owned_process
             return await start_owned_process(command, cwd=str(cwd), env=environment,
                 stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL,

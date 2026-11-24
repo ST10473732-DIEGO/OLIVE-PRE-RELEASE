@@ -134,8 +134,10 @@ class GenerationPipeline:
             "num_ctx": prepared.context.context_window,
             "repeat_penalty": float(chat.params.get("repeat_penalty", 1.08)),
         }
-        thinking = ({"think": False} if chat.preset in {"fast", "max"} else
-                    {"think": "low"} if chat.preset in {"normal", "deep"} else {})
+        thinking = ({"think": False} if chat.preset == "fast" else
+                    {"think": "low"} if chat.preset == "normal" else
+                    {"think": "medium"} if chat.preset == "deep" else
+                    {"think": "high"} if chat.preset == "max" else {})
         # An explicitly configured local model profile can select a runtime's
         # supported thinking control without changing a public preset or prompt.
         if not chat.preset and 'thinking' in chat.params:

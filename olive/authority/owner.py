@@ -77,7 +77,8 @@ class OwnerPolicy:
         grant=None
         if local and self.enabled():
             from ..interaction.deliverable import instruction_text, direct_deliverable
-            instruction=instruction_text(text)
+            from ..interaction.literal_paths import literal_paths
+            instruction=instruction_text(text)  # Literal paths are masked: their words are never instructions.
             answer_only = direct_deliverable(text, {}) is not None
             negated = frozenset(re.findall(r"\b(?:do not|don't|never)\s+(\w+)", instruction))
             forbidden_verbs = set(re.findall(r"\b(?:do not|don't|never)\s+(copy|move|rename|save|edit|fix|run|test|build|create|delete|trash)\b", instruction))
@@ -106,7 +107,7 @@ class OwnerPolicy:
             path_text = re.sub(r'([\'"])(?:(?!\1).)*?\1',
                 lambda m: m.group()[1:-1] if re.fullmatch(r'(?:~/|/)[^\n]+', m.group()[1:-1]) else '', path_text, flags=re.S)
             path_text = re.sub(r"\b(?:do not|don't|never)\s+[^.;\n]+", '', path_text, flags=re.I)
-            references = re.findall(r'(?<!\w)(?:~/|/)[^\s\'";,]+', path_text)
+            references = literal_paths(path_text)  # Paths may contain spaces.
             paths=set(references)
             source = destination = ''
             if effect in {'copy', 'move', 'rename'} and len(references) == 2:

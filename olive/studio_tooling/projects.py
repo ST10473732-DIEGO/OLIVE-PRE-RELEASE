@@ -296,8 +296,9 @@ def _discover_blocking(root: str | None) -> dict:
     languages.append({
         "id": "java", "label": "Java", "runtime": "JDK",
         "availability": READY if javac and java_version else TOOLCHAIN_MISSING,
-        "detail": (java_version or "JDK detected") if javac
-                  else "A JDK (javac) was not found. Install one, then refresh.",
+        "detail": java_version if javac and java_version
+                  else "A working JDK (javac) was not found: javac -version did not run. Install a JDK, then refresh."
+                  if javac else "A JDK (javac) was not found. Install one, then refresh.",
         "templates": [{"id": key, "label": item["label"], "description": item["description"], "network": False}
                       for key, item in LOCAL_TEMPLATES["java"].items()],
         "solution": False,

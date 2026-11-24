@@ -2,47 +2,67 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 export class Backend extends EventEmitter {
-  private child: ChildProcessWithoutNullStreams;
+  private child!: ChildProcessWithoutNullStreams;
   private buffer = Buffer.alloc(0);
-  private pending = new Map<
-    string,
-    {
-      resolve: (v: unknown) => void;
-      reject: (e: Error) => void;
-      timer: NodeJS.Timeout;
-    }
-  >();
-  private ready: Promise<void>;
+  private pending = new Map<string, {
+    resolve: (v: unknown) => void;
+    reject: (e: Error) => void;
+    timer: NodeJS.Timeout;
+  }>();
+  private ready!: Promise<void>;
   private dead = false;
-  constructor(python: string, args: string[], root: string, env: NodeJS.ProcessEnv) {
+  private closing = false;
+  private recoveryTimer?: NodeJS.Timeout;
+  private failures: number[] = [];
+  private readonly recover: boolean;
+  constructor(
+    private readonly python: string,
+    private readonly args: string[],
+    private readonly root: string,
+    private readonly env: NodeJS.ProcessEnv,
+  ) {
     super();
-    this.child = spawn(python, args, {
-      cwd: root,
-      windowsHide: true,
-      env,
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: false,
+    this.recover = env.OLIVE_RECOVER_PYTHON === "1" && process.platform === "darwin";
+    this.launch();
+  }
+  private launch() {
+    if (this.closing) return;
+    this.dead = false;
+    this.buffer = Buffer.alloc(0);
+    const child = spawn(this.python, this.args, {
+      cwd: this.root, windowsHide: true, env: this.env,
+      stdio: ["pipe", "pipe", "pipe"], shell: false,
     });
-    this.ready = new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("Python startup timed out")),
-        30000,
-      );
-      this.once("ready", () => {
+    this.child = child;
+    this.ready = new Promise<void>((resolve, reject) => {
+      const started = () => {
         clearTimeout(timer);
+        this.off("lost", disconnected);
         resolve();
-      });
-      this.once("lost", () => {
+      };
+      const disconnected = () => {
         clearTimeout(timer);
+        this.off("ready", started);
         reject(new Error("Python runtime unavailable"));
-      });
+      };
+      const timer = setTimeout(() => {
+        if (this.child === child) this.lost();
+      }, 30000);
+      this.once("ready", started);
+      this.once("lost", disconnected);
     });
     void this.ready.catch(() => undefined);
-    this.child.stdout.on("data", (chunk: Buffer) => this.receive(chunk));
-    // Deliberately do not forward backend diagnostic text into renderer state or logs.
-    this.child.stderr.on("data", () => undefined);
-    this.child.on("error", () => this.lost());
-    this.child.on("exit", () => this.lost());
+    child.stdout.on("data", (chunk: Buffer) => {
+      if (this.child === child) this.receive(chunk);
+    });
+    // Never forward diagnostic text to the renderer or console.
+    child.stderr.on("data", () => undefined);
+    child.on("error", () => {
+      if (this.child === child) this.lost(true);
+    });
+    child.on("exit", () => {
+      if (this.child === child) this.lost(true);
+    });
   }
   private receive(chunk: Buffer) {
     this.buffer = Buffer.concat([this.buffer, chunk]);
@@ -94,7 +114,7 @@ export class Backend extends EventEmitter {
     }
     if (this.buffer.length > 1048576) this.lost();
   }
-  private lost() {
+  private lost(recoverable = false) {
     if (this.dead) return;
     this.dead = true;
     this.child.stdin.destroy(); // EOF stops desktop input even if the renderer has vanished.
@@ -106,6 +126,21 @@ export class Backend extends EventEmitter {
     }
     this.pending.clear();
     this.emit("lost");
+    // Only a confirmed process exit/error can restart. A malformed backend
+    // protocol, oversized frame, or uncertain running child stays fail-closed.
+    if (recoverable && this.recover && !this.closing) {
+      const now = Date.now();
+      this.failures = this.failures.filter((time) => now - time < 300000);
+      if (this.failures.length < 3) {
+        this.failures.push(now);
+        this.recoveryTimer = setTimeout(() => {
+          this.recoveryTimer = undefined;
+          if (!this.closing) this.launch();
+        }, 2000);
+      } else {
+        this.emit("recovery_exhausted");
+      }
+    }
   }
   async request(
     method: string,
@@ -141,6 +176,12 @@ export class Backend extends EventEmitter {
     );
   }
   async close() {
+    this.closing = true;
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    if (this.dead) {
+      this.child.stdin.destroy();
+      return;
+    }
     this.stopControl();
     await Promise.race([
       this.request("runtime.shutdown", {}).catch(() => undefined),

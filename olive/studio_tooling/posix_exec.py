@@ -1,4 +1,4 @@
-"""Private Linux process supervisor; executed in a new session, never imported by UI.
+"""Private POSIX process supervisor (Linux, macOS); executed in a new session, never imported by UI.
 
 Subreaping is confined to this run so grandchildren are reaped without changing
 application-global process state. The child executes an argument array.
@@ -14,6 +14,25 @@ import time
 import psutil
 
 
+def _group_members(own):
+    """Processes left in the session this supervisor leads (macOS orphans); never itself.
+
+    A session, not just a process group: an interactive shell puts each job in its own
+    group, but every job of the terminal stays in this session unless it calls setsid."""
+    if sys.platform == 'linux':
+        return []  # The subreaper already re-parents orphans to this supervisor.
+    session = os.getsid(0)
+    members = []
+    for process in psutil.process_iter():
+        try:
+            # PID 0 would mean "myself" to getsid/kill; PID 1 is launchd.
+            if process.pid > 1 and process.pid != own and os.getsid(process.pid) == session:
+                members.append(process)
+        except (ProcessLookupError, PermissionError, psutil.Error):
+            pass
+    return members
+
+
 def main():
     ready = int(sys.argv[1])
     parent = int(sys.argv.pop(2))
@@ -22,7 +41,10 @@ def main():
         if os.getppid() != parent:
             raise OSError('The owning application has exited')
         # A dedicated process (not a preexec_fn in the threaded backend).
-        if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        # Linux: orphaned grandchildren re-parent to this supervisor. macOS has no subreaper;
+        # descendants are still found through the live tree, and orphans through the
+        # process group this new session leads (see _group_members).
+        if sys.platform == 'linux' and ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
             raise OSError('Could not establish owned child reaping')
         if os.isatty(0):
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
@@ -56,7 +78,7 @@ def main():
         # that created a different process group/session, may be signalled.
         owner = psutil.Process()
         while True:
-            for process in reversed(owner.children(recursive=True)):
+            for process in [*reversed(owner.children(recursive=True)), *_group_members(owner.pid)]:
                 try:
                     process.kill()
                 except psutil.NoSuchProcess:

@@ -60,7 +60,7 @@ class EmbeddingModelTagTests(unittest.IsolatedAsyncioTestCase):
         self.legacy_database()
         before = sqlite3.connect(self.path).execute('SELECT id, content, embedding_json FROM chunks').fetchall()
         store = RAGStore(self.path)
-        self.assertEqual(store.schema_version(), 3)
+        self.assertEqual(store.schema_version(), 4)  # schema 4 added float32 vector copies
         after = sqlite3.connect(self.path).execute('SELECT id, content, embedding_json, embedding_model FROM chunks').fetchall()
         self.assertEqual([row[:3] for row in after], before)
         self.assertEqual(after[0][3], None)  # Untagged legacy vector, left as it was.

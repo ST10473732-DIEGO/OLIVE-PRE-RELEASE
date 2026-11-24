@@ -39,7 +39,8 @@ CREATIVE = (
 
 ALL_MODELS = tuple(
     dict.fromkeys(
-        (*FAST, *BALANCED, *DEEP, *MAXIMUM, *CREATIVE)
+        (*FAST, *BALANCED, *DEEP, *MAXIMUM, *CREATIVE,
+         "olive-uncensored-defiant-q6:latest")
     )
 )
 

@@ -1,6 +1,15 @@
 """Validated local role preferences and conservative context budgets."""
 
 from contextvars import ContextVar
+import os
+import sys
+
+
+def macos_model_profile():
+    """True only in the packaged native macOS app, which sets OLIVE_MACOS_MODEL_PROFILE=1.
+    Source runs, tests and other platforms use the release model choices."""
+    return sys.platform == "darwin" and os.environ.get("OLIVE_MACOS_MODEL_PROFILE") == "1"
+
 
 REQUEST_ROLE = ContextVar("olive_model_role", default="general")
 # The one default embedding model. Semantic retrieval runs only when it (or another
@@ -15,6 +24,12 @@ CANDIDATES = {
     "vision": ("qwen3-vl:8b",),
     "embedding": (DEFAULT_EMBEDDING_MODEL,),
 }
+# Mac Studio Preview: the models qualified on the M1 Max are tried first.
+MACOS_CANDIDATES = {**CANDIDATES,
+                    "fast": ("qwen3.5:4b-q4_K_M", *CANDIDATES["fast"]),
+                    "vision": ("qwen3.5:9b", *CANDIDATES["vision"])}
+if macos_model_profile():
+    CANDIDATES.update(MACOS_CANDIDATES)
 CONTEXTS = {"fast": 4096, "general": 8192, "reasoning": 12288, "coding": 16384,
             "vision": 8192, "embedding": 2048}
 

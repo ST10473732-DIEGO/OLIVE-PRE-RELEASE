@@ -374,7 +374,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-@unittest.skipUnless(HAVE_WINPTY or sys.platform == "linux", "Native PTY required")
+@unittest.skipUnless(HAVE_WINPTY or sys.platform in {"linux", "darwin"}, "Native PTY required")
 class ControllerPolicyTests(unittest.IsolatedAsyncioTestCase):
     """Tooling starts pass the permission engine: Deny blocks, Ask is satisfied by the direct UI action and audited."""
 
@@ -403,19 +403,19 @@ class ControllerPolicyTests(unittest.IsolatedAsyncioTestCase):
         policies["permissions"]["terminal.execute"] = "deny"
         self.s.permissions.save(policies["permissions"], policies["scopes"])
         with self.assertRaises(StudioToolingError):
-            await self.s.studio_tooling.terminal_open(self.workspace.id, ("bash" if sys.platform == "linux" else "cmd"))
+            await self.s.studio_tooling.terminal_open(self.workspace.id, ("bash" if sys.platform in {"linux", "darwin"} else "cmd"))
         policies["permissions"]["terminal.execute"] = "ask"
         self.s.permissions.save(policies["permissions"], policies["scopes"])
-        status = await self.s.studio_tooling.terminal_open(self.workspace.id, ("bash" if sys.platform == "linux" else "cmd"))
-        self.assertEqual((status["state"], status["trust"], status["shell"]), ("running", "native", ("bash" if sys.platform == "linux" else "cmd")))
+        status = await self.s.studio_tooling.terminal_open(self.workspace.id, ("bash" if sys.platform in {"linux", "darwin"} else "cmd"))
+        self.assertEqual((status["state"], status["trust"], status["shell"]), ("running", "native", ("bash" if sys.platform in {"linux", "darwin"} else "cmd")))
         tasks = [task for task in self.s.agent_task_repo.load_all().values() if "terminal" in task.user_request.lower()]
         self.assertTrue(tasks and tasks[-1].state == "completed")
         self.s.studio_tooling.terminal_close(status["session_id"])
         with self.assertRaises(PermissionError):
-            await self.s.studio_tooling.terminal_open("not-a-workspace", ("bash" if sys.platform == "linux" else "cmd"))
+            await self.s.studio_tooling.terminal_open("not-a-workspace", ("bash" if sys.platform in {"linux", "darwin"} else "cmd"))
         from olive.bridge.tooling_routes import call
         with self.assertRaises(StudioToolingError):
-            await call(self.s, "terminal.open", {"workspace_id": "not-a-workspace", "shell": ("bash" if sys.platform == "linux" else "cmd")})
+            await call(self.s, "terminal.open", {"workspace_id": "not-a-workspace", "shell": ("bash" if sys.platform in {"linux", "darwin"} else "cmd")})
 
 
     @unittest.skipUnless(HAVE_DOTNET and HAVE_NETCOREDBG, "Installed C# debugger required")

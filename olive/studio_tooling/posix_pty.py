@@ -16,15 +16,21 @@ import threading
 import time
 
 
+# zsh is the macOS default; -f skips its rc files as --noprofile --norc does for bash.
+SHELLS = {'bash': ['--noprofile', '--norc', '-i'], 'zsh': ['-f', '-i'], 'sh': ['-i']}
+
+
 class PosixPTY:
     def __init__(self, columns, rows, cwd, environment, shell, command=None):
         if not command:
-            if shell not in {'bash', 'sh'}:
-                raise ValueError('Choose a Linux shell: bash or sh')
+            if shell not in SHELLS:
+                raise ValueError('Choose a macOS shell: zsh, bash or sh' if sys.platform == 'darwin'
+                                 else 'Choose a Linux shell: bash or sh')
             executable = shutil.which(shell, path=environment.get('PATH'))
             if not executable:
                 raise FileNotFoundError(shell)
-            command = [executable, '--noprofile', '--norc', '-i'] if shell == 'bash' else [executable, '-i']
+            # No personal startup files, as before for bash: a predictable workspace shell.
+            command = [executable, *SHELLS[shell]]
         self.fd_lock = threading.RLock()
         self.master, slave = pty.openpty()
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')

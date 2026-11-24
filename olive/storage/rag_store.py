@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from array import array
+import heapq
 import json
 import math
+import operator
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -93,6 +96,19 @@ class RAGStore:
             # existing vectors are left exactly as they are (untagged), never rewritten here.
             self._ensure_column(conn, "chunks", "embedding_model", "TEXT")
             conn.execute("UPDATE schema_info SET version=3 WHERE component='rag' AND version < 3")
+            # Schema 4: a float32 copy of each vector plus its norm, so search does not parse
+            # JSON for every chunk. Additive: embedding_json stays authoritative and is still
+            # written, so earlier OLIVE builds keep reading and writing this database. If any
+            # build changes embedding_json without updating the copy, the trigger clears the
+            # copy; search then falls back to the JSON and the next start rebuilds it.
+            self._ensure_column(conn, "chunks", "embedding_f32", "BLOB")
+            self._ensure_column(conn, "chunks", "embedding_norm", "REAL")
+            conn.execute(
+                "CREATE TRIGGER IF NOT EXISTS chunks_embedding_copy_stale AFTER UPDATE OF embedding_json ON chunks "
+                "WHEN NEW.embedding_json IS NOT OLD.embedding_json AND NEW.embedding_f32 IS OLD.embedding_f32 "
+                "BEGIN UPDATE chunks SET embedding_f32=NULL, embedding_norm=NULL WHERE id=NEW.id; END")
+            self._backfill_vector_copies(conn)
+            conn.execute("UPDATE schema_info SET version=4 WHERE component='rag' AND version < 4")
             # FTS5 is available in standard CPython builds on modern Windows. Keep a graceful
             # fallback if a custom SQLite build lacks it.
             try:
@@ -101,6 +117,27 @@ class RAGStore:
                 )
             except sqlite3.OperationalError:
                 pass
+
+    @staticmethod
+    def _backfill_vector_copies(conn: sqlite3.Connection, batch_size: int = 500) -> int:
+        """Build missing float32 copies from embedding_json (first start, or after another build
+        rewrote vectors). Unparseable JSON is left alone, exactly as before."""
+        done = 0
+        last = 0
+        while True:
+            rows = conn.execute(
+                "SELECT id, embedding_json FROM chunks WHERE id>? AND embedding_json IS NOT NULL "
+                "AND embedding_f32 IS NULL ORDER BY id LIMIT ?", (last, batch_size)).fetchall()
+            if not rows:
+                return done
+            updates = []
+            for chunk_id, raw in rows:
+                last = chunk_id
+                copy = _vector_copy(_parse_vector(raw))
+                if copy is not None:
+                    updates.append((*copy, chunk_id))
+            conn.executemany("UPDATE chunks SET embedding_f32=?, embedding_norm=? WHERE id=?", updates)
+            done += len(updates)
 
     @staticmethod
     def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -145,11 +182,13 @@ class RAGStore:
             conn.execute("DELETE FROM chunks WHERE document_id=?", (document_id,))
 
             for row in rows:
+                copy = _vector_copy(row.get("embedding")) or (None, None)
                 cur = conn.execute(
                     """
                     INSERT INTO chunks(chat_id, document_id, document_name, chunk_index, page_number, content,
-                                       embedding_json, origin_type, ocr_confidence, embedding_model)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       embedding_json, origin_type, ocr_confidence, embedding_model,
+                                       embedding_f32, embedding_norm)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         row["chat_id"],
@@ -161,6 +200,7 @@ class RAGStore:
                         json.dumps(row.get("embedding")) if row.get("embedding") else None,
                         row.get("origin_type", "native_text"), row.get("ocr_confidence"),
                         row.get("embedding_model") if row.get("embedding") else None,
+                        *copy,
                     ),
                 )
                 try:
@@ -184,10 +224,11 @@ class RAGStore:
                 except sqlite3.OperationalError:pass
             conn.execute("DELETE FROM chunks WHERE document_id=?",(document_id,))
             for row in rows:
-                cur=conn.execute("""INSERT INTO chunks(chat_id,document_id,document_name,chunk_index,page_number,content,embedding_json,origin_type,ocr_confidence,embedding_model)
-                    VALUES(?,?,?,?,?,?,?,?,?,?)""",(row["chat_id"],document_id,row["document_name"],row["chunk_index"],row.get("page_number"),row["content"],
+                copy=_vector_copy(row.get("embedding")) or (None,None)
+                cur=conn.execute("""INSERT INTO chunks(chat_id,document_id,document_name,chunk_index,page_number,content,embedding_json,origin_type,ocr_confidence,embedding_model,embedding_f32,embedding_norm)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(row["chat_id"],document_id,row["document_name"],row["chunk_index"],row.get("page_number"),row["content"],
                     json.dumps(row.get("embedding")) if row.get("embedding") else None,row.get("origin_type","native_text"),row.get("ocr_confidence"),
-                    row.get("embedding_model") if row.get("embedding") else None))
+                    row.get("embedding_model") if row.get("embedding") else None,*copy))
                 try:conn.execute("INSERT INTO chunks_fts(content,chunk_id,chat_id,document_id) VALUES(?,?,?,?)",(row["content"],cur.lastrowid,row["chat_id"],document_id))
                 except sqlite3.OperationalError:pass
 
@@ -256,6 +297,56 @@ class RAGStore:
                 for row in rows:
                     yield self._row_to_chunk(row)
 
+    def semantic_candidates(self, chat_id: str, query_vector: list[float], limit: int,
+                            model: str | None = None, batch_size: int = 1000) -> list[tuple[StoredChunk, float]]:
+        """The `limit` comparable chunks most similar to `query_vector`, best first.
+
+        Same scores and tie order as cosine_similarity over iter_embedded_chunks, but reads
+        only ids and float32 vectors for the scan and full rows for the winners. Rows without
+        a float32 copy (written by an earlier build) are scored from their JSON.
+        """
+        if limit <= 0 or not query_vector:
+            return []
+        query = array("f", query_vector)
+        query_norm = math.sqrt(_dot(query, query))
+        if not query_norm:
+            return []
+        dimension = len(query)
+        same, extra = self._comparable(model)
+        sql = ("SELECT c.id, c.embedding_f32, c.embedding_norm, "
+               "CASE WHEN c.embedding_f32 IS NULL THEN c.embedding_json END FROM chunks c "
+               "WHERE c.chat_id=? AND c.embedding_json IS NOT NULL" + same + " ORDER BY c.id")
+        heap: list[tuple[float, int]] = []
+        with self._lock, self._connect() as conn:
+            cursor = conn.execute(sql, (chat_id, *extra))
+            while rows := cursor.fetchmany(max(1, batch_size)):
+                for chunk_id, blob, norm, raw in rows:
+                    if blob is not None:
+                        if len(blob) != 4 * dimension or not norm:
+                            continue
+                        vector = array("f")
+                        vector.frombytes(blob)
+                    else:
+                        copy = _vector_copy(_parse_vector(raw))
+                        if copy is None or len(copy[0]) != 4 * dimension or not copy[1]:
+                            continue
+                        vector = array("f")
+                        vector.frombytes(copy[0])
+                        norm = copy[1]
+                    item = (_dot(query, vector) / (query_norm * norm), chunk_id)
+                    if len(heap) < limit:
+                        heapq.heappush(heap, item)
+                    elif item > heap[0]:
+                        heapq.heapreplace(heap, item)
+            ranked = sorted(heap, reverse=True)
+            if not ranked:
+                return []
+            placeholders = ",".join("?" for _ in ranked)
+            rows = conn.execute("SELECT c.*, d.kind AS source_type FROM chunks c JOIN documents d ON d.id=c.document_id "
+                                f"WHERE c.id IN ({placeholders})", [chunk_id for _, chunk_id in ranked]).fetchall()
+        chunks = {row["id"]: self._row_to_chunk(row) for row in rows}
+        return [(chunks[chunk_id], score) for score, chunk_id in ranked if chunk_id in chunks]
+
     def has_embedded_chunks(self, chat_id: str, model: str | None = None) -> bool:
         same, extra = self._comparable(model)
         with self._lock, self._connect() as conn:
@@ -285,9 +376,11 @@ class RAGStore:
             return
         with self._lock, self._connect() as conn:
             conn.executemany(
-                "UPDATE chunks SET embedding_json=?, embedding_model=? WHERE id=? AND (embedding_json IS NULL"
+                "UPDATE chunks SET embedding_json=?, embedding_model=?, embedding_f32=?, embedding_norm=?"
+                " WHERE id=? AND (embedding_json IS NULL"
                 " OR (? IS NOT NULL AND embedding_model IS NOT NULL AND embedding_model<>?))",
-                [(json.dumps(vector), model, chunk_id, model, model) for chunk_id, vector in embeddings.items()],
+                [(json.dumps(vector), model, *(_vector_copy(vector) or (None, None)), chunk_id, model, model)
+                 for chunk_id, vector in embeddings.items()],
             )
 
     def document_stats(self, chat_id: str) -> list[dict]:
@@ -388,6 +481,33 @@ def _tokenise_query(text: str) -> list[str]:
     if token:
         out.append("".join(token))
     return out
+
+
+_dot = getattr(math, "sumprod", None) or (lambda a, b: sum(map(operator.mul, a, b)))  # sumprod: Python 3.12+
+
+
+def _parse_vector(raw):
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, list) else None
+
+
+def _vector_copy(vector) -> tuple[bytes, float] | None:
+    """float32 bytes and norm for a stored vector, or None if it cannot be compared."""
+    if not vector:
+        return None
+    try:
+        packed = array("f", vector)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    norm = math.sqrt(_dot(packed, packed))
+    if not math.isfinite(norm):
+        return None
+    return packed.tobytes(), norm
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:

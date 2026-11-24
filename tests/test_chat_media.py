@@ -589,7 +589,7 @@ class AudioTests(ChatMediaTests.__base__):
         Path(self.temp.name, '.venv', 'bin').mkdir(parents=True, exist_ok=True)
         Path(runtime.python).write_text('')
         with patch('olive.services.gpu_probe.port_bound', return_value=False), \
-             patch('olive.studio_tooling.posix_process.start_owned_process', new_callable=AsyncMock) as start, \
+             patch('olive.runtime.processes.start_owned_process', new_callable=AsyncMock) as start, \
              patch('psutil.Process'), patch.object(LocalVoiceStudioRuntime, 'healthy', new=AsyncMock(return_value=True)):
             start.return_value.returncode = None
             await runtime.start()
@@ -598,7 +598,7 @@ class AudioTests(ChatMediaTests.__base__):
         self.assertNotIn('uv', args[0])
         self.assertEqual((kwargs['env']['HF_HUB_OFFLINE'], kwargs['env']['TRANSFORMERS_OFFLINE']), ('1', '1'))
         with patch('olive.services.gpu_probe.port_bound', return_value=True), \
-             patch('olive.studio_tooling.posix_process.start_owned_process', new_callable=AsyncMock) as again:
+             patch('olive.runtime.processes.start_owned_process', new_callable=AsyncMock) as again:
             await runtime.start()  # A running service is never replaced.
         again.assert_not_awaited()
 

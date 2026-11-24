@@ -61,7 +61,19 @@ class LocalOllamaRuntime:
             await lock.acquire(300, 'Another local Ollama startup is still pending')
             if await self.ready():
                 return
-            env = dict(os.environ, OLLAMA_HOST='127.0.0.1:11434', OLLAMA_MAX_LOADED_MODELS='1', OLLAMA_NO_CLOUD='1', OLLAMA_NOPRUNE='1')
+            env = dict(os.environ, OLLAMA_HOST='127.0.0.1:11434',
+                OLLAMA_MAX_LOADED_MODELS=('2' if os.environ.get('OLIVE_MACOS_RETAIN_TWO') == '1' else '1'),
+                OLLAMA_KEEP_ALIVE=('1800' if os.environ.get('OLIVE_MACOS_RETAIN_TWO') == '1' else '300'),
+                OLLAMA_NO_CLOUD='1', OLLAMA_NOPRUNE='1')
+            if os.sys.platform == 'darwin' and os.environ.get('OLIVE_OLLAMA_EXTERNAL_HOME'):
+                # The signed Python bridge uses the actual login HOME so macOS
+                # Security.framework can find login-Keychain items. Its child
+                # Ollama engine still uses only the verified external HOME.
+                path = Path(os.environ['OLIVE_OLLAMA_EXTERNAL_HOME']).resolve()
+                models = Path(env.get('OLLAMA_MODELS', '')).resolve()
+                if not path.is_dir() or not models.is_dir() or path.parent.parent != models.parent.parent:
+                    raise RuntimeError('macOS external Ollama storage anchor mismatch')
+                env['HOME'] = str(path)
             if self.models and not env.get('OLLAMA_MODELS'):
                 env['OLLAMA_MODELS'] = str(self.models)
             import psutil

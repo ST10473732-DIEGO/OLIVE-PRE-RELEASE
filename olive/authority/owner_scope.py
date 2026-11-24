@@ -38,7 +38,8 @@ def literal_quotes(text):
 
 
 def _paths(text):
-    return re.findall(r'(?<![\w/])(?:~/|/)[^\s\'";,]+', text)
+    from ..interaction.literal_paths import literal_paths
+    return literal_paths(text)  # Paths may contain spaces.
 
 
 def extend(text, instruction, *, workspace='', answer_only=False, forbidden=frozenset(), code_target=False):
@@ -58,10 +59,12 @@ def extend(text, instruction, *, workspace='', answer_only=False, forbidden=froz
         capabilities.update({'filesystem.create_directory', 'filesystem.stat'})
         bindings['directories'] = frozenset(folder_paths)
     # Rename to a sibling name: "rename /a/b.txt to c.txt".
-    match = re.search(r'\brename\s+((?:~/|/)[^\s\'";,]+)\s+(?:to|as)\s+([\'"]?)([^\s/\'"\x00]{1,255})\2(?:\s|[.]?$)',
-                      _strip_payloads(text, keep_quotes=True), re.I)
+    from ..interaction.literal_paths import mask_paths
+    masked, named = mask_paths(_strip_payloads(text, keep_quotes=True), skip_quoted=True, marker='\ue000{index}\ue001')
+    match = re.search(r'\brename\s+(\d+)\s+(?:to|as)\s+([\'"]?)([^\s/\'"\x00]{1,255})\2(?:\s|[.]?$)',
+                      masked, re.I)
     if match and 'rename' not in forbidden and match.group(3) not in {'.', '..'}:
-        source = Path(match.group(1)).expanduser().resolve()
+        source = Path(named[int(match.group(1))]).expanduser().resolve()
         bindings['rename'] = (str(source), str(source.parent / match.group(3)))
         capabilities.update({'filesystem.move', 'filesystem.stat'})
     # Workspace code: requires a selected approved workspace and an explicit

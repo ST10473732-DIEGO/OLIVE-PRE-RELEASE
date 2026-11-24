@@ -52,7 +52,7 @@ class DDGSSearchProvider:
             return method(
                 query,
                 max_results=limit,
-                backend="auto" if category == "news" else "bing",
+                backend="auto" if category == "news" else "google",
                 timelimit="d" if freshness == "today" else "w" if freshness == "current" else "m" if freshness == "recent" else None,
             )
 

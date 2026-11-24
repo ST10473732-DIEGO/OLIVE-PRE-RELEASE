@@ -12,9 +12,11 @@ from ..research.evidence import extract_evidence, rank_sources
 from ..research.passages import MAX_EXCERPT
 from .context_service import estimate_tokens
 from .now_weather import NowError, weather_request
+from .presets import PRESETS
 
 PRIMARY = 'qwen3.5:9b'
-HEAVY = 'qwen3.8:27b'
+HEAVY = PRESETS['max']['model']
+HEAVY_DIGEST = PRESETS['max']['pinned_digest']
 MAX_SOURCES = 6
 
 
@@ -169,7 +171,9 @@ class NowService:
 
     def installed(self, name):
         model = self.s.model_registry.get(name)
-        return bool(model and model.installed and model.backend == 'ollama' and 'completion' in model.capabilities and not model.supports_embeddings)
+        return bool(model and model.installed and model.backend == 'ollama'
+                    and 'completion' in model.capabilities and not model.supports_embeddings
+                    and (name != HEAVY or model.digest == HEAVY_DIGEST))
 
     def require_local(self):
         endpoint = urlsplit(self.s.ollama.host if '://' in self.s.ollama.host else 'http://' + self.s.ollama.host)
